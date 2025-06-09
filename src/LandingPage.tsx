@@ -9,7 +9,20 @@ const LandingPage = () => {
     <div className="min-h-screen flex flex-col font-sans relative">
       {/* Background with overlay */}
       <div className="fixed inset-0 w-full h-full">
-        <div className="absolute inset-0 bg-[url('/img/bg.jpg')] bg-cover bg-center bg-no-repeat"></div>
+        <div 
+          className="absolute inset-0 bg-[url('/img/bg.jpg')] bg-cover bg-center bg-no-repeat
+            sm:bg-fixed bg-scroll
+            min-h-[100dvh] h-full w-full
+            scale-[1.02] sm:scale-100
+            transform-gpu"
+          style={{
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            imageRendering: 'crisp-edges',
+            WebkitBackfaceVisibility: 'hidden',
+            backfaceVisibility: 'hidden'
+          }}
+        ></div>
         <div className="absolute inset-0 bg-[#031730] opacity-70"></div>
         <div className="absolute inset-0 bg-black opacity-20"></div>
       </div>
@@ -22,7 +35,7 @@ const LandingPage = () => {
             <img src="/img/logo1.png" alt="SMCBI Logo" className="w-32 h-auto mb-6" />
             <h1 className="text-3xl md:text-5xl font-bold text-white tracking-wide text-center mb-10">
              
-              <span className="text-xl font-normal tracking-normal">SMCBI School Portal & Enrollment System</span>
+              <span className="text-base md:text-xl font-normal tracking-normal">SMCBI School Portal & Enrollment System</span>
             </h1>
             
             {/* Login Button */}
@@ -37,7 +50,22 @@ const LandingPage = () => {
               {/* Forgot Links */}
               <div className="flex justify-between w-full mt-2 text-white text-sm">
                 <a href="#" className="hover:underline"></a>
-                <a href="#" className="hover:underline">Forgot Password?</a>
+                <a href="#" className="hover:underline flex items-center gap-1.5 group">
+                  <svg 
+                    xmlns="http://www.w3.org/2000/svg" 
+                    viewBox="0 0 24 24" 
+                    fill="none" 
+                    stroke="currentColor" 
+                    strokeWidth="2" 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round" 
+                    className="w-4 h-4 transition-transform group-hover:scale-110"
+                  >
+                    <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                  </svg>
+                  Forgot Password?
+                </a>
               </div>
             </div>
           </div>
@@ -54,9 +82,15 @@ const LandingPage = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="w-full max-w-md p-6 relative animate-fade-in">
             <button
-              className="absolute -top-3 -right-3 w-8 h-8 flex items-center justify-center text-xl font-bold text-white bg-red-500 hover:bg-red-600 rounded-full shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 animate-pop-in hover:scale-110 hover:rotate-90"
+              className="absolute w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center text-lg sm:text-xl font-bold text-white bg-red-500 hover:bg-red-600 rounded-full shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 animate-pop-in hover:scale-110 hover:rotate-90
+                top-2 right-2 sm:top-3 sm:right-3"
               onClick={() => setShowLogin(false)}
               aria-label="Close Login"
+              style={{
+                backgroundColor: '#ef4444',
+                boxShadow: '0 2px 8px rgba(239, 68, 68, 0.3)',
+                zIndex: 50
+              }}
             >
               ×
             </button>
@@ -82,9 +116,9 @@ const LandingPage = () => {
           disabled={showLogin}
           className={`fixed z-40 bg-gradient-to-b from-green-400 to-green-500 text-white px-4 py-2 shadow-lg font-semibold text-sm transition-all duration-300 flex items-center gap-2 rounded-full hover:scale-105
             ${showLogin ? 'opacity-50 cursor-not-allowed' : ''}
+            sm:top-[40%] top-[15%] md:top-[40%] lg:top-[40%]
           `}
           style={{
-            top: '35%',
             right: showFeedback ? 'min(415px, calc(100% - 20px))' : '20px',
             transform: 'translateY(-50%) rotate(-90deg)',
             transformOrigin: 'right center',
@@ -121,9 +155,9 @@ const LandingPage = () => {
             showFeedback ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'
           }`} 
           style={{
-            width: 'min(400px, 90vw)',
+            width: 'min(400px, 92vw)',
             height: '80vh',
-            top: '40px',
+            top: '80px',
             borderRadius: '1.5rem 0 1.5rem 1.5rem',
             borderTopLeftRadius: '1.5rem',
             borderBottomLeftRadius: '1.5rem',
@@ -138,16 +172,22 @@ const LandingPage = () => {
           <div className="bg-transparent h-full shadow-none flex flex-col relative rounded-l-xl border-l-0">
             {/* Close Button */}
             <button
-              className="absolute top-4 right-4 text-2xl text-gray-500 hover:text-gray-700 focus:outline-none transition-transform duration-300 hover:scale-110"
+              className="absolute w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center text-lg sm:text-xl font-bold text-white bg-red-500 hover:bg-red-600 rounded-full shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 animate-pop-in hover:scale-110 hover:rotate-90
+                top-2 right-2 sm:top-3 sm:right-3"
               onClick={() => setShowFeedback(false)}
               aria-label="Close Feedback"
+              style={{
+                backgroundColor: '#ef4444',
+                boxShadow: '0 2px 8px rgba(239, 68, 68, 0.3)',
+                zIndex: 50
+              }}
             >
               ×
             </button>
             {/* Branding */}
-            <div className="flex items-center gap-2 px-8 pt-4 pb-4 border-b border-gray-200">
+            <div className="flex flex-col items-center justify-center gap-1 px-8 pt-4 pb-4 border-b border-gray-200">
               <img src="/img/logo1.png" alt="SMCBI Logo" className="w-10 h-10" />
-              <span className="font-bold text-lg text-[#002656]">SMCBI Student Portal</span>
+              <span className="font-medium text-sm text-[#002656]">Feedback Form</span>
             </div>
             {/* Feedback Content */}
             <div className="flex-1 overflow-y-auto px-8 py-6">
