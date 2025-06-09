@@ -22,7 +22,7 @@ const LandingPage = () => {
             <img src="/img/logo1.png" alt="SMCBI Logo" className="w-32 h-auto mb-6" />
             <h1 className="text-3xl md:text-5xl font-bold text-white tracking-wide text-center mb-10">
              
-              <span className="text-xl font-normal tracking-normal">SMCBI School Portal & Enrollment Syste</span>
+              <span className="text-xl font-normal tracking-normal">SMCBI School Portal & Enrollment System</span>
             </h1>
             
             {/* Login Button */}
