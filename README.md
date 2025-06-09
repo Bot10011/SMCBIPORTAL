@@ -200,11 +200,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 👥 Authors
 
-- **Jesson Mondejar** - *Initial work* - [Your GitHub](https://github.com/yourusername)
-- Jay Razon Ayop 
-Manilyn Bayoga Matanggo
-Ramsie Larecion 
-Retchel Cabaron 
+- **Jesson Mondejar** -  - [Your GitHub](https:/https://github.com/Bot10011))
+- **Jay Razon Ayop**
+- **Manilyn Bayoga Matanggo**
+- **Ramsie Larecion** 
+- **Retchel Cabaron** 
 
 ## 🙏 Acknowledgments
 
