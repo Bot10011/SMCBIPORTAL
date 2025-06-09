@@ -200,7 +200,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 👥 Authors
 
-- **Your Name** - *Initial work* - [Your GitHub](https://github.com/yourusername)
+- **Jesson Mondejar** - *Initial work* - [Your GitHub](https://github.com/yourusername)
+- Jay Razon Ayop 
+Manilyn Bayoga Matanggo
+Ramsie Larecion 
+Retchel Cabaron 
 
 ## 🙏 Acknowledgments
 
@@ -210,7 +214,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📞 Support
 
-For support, email support@smcbi.edu.ph or open an issue in the repository.
+For support, email  or open an issue in the repository.
 
 ---
 
