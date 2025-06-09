@@ -15,7 +15,7 @@
 
 ## 📋 Overview
 
-A modern, responsive web application for managing student enrollment, academic records, and administrative tasks at SMCBI. Built with cutting-edge technologies to provide a seamless user experience for students, teachers, administrators, and program heads.
+A modern, responsive web application for managing student enrollment, academic records, and administrative tasks at SMCBI. Built with cutting-edge technologies to provide a seamless user experience for students, teachers, administrators,Registrar and program heads.
 
 
 ### Installation
