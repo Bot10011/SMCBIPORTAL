@@ -53,7 +53,7 @@ A modern, responsive web application for managing student enrollment, academic r
 
 ## 👥 Authors
 
-- **Jesson Mondejar** -  - [Your GitHub](https:/https://github.com/Bot10011))
+- **Jesson Mondejar** 
 - **Jay Razon Ayop**
 - **Manilyn Bayoga Matanggo**
 - **Ramsie Larecion** 
