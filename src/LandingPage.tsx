@@ -38,22 +38,24 @@ const LandingPage = () => {
     <div className="min-h-screen flex flex-col font-sans relative">
       {/* Background with overlay */}
       <div className="fixed inset-0 w-full h-full">
-        <div 
-          className="absolute inset-0 bg-[url('/img/bg.jpg')] bg-cover bg-center bg-no-repeat
-            sm:bg-fixed bg-scroll
-            min-h-[100dvh] h-full w-full
-            scale-[1.02] sm:scale-100
-            transform-gpu"
+        <video 
+          className="absolute inset-0 w-full h-full object-cover scale-[1.02] sm:scale-100 transform-gpu filter blur-[2px]"
+          autoPlay
+          muted
+          loop
+          playsInline
           style={{
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            imageRendering: 'crisp-edges',
+            objectFit: 'cover',
+            objectPosition: 'center',
             WebkitBackfaceVisibility: 'hidden',
-            backfaceVisibility: 'hidden'
+            backfaceVisibility: 'hidden',
+            filter: 'blur(2px)'
           }}
-        ></div>
-        <div className="absolute inset-0 bg-[#031730] opacity-70"></div>
-        <div className="absolute inset-0 bg-black opacity-20"></div>
+        >
+          <source src="/img/bg.mp4" type="video/mp4" />
+        </video>
+        <div className="absolute inset-0 bg-[#031730] opacity-80"></div>
+        <div className="absolute inset-0 bg-black opacity-30"></div>
       </div>
 
       {/* Main Content */}
@@ -190,17 +192,45 @@ const LandingPage = () => {
             
             {/* Login Button */}
             <div className="w-full max-w-xs flex flex-col items-center">
-              <button
-                className="w-full py-3 px-8 rounded-lg bg-white text-[#002656] text-lg font-semibold shadow-md hover:bg-gray-100 transition mb-8"
+              <motion.button
+                className="group relative w-full py-3.5 px-8 rounded-xl bg-gradient-to-r from-[#2C3E50] via-[#34495E] to-[#2C3E50] text-white text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300 mb-8 overflow-hidden"
                 onClick={() => setShowLogin(true)}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.2 }}
               >
-                Log in
-              </button>
+                {/* Shine effect */}
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+                
+                {/* Button content */}
+                <div className="relative flex items-center justify-center gap-2">
+                  <span>Log in</span>
+                  <svg 
+                    xmlns="http://www.w3.org/2000/svg" 
+                    className="w-5 h-5 transform group-hover:translate-x-1 transition-transform duration-300" 
+                    fill="none" 
+                    viewBox="0 0 24 24" 
+                    stroke="currentColor"
+                  >
+                    <path 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round" 
+                      strokeWidth={2} 
+                      d="M13 7l5 5m0 0l-5 5m5-5H6" 
+                    />
+                  </svg>
+                </div>
+
+                {/* Glow effect */}
+                <div className="absolute inset-0 bg-gradient-to-r from-[#2C3E50]/30 via-[#34495E]/30 to-[#2C3E50]/30 opacity-0 group-hover:opacity-100 blur-xl transition-opacity duration-300" />
+              </motion.button>
               
               {/* Forgot Links */}
-              <div className="flex justify-between w-full mt-2 text-white text-sm">
-                <a href="#" className="hover:underline"></a>
-                <a href="#" className="hover:underline flex items-center gap-1.5 group">
+              <div className="flex justify-between w-full mt-2 text-white/90 text-sm">
+                <a href="#" className="hover:text-white hover:underline transition-colors duration-200"></a>
+                <a href="#" className="hover:text-white hover:underline flex items-center gap-1.5 group">
                   <svg 
                     xmlns="http://www.w3.org/2000/svg" 
                     viewBox="0 0 24 24" 
@@ -209,7 +239,7 @@ const LandingPage = () => {
                     strokeWidth="2" 
                     strokeLinecap="round" 
                     strokeLinejoin="round" 
-                    className="w-4 h-4 transition-transform group-hover:scale-110"
+                    className="w-4 h-4 transition-transform duration-300 group-hover:scale-110"
                   >
                     <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
                     <path d="M7 11V7a5 5 0 0 1 10 0v4" />
