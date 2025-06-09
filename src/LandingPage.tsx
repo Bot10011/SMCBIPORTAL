@@ -1,9 +1,38 @@
 import { useState } from 'react';
 import Login from './Login';
+import { motion, useMotionValue, useTransform, useSpring } from 'framer-motion';
 
 const LandingPage = () => {
   const [showLogin, setShowLogin] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
+
+  // Add motion values for 3D effect
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
+
+  // Transform mouse movement to rotation
+  const rotateX = useTransform(y, [-100, 100], [30, -30]);
+  const rotateY = useTransform(x, [-100, 100], [-30, 30]);
+
+  // Add spring physics for smooth movement
+  const springConfig = { damping: 15, stiffness: 150 };
+  const springRotateX = useSpring(rotateX, springConfig);
+  const springRotateY = useSpring(rotateY, springConfig);
+
+  // Handle mouse movement
+  const handleMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    x.set(event.clientX - centerX);
+    y.set(event.clientY - centerY);
+  };
+
+  // Reset position when mouse leaves
+  const handleMouseLeave = () => {
+    x.set(0);
+    y.set(0);
+  };
 
   return (
     <div className="min-h-screen flex flex-col font-sans relative">
@@ -32,7 +61,128 @@ const LandingPage = () => {
         {/* Logo Header */}
         <div className="flex-1 flex flex-col items-center justify-center">
           <div className="flex flex-col items-center w-full max-w-lg">
-            <img src="/img/logo1.png" alt="SMCBI Logo" className="w-32 h-auto mb-6" />
+            <motion.div
+              className="relative perspective-1000"
+              onMouseMove={handleMouseMove}
+              onMouseLeave={handleMouseLeave}
+              style={{
+                perspective: '1000px',
+                transformStyle: 'preserve-3d'
+              }}
+            >
+              {/* Main floating shadow */}
+              <motion.div
+                className="absolute inset-0 bg-black/30 blur-2xl rounded-full"
+                style={{
+                  rotateX: springRotateX,
+                  rotateY: springRotateY,
+                  transformStyle: 'preserve-3d',
+                  zIndex: 1,
+                  filter: 'blur(20px)',
+                  transform: 'translateY(20px) scale(0.8)'
+                }}
+                animate={{
+                  scale: [0.8, 0.9, 0.8],
+                  opacity: [0.2, 0.3, 0.2],
+                  y: [20, 25, 20]
+                }}
+                transition={{
+                  duration: 4,
+                  repeat: Infinity,
+                  ease: "easeInOut"
+                }}
+              />
+              
+              {/* Secondary subtle shadow for depth */}
+              <motion.div
+                className="absolute inset-0 bg-black/20 blur-xl rounded-full"
+                style={{
+                  rotateX: springRotateX,
+                  rotateY: springRotateY,
+                  transformStyle: 'preserve-3d',
+                  zIndex: 1,
+                  filter: 'blur(15px)',
+                  transform: 'translateY(15px) scale(0.85)'
+                }}
+                animate={{
+                  scale: [0.85, 0.95, 0.85],
+                  opacity: [0.15, 0.25, 0.15],
+                  y: [15, 20, 15]
+                }}
+                transition={{
+                  duration: 4,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                  delay: 0.2
+                }}
+              />
+
+              <motion.img
+                src="/img/logo1.png"
+                alt="SMCBI Logo"
+                className="w-32 h-auto mb-6 relative z-10 drop-shadow-2xl"
+                style={{
+                  rotateX: springRotateX,
+                  rotateY: springRotateY,
+                  transformStyle: 'preserve-3d',
+                  filter: 'drop-shadow(0 10px 15px rgba(0, 0, 0, 0.3))'
+                }}
+                whileHover={{ 
+                  scale: 1.05,
+                  filter: 'drop-shadow(0 15px 20px rgba(0, 0, 0, 0.4))'
+                }}
+                animate={{
+                  y: [0, -10, 0],
+                  rotateZ: [0, 2, -2, 0],
+                  filter: [
+                    'drop-shadow(0 10px 15px rgba(0, 0, 0, 0.3))',
+                    'drop-shadow(0 15px 20px rgba(0, 0, 0, 0.4))',
+                    'drop-shadow(0 10px 15px rgba(0, 0, 0, 0.3))'
+                  ]
+                }}
+                transition={{
+                  y: {
+                    duration: 4,
+                    repeat: Infinity,
+                    ease: "easeInOut"
+                  },
+                  rotateZ: {
+                    duration: 6,
+                    repeat: Infinity,
+                    ease: "easeInOut"
+                  },
+                  filter: {
+                    duration: 4,
+                    repeat: Infinity,
+                    ease: "easeInOut"
+                  }
+                }}
+              />
+
+              {/* Glow effect */}
+              <motion.div
+                className="absolute inset-0 bg-white/10 blur-3xl rounded-full"
+                style={{
+                  rotateX: springRotateX,
+                  rotateY: springRotateY,
+                  transformStyle: 'preserve-3d',
+                  zIndex: 0,
+                  filter: 'blur(30px)',
+                  transform: 'translateY(-5px) scale(0.9)'
+                }}
+                animate={{
+                  scale: [0.9, 1, 0.9],
+                  opacity: [0.1, 0.2, 0.1],
+                  y: [-5, 0, -5]
+                }}
+                transition={{
+                  duration: 4,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                  delay: 0.1
+                }}
+              />
+            </motion.div>
             <h1 className="text-3xl md:text-5xl font-bold text-white tracking-wide text-center mb-10">
              
               <span className="text-base md:text-xl font-normal tracking-normal">SMCBI School Portal & Enrollment System</span>
