@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import Login from './Login';
-import { motion, useMotionValue, useTransform, useSpring } from 'framer-motion';
+import { motion, useMotionValue, useTransform, useSpring, AnimatePresence } from 'framer-motion';
 
 const LandingPage = () => {
   const [showLogin, setShowLogin] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
+  const [showDevStatus, setShowDevStatus] = useState(true);
 
   // Add motion values for 3D effect
   const x = useMotionValue(0);
@@ -35,7 +36,57 @@ const LandingPage = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col font-sans relative">
+    <div className={`min-h-screen flex flex-col font-sans relative ${showDevStatus ? 'pt-12' : ''}`}>
+      {/* Development Status Popup */}
+      <AnimatePresence>
+        {showDevStatus && (
+          <motion.div
+            initial={{ y: '-100%', opacity: 0 }}
+            animate={{ y: '0%', opacity: 1 }}
+            exit={{ y: '-100%', opacity: 0 }}
+            transition={{ 
+              type: "spring",
+              stiffness: 200,
+              damping: 20,
+              mass: 1
+            }}
+            className="fixed top-0 left-0 right-0 z-50"
+          >
+            <div className="bg-[#2C3E50] text-white py-3 px-4 shadow-lg border-b border-white/10">
+              <div className="max-w-7xl mx-auto flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <div className="w-2.5 h-2.5 bg-yellow-400 rounded-full animate-ping absolute" />
+                    <div className="w-2.5 h-2.5 bg-yellow-400 rounded-full relative" />
+                  </div>
+                  <span className="font-medium text-sm sm:text-base">This system is currently under development. Some features may be incomplete or unavailable.</span>
+                </div>
+                <button
+                  onClick={() => setShowDevStatus(false)}
+                  className="hover:bg-white/10 p-1.5 rounded-full transition-colors duration-200 flex-shrink-0"
+                  aria-label="Close notification"
+                >
+                  <svg 
+                    xmlns="http://www.w3.org/2000/svg" 
+                    className="h-4 w-4" 
+                    fill="none" 
+                    viewBox="0 0 24 24" 
+                    stroke="currentColor"
+                  >
+                    <path 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round" 
+                      strokeWidth={2} 
+                      d="M6 18L18 6M6 6l12 12" 
+                    />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Background with overlay */}
       <div className="fixed inset-0 w-full h-full">
         <video 
