@@ -17,7 +17,6 @@ import {
   LogOut,
   Menu,
   LayoutDashboard,
-  Bell,
   AlertTriangle,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -311,6 +310,21 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
     return isModalOpen && modalType === 'default';
   };
 
+  // Add this function for exact path matching
+  const isExactPathActive = (path: string) => {
+    if (!user) return false;
+    const currentPath = location.pathname;
+    // For dashboard items, check exact match
+    if (path.endsWith('/dashboard')) {
+      return currentPath === path;
+    }
+    // For other items, check if it's the exact section
+    const pathParts = currentPath.split('/');
+    const itemPathParts = path.split('/');
+    return pathParts.length === itemPathParts.length && 
+           pathParts.every((part, i) => part === itemPathParts[i]);
+  };
+
   return (
     <div className={`min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 relative overflow-hidden ${shouldBlur() ? 'backdrop-blur-xl [&>*:not([data-modal])]' : ''}`}>
       {/* Background decorative elements */}
@@ -548,7 +562,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                 <Link
                   to={item.path}
                   className={`group flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-300 ease-in-out
-                    ${location.pathname.startsWith(item.path)
+                    ${isExactPathActive(item.path)
                       ? 'bg-gradient-to-r from-white/20 to-white/10 text-white font-medium backdrop-blur-sm shadow-lg'
                       : 'text-blue-100 hover:bg-white/10 hover:text-white'
                     }
@@ -566,7 +580,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                       ease: [0.32, 0.72, 0, 1]
                     }}
                     className={`p-2 rounded-lg transition-all duration-300 
-                    ${location.pathname.startsWith(item.path) 
+                    ${isExactPathActive(item.path)
                       ? 'bg-white text-blue-600 shadow-md shadow-white/20' 
                       : 'text-blue-100 group-hover:bg-white/10 group-hover:text-white'}`}
                   >
@@ -582,14 +596,14 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                         duration: 0.3,
                         ease: [0.32, 0.72, 0, 1]
                       }}
-                      className={`font-medium overflow-hidden whitespace-nowrap ${location.pathname.startsWith(item.path) ? 'ml-1' : ''}`}
+                      className={`font-medium overflow-hidden whitespace-nowrap ${isExactPathActive(item.path) ? 'ml-1' : ''}`}
                     >
                       {item.label}
                     </motion.span>
                   )}
                   
                   {/* Active indicator line with enhanced animation */}
-                  {!isCollapsed && location.pathname.startsWith(item.path) && (
+                  {!isCollapsed && isExactPathActive(item.path) && (
                     <motion.div 
                       className="absolute left-0 w-1.5 h-8 bg-gradient-to-b from-blue-300 to-white rounded-r-full"
                       layoutId="activeIndicator"
