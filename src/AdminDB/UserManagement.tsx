@@ -377,6 +377,7 @@ export default function UserManagement() {
     
     console.log('Starting user creation process...');
     console.log('Email:', fullEmail);
+    console.log('Program:', form.program_id);
     console.log('Role:', form.role);
     
     try {
@@ -388,6 +389,25 @@ export default function UserManagement() {
       }
 
       setCreating(true);
+      
+      // Check if user already exists
+      const { data: existingUsers, error: checkError } = await supabase
+        .from('user_profiles')
+        .select('email')
+        .ilike('email', fullEmail);
+
+      if (checkError) {
+        console.error('Error checking existing user:', checkError);
+        toast.error('Error checking if user exists. Please try again.');
+        setCreating(false);
+        return;
+      }
+
+      if (existingUsers && existingUsers.length > 0) {
+        toast.error('A user with this email already exists.');
+        setCreating(false);
+        return;
+      }
       
       // 1. Create user in Supabase Auth
       console.log('Creating user in auth system...');
@@ -750,6 +770,9 @@ export default function UserManagement() {
   const filteredUsers = users.filter(user => 
     activeTab === 'all' ? true : user.role === 'student'
   );
+
+  // Add sections array
+  const sections = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto">
@@ -1578,11 +1601,13 @@ export default function UserManagement() {
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                       <h4 className="text-lg font-semibold text-blue-700 mb-2">Review Information</h4>
                       <div className="space-y-2 text-sm">
+                         <div><b>Name:</b> {`${form.first_name} ${form.middle_name ? form.middle_name + ' ' : ''}${form.last_name}${form.suffix ? ' ' + form.suffix : ''}`}</div>
                         <div><b>Email:</b> {form.email}@smcbi.edu.ph</div>
+                        <div><b>Program:</b> {programs.find(p => p.id === Number(form.program_id))?.name || 'N/A'}</div>
                         <div><b>Role:</b> {form.role}</div>
+                     
                         {form.role === 'student' && <>
                           <div><b>Student ID:</b> {form.student_id}</div>
-                          <div><b>Name:</b> {form.first_name} {form.middle_name} {form.last_name}</div>
                           <div><b>Gender:</b> {form.gender}</div>
                           <div><b>Birthdate:</b> {form.birthdate}</div>
                           <div><b>Phone:</b> {form.phone}</div>

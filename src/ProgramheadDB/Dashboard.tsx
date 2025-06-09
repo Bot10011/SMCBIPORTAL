@@ -14,6 +14,7 @@ import {
   Calendar,
   Sparkles
 } from 'lucide-react';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 // Import program head-specific components
 
@@ -305,13 +306,15 @@ const CalendarEvent: React.FC<{ date: string; title: string; time: string; type:
 const ProgramHeadDashboard: React.FC = () => {
   return (
     <DashboardLayout>
-      <Routes>
-        <Route path="/dashboard" element={<DashboardOverview />} />
-        <Route path="/requests" element={<ProgramHeadEnrollment />} />
-        <Route path="/assign-subjects" element={<SubjectAssignment />} />
-        <Route path="/academic-history" element={<CoursesOffered />} />
-        <Route path="*" element={<DashboardOverview />} />
-      </Routes>
+      <ErrorBoundary>
+        <Routes>
+          <Route path="/" element={<DashboardOverview />} />
+          <Route path="/requests" element={<ProgramHeadEnrollment />} />
+          <Route path="/assign-subjects" element={<SubjectAssignment />} />
+          <Route path="/academic-history" element={<CoursesOffered />} />
+          <Route path="*" element={<DashboardOverview />} />
+        </Routes>
+      </ErrorBoundary>
     </DashboardLayout>
   );
 };

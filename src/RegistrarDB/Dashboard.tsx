@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import DashboardLayout from '../components/Sidebar';
-import { RegistrarGradeViewer } from './RegistrarGradeViewer';
 import RegistrarEnrollment from './RegistrarEnrollment';
 import { motion } from 'framer-motion';
+import Settings from './Settings';
 import { 
   CheckSquare, 
   FileText, 
@@ -13,6 +13,7 @@ import {
   Calendar, 
   Clock
 } from 'lucide-react';
+import { RegistrarGradeViewer } from './Allcourse';
 
 // Import registrar-specific components
 const StudentRecords = () => <div>Student Records</div>;
@@ -220,6 +221,7 @@ const RegistrarDashboard: React.FC = () => {
         <Route path="/enrollment-approvals" element={<RegistrarEnrollment />} />
         <Route path="/student-records" element={<StudentRecords />} />
         <Route path="/subject-review" element={<RegistrarGradeViewer />} />
+        <Route path="/settings" element={<Settings />} />
         <Route path="*" element={<DashboardOverview />} />
       </Routes>
     </DashboardLayout>

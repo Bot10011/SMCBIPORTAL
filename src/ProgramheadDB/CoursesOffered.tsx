@@ -7,12 +7,13 @@ import { Plus, Check, AlertCircle } from 'lucide-react';
 
 interface Course {
   id?: number;
-  course_code: string;
+  code: string;
+  name: string;
   description: string;
-  year_level: string;
-  semester: string;
-  term: string | null;
+  units: number;
+  created_by?: string;
   created_at?: string;
+  updated_at?: string;
 }
 
 const CoursesOffered: React.FC = () => {
@@ -28,11 +29,10 @@ const CoursesOffered: React.FC = () => {
   }>({ show: false, message: '', type: 'success' });
   
   const [newCourse, setNewCourse] = useState<Course>({
-    course_code: '',
+    code: '',
+    name: '',
     description: '',
-    year_level: '',
-    semester: '',
-    term: null
+    units: 0
   });
 
   // Fetch courses on component mount
@@ -66,11 +66,10 @@ const CoursesOffered: React.FC = () => {
 
   const resetForm = () => {
     setNewCourse({
-      course_code: '',
+      code: '',
+      name: '',
       description: '',
-      year_level: '',
-      semester: '',
-      term: null
+      units: 0
     });
     setFormErrors({});
   };
@@ -79,7 +78,7 @@ const CoursesOffered: React.FC = () => {
     const { name, value } = e.target;
     setNewCourse(prev => ({
       ...prev,
-      [name]: value === "None" ? null : value
+      [name]: name === 'units' ? Number(value) : value
     }));
     
     // Clear error for this field if it exists
@@ -95,20 +94,20 @@ const CoursesOffered: React.FC = () => {
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {};
     
-    if (!newCourse.course_code.trim()) {
-      errors.course_code = 'Course Code is required';
+    if (!newCourse.code.trim()) {
+      errors.code = 'Course Code is required';
+    }
+    
+    if (!newCourse.name.trim()) {
+      errors.name = 'Course Name is required';
     }
     
     if (!newCourse.description.trim()) {
       errors.description = 'Course Description is required';
     }
     
-    if (!newCourse.year_level) {
-      errors.year_level = 'Year Level is required';
-    }
-    
-    if (!newCourse.semester) {
-      errors.semester = 'Semester is required';
+    if (!newCourse.units) {
+      errors.units = 'Units is required';
     }
     
     setFormErrors(errors);
@@ -213,26 +212,23 @@ const CoursesOffered: React.FC = () => {
             <thead className="bg-gray-50">
               <tr>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Course Code
+                  Code
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Name
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Description
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Year Level
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Semester
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Term
+                  Units
                 </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {isLoading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan={4} className="px-6 py-4 text-center text-gray-500">
                     <div className="flex justify-center items-center space-x-2">
                       <div className="w-4 h-4 rounded-full border-2 border-blue-500 border-t-transparent animate-spin"></div>
                       <span>Loading courses...</span>
@@ -241,7 +237,7 @@ const CoursesOffered: React.FC = () => {
                 </tr>
               ) : courses.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-10 text-center text-gray-500">
+                  <td colSpan={4} className="px-6 py-10 text-center text-gray-500">
                     <p className="text-base">No courses available.</p>
                     <p className="text-sm mt-1">Click the "Add Course" button to add a new course.</p>
                   </td>
@@ -250,19 +246,16 @@ const CoursesOffered: React.FC = () => {
                 courses.map((course) => (
                   <tr key={course.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {course.course_code}
+                      {course.code}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {course.name}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {course.description}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {course.year_level}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {course.semester}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {course.term || "None"}
+                      {course.units}
                     </td>
                   </tr>
                 ))

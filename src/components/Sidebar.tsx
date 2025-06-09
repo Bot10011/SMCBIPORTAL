@@ -89,6 +89,25 @@ const sidebarItems: SidebarItem[] = [
     icon: <BookOpen className="w-5 h-5" />,
     roles: ['admin'],
   },
+
+  {
+    label: 'Class Management',
+    path: '/admin/dashboard/Course',
+    icon: <Users2 className="w-5 h-5" />,
+    roles: ['admin'],
+  },
+  {
+    label: 'Program',
+    path: '/admin/dashboard/program-management',
+    icon: <ClipboardList className="w-5 h-5" />,
+    roles: ['admin'],
+  },
+  {
+    label: 'Syllabus',
+    path: '/admin/dashboard/syllabus',
+    icon: <BookOpen className="w-5 h-5" />,
+    roles: ['admin'],
+  },
   {
     label: 'System Settings',
     path: '/admin/dashboard/settings',
@@ -146,12 +165,6 @@ const sidebarItems: SidebarItem[] = [
     roles: ['registrar'],
   },
   {
-    label: 'Conflict Checker',
-    path: '/registrar/dashboard/conflict-checker',
-    icon: <AlertTriangle className="w-5 h-5" />,
-    roles: ['registrar'],
-  },
-  {
     label: 'Student Records',
     path: '/registrar/dashboard/student-records',
     icon: <FileText className="w-5 h-5" />,
@@ -170,12 +183,6 @@ const sidebarItems: SidebarItem[] = [
     roles: ['registrar'],
   },
   {
-    label: 'Notifications',
-    path: '/registrar/dashboard/notifications',
-    icon: <Bell className="w-5 h-5" />,
-    roles: ['registrar'],
-  },
-  {
     label: 'Settings',
     path: '/registrar/dashboard/settings',
     icon: <Settings className="w-5 h-5" />,
@@ -183,18 +190,19 @@ const sidebarItems: SidebarItem[] = [
   },
   // Teacher
   {
+    label: 'Dashboard',
+    path: '/teacher/dashboard/',
+    icon: <LayoutDashboard className="w-5 h-5" />, 
+    roles: ['teacher'],
+  },
+  {
     label: 'Class Management',
     path: '/teacher/dashboard/class-management',
     icon: <Users2 className="w-5 h-5" />, 
     roles: ['teacher'],
   },
 
-  {
-    label: 'Class Management',
-    path: '/admin/dashboard/Course',
-    icon: <Users2 className="w-5 h-5" />,
-    roles: ['admin'],
-  },
+
   {
     label: 'Grade Input',
     path: '/teacher/dashboard/grade-input',
@@ -202,11 +210,12 @@ const sidebarItems: SidebarItem[] = [
     roles: ['teacher'],
   },
   {
-    label: 'Grade Input',
-    path: '/admin/dashboard/grades-input',
-    icon: <ClipboardList className="w-5 h-5" />,
-    roles: ['admin'],
+    label: 'Settings',
+    path: '/teacher/dashboard/settings',
+    icon: <Settings className="w-5 h-5" />,
+    roles: ['teacher'],
   },
+
   // Student
   {
     label: 'My Course',
@@ -700,23 +709,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
             {children}
           </motion.div>
         </div>
-        
-        {/* Decorative Elements with subtle animations */}
-        <motion.div 
-          animate={{
-            x: isCollapsed ? 20 : 0,
-          }}
-          transition={{ duration: 0.8, ease: "easeInOut" }}
-          className="fixed bottom-10 right-10 w-72 h-72 bg-blue-500 rounded-full opacity-5 blur-3xl -z-10 animate-float"
-        ></motion.div>
-        <motion.div 
-          animate={{
-            x: isCollapsed ? 30 : 0,
-          }}
-          transition={{ duration: 0.8, ease: "easeInOut", delay: 0.1 }}
-          className="fixed top-20 right-20 w-96 h-96 bg-indigo-600 rounded-full opacity-5 blur-3xl -z-10 animate-float"
-          style={{ animationDelay: '2s' }}
-        ></motion.div>
       </motion.main>
 
       {/* Enhanced Overlay for mobile with blur effect */}

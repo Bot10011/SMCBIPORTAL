@@ -7,6 +7,7 @@ import { BarChart3, Users, Settings, Bell, ShieldAlert, TrendingUp, Activity, Da
 // Import admin-specific components and styles
 import UserManagement from './UserManagement';
 import CourseManagement from './CourseManagement';
+import ProgramManagement from './ProgramManagement';
 import './dashboard.css';
 
 // Page Transition Indicator Component
@@ -432,11 +433,11 @@ const AdminDashboard: React.FC = () => {
           className="h-full w-full custom-dashboard-scrollbar"
           onAnimationStart={() => setIsTransitioning(true)}
           onAnimationComplete={() => setIsTransitioning(false)}
-        >
-          <Routes>
+        >          <Routes>
             <Route path="/" element={<DashboardOverview />} />
             <Route path="/users" element={<UserManagement />} />
             <Route path="/courses" element={<CourseManagement />} />
+            <Route path="/program-management" element={<ProgramManagement />} />
             <Route path="/settings" element={<SystemSettings />} />
           </Routes>
         </motion.div>

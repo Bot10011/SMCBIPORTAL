@@ -47,6 +47,12 @@ const AccessRestrictedView: React.FC<{
 </div>
 );
 
+// Add a helper to map roles to dashboard paths
+const getDashboardPath = (role: string) => {
+  if (role === 'program_head') return '/programhead/dashboard';
+  return `/${role}/dashboard`;
+};
+
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ 
   children, 
   allowedRoles,
@@ -84,7 +90,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   // Handle role-based access
   if (allowedRoles && !allowedRoles.includes(user.role)) {
-    return <Navigate to={`/${user.role}/dashboard`} replace />;
+    return <Navigate to={getDashboardPath(user.role)} replace />;
   }
 
   // Show loading state while checking access

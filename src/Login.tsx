@@ -68,23 +68,31 @@ const Login: React.FC = () => {
 
           // Update auth context
           console.log('Updating auth context...'); // Debug log
-          login({
+          
+          // Normalize role (convert program_head to programhead)
+          const normalizedRole = userData.role === 'program_head' ? 'programhead' : userData.role;
+          
+          const userDataToStore = {
             id: user.id,
             email: fullEmail,
-            username: formData.username, // Use the username without @smcbi.edu.ph
-            role: userData.role,
+            username: formData.username,
+            role: normalizedRole,
             isAuthenticated: true,
             studentStatus: userData.student_status
-          });
+          };
+          login(userDataToStore);
 
-          // Redirect to appropriate dashboard
-          const from = location.state?.from?.pathname || `/${userData.role}/dashboard`;
+          // Store in localStorage first
+          localStorage.setItem('user', JSON.stringify(userDataToStore));
+
+          // Redirect to appropriate dashboard using normalized role
+          const from = location.state?.from?.pathname || `/${normalizedRole}/dashboard`;
           console.log('Redirecting to:', from); // Debug log
           
-          // Add a small delay to ensure state updates are processed
+          // Add a longer delay to ensure state updates are processed
           setTimeout(() => {
             navigate(from, { replace: true });
-          }, 100);
+          }, 500);
           
           toast.success('Successfully logged in!');
         } catch (profileError: Error | unknown) {
@@ -127,13 +135,13 @@ const Login: React.FC = () => {
 
   return (
     <div className="w-full bg-white rounded-xl shadow-lg p-6">
-      <div className="text-center mb-4">
+      <div className="text-center mb-">
         <img
           src="/img/logo.png"
           alt="School Logo"
           className="h-16 w-auto mx-auto mb-3"
         />
-        <h2 className="text-lg font-bold text-gray-800">Welcome Back</h2>
+ 
         <p className="text-sm text-gray-500">Sign in to your account</p>
       </div>
 

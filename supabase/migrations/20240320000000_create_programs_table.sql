@@ -4,7 +4,6 @@ CREATE TABLE IF NOT EXISTS programs (
   code VARCHAR(10) NOT NULL UNIQUE,  -- e.g., BSED, BSBA, BSCS
   name VARCHAR(100) NOT NULL,       -- e.g., Bachelor of Science in Education
   description TEXT,
-  department VARCHAR(100),
   major VARCHAR(100),              -- Added major field for BSED programs
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -45,14 +44,14 @@ END $$;
 CREATE INDEX IF NOT EXISTS idx_user_profiles_program_id ON user_profiles(program_id);
 
 -- Insert MCBI programs
-INSERT INTO programs (code, name, description, department, major)
+INSERT INTO programs (code, name, description, major)
 VALUES 
-  ('BSED', 'Bachelor of Science in Education', 'Teacher Education Program', 'College of Education', 'English'),
-  ('BSED-SCI', 'Bachelor of Science in Education', 'Teacher Education Program', 'College of Education', 'General Science'),
-  ('BSBA', 'Bachelor of Science in Business Administration', 'Business and Management Program', 'College of Business Administration', NULL),
-  ('BSIT', 'Bachelor of Science in Information Technology', 'Information Technology Program', 'College of Computer Studies', NULL),
-  ('BSHM', 'Bachelor of Science in Hospitality Management', 'Hospitality Management Program', 'College of Hospitality Management', NULL),
-  ('BSHRM', 'Bachelor of Science in Hotel and Restaurant Management', 'Hotel and Restaurant Management Program', 'College of Hospitality Management', NULL)
+  ('BSED', 'Bachelor of Science in Education', 'Teacher Education Program', 'English'),
+  ('BSED-SCI', 'Bachelor of Science in Education', 'Teacher Education Program', 'General Science'),
+  ('BSBA', 'Bachelor of Science in Business Administration', 'Business and Management Program', NULL),
+  ('BSIT', 'Bachelor of Science in Information Technology', 'Information Technology Program', NULL),
+  ('BSHM', 'Bachelor of Science in Hospitality Management', 'Hospitality Management Program', NULL),
+  ('BSHRM', 'Bachelor of Science in Hotel and Restaurant Management', 'Hotel and Restaurant Management Program', NULL)
 ON CONFLICT (code) DO NOTHING;
 
 -- Create RLS policies for programs table

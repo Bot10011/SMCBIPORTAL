@@ -3,11 +3,10 @@ import { motion } from 'framer-motion';
 import { Plus, X } from 'lucide-react';
 
 interface Course {
-  course_code: string;
+  code: string;
+  name: string;
   description: string;
-  year_level: string;
-  semester: string;
-  term: string | null;
+  units: number;
 }
 
 interface CourseModalProps {
@@ -15,10 +14,10 @@ interface CourseModalProps {
   onClose: () => void;
   onSubmit: (e: React.FormEvent) => void;
   formErrors: {
-    course_code?: string;
+    code?: string;
+    name?: string;
     description?: string;
-    year_level?: string;
-    semester?: string;
+    units?: string;
   };
   newCourse: Course;
   handleInputChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
@@ -89,24 +88,47 @@ const CourseModal: React.FC<CourseModalProps> = ({
             <div className="relative space-y-6">
               {/* Course Code */}
               <div className="relative">
-                <label htmlFor="course_code" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="code" className="block text-sm font-medium text-gray-700 mb-1">
                   Course Code <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
-                  id="course_code"
-                  name="course_code"
-                  value={newCourse.course_code}
+                  id="code"
+                  name="code"
+                  value={newCourse.code}
                   onChange={handleInputChange}
                   className={`w-full px-4 py-2.5 rounded-xl border ${
-                    formErrors.course_code 
+                    formErrors.code 
                       ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
                       : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
                   } focus:ring-2 focus:ring-opacity-50 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm`}
                   placeholder="Enter course code"
                 />
-                {formErrors.course_code && (
-                  <p className="mt-1 text-sm text-red-600">{formErrors.course_code}</p>
+                {formErrors.code && (
+                  <p className="mt-1 text-sm text-red-600">{formErrors.code}</p>
+                )}
+              </div>
+
+              {/* Course Name */}
+              <div className="relative">
+                <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+                  Course Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  id="name"
+                  name="name"
+                  value={newCourse.name}
+                  onChange={handleInputChange}
+                  className={`w-full px-4 py-2.5 rounded-xl border ${
+                    formErrors.name 
+                      ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
+                      : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
+                  } focus:ring-2 focus:ring-opacity-50 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm`}
+                  placeholder="Enter course name"
+                />
+                {formErrors.name && (
+                  <p className="mt-1 text-sm text-red-600">{formErrors.name}</p>
                 )}
               </div>
 
@@ -133,77 +155,29 @@ const CourseModal: React.FC<CourseModalProps> = ({
                 )}
               </div>
 
-              {/* Year Level */}
+              {/* Units */}
               <div className="relative">
-                <label htmlFor="year_level" className="block text-sm font-medium text-gray-700 mb-1">
-                  Year Level <span className="text-red-500">*</span>
+                <label htmlFor="units" className="block text-sm font-medium text-gray-700 mb-1">
+                  Units <span className="text-red-500">*</span>
                 </label>
-                <select
-                  id="year_level"
-                  name="year_level"
-                  value={newCourse.year_level}
+                <input
+                  type="number"
+                  id="units"
+                  name="units"
+                  value={newCourse.units}
                   onChange={handleInputChange}
                   className={`w-full px-4 py-2.5 rounded-xl border ${
-                    formErrors.year_level 
+                    formErrors.units 
                       ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
                       : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
                   } focus:ring-2 focus:ring-opacity-50 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm`}
-                >
-                  <option value="">Select Year Level</option>
-                  <option value="1st Year">1st Year</option>
-                  <option value="2nd Year">2nd Year</option>
-                  <option value="3rd Year">3rd Year</option>
-                  <option value="4th Year">4th Year</option>
-                </select>
-                {formErrors.year_level && (
-                  <p className="mt-1 text-sm text-red-600">{formErrors.year_level}</p>
+                  placeholder="Enter number of units"
+                  min={1}
+                  max={6}
+                />
+                {formErrors.units && (
+                  <p className="mt-1 text-sm text-red-600">{formErrors.units}</p>
                 )}
-              </div>
-
-              {/* Semester */}
-              <div className="relative">
-                <label htmlFor="semester" className="block text-sm font-medium text-gray-700 mb-1">
-                  Semester <span className="text-red-500">*</span>
-                </label>
-                <select
-                  id="semester"
-                  name="semester"
-                  value={newCourse.semester}
-                  onChange={handleInputChange}
-                  className={`w-full px-4 py-2.5 rounded-xl border ${
-                    formErrors.semester 
-                      ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
-                      : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
-                  } focus:ring-2 focus:ring-opacity-50 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm`}
-                >
-                  <option value="">Select Semester</option>
-                  <option value="1st Semester">1st Semester</option>
-                  <option value="2nd Semester">2nd Semester</option>
-                </select>
-                {formErrors.semester && (
-                  <p className="mt-1 text-sm text-red-600">{formErrors.semester}</p>
-                )}
-              </div>
-
-              {/* Term (Optional) */}
-              <div className="relative">
-                <label htmlFor="term" className="block text-sm font-medium text-gray-700 mb-1">
-                  Term <span className="text-gray-400 text-xs">(Optional)</span>
-                </label>
-                <select
-                  id="term"
-                  name="term"
-                  value={newCourse.term || "None"}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 
-                    focus:border-blue-500 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm"
-                >
-                  <option value="None">None</option>
-                  <option value="Term 1">Term 1</option>
-                  <option value="Term 2">Term 2</option>
-                  <option value="Term 3">Term 3</option>
-                  <option value="Term 4">Term 4</option>
-                </select>
               </div>
 
               {/* Submit Button */}

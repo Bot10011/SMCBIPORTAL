@@ -70,7 +70,7 @@ export const gradeService = {
   // Grade Management
   async submitGrades(grades: GradeInput[]) {
     const { data, error } = await supabase
-      .from('student_grades')
+      .from('grades')
       .upsert(
         grades.map(grade => ({
           ...grade,
@@ -85,7 +85,7 @@ export const gradeService = {
 
   async getStudentGrades(filter: GradeFilter): Promise<GradeSummary[]> {
     let query = supabase
-      .from('student_grades')
+      .from('grades')
       .select(`
         *,
         enrollment:enrollments(

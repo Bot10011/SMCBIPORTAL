@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import GradeInputModal from './GradeInput';
 import { Loader2, BookOpen, Users, Edit3 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useAuth } from '../contexts/AuthContext';
 
 interface Class {
   id: string;
@@ -20,30 +21,41 @@ interface Student {
 }
 
 const ClassManagement: React.FC = () => {
-  const [classes, setClasses] = useState<Class[]>([]);
-  const [selectedClass, setSelectedClass] = useState<Class | null>(null);
+  const { user } = useAuth();
+  const [classes, setClasses] = useState<any[]>([]);
+  const [selectedClass, setSelectedClass] = useState<any | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(false);
   const [showGradeModal, setShowGradeModal] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
 
   useEffect(() => {
-    fetchClasses();
-  }, []);
+    if (user?.id) fetchClasses();
+  }, [user?.id]);
 
   async function fetchClasses() {
     setLoading(true);
-    const { data, error } = await supabase.from('subjects').select('*');
-    let classes = data || [];
-    if (!classes.length) {
-      // Dummy data for demo
-      classes = [
-        { id: 'class1', name: 'Mathematics 101', code: 'MATH101', description: 'Basic Math' },
-        { id: 'class2', name: 'English 201', code: 'ENG201', description: 'Advanced English' },
-      ];
+    try {
+      const { data, error } = await supabase
+        .from('teacher_subjects')
+        .select(`
+          id,
+          section,
+          academic_year,
+          semester,
+          is_active,
+          created_at,
+          course:courses(id, code, name, description, units)
+        `)
+        .eq('teacher_id', user.id)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      setClasses(data || []);
+    } catch (error) {
+      toast.error('Failed to load classes');
+    } finally {
+      setLoading(false);
     }
-    setClasses(classes);
-    setLoading(false);
   }
 
   async function fetchStudents(classId: string) {
@@ -90,23 +102,34 @@ const ClassManagement: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <h2 className="text-lg font-semibold mb-2 flex items-center gap-2">
-            <Users className="text-green-600" /> Classes
+            <Users className="text-green-600" /> Assigned Classes
           </h2>
           <ul className="space-y-2">
-            {classes.map((cls) => (
-              <li key={cls.id}>
-                <button
-                  className={`w-full text-left px-4 py-3 rounded-lg border border-gray-200 shadow-sm hover:bg-blue-50 transition flex justify-between items-center ${selectedClass?.id === cls.id ? 'bg-blue-100 border-blue-400' : ''}`}
-                  onClick={() => {
-                    setSelectedClass(cls);
-                    fetchStudents(cls.id);
-                  }}
-                >
-                  <span className="font-medium text-gray-800">{cls.name}</span>
-                  <span className="text-xs text-gray-500">{cls.code}</span>
-                </button>
-              </li>
-            ))}
+            {classes.length === 0 ? (
+              <li className="text-gray-400">No assigned classes.</li>
+            ) : (
+              classes.map((cls) => (
+                <li key={cls.id}>
+                  <button
+                    className={`w-full text-left px-4 py-3 rounded-lg border border-gray-200 shadow-sm hover:bg-blue-50 transition flex flex-col gap-1 ${selectedClass?.id === cls.id ? 'bg-blue-100 border-blue-400' : ''}`}
+                    onClick={() => {
+                      setSelectedClass(cls);
+                      fetchStudents(cls.id);
+                    }}
+                  >
+                    <div className="flex justify-between items-center">
+                      <span className="font-medium text-gray-800">{cls.course?.name}</span>
+                      <span className="text-xs text-gray-500">{cls.course?.code}</span>
+                    </div>
+                    <div className="text-xs text-gray-500 flex gap-4">
+                      <span>Section: {cls.section}</span>
+                      <span>Year: {cls.academic_year}</span>
+                      <span>Semester: {cls.semester}</span>
+                    </div>
+                  </button>
+                </li>
+              ))
+            )}
           </ul>
         </div>
         <div>

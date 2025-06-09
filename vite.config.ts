@@ -33,5 +33,9 @@ export default defineConfig({
       'dayjs'
     ],
     exclude: ['lucide-react']
-  }
+  },
+  server: {
+    // Ensure SPA fallback for client-side routing
+    historyApiFallback: true,
+  },
 });
