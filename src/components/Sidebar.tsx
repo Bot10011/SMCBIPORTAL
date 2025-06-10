@@ -217,6 +217,12 @@ const sidebarItems: SidebarItem[] = [
 
   // Student
   {
+    label: 'Dashboard',
+    path: '/student/dashboard',
+    icon: <LayoutDashboard className="w-5 h-5" />,
+    roles: ['student'],
+  },
+  {
     label: 'My Course',
     path: '/student/dashboard/course',
     icon: <BookOpenCheck className="w-5 h-5" />,
