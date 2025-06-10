@@ -15,7 +15,6 @@ import {
   Award as StudentAward,
   User,
   LogOut,
-  Menu,
   LayoutDashboard,
   AlertTriangle,
 } from 'lucide-react';
@@ -258,18 +257,44 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(true);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [showHamburger, setShowHamburger] = useState(true);
 
   useEffect(() => {
     const handleResize = () => {
       setIsMobile(window.innerWidth < 768);
       if (window.innerWidth < 768) {
         setIsCollapsed(true);
+        setShowHamburger(true);
       }
     };
 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // Add effect to show hamburger after navigation
+  useEffect(() => {
+    if (isMobile && isCollapsed) {
+      const timer = setTimeout(() => {
+        setShowHamburger(true);
+      }, 300); // Wait for sidebar animation to complete
+      return () => clearTimeout(timer);
+    }
+  }, [isCollapsed, isMobile]);
+
+  // Handle hamburger click with animation
+  const handleHamburgerClick = () => {
+    setShowHamburger(false);
+    setIsCollapsed(!isCollapsed);
+  };
+
+  // Handle navigation click
+  const handleNavigationClick = () => {
+    if (isMobile) {
+      setShowHamburger(false);
+      setIsCollapsed(true);
+    }
+  };
 
   // Handle hover state
   const handleMouseEnter = () => {
@@ -332,15 +357,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   };
 
   return (
-    <div className={`min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 relative overflow-hidden ${shouldBlur() ? 'backdrop-blur-xl [&>*:not([data-modal])]' : ''}`}>
-      {/* Background decorative elements */}
-      <div className={`fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none -z-10 ${shouldBlur() ? 'backdrop-blur-xl [&>*:not([data-modal])]' : ''}`}>
-        <div className={`absolute top-10 left-[30%] w-72 h-72 rounded-full bg-blue-300/20 blur-3xl animate-float ${shouldBlur() ? 'opacity-30' : ''}`}></div>
-        <div className={`absolute bottom-10 right-[20%] w-96 h-96 rounded-full bg-indigo-300/20 blur-3xl animate-float ${shouldBlur() ? 'opacity-30' : ''}`} style={{ animationDelay: '2s' }}></div>
-        <div className={`absolute top-1/3 right-[10%] w-64 h-64 rounded-full bg-purple-300/20 blur-3xl animate-float ${shouldBlur() ? 'opacity-30' : ''}`} style={{ animationDelay: '4s' }}></div>
-        <div className={`absolute top-3/4 left-[15%] w-80 h-80 rounded-full bg-sky-300/20 blur-3xl animate-float ${shouldBlur() ? 'opacity-30' : ''}`} style={{ animationDelay: '3s' }}></div>
-      </div>
-      {/* Logout Modal  */}
+    <div className="flex min-h-screen bg-gray-50">
+      {/* Logout Modal */}
       <AnimatePresence>
         {showLogoutConfirm && (
           <motion.div
@@ -405,20 +423,116 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
         )}
       </AnimatePresence>
 
-      {/* Enhanced Mobile Menu Button */}
+      {/* Mobile Menu Button with Animation */}
       {isMobile && (
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className="fixed top-4 left-4 z-40 p-3 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/30 border border-blue-400/30"
-        >
-          <Menu className="w-5 h-5" />
-          <div className="absolute inset-0 rounded-full bg-white/20 animate-pulse opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-        </motion.button>
+        <AnimatePresence>
+          {showHamburger && (
+            <motion.button
+              initial={{ opacity: 0, scale: 0.8, x: 20 }}
+              animate={{ opacity: 1, scale: 1, x: 0 }}
+              exit={{ opacity: 0, scale: 0.8, x: 20 }}
+              transition={{ 
+                type: "spring",
+                stiffness: 300,
+                damping: 25,
+                duration: 0.3
+              }}
+              whileHover={{ 
+                scale: 1.05,
+                rotateX: 10,
+                rotateY: 10,
+                transition: { type: "spring", stiffness: 400, damping: 10 }
+              }}
+              whileTap={{ 
+                scale: 0.95,
+                rotateX: -5,
+                rotateY: -5,
+                transition: { type: "spring", stiffness: 400, damping: 10 }
+              }}
+              onClick={handleHamburgerClick}
+              className="fixed top-4 right-4 z-40 p-3 rounded-xl bg-gradient-to-b from-[#070b11] via-[#142849] to-[#070b11] text-white shadow-2xl border border-white/10 backdrop-blur-md"
+              style={{
+                transformStyle: "preserve-3d",
+                perspective: "1000px",
+                boxShadow: `
+                  0 10px 30px -5px rgba(0, 0, 0, 0.3),
+                  0 0 0 1px rgba(255, 255, 255, 0.1),
+                  inset 0 0 20px rgba(0, 0, 0, 0.2)
+                `,
+                background: `
+                  linear-gradient(145deg, 
+                    rgba(7, 11, 17, 0.9) 0%,
+                    rgba(20, 40, 73, 0.9) 50%,
+                    rgba(7, 11, 17, 0.9) 100%
+                  )
+                `
+              }}
+            >
+              {/* 3D Button Content */}
+              <motion.div
+                className="relative w-5 h-5"
+                style={{
+                  transformStyle: "preserve-3d",
+                  transform: "translateZ(10px)"
+                }}
+              >
+                {/* Static hamburger lines with 3D effect */}
+                <motion.div
+                  className="absolute w-5 h-0.5 bg-white rounded-sm"
+                  style={{ 
+                    top: 0,
+                    transform: "translateZ(5px)",
+                    boxShadow: "0 2px 4px rgba(0, 0, 0, 0.2)"
+                  }}
+                />
+                <motion.div
+                  className="absolute w-5 h-0.5 bg-white rounded-sm"
+                  style={{ 
+                    top: '50%',
+                    transform: "translateY(-50%) translateZ(5px)",
+                    boxShadow: "0 2px 4px rgba(0, 0, 0, 0.2)"
+                  }}
+                />
+                <motion.div
+                  className="absolute w-5 h-0.5 bg-white rounded-sm"
+                  style={{ 
+                    bottom: 0,
+                    transform: "translateZ(5px)",
+                    boxShadow: "0 2px 4px rgba(0, 0, 0, 0.2)"
+                  }}
+                />
+              </motion.div>
+
+              {/* 3D Button Effects */}
+              <motion.div 
+                className="absolute inset-0 rounded-xl"
+                style={{
+                  background: "linear-gradient(145deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 50%)",
+                  transform: "translateZ(1px)",
+                  filter: "blur(1px)"
+                }}
+              />
+              <motion.div 
+                className="absolute inset-0 rounded-xl"
+                style={{
+                  background: "radial-gradient(circle at 30% 30%, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 70%)",
+                  transform: "translateZ(2px)",
+                  filter: "blur(2px)"
+                }}
+              />
+              <motion.div 
+                className="absolute inset-0 rounded-xl bg-gradient-to-b from-white/5 to-transparent"
+                style={{
+                  transform: "translateZ(3px)",
+                  filter: "blur(1px)"
+                }}
+              />
+            </motion.button>
+          )}
+        </AnimatePresence>
       )}
 
-      {/* Enhanced Sidebar with blur effect when modal is open */}
+      {/* Sidebar */}
       <motion.aside
         initial={false}
         animate={{
@@ -567,6 +681,11 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
               >
                 <Link
                   to={item.path}
+                  onClick={() => {
+                    if (isMobile) {
+                      handleNavigationClick();
+                    }
+                  }}
                   className={`group flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-300 ease-in-out
                     ${isExactPathActive(item.path)
                       ? 'bg-gradient-to-r from-white/20 to-white/10 text-white font-medium backdrop-blur-sm shadow-lg'
@@ -705,16 +824,16 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
         </div>
       </motion.aside>
 
-      {/* Enhanced Main Content with blur effect when modal is open */}
+      {/* Main Content */}
       <motion.main
         animate={{
-          marginLeft: isCollapsed ? '5.5rem' : '18rem',
-          filter: shouldBlur() ? 'blur(8px)' : 'none',
+          marginLeft: isMobile ? '0' : (isCollapsed ? '4rem' : '16rem'),
+          width: isMobile ? '100%' : (isCollapsed ? 'calc(100% - 4rem)' : 'calc(100% - 16rem)'),
         }}
         data-modal="true"
-        className={`min-h-screen p-6 md:p-8 ${shouldBlur() ? 'pointer-events-none [&:not(.course-modal):not(.subject-modal)]' : ''} z-[30]`}
+        className={`min-h-screen ${shouldBlur() ? 'pointer-events-none [&:not(.course-modal):not(.subject-modal)]' : ''} z-[30]`}
       >
-        <div className="max-w-7xl mx-auto">
+        <div className="h-full px-4 sm:px-6 lg:px-8 py-6 md:py-8">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -724,14 +843,14 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
               damping: 20,
               duration: 0.5 
             }}
-            className={`bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-6 md:p-8 border border-white/50 ${shouldBlur() ? 'opacity-80' : ''}`}
+            className={`bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-4 sm:p-6 md:p-8 border border-white/50 ${shouldBlur() ? 'opacity-80' : ''} ${isMobile ? 'mt-16' : ''}`}
           >
             {children}
           </motion.div>
         </div>
       </motion.main>
 
-      {/* Enhanced Overlay for mobile with blur effect */}
+      {/* Enhanced Overlay for mobile */}
       <AnimatePresence>
         {isMobile && !isCollapsed && (
           <motion.div
