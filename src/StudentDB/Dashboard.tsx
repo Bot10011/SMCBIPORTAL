@@ -8,8 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { 
   BookOpen, 
   Bell,
-  GraduationCap,
-  Camera
+  GraduationCap
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { motion } from 'framer-motion';
@@ -64,75 +63,6 @@ const DashboardOverview = () => {
     enrolledCourses: 0,
     gpa: 0
   });
-  const [isHovering, setIsHovering] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-
-  const handleProfileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file || !user?.id) return;
-
-    try {
-      setIsUploading(true);
-
-      // Validate file type
-      if (!file.type.startsWith('image/')) {
-        throw new Error('Please upload an image file');
-      }
-
-      // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        throw new Error('File size must be less than 5MB');
-      }
-
-      // Create a unique file name
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}.${fileExt}`;
-      // Use the same path structure as what's in the database
-      const filePath = `profile-pictures/${user.id}/${fileName}`;
-
-      console.log('Attempting to upload to path:', filePath);
-
-      // Upload image to Supabase Storage
-      const { error: uploadError } = await supabase.storage
-        .from('avatar')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: true
-        });
-
-      if (uploadError) {
-        console.error('Upload error:', uploadError);
-        throw uploadError;
-      }
-
-      // Get the public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatar')
-        .getPublicUrl(filePath);
-
-      console.log('Upload successful, file path:', filePath);
-      console.log('Generated public URL:', publicUrl);
-
-      // Update user profile with the file path
-      const { error: updateError } = await supabase
-        .from('user_profiles')
-        .update({ profile_picture_url: filePath })
-        .eq('id', user.id);
-
-      if (updateError) {
-        console.error('Update profile error:', updateError);
-        throw updateError;
-      }
-
-      // Update local state with the public URL
-      setProfilePictureUrl(publicUrl);
-    } catch (error) {
-      console.error('Error uploading profile picture:', error);
-      alert(error instanceof Error ? error.message : 'Failed to upload profile picture');
-    } finally {
-      setIsUploading(false);
-    }
-  };
 
   useEffect(() => {
     const fetchStudentProfile = async () => {
@@ -173,19 +103,9 @@ const DashboardOverview = () => {
                   return;
                 }
 
-                // If we can download the file, get the public URL
-                const { data: urlData } = supabase.storage
-                  .from('avatar')
-                  .getPublicUrl(data.profile_picture_url);
-
-                const publicUrl = urlData.publicUrl;
-                console.log('File exists and is accessible. Public URL:', publicUrl);
-
                 // Create a blob URL from the downloaded file
                 const blob = new Blob([fileData], { type: 'image/jpeg' });
                 const blobUrl = URL.createObjectURL(blob);
-                console.log('Created blob URL:', blobUrl);
-
                 setProfilePictureUrl(blobUrl);
 
                 // Clean up the blob URL when component unmounts
@@ -230,6 +150,15 @@ const DashboardOverview = () => {
     fetchEnrolledCourses();
   }, [user?.id]);
 
+  // Add cleanup for blob URLs when component unmounts
+  useEffect(() => {
+    return () => {
+      if (profilePictureUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(profilePictureUrl);
+      }
+    };
+  }, [profilePictureUrl]);
+
   useEffect(() => {
     // TODO: Replace with actual API call for GPA
     setStats(prev => ({
@@ -257,18 +186,7 @@ const DashboardOverview = () => {
         <div className="p-6 sm:p-8 md:p-10">
           <div className="flex flex-col sm:flex-row items-center gap-6 sm:gap-8">
             {/* Profile Circle */}
-            <div 
-              className="relative w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-gradient-to-br from-blue-100 to-purple-100 shadow-[4px_4px_8px_rgba(0,0,0,0.1),-4px_-4px_8px_rgba(255,255,255,0.8)] border-2 border-white/50 flex items-center justify-center overflow-hidden group cursor-pointer hover:shadow-[6px_6px_12px_rgba(0,0,0,0.15),-6px_-6px_12px_rgba(255,255,255,0.9)] transition-all duration-300"
-              onMouseEnter={() => setIsHovering(true)}
-              onMouseLeave={() => setIsHovering(false)}
-            >
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleProfileUpload}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                disabled={isUploading}
-              />
+            <div className="relative w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-gradient-to-br from-blue-100 to-purple-100 shadow-[4px_4px_8px_rgba(0,0,0,0.1),-4px_-4px_8px_rgba(255,255,255,0.8)] border-2 border-white/50 flex items-center justify-center overflow-hidden">
               {profilePictureUrl ? (
                 <>
                   <img 
@@ -287,14 +205,6 @@ const DashboardOverview = () => {
                       });
                       setProfilePictureUrl(null);
                     }}
-                    onLoad={(e) => {
-                      const imgElement = e.target as HTMLImageElement;
-                      console.log('Profile image loaded successfully:', {
-                        width: imgElement.naturalWidth,
-                        height: imgElement.naturalHeight,
-                        src: imgElement.src
-                      });
-                    }}
                   />
                   <div className="absolute inset-0 bg-gradient-to-br from-blue-50/20 to-purple-50/20"></div>
                 </>
@@ -307,22 +217,6 @@ const DashboardOverview = () => {
                   {user?.email?.[0].toUpperCase() || '?'}
                 </span>
               )}
-              
-              {/* Upload Overlay */}
-              <div className={`absolute inset-0 bg-gradient-to-br from-blue-600/90 to-purple-600/90 backdrop-blur-sm flex flex-col items-center justify-center gap-2 transition-all duration-300 ${isHovering ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}>
-                {isUploading ? (
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
-                ) : (
-                  <>
-                    <div className="p-2 rounded-full bg-white/20 backdrop-blur-sm">
-                      <Camera className="w-6 h-6 text-white" />
-                    </div>
-                    <span className="text-sm text-white font-medium px-3 py-1 rounded-full bg-white/20 backdrop-blur-sm">
-                      {profilePictureUrl ? 'Change Photo' : 'Upload Photo'}
-                    </span>
-                  </>
-                )}
-              </div>
             </div>
 
             {/* Welcome Text */}
