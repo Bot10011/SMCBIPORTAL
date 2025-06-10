@@ -88,13 +88,9 @@ export const gradeService = {
       .from('grades')
       .select(`
         *,
-        enrollment:enrollments(
+        enrollment:enrollcourse(
           student:user_profiles(id, first_name, last_name, middle_name)
-        ),
-        teacher_subject:teacher_subjects(
-          subject:subjects(code, name)
-        ),
-        grade_period:grade_periods(name)
+        )
       `);
 
     if (filter.academic_year) {
@@ -123,43 +119,21 @@ export const gradeService = {
     const gradeMap = new Map<string, GradeSummary>();
     
     data.forEach(grade => {
-      const key = `${grade.enrollment.student.id}-${grade.teacher_subject.subject.code}`;
+      const key = `${grade.enrollment.student.id}`;
       if (!gradeMap.has(key)) {
         gradeMap.set(key, {
           student_id: grade.enrollment.student.id,
           student_name: `${grade.enrollment.student.last_name}, ${grade.enrollment.student.first_name}`,
-          subject_code: grade.teacher_subject.subject.code,
-          subject_name: grade.teacher_subject.subject.name,
-          status: grade.status,
+          subject_code: grade.enrollment.subject_code || '',
+          subject_name: grade.enrollment.subject_name || '',
+          prelim_grade: grade.prelim_grade,
+          midterm_grade: grade.midterm_grade,
+          final_grade: grade.final_grade,
+          status: grade.status || '',
           remarks: grade.remarks || undefined
         });
       }
-
-      const summary = gradeMap.get(key)!;
-      switch (grade.grade_period.name) {
-        case 'Prelim':
-          summary.prelim_grade = grade.grade;
-          break;
-        case 'Midterm':
-          summary.midterm_grade = grade.grade;
-          break;
-        case 'Final':
-          summary.final_grade = grade.grade;
-          break;
-      }
     });
-
-    // Calculate final computed grades
-    for (const summary of gradeMap.values()) {
-      if (summary.prelim_grade !== undefined && 
-          summary.midterm_grade !== undefined && 
-          summary.final_grade !== undefined) {
-        summary.final_computed_grade = 
-          (summary.prelim_grade * 0.3) + 
-          (summary.midterm_grade * 0.3) + 
-          (summary.final_grade * 0.4);
-      }
-    }
 
     return Array.from(gradeMap.values());
   },
