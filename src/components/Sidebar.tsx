@@ -222,14 +222,14 @@ const sidebarItems: SidebarItem[] = [
     roles: ['student'],
   },
   {
-    label: 'My Course',
+    label: 'Subject Details',
     path: '/student/dashboard/course',
     icon: <BookOpenCheck className="w-5 h-5" />,
     roles: ['student'],
   },
   // My Grades for each role
   {
-    label: 'My Grades',
+    label: 'Grade Report',
     path: '/student/dashboard/grades',
     icon: <StudentAward className="w-5 h-5" />,
     roles: ['student'],
@@ -450,7 +450,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                 transition: { type: "spring", stiffness: 400, damping: 10 }
               }}
               onClick={handleHamburgerClick}
-              className="fixed top-4 right-4 z-40 p-3 rounded-xl bg-gradient-to-b from-[#070b11] via-[#142849] to-[#070b11] text-white shadow-2xl border border-white/10 backdrop-blur-md"
+              className="fixed top-8 right-4 z-40 p-3 rounded-xl bg-gradient-to-b from-[#070b11] via-[#142849] to-[#070b11] text-white shadow-2xl border border-white/10 backdrop-blur-md"
               style={{
                 transformStyle: "preserve-3d",
                 perspective: "1000px",
@@ -533,207 +533,239 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
       )}
 
       {/* Sidebar */}
-      <motion.aside
-        initial={false}
-        animate={{
-          width: isCollapsed ? '5.5rem' : '18rem',
-          x: isMobile && isCollapsed ? '-100%' : 0,
-          filter: shouldBlur() ? 'blur(8px)' : 'none',
-        }}
-        data-modal="true"
-        transition={{ 
-          type: "spring",
-          stiffness: 200,
-          damping: 25,
-          mass: 1.5,
-          duration: 0.4,
-          ease: [0.32, 0.72, 0, 1]
-        }}
-        className={`fixed inset-y-0 left-0 bg-gradient-to-b from-[#070b11] via-[#142849] to-[#070b11] text-white shadow-2xl z-[40] rounded-r-3xl overflow-hidden backdrop-blur-md ${shouldBlur() ? 'opacity-80' : ''}`}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-        style={{
-          willChange: 'width, transform, filter',
-          transformOrigin: 'left center'
-        }}
-      >
-        <div className="flex flex-col h-full">
-          {/* Header with glass effect */}
-          <div className="p-6 flex items-center justify-center border-b border-white/10 bg-white/5 backdrop-blur-sm">
-            {/* Logo container with enhanced transitions and effects */}
-            <div className="flex items-center justify-center">
-              <motion.div 
-                className={`relative flex items-center justify-center transition-all duration-500 ease-in-out
-                  ${isCollapsed ? 'w-16 h-16' : 'w-20 h-20'}`}
-                animate={{
-                  scale: isCollapsed ? 0.9 : 1,
-                  rotate: isCollapsed ? -5 : 0,
-                }}
-                transition={{
-                  type: "spring",
-                  stiffness: 150,
-                  damping: 20,
-                  mass: 1.2,
-                  duration: 0.4,
-                  ease: [0.32, 0.72, 0, 1]
-                }}
-              >
-                {/* Outer glow circle - increased size */}
-                <motion.div 
-                  className="absolute -inset-3 rounded-full flex items-center justify-center"
-                  style={{
-                    background: "radial-gradient(circle at center, rgba(96, 165, 250, 0.25) 0%, rgba(96, 165, 250, 0) 80%)",
-                    filter: "blur(14px)",
-                  }}
-                  animate={{
-                    scale: isCollapsed ? 1 : [1, 1.3, 1],
-                    opacity: isCollapsed ? 0 : [0.25, 0.4, 0.25],
-                  }}
-                  transition={{
-                    duration: 3,
-                    repeat: Infinity,
-                    ease: "easeInOut"
-                  }}
-                />
-
-                {/* Middle glow circle - increased size */}
-                <motion.div 
-                  className="absolute -inset-2 rounded-full flex items-center justify-center"
-                  style={{
-                    background: "radial-gradient(circle at center, rgba(59, 130, 246, 0.3) 0%, rgba(59, 130, 246, 0) 70%)",
-                    filter: "blur(10px)",
-                  }}
-                  animate={{
-                    scale: isCollapsed ? 1 : [1, 1.2, 1],
-                    opacity: isCollapsed ? 0 : [0.3, 0.45, 0.3],
-                  }}
-                  transition={{
-                    duration: 2.5,
-                    repeat: Infinity,
-                    ease: "easeInOut",
-                    delay: 0.2
-                  }}
-                />
-
-                {/* Inner pulsing circle - increased size */}
-                <motion.div 
-                  className="absolute inset-0 rounded-full flex items-center justify-center"
-                  style={{
-                    background: "radial-gradient(circle at center, rgba(37, 99, 235, 0.4) 0%, rgba(37, 99, 235, 0) 60%)",
-                    filter: "blur(10px)",
-                  }}
-                  animate={{
-                    scale: isCollapsed ? 1 : [1, 1.1, 1],
-                    opacity: isCollapsed ? 0.3 : [0.4, 0.5, 0.4],
-                  }}
-                  transition={{
-                    duration: 2,
-                    repeat: Infinity,
-                    ease: "easeInOut",
-                    delay: 0.4
-                  }}
-                />
-
-                {/* Logo image with enhanced transitions and perfect centering */}
-                <motion.div 
-                  className="absolute inset-0 flex items-center justify-center"
-                  style={{
-                    transform: 'translateZ(0)',
-                  }}
-                >
-                  <motion.img
-                    src="/img/logo1.png"
-                    alt="School Logo"
-                    className="w-[95%] h-[95%] object-contain drop-shadow-lg"
-                    style={{
-                      transformOrigin: "center center",
-                      willChange: "transform, filter"
-                    }}
-                    animate={{
-                      scale: isCollapsed ? 1.25 : 1.1,
-                      rotate: isCollapsed ? 5 : 0,
-                      filter: isCollapsed ? "brightness(1.1)" : "brightness(1)",
-                    }}
-                    transition={{
-                      type: "spring",
-                      stiffness: 200,
-                      damping: 20,
-                      mass: 1
-                    }}
-                  />
-                </motion.div>
-              </motion.div>
-            </div>
-          </div>
-
-          {/* Navigation with enhanced visuals and smooth transitions */}
-          <nav className="flex-1 overflow-y-auto py-6 px-3 space-y-1.5 custom-scrollbar">
-            {filteredSidebarItems.map((item, index) => (
-              <motion.div
-                key={item.path}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ 
-                  duration: 0.3,
-                  delay: index * 0.03,
-                  ease: [0.32, 0.72, 0, 1]
-                }}
-              >
-                <Link
-                  to={item.path}
-                  onClick={() => {
-                    if (isMobile) {
-                      handleNavigationClick();
-                    }
-                  }}
-                  className={`group flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-300 ease-in-out
-                    ${isExactPathActive(item.path)
-                      ? 'bg-gradient-to-r from-white/20 to-white/10 text-white font-medium backdrop-blur-sm shadow-lg'
-                      : 'text-blue-100 hover:bg-white/10 hover:text-white'
-                    }
-                    ${isCollapsed ? 'justify-center' : ''}`}
-                  title={isCollapsed ? item.label : undefined}
-                >
+      <AnimatePresence>
+        {(!isMobile || !isCollapsed) && (
+          <motion.aside
+            initial={{
+              x: isMobile ? '-100%' : 0, // Start fully off-screen on mobile
+              opacity: 0,
+            }}
+            animate={{
+              width: isCollapsed ? '5.5rem' : '15rem',
+              x: isMobile && isCollapsed ? '-1%' : 0,
+              opacity: 1,
+              filter: shouldBlur() ? 'blur(8px)' : 'none',
+            }}
+            exit={{
+              x: isMobile ? '-100%' : 0, // Slide out on mobile
+              opacity: 0,
+            }}
+            transition={{
+              type: 'spring',
+              stiffness: 200,
+              damping: 30,
+              mass: 1.2,
+              duration: 0.5,
+              ease: [0.32, 0.72, 0, 1],
+            }}
+            className={`fixed inset-y-0 left-0 bg-gradient-to-b from-[#070b11] via-[#142849] to-[#070b11] text-white shadow-2xl z-[40] rounded-r-3xl overflow-hidden backdrop-blur-md ${isMobile && isCollapsed ? 'hidden' : ''}`}
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
+            style={{
+              willChange: 'width, transform, filter',
+              transformOrigin: 'left center'
+            }}
+          >
+            <div className="flex flex-col h-full">
+              {/* Header with glass effect */}
+              <div className="p-6 flex items-center justify-center border-b border-white/10 bg-white/5 backdrop-blur-sm">
+                {/* Logo container with enhanced transitions and effects */}
+                <div className="flex items-center justify-center">
                   <motion.div 
-                    layout
+                    className={`relative flex items-center justify-center transition-all duration-500 ease-in-out
+                      ${isCollapsed ? 'w-16 h-16' : 'w-20 h-20'}`}
+                    animate={{
+                      scale: isCollapsed ? 0.9 : 1,
+                      rotate: isCollapsed ? -5 : 0,
+                    }}
                     transition={{
                       type: "spring",
-                      stiffness: 200,
-                      damping: 25,
+                      stiffness: 150,
+                      damping: 20,
                       mass: 1.2,
-                      duration: 0.3,
+                      duration: 0.4,
                       ease: [0.32, 0.72, 0, 1]
                     }}
-                    className={`p-2 rounded-lg transition-all duration-300 
-                    ${isExactPathActive(item.path)
-                      ? 'bg-white text-blue-600 shadow-md shadow-white/20' 
-                      : 'text-blue-100 group-hover:bg-white/10 group-hover:text-white'}`}
                   >
-                    {item.icon}
-                  </motion.div>
-                  
-                  {!isCollapsed && (
-                    <motion.span 
-                      initial={{ opacity: 0, width: 0 }}
-                      animate={{ opacity: 1, width: "auto" }}
-                      exit={{ opacity: 0, width: 0 }}
-                      transition={{ 
-                        duration: 0.3,
-                        ease: [0.32, 0.72, 0, 1]
-                      }}
-                      className={`font-medium overflow-hidden whitespace-nowrap ${isExactPathActive(item.path) ? 'ml-1' : ''}`}
-                    >
-                      {item.label}
-                    </motion.span>
-                  )}
-                  
-                  {/* Active indicator line with enhanced animation */}
-                  {!isCollapsed && isExactPathActive(item.path) && (
+                    {/* Outer glow circle - increased size */}
                     <motion.div 
-                      className="absolute left-0 w-1.5 h-8 bg-gradient-to-b from-blue-300 to-white rounded-r-full"
-                      layoutId="activeIndicator"
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "2rem" }}
+                      className="absolute -inset-3 rounded-full flex items-center justify-center"
+                      style={{
+                        background: "radial-gradient(circle at center, rgba(96, 165, 250, 0.25) 0%, rgba(96, 165, 250, 0) 80%)",
+                        filter: "blur(14px)",
+                      }}
+                      animate={{
+                        scale: isCollapsed ? 1 : [1, 1.3, 1],
+                        opacity: isCollapsed ? 0 : [0.25, 0.4, 0.25],
+                      }}
+                      transition={{
+                        duration: 3,
+                        repeat: Infinity,
+                        ease: "easeInOut"
+                      }}
+                    />
+
+                    {/* Middle glow circle - increased size */}
+                    <motion.div 
+                      className="absolute -inset-2 rounded-full flex items-center justify-center"
+                      style={{
+                        background: "radial-gradient(circle at center, rgba(59, 130, 246, 0.3) 0%, rgba(59, 130, 246, 0) 70%)",
+                        filter: "blur(10px)",
+                      }}
+                      animate={{
+                        scale: isCollapsed ? 1 : [1, 1.2, 1],
+                        opacity: isCollapsed ? 0 : [0.3, 0.45, 0.3],
+                      }}
+                      transition={{
+                        duration: 2.5,
+                        repeat: Infinity,
+                        ease: "easeInOut",
+                        delay: 0.2
+                      }}
+                    />
+
+                    {/* Inner pulsing circle - increased size */}
+                    <motion.div 
+                      className="absolute inset-0 rounded-full flex items-center justify-center"
+                      style={{
+                        background: "radial-gradient(circle at center, rgba(37, 99, 235, 0.4) 0%, rgba(37, 99, 235, 0) 60%)",
+                        filter: "blur(10px)",
+                      }}
+                      animate={{
+                        scale: isCollapsed ? 1 : [1, 1.1, 1],
+                        opacity: isCollapsed ? 0.3 : [0.4, 0.5, 0.4],
+                      }}
+                      transition={{
+                        duration: 2,
+                        repeat: Infinity,
+                        ease: "easeInOut",
+                        delay: 0.4
+                      }}
+                    />
+
+                    {/* Logo image with enhanced transitions and perfect centering */}
+                    <motion.div 
+                      className="absolute inset-0 flex items-center justify-center"
+                      style={{
+                        transform: 'translateZ(0)',
+                      }}
+                    >
+                      <motion.img
+                        src="/img/logo1.png"
+                        alt="School Logo"
+                        className="w-[95%] h-[95%] object-contain drop-shadow-lg"
+                        style={{
+                          transformOrigin: "center center",
+                          willChange: "transform, filter"
+                        }}
+                        animate={{
+                          scale: isCollapsed ? 1.25 : 1.1,
+                          rotate: isCollapsed ? 5 : 0,
+                          filter: isCollapsed ? "brightness(1.1)" : "brightness(1)",
+                        }}
+                        transition={{
+                          type: "spring",
+                          stiffness: 200,
+                          damping: 20,
+                          mass: 1
+                        }}
+                      />
+                    </motion.div>
+                  </motion.div>
+                </div>
+              </div>
+
+              {/* Navigation with enhanced visuals and smooth transitions */}
+              <nav className="flex-1 overflow-y-auto py-6 px-3 space-y-1.5 custom-scrollbar">
+                {filteredSidebarItems.map((item, index) => (
+                  <motion.div
+                    key={item.path}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ 
+                      duration: 0.3,
+                      delay: index * 0.03,
+                      ease: [0.32, 0.72, 0, 1]
+                    }}
+                  >
+                    <Link
+                      to={item.path}
+                      onClick={() => {
+                        if (isMobile) {
+                          handleNavigationClick();
+                        }
+                      }}
+                      className={`group flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-300 ease-in-out
+                        ${isExactPathActive(item.path)
+                          ? 'bg-gradient-to-r from-white/20 to-white/10 text-white font-medium backdrop-blur-sm shadow-lg'
+                          : 'text-blue-100 hover:bg-white/10 hover:text-white'
+                        }
+                        ${isCollapsed ? 'justify-center' : ''}`}
+                      title={isCollapsed ? item.label : undefined}
+                    >
+                      <motion.div 
+                        layout
+                        transition={{
+                          type: "spring",
+                          stiffness: 200,
+                          damping: 25,
+                          mass: 1.2,
+                          duration: 0.3,
+                          ease: [0.32, 0.72, 0, 1]
+                        }}
+                        className={`p-2 rounded-lg transition-all duration-300 
+                        ${isExactPathActive(item.path)
+                          ? 'bg-white text-blue-600 shadow-md shadow-white/20' 
+                          : 'text-blue-100 group-hover:bg-white/10 group-hover:text-white'}`}
+                      >
+                        {item.icon}
+                      </motion.div>
+                      
+                      {!isCollapsed && (
+                        <motion.span 
+                          initial={{ opacity: 0, width: 0 }}
+                          animate={{ opacity: 1, width: "auto" }}
+                          exit={{ opacity: 0, width: 0 }}
+                          transition={{ 
+                            duration: 0.3,
+                            ease: [0.32, 0.72, 0, 1]
+                          }}
+                          className={`font-medium overflow-hidden whitespace-nowrap ${isExactPathActive(item.path) ? 'ml-1' : ''}`}
+                        >
+                          {item.label}
+                        </motion.span>
+                      )}
+                      
+                      {/* Active indicator line with enhanced animation */}
+                      {!isCollapsed && isExactPathActive(item.path) && (
+                        <motion.div 
+                          className="absolute left-0 w-1.5 h-8 bg-gradient-to-b from-blue-300 to-white rounded-r-full"
+                          layoutId="activeIndicator"
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "2rem" }}
+                          transition={{ 
+                            type: "spring",
+                            stiffness: 200,
+                            damping: 25,
+                            mass: 1.2,
+                            duration: 0.3,
+                            ease: [0.32, 0.72, 0, 1]
+                          }}
+                        />
+                      )}
+                    </Link>
+                  </motion.div>
+                ))}
+              </nav>
+
+              {/* Footer with glass effect and smooth transitions */}
+              <div className="p-6 border-t border-white/10 bg-gradient-to-b from-transparent to-blue-900/30 backdrop-blur-sm">
+                <AnimatePresence>
+                  {!isCollapsed && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10, height: 0 }}
+                      animate={{ opacity: 1, y: 0, height: "auto" }}
+                      exit={{ opacity: 0, y: 10, height: 0 }}
                       transition={{ 
                         type: "spring",
                         stiffness: 200,
@@ -742,87 +774,66 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                         duration: 0.3,
                         ease: [0.32, 0.72, 0, 1]
                       }}
-                    />
-                  )}
-                </Link>
-              </motion.div>
-            ))}
-          </nav>
-
-          {/* Footer with glass effect and smooth transitions */}
-          <div className="p-6 border-t border-white/10 bg-gradient-to-b from-transparent to-blue-900/30 backdrop-blur-sm">
-            <AnimatePresence>
-              {!isCollapsed && (
-                <motion.div 
-                  initial={{ opacity: 0, y: 10, height: 0 }}
-                  animate={{ opacity: 1, y: 0, height: "auto" }}
-                  exit={{ opacity: 0, y: 10, height: 0 }}
-                  transition={{ 
-                    type: "spring",
-                    stiffness: 200,
-                    damping: 25,
-                    mass: 1.2,
-                    duration: 0.3,
-                    ease: [0.32, 0.72, 0, 1]
-                  }}
-                  className="flex items-center gap-3 mb-4 overflow-hidden"
-                >
-                  <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
-                    <User className="w-4 h-4" />
-                  </div>
-                  <div className="flex-1 min-w-0 overflow-hidden">
-                    <p className="text-sm font-medium text-white truncate">
-                      {user.email?.split('@')[0]}
-                    </p>
-                    <p className="text-xs text-blue-200 truncate">
-                      {user.email}
-                    </p>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-            
-            {/* Logout button with enhanced styling and transitions */}
-            <div className={`${isCollapsed ? 'flex justify-center' : 'w-full'} transition-all duration-300 ease-in-out`}>
-              <motion.button
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.97 }}
-                onClick={handleLogoutClick}
-                layout
-                transition={{ 
-                  type: "spring",
-                  stiffness: 200,
-                  damping: 25,
-                  mass: 1.2,
-                  duration: 0.3,
-                  ease: [0.32, 0.72, 0, 1]
-                }}
-                className={`flex items-center justify-center text-sm font-medium text-white 
-                  bg-gradient-to-r from-red-500 to-rose-600 rounded-xl hover:from-red-600 hover:to-rose-700
-                  transition-all duration-300 ease-in-out shadow-lg shadow-rose-500/30
-                  ${isCollapsed 
-                    ? 'w-12 h-12 p-3 rounded-full' 
-                    : 'w-full px-5 py-3.5 gap-3'}`}
-                title={isCollapsed ? 'Logout' : undefined}
-              >
-                <LogOut className="w-5 h-5" />
-                <AnimatePresence>
-                  {!isCollapsed && (
-                    <motion.span
-                      initial={{ opacity: 0, width: 0 }}
-                      animate={{ opacity: 1, width: "auto" }}
-                      exit={{ opacity: 0, width: 0 }}
-                      transition={{ duration: 0.3 }}
+                      className="flex items-center gap-3 mb-4 overflow-hidden"
                     >
-                      Logout
-                    </motion.span>
+                      <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
+                        <User className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1 min-w-0 overflow-hidden">
+                        <p className="text-sm font-medium text-white truncate">
+                          {user.email?.split('@')[0]}
+                        </p>
+                        <p className="text-xs text-blue-200 truncate">
+                          {user.email}
+                        </p>
+                      </div>
+                    </motion.div>
                   )}
                 </AnimatePresence>
-              </motion.button>
+                
+                {/* Logout button with enhanced styling and transitions */}
+                <div className={`${isCollapsed ? 'flex justify-center' : 'w-full'} transition-all duration-300 ease-in-out`}>
+                  <motion.button
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={handleLogoutClick}
+                    layout
+                    transition={{ 
+                      type: "spring",
+                      stiffness: 200,
+                      damping: 25,
+                      mass: 1.2,
+                      duration: 0.3,
+                      ease: [0.32, 0.72, 0, 1]
+                    }}
+                    className={`flex items-center justify-center text-sm font-medium text-white 
+                      bg-gradient-to-r from-red-500 to-rose-600 rounded-xl hover:from-red-600 hover:to-rose-700
+                      transition-all duration-300 ease-in-out shadow-lg shadow-rose-500/30
+                      ${isCollapsed 
+                        ? 'w-12 h-12 p-3 rounded-full' 
+                        : 'w-full px-5 py-3.5 gap-3'}`}
+                    title={isCollapsed ? 'Logout' : undefined}
+                  >
+                    <LogOut className="w-5 h-5" />
+                    <AnimatePresence>
+                      {!isCollapsed && (
+                        <motion.span
+                          initial={{ opacity: 0, width: 0 }}
+                          animate={{ opacity: 1, width: "auto" }}
+                          exit={{ opacity: 0, width: 0 }}
+                          transition={{ duration: 0.3 }}
+                        >
+                          Logout
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
+                  </motion.button>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-      </motion.aside>
+          </motion.aside>
+        )}
+      </AnimatePresence>
 
       {/* Main Content */}
       <motion.main
