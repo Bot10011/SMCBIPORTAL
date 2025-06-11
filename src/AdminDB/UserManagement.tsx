@@ -29,29 +29,56 @@ const genderOptions = [
 interface UserProfile {
   id: string;
   email: string;
-  role: string;
+  role: 'admin' | 'teacher' | 'student' | 'registrar' | 'programhead';
   first_name: string;
   middle_name?: string;
   last_name: string;
   suffix?: string;
   is_active: boolean;
+  department?: string;
+  subjects?: string[];
+  program_id?: string;
   student_id?: string;
+  year_level?: string;
+  student_type?: string;
+  enrollment_status?: string;
+  section?: string;
+  school_year?: string;
+  semester?: string;
   gender?: string;
   birthdate?: string;
   phone?: string;
   address?: string;
-  program_id?: string;
-  year_level?: string;
-  section?: string;
-  school_year?: string;
-  semester?: string;
-  enrollment_status?: string;
-  student_type?: string;
   emergency_contact_name?: string;
   emergency_contact_relationship?: string;
   emergency_contact_phone?: string;
-  created_at: string;
-  updated_at: string;
+  teacher_subjects?: {
+    id: string;
+    subject: {
+      code: string;
+      name: string;
+      units: number;
+    };
+    section: string;
+    academic_year: string;
+    semester: string;
+  }[];
+}
+
+// Add these interfaces at the top of the file
+interface TeacherSubject {
+  id: string;
+  section: string;
+  academic_year: string;
+  semester: string;
+  subject_id: string;
+  is_active: boolean;
+  courses: {
+    id: string;
+    code: string;
+    name: string;
+    units: number;
+  } | null;
 }
 
 export default function UserManagement() {
@@ -163,7 +190,7 @@ export default function UserManagement() {
   });
 
   // Update debounce function with proper types
-  const debounce = <T extends (...args: any[]) => void>(func: T, wait: number): ((...args: Parameters<T>) => void) => {
+  const debounce = <T extends (...args: unknown[]) => void>(func: T, wait: number): ((...args: Parameters<T>) => void) => {
     let timeout: NodeJS.Timeout;
     return (...args: Parameters<T>) => {
       clearTimeout(timeout);
@@ -217,7 +244,7 @@ export default function UserManagement() {
   };
 
   // Create debounced version of email check
-  const debouncedEmailCheck = debounce(checkEmailUniqueness, 500);
+  const debouncedEmailCheck = debounce(checkEmailUniqueness as (...args: unknown[]) => void, 500);
 
   // Add function to generate student ID
   const generateStudentId = async (): Promise<string> => {
@@ -364,7 +391,7 @@ export default function UserManagement() {
   const areAllRequirementsMet = () => {
     return Object.entries(passwordValidation)
       .filter(([key]) => key !== 'matches') // Exclude the matches check
-      .every(([_, value]) => value === true);
+      .every(([, value]) => value === true);
   };
 
   // Update handleCreateUser to handle auth uniqueness during signup
@@ -764,33 +791,116 @@ export default function UserManagement() {
   }, [editingUser]);
 
   // Add new state for active tab
-  const [activeTab, setActiveTab] = useState<'all' | 'students'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'students' | 'teachers'>('all');
+  const [searchTerm, setSearchTerm] = useState('');
   
-  // Add filtered users based on active tab
-  const filteredUsers = users.filter(user => 
-    activeTab === 'all' ? true : user.role === 'student'
-  );
+  // Add filtered users based on active tab and search term
+  const filteredUsers = users.filter(user => {
+    const matchesTab = 
+      activeTab === 'all' ? true :
+      activeTab === 'students' ? user.role === 'student' :
+      activeTab === 'teachers' ? user.role === 'teacher' : true;
+    
+    const matchesSearch = searchTerm === '' || 
+      [user.first_name, user.middle_name, user.last_name, user.suffix]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase());
+    
+    return matchesTab && matchesSearch;
+  });
 
-  // Add sections array
-  const sections = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
+  // Update the state type
+  const [teacherSubjects, setTeacherSubjects] = useState<Record<string, TeacherSubject[]>>({});
+
+  // Update the fetchTeacherSubjects function to join with courses
+  const fetchTeacherSubjects = async (teacherId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('teacher_subjects')
+        .select(`
+          id,
+          section,
+          academic_year,
+          semester,
+          subject_id,
+          is_active,
+          courses (
+            id,
+            code,
+            name,
+            units
+          )
+        `)
+        .eq('teacher_id', teacherId)
+        .eq('is_active', true);
+
+      if (error) throw error;
+      if (data) {
+        setTeacherSubjects(prev => ({
+          ...prev,
+          [teacherId]: (data as unknown[]).map(itemRaw => {
+            const item = itemRaw as Record<string, unknown>;
+            return {
+              ...item,
+              courses: Array.isArray(item.courses) ? (item.courses[0] ?? null) : (item.courses ?? null),
+            };
+          }) as TeacherSubject[],
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching teacher subjects:', error);
+      toast.error('Failed to load teacher subjects');
+    }
+  };
+
+  // Modify useEffect to fetch teacher subjects when viewing teachers
+  useEffect(() => {
+    if (activeTab === 'teachers') {
+      const teachers = users.filter(user => user.role === 'teacher');
+      teachers.forEach(teacher => {
+        if (!teacherSubjects[teacher.id]) {
+          fetchTeacherSubjects(teacher.id);
+        }
+      });
+    }
+  }, [activeTab, users]);
 
   return (
-    <div className="p-4 sm:p-6 max-w-7xl mx-auto">
-      {/* Header Section - Enhanced with better spacing and shadow */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 bg-white p-6 rounded-2xl shadow-lg">
+    <div className="container mx-auto p-6">
+      {/* User Management Header with inner shadow */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 bg-white p-6 rounded-2xl shadow-inner border border-gray-100">
         <div>
           <h2 className="text-2xl font-bold text-gray-800 mb-1">User Management</h2>
           <p className="text-gray-500 text-sm">Manage and organize all system users</p>
         </div>
         <button
-          className="flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 transition-all duration-200 shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 hover:-translate-y-0.5 w-full sm:w-auto"
+          className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 transition-all duration-200 shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 hover:-translate-y-0.5 w-full sm:w-auto"
           onClick={() => setShowModal(true)}
         >
           <UserPlus className="w-5 h-5" /> Add New User
         </button>
       </div>
+      {/* Search Bar */}
+      <div className="mb-6">
+        <div className="relative">
+          <input
+            type="text"
+            placeholder="Search users by full name..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full px-4 py-3 pl-10 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200"
+          />
+          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+            </svg>
+          </div>
+        </div>
+      </div>
 
-      {/* Tab Navigation */}
+      {/* Tabs */}
       <div className="mb-6 bg-white rounded-2xl shadow-lg p-1 border border-gray-100">
         <div className="flex gap-2">
           <button
@@ -822,6 +932,22 @@ export default function UserManagement() {
               <span>Students</span>
               <span className="px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600">
                 {users.filter(u => u.role === 'student').length}
+              </span>
+            </div>
+          </button>
+          <button
+            onClick={() => setActiveTab('teachers')}
+            className={`flex-1 sm:flex-none px-6 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
+              activeTab === 'teachers'
+                ? 'bg-indigo-50 text-indigo-700 shadow-sm'
+                : 'text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            <div className="flex items-center justify-center gap-2">
+              <Users className="w-4 h-4" />
+              <span>Teachers</span>
+              <span className="px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600">
+                {users.filter(u => u.role === 'teacher').length}
               </span>
             </div>
           </button>
@@ -879,6 +1005,9 @@ export default function UserManagement() {
                           <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
                         </>
                       )}
+                      {activeTab === 'teachers' && (
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Department & Subjects</th>
+                      )}
                       <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
@@ -921,15 +1050,6 @@ export default function UserManagement() {
                                   'bg-gray-100 text-gray-700'}`}>
                                 {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
                               </span>
-                              <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold w-fit
-                                ${user.is_active 
-                                  ? 'bg-emerald-100 text-emerald-700' 
-                                  : 'bg-red-100 text-red-700'}`}>
-                                <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${
-                                  user.is_active ? 'bg-emerald-500' : 'bg-red-500'
-                                }`}></span>
-                                {user.is_active ? 'Active' : 'Inactive'}
-                              </span>
                             </div>
                           </td>
                         )}
@@ -940,7 +1060,7 @@ export default function UserManagement() {
                                 <div className="text-sm">
                                   <span className="text-gray-500">Program:</span>{' '}
                                   <span className="font-medium text-gray-900">
-                                    {programs.find(p => p.id === user.program_id)?.name || 'N/A'}
+                                    {programs.find(p => p.id.toString() === user.program_id?.toString())?.name || 'N/A'}
                                   </span>
                                 </div>
                                 <div className="text-sm">
@@ -974,6 +1094,46 @@ export default function UserManagement() {
                             </td>
                           </>
                         )}
+                        {activeTab === 'teachers' && user.role === 'teacher' ? (
+                          <td className="px-6 py-5">
+                            <div className="flex flex-col gap-1">
+                              <div className="text-xs mb-1">
+                                <span className="text-gray-500">Department:</span>{' '}
+                                <span className="font-semibold text-gray-900">{user.department || 'N/A'}</span>
+                              </div>
+                              <div className="text-xs">
+                                <span className="text-gray-500">Assigned Subjects:</span>
+                                {teacherSubjects[user.id] && teacherSubjects[user.id].length > 0 ? (
+                                  <div className="mt-0.5 space-y-0.5">
+                                    {teacherSubjects[user.id].map((subject) => (
+                                      <div
+                                        key={subject.id}
+                                        className="flex flex-col gap-0.5 text-[11px] bg-gray-100 rounded mb-0.5 shadow-inner border border-gray-200"
+                                        style={{ padding: '4px 8px', lineHeight: 1.15 }}
+                                      >
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="font-semibold text-gray-900">{subject.courses?.code}</span>
+                                          <span className="text-gray-500">-</span>
+                                          <span className="text-gray-700 truncate max-w-[80px]">{subject.courses?.name}</span>
+                                          <span className="text-gray-400">({subject.courses?.units}u)</span>
+                                        </div>
+                                        <div className="flex items-center gap-1 text-[10px] text-gray-500">
+                                          <span>Sec: {subject.section}</span>
+                                          <span>•</span>
+                                          <span>{subject.academic_year}</span>
+                                          <span>•</span>
+                                          <span>{subject.semester}</span>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <span className="text-gray-400 ml-1">No subjects assigned</span>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                        ) : null}
                         <td className="px-6 py-5">
                           <div className="flex items-center gap-2">
                             <button 
@@ -1603,7 +1763,7 @@ export default function UserManagement() {
                       <div className="space-y-2 text-sm">
                          <div><b>Name:</b> {`${form.first_name} ${form.middle_name ? form.middle_name + ' ' : ''}${form.last_name}${form.suffix ? ' ' + form.suffix : ''}`}</div>
                         <div><b>Email:</b> {form.email}@smcbi.edu.ph</div>
-                        <div><b>Program:</b> {programs.find(p => p.id === Number(form.program_id))?.name || 'N/A'}</div>
+                        <div><b>Program:</b> {programs.find(p => p.id.toString() === form.program_id?.toString())?.name || 'N/A'}</div>
                         <div><b>Role:</b> {form.role}</div>
                      
                         {form.role === 'student' && <>
