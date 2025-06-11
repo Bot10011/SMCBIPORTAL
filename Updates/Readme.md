@@ -1,1 +1,1 @@
-example:  E:\Student Portal\src\components\Example.tsx 
+example location:  E:\Student Portal\src\components\Example.tsx 
