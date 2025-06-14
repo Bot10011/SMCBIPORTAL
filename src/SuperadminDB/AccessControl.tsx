@@ -3,7 +3,6 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { UserRole } from '../types/auth';
 import toast from 'react-hot-toast';
-import { createDashboardAccessTable } from '../lib/dashboardAccessUtils';
 
 interface DashboardAccess {
   role: UserRole;
@@ -16,7 +15,7 @@ const AccessControl: React.FC = () => {
   const { user } = useAuth();  const [dashboardAccess, setDashboardAccess] = useState<DashboardAccess[]>([
     { role: 'admin', has_access: true, restriction_heading: 'Access Restricted', restriction_subtext: 'You do not have access to this dashboard.' },
     { role: 'registrar', has_access: true, restriction_heading: 'Access Restricted', restriction_subtext: 'You do not have access to this dashboard.' },
-    { role: 'programhead', has_access: true, restriction_heading: 'Access Restricted', restriction_subtext: 'You do not have access to this dashboard.' },
+    { role: 'program_head', has_access: true, restriction_heading: 'Access Restricted', restriction_subtext: 'You do not have access to this dashboard.' },
     { role: 'teacher', has_access: true, restriction_heading: 'Access Restricted', restriction_subtext: 'You do not have access to this dashboard.' },
     { role: 'student', has_access: true, restriction_heading: 'Access Restricted', restriction_subtext: 'You do not have access to this dashboard.' },
   ]);const [loading, setLoading] = useState(false);
