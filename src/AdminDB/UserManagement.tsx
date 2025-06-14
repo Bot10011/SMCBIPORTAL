@@ -5,7 +5,6 @@ import { UserPlus, Loader2, Users } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
 import { useModal } from '../contexts/ModalContext';
-import UserActions from '../components/UserActions';
 
 interface Program {
   id: number;
@@ -43,7 +42,7 @@ export default function UserManagement() {
   const [activeTab, setActiveTab] = useState<'all' | 'students' | 'teachers'>('all');
   
   // Add modal state
-  const { setShowCreateUserModal, setShowEditUserModal, setShowMessageModal, setSelectedUserId } = useModal();
+  const { setShowCreateUserModal } = useModal();
   
   // Add filtered users logic
   const filteredUsers = users.filter(user => {
@@ -167,16 +166,6 @@ export default function UserManagement() {
       });
     }
   }, [activeTab, users]);
-
-  const handleEditUser = (userId: string) => {
-    setSelectedUserId(userId);
-    setShowEditUserModal(true);
-  };
-
-  const handleMessageUser = (userId: string) => {
-    setSelectedUserId(userId);
-    setShowMessageModal(true);
-  };
 
   return (
     <div className="container mx-auto p-6">
@@ -446,12 +435,7 @@ export default function UserManagement() {
                           </td>
                         )}
                         <td className="px-6 py-5">
-                          <UserActions
-                            user={user}
-                            onEdit={handleEditUser}
-                            onMessage={handleMessageUser}
-                            onUserUpdate={fetchUsers}
-                          />
+                          {/* Empty actions column since we removed the buttons */}
                         </td>
                       </motion.tr>
                     ))}
