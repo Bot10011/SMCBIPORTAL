@@ -27,7 +27,7 @@ const UserOverview: React.FC = () => {
     superadmin: 0,
     admin: 0,
     registrar: 0,
-    programhead: 0,
+    program_head: 0,
     teacher: 0,
     student: 0,
   });
@@ -76,7 +76,7 @@ const UserOverview: React.FC = () => {
           superadmin: 0,
           admin: 0,
           registrar: 0,
-          programhead: 0,
+          program_head: 0,
           teacher: 0,
           student: 0,
         };
@@ -166,12 +166,12 @@ const UserOverview: React.FC = () => {
         
         <div 
           className={`bg-white p-4 rounded-lg shadow border-l-4 ${
-            roleFilter === 'programhead' ? 'border-yellow-500' : 'border-gray-200'
+            roleFilter === 'program_head' ? 'border-yellow-500' : 'border-gray-200'
           } cursor-pointer hover:bg-gray-50`}
-          onClick={() => setRoleFilter('programhead')}
+          onClick={() => setRoleFilter('program_head')}
         >
           <p className="text-sm text-gray-500">Program Heads</p>
-          <p className="text-2xl font-bold text-gray-800">{userCount.programhead}</p>
+          <p className="text-2xl font-bold text-gray-800">{userCount.program_head}</p>
         </div>
         
         <div 
@@ -279,7 +279,7 @@ const UserOverview: React.FC = () => {
                         ${userData.role === 'superadmin' ? 'bg-purple-100 text-purple-800' : 
                         userData.role === 'admin' ? 'bg-red-100 text-red-800' : 
                         userData.role === 'registrar' ? 'bg-green-100 text-green-800' :
-                        userData.role === 'programhead' ? 'bg-yellow-100 text-yellow-800' :
+                        userData.role === 'program_head' ? 'bg-yellow-100 text-yellow-800' :
                         userData.role === 'teacher' ? 'bg-indigo-100 text-indigo-800' :
                         'bg-blue-100 text-blue-800'}`}>
                         {userData.role}
