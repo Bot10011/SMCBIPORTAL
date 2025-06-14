@@ -36,7 +36,7 @@ export const DashboardAccessProvider: React.FC<{ children: ReactNode }> = ({ chi
         setAccessConfig([
           { role: 'admin', has_access: true, restriction_heading: 'Access Restricted', restriction_subtext: 'Admin dashboard access is restricted.' },
           { role: 'registrar', has_access: true, restriction_heading: 'Access Restricted', restriction_subtext: 'Registrar dashboard access is restricted.' },
-          { role: 'programhead', has_access: true, restriction_heading: 'Access Restricted', restriction_subtext: 'Program Head dashboard access is restricted.' },
+          { role: 'program_head', has_access: true, restriction_heading: 'Access Restricted', restriction_subtext: 'Program Head dashboard access is restricted.' },
           { role: 'teacher', has_access: true, restriction_heading: 'Access Restricted', restriction_subtext: 'Teacher dashboard access is restricted.' },
           { role: 'student', has_access: true, restriction_heading: 'Access Restricted', restriction_subtext: 'Student dashboard access is restricted.' },
         ]);
@@ -49,7 +49,7 @@ export const DashboardAccessProvider: React.FC<{ children: ReactNode }> = ({ chi
         setAccessConfig([
           { role: 'admin', has_access: true, restriction_heading: 'Access Restricted', restriction_subtext: 'Admin dashboard access is restricted.' },
           { role: 'registrar', has_access: true, restriction_heading: 'Access Restricted', restriction_subtext: 'Registrar dashboard access is restricted.' },
-          { role: 'programhead', has_access: true, restriction_heading: 'Access Restricted', restriction_subtext: 'Program Head dashboard access is restricted.' },
+          { role: 'program_head', has_access: true, restriction_heading: 'Access Restricted', restriction_subtext: 'Program Head dashboard access is restricted.' },
           { role: 'teacher', has_access: true, restriction_heading: 'Access Restricted', restriction_subtext: 'Teacher dashboard access is restricted.' },
           { role: 'student', has_access: true, restriction_heading: 'Access Restricted', restriction_subtext: 'Student dashboard access is restricted.' },
         ]);
