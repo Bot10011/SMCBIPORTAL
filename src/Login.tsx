@@ -24,7 +24,7 @@ const Login: React.FC = () => {
     console.log('Username input changed:', value); // Debug log
     
     // Development shortcut: Auto-fill password for specific usernames
-    if (value === 'admin' || value === 'teacher' || value === 'student' || value === 'registrar' || value === 'programhead') {
+    if (value === 'admin' || value === 'teacher' || value === 'student' || value === 'registrar' || value === 'program_head') {
       setFormData({ 
         username: value, 
         password: 'Admin123!' // Development password
@@ -70,7 +70,7 @@ const Login: React.FC = () => {
           console.log('Updating auth context...'); // Debug log
           
           // Normalize role (convert program_head to programhead)
-          const normalizedRole = userData.role === 'program_head' ? 'programhead' : userData.role;
+          const normalizedRole = userData.role === 'program_head' ? 'program_head' : userData.role;
           
           const userDataToStore = {
             id: user.id,
