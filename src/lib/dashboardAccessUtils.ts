@@ -17,7 +17,7 @@ INSERT INTO dashboard_access (role, has_access, restriction_heading, restriction
 VALUES 
   ('admin', true, 'Access Restricted', 'Admin dashboard is currently under maintenance.'),
   ('registrar', true, 'Access Restricted', 'Registrar dashboard is currently restricted.'),
-  ('programhead', true, 'Access Restricted', 'Program Head dashboard is currently restricted.'),
+  ('program_head', true, 'Access Restricted', 'Program Head dashboard is currently restricted.'),
   ('teacher', true, 'Access Restricted', 'Teacher dashboard is currently restricted.'),
   ('student', true, 'Access Restricted', 'Student dashboard is currently restricted.');
 
