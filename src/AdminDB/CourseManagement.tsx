@@ -58,10 +58,7 @@ export default function CourseManagement() {
       setLoading(true);
       const { data: coursesData, error: coursesError } = await supabase
         .from('courses')
-        .select(`
-          *,
-          sections (*)
-        `)
+        .select('id, code, description')
         .order('code');
 
       if (coursesError) throw coursesError;
@@ -174,89 +171,50 @@ export default function CourseManagement() {
   }
 
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Course Management</h1>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
-        >
-          <Plus className="w-5 h-5" />
-          Add Course
-        </button>
-      </div>
+    <div className="p-6 min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
+      <div className="max-w-4xl mx-auto">
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Course Management</h1>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="bg-gradient-to-r from-indigo-500 to-blue-500 text-white px-6 py-2 rounded-xl shadow-lg hover:from-blue-600 hover:to-indigo-600 transition-all font-semibold flex items-center gap-2"
+          >
+            <Plus className="w-5 h-5" />
+            Add Course
+          </button>
+        </div>
 
-      {/* Course List */}
-      <div className="space-y-4">
-        {courses.map((course) => (
-          <div key={course.id} className="bg-white rounded-lg shadow-md overflow-hidden">
-            <div 
-              className="p-4 flex justify-between items-center cursor-pointer hover:bg-gray-50"
-              onClick={() => setExpandedCourse(expandedCourse === course.id ? null : course.id)}
-            >
-              <div>
-                <h3 className="text-lg font-semibold text-gray-800">{course.code} - {course.name}</h3>
-                <p className="text-sm text-gray-600">{course.description}</p>
-                <p className="text-sm text-gray-500">Units: {course.units}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                {expandedCourse === course.id ? (
-                  <ChevronUp className="w-5 h-5 text-gray-500" />
-                ) : (
-                  <ChevronDown className="w-5 h-5 text-gray-500" />
-                )}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedCourse(course);
-                    setShowSectionModal(true);
-                  }}
-                  className="text-blue-600 hover:text-blue-800"
-                >
-                  <Plus className="w-5 h-5" />
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDeleteCourse(course.id);
-                  }}
-                  className="text-red-600 hover:text-red-800"
-                >
-                  <Trash2 className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Sections List */}
-            {expandedCourse === course.id && (
-              <div className="border-t border-gray-200 p-4 bg-gray-50">
-                <h4 className="font-medium text-gray-700 mb-3">Sections</h4>
-                <div className="space-y-2">
-                  {course.sections?.map((section) => (
-                    <div key={section.id} className="flex justify-between items-center bg-white p-3 rounded-md shadow-sm">
-                      <div>
-                        <p className="font-medium">{section.section_name}</p>
-                        <p className="text-sm text-gray-600">
-                          Schedule: {section.schedule} | Room: {section.room} | 
-                          Instructor: {section.instructor} | Capacity: {section.capacity}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => handleDeleteSection(section.id)}
-                        className="text-red-600 hover:text-red-800"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
-                    </div>
-                  ))}
-                  {(!course.sections || course.sections.length === 0) && (
-                    <p className="text-gray-500 text-sm">No sections available</p>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        ))}
+        <div className="bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-100">
+          <table className="min-w-full">
+            <thead className="bg-gradient-to-r from-blue-100 to-indigo-100">
+              <tr>
+                <th className="px-8 py-4 text-left text-sm font-bold text-gray-700 uppercase tracking-wider">Code</th>
+                <th className="px-8 py-4 text-left text-sm font-bold text-gray-700 uppercase tracking-wider">Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              {courses.length === 0 ? (
+                <tr>
+                  <td colSpan={2} className="px-8 py-12 text-center text-gray-400 text-lg">
+                    No courses available. Click <span className="font-semibold text-indigo-500">Add Course</span> to get started.
+                  </td>
+                </tr>
+              ) : (
+                courses.map((course, idx) => (
+                  <tr
+                    key={course.id}
+                    className={`transition-all duration-200 ${
+                      idx % 2 === 0 ? 'bg-white' : 'bg-indigo-50'
+                    } hover:bg-indigo-100`}
+                  >
+                    <td className="px-8 py-4 text-lg font-medium text-gray-900">{course.code}</td>
+                    <td className="px-8 py-4 text-gray-700">{course.description}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Add Course Modal */}
