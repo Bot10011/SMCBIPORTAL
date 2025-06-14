@@ -89,12 +89,6 @@ const sidebarItems: SidebarItem[] = [
   },
 
   {
-    label: 'Class Management',
-    path: '/admin/dashboard/Course',
-    icon: <Users2 className="w-5 h-5" />,
-    roles: ['admin'],
-  },
-  {
     label: 'Program',
     path: '/admin/dashboard/program-management',
     icon: <ClipboardList className="w-5 h-5" />,
@@ -115,33 +109,33 @@ const sidebarItems: SidebarItem[] = [
     // Program Head specific items
   {
     label: 'Dashboard',
-    path: '/programhead/dashboard/dashboard',
+    path: '/program_head/dashboard/dashboard',
     icon: <LayoutDashboard className="w-5 h-5" />,
-    roles: ['programhead'],
+    roles: ['program_head'],
   },
   {
     label: 'Subject Assignment',
-    path: '/programhead/dashboard/assign-subjects',
+    path: '/program_head/dashboard/assign-subjects',
     icon: <BookOpen className="w-5 h-5" />,
-    roles: ['programhead'],
+    roles: ['program_head'],
   },
   {
     label: 'Enrollment Validation',
-    path: '/programhead/dashboard/enrollment-validation',
+    path: '/program_head/dashboard/enrollment-validation',
     icon: <CheckSquare className="w-5 h-5" />,
-    roles: ['programhead'],
+    roles: ['program_head'],
   },
   {
     label: 'Courses Offered',
-    path: '/programhead/dashboard/academic-history',
+    path: '/program_head/dashboard/academic-history',
     icon: <ClipboardList className="w-5 h-5" />,
-    roles: ['programhead'],
+    roles: ['program_head'],
   },
   {
     label: 'Settings',
-    path: '/programhead/dashboard/settings',
+    path: '/program_head/dashboard/settings',
     icon: <Settings className="w-5 h-5" />,
-    roles: ['programhead'],
+    roles: ['program_head'],
   },
   // Registrar specific items
   {
