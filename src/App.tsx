@@ -5,6 +5,11 @@ import { AuthProvider } from './contexts/AuthContext';
 import { ModalProvider } from './contexts/ModalContext';
 import { DashboardAccessProvider } from './contexts/DashboardAccessContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import { motion, AnimatePresence } from 'framer-motion';
+import CreateUserModal from './components/CreateUserModal';
+import { useModal } from './contexts/ModalContext';
+import EditUserModal from './components/EditUserModal';
+import MessageModal from './components/MessageModal';
 
 // Import dashboard components
 import LandingPage from './LandingPage';
@@ -15,6 +20,30 @@ import ProgramHeadDashboard from './ProgramheadDB/Dashboard';
 import TeacherDashboard from './TeacherDB/Dashboard';
 import StudentDashboard from './StudentDB/Dashboard';
 import SuperadminDashboard from './SuperadminDB/Dashboard';
+
+// Create a separate component for the modal to use the context
+function GlobalModal() {
+  const { showCreateUserModal, setShowCreateUserModal } = useModal();
+
+  return (
+    <AnimatePresence>
+      {showCreateUserModal && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          style={{ backdropFilter: 'blur(8px)' }}
+        >
+          <CreateUserModal
+            isOpen={showCreateUserModal}
+            onClose={() => setShowCreateUserModal(false)}
+          />
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
 
 const App: React.FC = () => {
   return (
@@ -100,7 +129,7 @@ const App: React.FC = () => {
               <Route
                 path="/programhead/dashboard/*"
                 element={
-                  <ProtectedRoute allowedRoles={['admin', 'registrar', 'programhead']} requiresAccessCheck={true}>
+                  <ProtectedRoute allowedRoles={['admin', 'registrar', 'program_head']} requiresAccessCheck={true}>
                     <ProgramHeadDashboard />
                   </ProtectedRoute>
                 }
@@ -108,7 +137,7 @@ const App: React.FC = () => {
               <Route
                 path="/teacher/dashboard/*"
                 element={
-                  <ProtectedRoute allowedRoles={['admin', 'registrar', 'programhead', 'teacher']} requiresAccessCheck={true}>
+                  <ProtectedRoute allowedRoles={['admin', 'registrar', 'program_head', 'teacher']} requiresAccessCheck={true}>
                     <TeacherDashboard />
                   </ProtectedRoute>
                 }
@@ -116,14 +145,17 @@ const App: React.FC = () => {
               <Route
                 path="/student/dashboard/*"
                 element={
-                  <ProtectedRoute allowedRoles={['admin', 'registrar', 'programhead', 'teacher', 'student']} requiresAccessCheck={true}>
+                  <ProtectedRoute allowedRoles={['admin', 'registrar', 'program_head', 'teacher', 'student']} requiresAccessCheck={true}>
                     <StudentDashboard />
                   </ProtectedRoute>
                 }
               />
-          </Routes>
-        </div>
-      </DashboardAccessProvider>
+            </Routes>
+          </div>
+          <GlobalModal />
+          <EditUserModal />
+          <MessageModal />
+        </DashboardAccessProvider>
       </ModalProvider>
     </AuthProvider>
   );
