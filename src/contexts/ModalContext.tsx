@@ -1,45 +1,44 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
-
-type ModalType = 'default' | 'course' | 'subject' | 'accessDenied';
+import React, { createContext, useContext, useState } from 'react';
 
 interface ModalContextType {
-  isModalOpen: boolean;
-  modalType: ModalType;
-  modalMessage: string;
-  openModal: (type?: ModalType, message?: string) => void;
-  closeModal: () => void;
+  showCreateUserModal: boolean;
+  setShowCreateUserModal: (show: boolean) => void;
+  showEditUserModal: boolean;
+  setShowEditUserModal: (show: boolean) => void;
+  showMessageModal: boolean;
+  setShowMessageModal: (show: boolean) => void;
+  selectedUserId: string | null;
+  setSelectedUserId: (userId: string | null) => void;
 }
 
 const ModalContext = createContext<ModalContextType | undefined>(undefined);
 
-export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalType, setModalType] = useState<ModalType>('default');
-  const [modalMessage, setModalMessage] = useState('');
-
-  const openModal = (type: ModalType = 'default', message: string = '') => {
-    setModalType(type);
-    setModalMessage(message);
-    setIsModalOpen(true);
-  };
-
-  const closeModal = () => {
-    setIsModalOpen(false);
-    setModalType('default');
-    setModalMessage('');
-  };
+export function ModalProvider({ children }: { children: React.ReactNode }) {
+  const [showCreateUserModal, setShowCreateUserModal] = useState(false);
+  const [showEditUserModal, setShowEditUserModal] = useState(false);
+  const [showMessageModal, setShowMessageModal] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
   return (
-    <ModalContext.Provider value={{ isModalOpen, modalType, modalMessage, openModal, closeModal }}>
+    <ModalContext.Provider value={{
+      showCreateUserModal,
+      setShowCreateUserModal,
+      showEditUserModal,
+      setShowEditUserModal,
+      showMessageModal,
+      setShowMessageModal,
+      selectedUserId,
+      setSelectedUserId
+    }}>
       {children}
     </ModalContext.Provider>
   );
-};
+}
 
-export const useModal = () => {
+export function useModal() {
   const context = useContext(ModalContext);
   if (context === undefined) {
     throw new Error('useModal must be used within a ModalProvider');
   }
   return context;
-}; 
+} 
