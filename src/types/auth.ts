@@ -1,4 +1,4 @@
-export type UserRole = 'superadmin' | 'admin' | 'registrar' | 'programhead' | 'teacher' | 'student';
+export type UserRole = 'superadmin' | 'admin' | 'registrar' | 'program_head' | 'teacher' | 'student';
 export type StudentStatus = 'regular' | 'irregular' | 'transferee';
 
 export interface User {
@@ -21,7 +21,7 @@ export interface RolePermissions {
 
 export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
   superadmin: {
-    canCreateUsers: ['admin', 'registrar', 'programhead', 'teacher', 'student'],
+    canCreateUsers: ['admin', 'registrar', 'program_head', 'teacher', 'student'],
     canManageCurriculum: true,
     canManageGrades: true,
     canViewAllData: true,
@@ -29,7 +29,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canManageSubjects: true,
   },
   admin: {
-    canCreateUsers: ['registrar', 'programhead', 'teacher', 'student'],
+    canCreateUsers: ['registrar', 'program_head', 'teacher', 'student'],
     canManageCurriculum: true,
     canManageGrades: true,
     canViewAllData: true,
@@ -37,14 +37,14 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canManageSubjects: true,
   },
   registrar: {
-    canCreateUsers: ['programhead', 'teacher', 'student'],
+    canCreateUsers: ['program_head', 'teacher', 'student'],
     canManageCurriculum: false,
     canManageGrades: false,
     canViewAllData: true,
     canManageEnrollment: true,
     canManageSubjects: false,
   },
-  programhead: {
+  program_head: {
     canCreateUsers: ['teacher', 'student'],
     canManageCurriculum: true,
     canManageGrades: false,
