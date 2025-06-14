@@ -72,7 +72,7 @@ const AuditLogs: React.FC = () => {
       { type: 'error', description: 'Database connection error' },
     ];
 
-    const roles: UserRole[] = ['superadmin', 'admin', 'registrar', 'programhead', 'teacher', 'student'];
+    const roles: UserRole[] = ['superadmin', 'admin', 'registrar', 'program_head', 'teacher', 'student'];
     const statuses: ('success' | 'warning' | 'error')[] = ['success', 'warning', 'error'];
     
     // Generate 100 random logs
