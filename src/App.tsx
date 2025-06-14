@@ -8,8 +8,6 @@ import ProtectedRoute from './components/ProtectedRoute';
 import { motion, AnimatePresence } from 'framer-motion';
 import CreateUserModal from './components/CreateUserModal';
 import { useModal } from './contexts/ModalContext';
-import EditUserModal from './components/EditUserModal';
-import MessageModal from './components/MessageModal';
 
 // Import dashboard components
 import LandingPage from './LandingPage';
@@ -129,7 +127,7 @@ const App: React.FC = () => {
               <Route
                 path="/programhead/dashboard/*"
                 element={
-                  <ProtectedRoute allowedRoles={['admin', 'registrar', 'program_head']} requiresAccessCheck={true}>
+                  <ProtectedRoute allowedRoles={['admin', 'registrar', 'programhead']} requiresAccessCheck={true}>
                     <ProgramHeadDashboard />
                   </ProtectedRoute>
                 }
@@ -137,7 +135,7 @@ const App: React.FC = () => {
               <Route
                 path="/teacher/dashboard/*"
                 element={
-                  <ProtectedRoute allowedRoles={['admin', 'registrar', 'program_head', 'teacher']} requiresAccessCheck={true}>
+                  <ProtectedRoute allowedRoles={['admin', 'registrar', 'programhead', 'teacher']} requiresAccessCheck={true}>
                     <TeacherDashboard />
                   </ProtectedRoute>
                 }
@@ -145,7 +143,7 @@ const App: React.FC = () => {
               <Route
                 path="/student/dashboard/*"
                 element={
-                  <ProtectedRoute allowedRoles={['admin', 'registrar', 'program_head', 'teacher', 'student']} requiresAccessCheck={true}>
+                  <ProtectedRoute allowedRoles={['admin', 'registrar', 'programhead', 'teacher', 'student']} requiresAccessCheck={true}>
                     <StudentDashboard />
                   </ProtectedRoute>
                 }
@@ -153,8 +151,6 @@ const App: React.FC = () => {
             </Routes>
           </div>
           <GlobalModal />
-          <EditUserModal />
-          <MessageModal />
         </DashboardAccessProvider>
       </ModalProvider>
     </AuthProvider>
