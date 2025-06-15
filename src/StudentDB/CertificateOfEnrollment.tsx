@@ -230,23 +230,42 @@ export const CertificateOfEnrollment: React.FC = () => {
   useEffect(() => {
     const fetchCOEs = async () => {
       try {
-        if (user?.id) {
-          const { data, error } = await supabase
-            .from('coe')
-            .select('*')
-            .eq('student_id', user.id)
-            .order('school_year', { ascending: false })
-            .order('semester', { ascending: false });
-          if (error) throw error;
-          setCOEList(data || []);
+        console.log('Starting COE fetch...'); // Debug log
+        console.log('Current user:', user); // Debug log
+        
+        if (!user?.id) {
+          console.log('No user ID available'); // Debug log
+          setErrorMsg('User not authenticated');
+          setLoading(false);
+          return;
         }
+
+        console.log('Fetching COEs for user:', user.id); // Debug log
+        
+        const { data, error } = await supabase
+          .from('coe')
+          .select('*')
+          .eq('student_id', user.id)
+          .order('school_year', { ascending: false })
+          .order('semester', { ascending: false });
+
+        console.log('Supabase response:', { data, error }); // Debug log
+
+        if (error) {
+          console.error('Supabase error:', error); // Debug log
+          throw error;
+        }
+
+        console.log('COEs fetched successfully:', data); // Debug log
+        setCOEList(data || []);
       } catch (error: any) {
+        console.error('Error in fetchCOEs:', error); // Debug log
         setErrorMsg(error?.message || JSON.stringify(error));
-        console.error('Error fetching COEs:', error);
       } finally {
         setLoading(false);
       }
     };
+
     fetchCOEs();
   }, [user?.id]);
 
