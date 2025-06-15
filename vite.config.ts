@@ -31,6 +31,8 @@ export default defineConfig({
       '@mui/x-tree-view',
       'clsx',
       'dayjs'
+      'jspdf',
+      'jspdf-autotable'
     ],
     exclude: ['lucide-react']
   },
@@ -38,4 +40,15 @@ export default defineConfig({
     // Ensure SPA fallback for client-side routing
     historyApiFallback: true,
   },
+   build: {
+    rollupOptions: {
+      external: ['jspdf', 'jspdf-autotable'],
+      output: {
+        globals: {
+          jspdf: 'jsPDF',
+          'jspdf-autotable': 'jspdf-autotable'
+        }
+      }
+    }
+  }
 });
