@@ -16,8 +16,8 @@ import {
   User,
   LogOut,
   LayoutDashboard,
-  MessageSquare,
   AlertTriangle,
+  MessageSquare,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -51,16 +51,16 @@ const sidebarItems: SidebarItem[] = [
     icon: <AlertTriangle className="w-5 h-5" />,
     roles: ['superadmin'],
   },
-    {
-    label: 'Feedback',
-    path: '/superadmin/dashboard/feedback',
-    icon: <MessageSquare className="w-5 h-5" />,
-    roles: ['superadmin'],
-  },
   {
     label: 'Dashboard Analytics',
     path: '/superadmin/dashboard/analytics',
     icon: <FileText className="w-5 h-5" />,
+    roles: ['superadmin'],
+  },
+  {
+    label: 'Feedback',
+    path: '/superadmin/dashboard/feedback',
+    icon: <MessageSquare className="w-5 h-5" />,
     roles: ['superadmin'],
   },
   {
@@ -228,7 +228,12 @@ const sidebarItems: SidebarItem[] = [
     icon: <BookOpenCheck className="w-5 h-5" />,
     roles: ['student'],
   },
-  // My Grades for each role
+  {
+    label: 'Certificate of Enrollment',
+    path: '/student/dashboard/coe',
+    icon: <FileText className="w-5 h-5" />,
+    roles: ['student'],
+  },
   {
     label: 'Grade Report',
     path: '/student/dashboard/grades',
