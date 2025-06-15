@@ -333,4 +333,5 @@ export const CertificateOfEnrollment: React.FC = () => {
       </AnimatePresence>
     </div>
   );
+
 }; 

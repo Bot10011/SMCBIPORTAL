@@ -18,7 +18,10 @@ interface Department {
 
 interface CreateUserForm {
   email: string;
+
+
   role: 'teacher' | 'student' | 'registrar' | 'program_head';
+
   first_name: string;
   middle_name?: string;
   last_name: string;
@@ -88,7 +91,10 @@ const roleRequirements: Record<CreateUserForm['role'], RoleRequirements> = {
     ],
     optionalFields: ['middle_name', 'suffix']
   },
+
+
   program_head: {
+
     requiredFields: [
       'email', 'role', 'first_name', 'last_name', 'password', 'confirmPassword',
       'gender', 'birthdate', 'phone', 'address', 'department'
@@ -736,14 +742,21 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose }) =>
                         {/* Admin role temporarily disabled */}
                         {/* <option value="admin">Admin</option> */}
                         <option value="registrar">Registrar</option>
+
                         <option value="program_head">Program Head</option>
+
                       </select>
                     </div>
 
                     {/* Update the department selection dropdown */}
+
                     {(form.role === 'teacher' || form.role === 'program_head') && (
+
+                    {(form.role === 'teacher' || form.role === 'program_head') && (
+
                       <div className="mt-4">
                         <label className="block text-sm font-medium text-gray-700 mb-2">
+
                           Department <span className="text-red-500">*</span>
                         </label>
                         <select
@@ -1301,6 +1314,9 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose }) =>
                     <div className="bg-gray-50 rounded-lg p-4 space-y-3">
                       <h5 className="font-medium text-gray-900 mb-2">Basic Information</h5>
                       <div className="grid grid-cols-2 gap-4">
+
+                        {(form.role === 'teacher' || form.role === 'program_head') && (
+
                         {(form.role === 'teacher' || form.role === 'program_head') && (
                           <div>
                             <p className="text-sm text-gray-500">Department</p>
@@ -1508,3 +1524,4 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose }) =>
 };
 
 export default CreateUserModal; 
+
