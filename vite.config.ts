@@ -17,6 +17,7 @@ export default defineConfig({
       '@emotion/styled': path.resolve('./node_modules/@emotion/styled'),
       'clsx': path.resolve('./node_modules/clsx'),
       'dayjs': path.resolve('./node_modules/dayjs'),
+      '@': path.resolve(__dirname, './src'),
     }
   },
   optimizeDeps: {
@@ -30,17 +31,21 @@ export default defineConfig({
       '@mui/x-charts',
       '@mui/x-tree-view',
       'clsx',
-      'dayjs'
+      'dayjs',
       'jspdf',
       'jspdf-autotable'
     ],
     exclude: ['lucide-react']
   },
   server: {
-    // Ensure SPA fallback for client-side routing
-    historyApiFallback: true,
+    host: true,
+    port: 5173,
+    strictPort: true,
   },
-   build: {
+  build: {
+    commonjsOptions: {
+      include: [/jspdf/, /jspdf-autotable/],
+    },
     rollupOptions: {
       external: ['jspdf', 'jspdf-autotable'],
       output: {
