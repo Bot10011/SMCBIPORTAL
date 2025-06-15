@@ -4,6 +4,7 @@ import DashboardLayout from '../components/Sidebar';
 import { StudentGradeViewer } from './StudentGradeViewer';
 import { MyCourse } from './MyCourse';
 import { MyProfile } from './MyProfile';
+import { CertificateOfEnrollment } from './CertificateOfEnrollment';
 import { useAuth } from '../contexts/AuthContext';
 import { 
   BookOpen, 
@@ -12,6 +13,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { motion } from 'framer-motion';
+import { toast } from 'react-hot-toast';
 
 // Loading component
 const LoadingSpinner = () => (
@@ -337,9 +339,102 @@ const DashboardOverview = () => {
 
 const StudentDashboard: React.FC = () => {
   const { user } = useAuth();
+  const [showChangePassModal, setShowChangePassModal] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [checkingDefault, setCheckingDefault] = useState(true);
+
+  useEffect(() => {
+    const checkDefaultPassword = async () => {
+      if (!user) return;
+      // Try to sign in with the default password to check if it's still valid
+      // (Supabase does not expose the password, so we try a re-auth)
+      // Only do this check on first mount
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: user.email,
+          password: 'TempPass@123',
+        });
+        if (!error && data?.user) {
+          setShowChangePassModal(true);
+        }
+      } catch (err) {
+        // Ignore errors (means password is not default)
+      } finally {
+        setCheckingDefault(false);
+      }
+    };
+    checkDefaultPassword();
+  }, [user]);
 
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (checkingDefault) {
+    return <div className="flex justify-center items-center h-64">Checking account security...</div>;
+  }
+
+  // Modal for changing default password
+  if (showChangePassModal) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-xl shadow-xl p-8 max-w-md w-full">
+          <h2 className="text-xl font-bold mb-4 text-gray-800">Change Your Default Password</h2>
+          <p className="mb-4 text-gray-600">For your security, please set a new password before accessing your account.</p>
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">New Password</label>
+            <input
+              type="password"
+              className="w-full border rounded px-3 py-2"
+              value={newPassword}
+              onChange={e => setNewPassword(e.target.value)}
+              autoFocus
+            />
+          </div>
+          <div className="mb-6">
+            <label className="block text-sm font-medium mb-1">Confirm Password</label>
+            <input
+              type="password"
+              className="w-full border rounded px-3 py-2"
+              value={confirmPassword}
+              onChange={e => setConfirmPassword(e.target.value)}
+            />
+          </div>
+          <button
+            className="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700 transition"
+            disabled={
+              !newPassword ||
+              !confirmPassword ||
+              newPassword !== confirmPassword ||
+              newPassword === 'TempPass@123'
+            }
+            onClick={async () => {
+              if (newPassword !== confirmPassword) {
+                toast.error('Passwords do not match');
+                return;
+              }
+              if (newPassword === 'TempPass@123') {
+                toast.error('Please choose a password different from the default.');
+                return;
+              }
+              try {
+                const { error } = await supabase.auth.updateUser({ password: newPassword });
+                if (error) throw error;
+                toast.success('Password updated! Please log in again.');
+                setShowChangePassModal(false);
+                await supabase.auth.signOut();
+                window.location.reload();
+              } catch (err: any) {
+                toast.error(err.message || 'Failed to update password');
+              }
+            }}
+          >
+            Change Password
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -351,6 +446,7 @@ const StudentDashboard: React.FC = () => {
             <Route path="/course" element={<MyCourse />} />
             <Route path="/grades" element={<StudentGradeViewer />} />
             <Route path="/profile" element={<MyProfile />} />
+            <Route path="/coe" element={<CertificateOfEnrollment />} />
             <Route path="*" element={<Navigate to="/student/dashboard" replace />} />
           </Routes>
         </Suspense>
