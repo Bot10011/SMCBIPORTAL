@@ -7,6 +7,7 @@ import UserOverview from './UserOverview';
 import DashboardAnalytics from './DashboardAnalytics';
 import AuditLogs from './AuditLogs';
 import SystemSettings from './SystemSettings';
+import { FeedbackViewer } from './FeedbackViewer';
 
 const SuperadminDashboard: React.FC = () => {
   return (
@@ -18,6 +19,7 @@ const SuperadminDashboard: React.FC = () => {
         <Route path="/analytics" element={<DashboardAnalytics />} />
         <Route path="/audit-logs" element={<AuditLogs />} />
         <Route path="/settings" element={<SystemSettings />} />
+        <Route path="/feedback" element={<FeedbackViewer />} />
       </Routes>
     </DashboardLayout>
   );
