@@ -18,7 +18,8 @@ export default defineConfig({
       'clsx': path.resolve('./node_modules/clsx'),
       'dayjs': path.resolve('./node_modules/dayjs'),
       '@': path.resolve(__dirname, './src'),
-    }
+    },
+    dedupe: ['cookie'] // Prevents duplicate instances of "cookie" across packages
   },
   optimizeDeps: {
     include: [
@@ -33,7 +34,8 @@ export default defineConfig({
       'clsx',
       'dayjs',
       'jspdf',
-      'jspdf-autotable'
+      'jspdf-autotable',
+      'cookie' // Ensures "cookie" is bundled properly
     ],
     exclude: ['lucide-react']
   },
