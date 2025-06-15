@@ -16,7 +16,7 @@ import {
   User,
   LogOut,
   LayoutDashboard,
-  MessageSquare
+  MessageSquare,
   AlertTriangle,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
