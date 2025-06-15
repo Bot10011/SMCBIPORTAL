@@ -14,6 +14,7 @@ interface Student {
   enrollment_status: string;
   role: string;
   enrolled_courses?: string[];
+  department?: string;
 }
 
 interface Course {
@@ -34,6 +35,7 @@ const RegistrarEnrollment: React.FC = () => {
   const [selectedCourses, setSelectedCourses] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   // Fetch students and courses on component mount
   useEffect(() => {
@@ -173,6 +175,72 @@ const RegistrarEnrollment: React.FC = () => {
     const currentEnrollments = await fetchStudentEnrollments(student.id);
     setSelectedStudent(student);
     setSelectedCourses(currentEnrollments);
+    setShowConfirmModal(true);
+  };
+
+  // New function to confirm enrollment
+  const handleConfirmEnroll = async () => {
+    if (!selectedStudent) return;
+    try {
+      // Update the student's status to 'enrolled'
+      const { error } = await supabase
+        .from('user_profiles')
+        .update({ enrollment_status: 'enrolled' })
+        .eq('id', selectedStudent.id);
+      if (error) throw error;
+
+      // Prepare COE data
+      const studentProfile = selectedStudent;
+      // Try to get school_year and semester from the student profile or set as current
+      const schoolYear = new Date().getMonth() >= 5
+        ? `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`
+        : `${new Date().getFullYear() - 1}-${new Date().getFullYear()}`;
+      const semester = '1st Semester'; // You may want to fetch this from student profile if available
+      const dateIssued = new Date().toISOString();
+      // Build subjects array from selectedCourses and courses
+      const enrolledSubjects = selectedCourses.map(subjectId => {
+        const course = courses.find(c => c.id === subjectId);
+        return course ? {
+          code: course.code,
+          name: course.name,
+          department: course.department,
+          units: course.units
+        } : null;
+      }).filter(Boolean);
+      // Registrar name (issuer) - replace with actual registrar name if available
+      const registrar = 'Registrar';
+      // Insert into COE table
+      const coePayload = {
+        student_id: studentProfile.id, // UUID
+        student_number: studentProfile.student_id, // Official student number
+        school_year: schoolYear,
+        semester: semester,
+        year_level: studentProfile.year_level,
+        date_issued: dateIssued,
+        subjects: enrolledSubjects,
+        status: 'active',
+        registrar: registrar,
+        full_name: `${studentProfile.first_name} ${studentProfile.last_name}`,
+        department: courses.find(c => c.id === studentProfile.course_id)?.department || studentProfile.department || '',
+        email: studentProfile.email
+      };
+      console.log('COE Payload:', coePayload); // Debug log
+      const { error: coeError, data: coeData } = await supabase
+        .from('coe')
+        .insert(coePayload);
+      if (coeError) {
+        console.error('COE Insert Error:', coeError, 'Payload:', coePayload);
+        throw coeError;
+      }
+
+      toast.success('Student successfully enrolled and COE issued!');
+      setShowConfirmModal(false);
+      setSelectedStudent(null);
+      setSelectedCourses([]);
+      fetchStudents();
+    } catch (error) {
+      toast.error('Failed to enroll student or issue COE');
+    }
   };
 
   const filteredStudents = students.filter(student => {
@@ -195,6 +263,12 @@ const RegistrarEnrollment: React.FC = () => {
       >
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold text-gray-800">Student Enrollment</h1>
+          <button
+            onClick={fetchStudents}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors font-medium"
+          >
+            Refresh List
+          </button>
           <div className="flex gap-4">
             <input
               type="text"
@@ -255,12 +329,16 @@ const RegistrarEnrollment: React.FC = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {student.enrollment_status === 'pending' ? (
                       <button
                         onClick={() => handleEnrollClick(student)}
                         className="text-blue-600 hover:text-blue-900 font-medium"
                       >
                         Enroll
                       </button>
+                      ) : (
+                        <span className="text-gray-400 cursor-not-allowed">Enroll</span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -270,7 +348,7 @@ const RegistrarEnrollment: React.FC = () => {
         )}
 
         {/* Enrollment Modal */}
-        {selectedStudent && (
+        {showConfirmModal && selectedStudent && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
@@ -278,64 +356,40 @@ const RegistrarEnrollment: React.FC = () => {
               className="bg-white rounded-xl shadow-xl p-6 max-w-2xl w-full"
             >
               <h2 className="text-xl font-bold text-gray-800 mb-4">
-                Enroll {selectedStudent.first_name} {selectedStudent.last_name}
+                Confirm Enrollment
               </h2>
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Courses
-                </label>
-                <div className="max-h-60 overflow-y-auto border border-gray-300 rounded-lg">
-                  {courses.map((course) => (
-                    <div
-                      key={course.id}
-                      className={`p-3 border-b border-gray-200 last:border-b-0 cursor-pointer hover:bg-gray-50
-                        ${selectedCourses.includes(course.id) ? 'bg-blue-50' : ''}`}
-                      onClick={() => {
-                        setSelectedCourses(prev => 
-                          prev.includes(course.id)
-                            ? prev.filter(id => id !== course.id)
-                            : [...prev, course.id]
-                        );
-                      }}
-                    >
-                      <div className="flex items-center">
-                        <input
-                          type="checkbox"
-                          checked={selectedCourses.includes(course.id)}
-                          onChange={() => {}}
-                          className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                        />
-                        <div className="ml-3">
-                          <p className="text-sm font-medium text-gray-900">
-                            {course.name} ({course.code})
-                          </p>
-                          <p className="text-sm text-gray-500">
-                            {course.department} - {course.units} units
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                <h3 className="text-lg font-semibold text-gray-700 mb-2">Student Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2">
+                  <div><span className="font-medium">Student ID:</span> {selectedStudent.student_id}</div>
+                  <div><span className="font-medium">Name:</span> {selectedStudent.last_name}, {selectedStudent.first_name}</div>
+                  <div><span className="font-medium">Email:</span> {selectedStudent.email}</div>
+                  <div><span className="font-medium">Year Level:</span> {selectedStudent.year_level}</div>
+                  <div><span className="font-medium">Current Course:</span> {courses.find(c => c.id === selectedStudent.course_id)?.name || 'Not Enrolled'}</div>
+                  <div><span className="font-medium">Status:</span> {selectedStudent.enrollment_status}</div>
                 </div>
               </div>
-              {selectedCourses.length > 0 && (
-                <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-                  <h3 className="text-sm font-medium text-gray-700 mb-2">Selected Courses:</h3>
+              <div className="mb-4">
+                <h3 className="text-lg font-semibold text-gray-700 mb-2">Courses for Enrollment</h3>
                   <div className="space-y-2">
-                    {selectedCourses.map(courseId => {
+                  {selectedCourses.length === 0 ? (
+                    <div className="text-sm text-gray-500">No courses selected.</div>
+                  ) : (
+                    selectedCourses.map(courseId => {
                       const course = courses.find(c => c.id === courseId);
                       return course ? (
                         <div key={courseId} className="text-sm text-gray-600">
-                          <p><span className="font-medium">{course.name}</span> ({course.code})</p>
+                          <span className="font-medium">{course.name}</span> ({course.code})
                         </div>
                       ) : null;
-                    })}
-                  </div>
+                    })
+                  )}
                 </div>
-              )}
+              </div>
               <div className="flex justify-end gap-4">
                 <button
                   onClick={() => {
+                    setShowConfirmModal(false);
                     setSelectedStudent(null);
                     setSelectedCourses([]);
                   }}
@@ -344,10 +398,10 @@ const RegistrarEnrollment: React.FC = () => {
                   Cancel
                 </button>
                 <button
-                  onClick={() => handleEnrollStudent(selectedStudent.id, selectedCourses)}
+                  onClick={handleConfirmEnroll}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
-                  Update Enrollments
+                  Confirm Enrollment
                 </button>
               </div>
             </motion.div>
