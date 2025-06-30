@@ -752,7 +752,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose }) =>
 
                     {(form.role === 'teacher' || form.role === 'program_head') && (
 
-                    {(form.role === 'teacher' || form.role === 'program_head') && (
+                  
 
                       <div className="mt-4">
                         <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1317,7 +1317,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose }) =>
 
                         {(form.role === 'teacher' || form.role === 'program_head') && (
 
-                        {(form.role === 'teacher' || form.role === 'program_head') && (
+                       
                           <div>
                             <p className="text-sm text-gray-500">Department</p>
                             <p className="font-medium">{form.department}</p>

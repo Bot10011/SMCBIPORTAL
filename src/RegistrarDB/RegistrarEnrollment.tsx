@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { createPortal } from 'react-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
+import { Download, Printer, Eye, Users, BookOpen, CheckCircle2, X, Loader2 } from 'lucide-react';
 
 interface Student {
   id: string;
@@ -15,8 +17,8 @@ interface Student {
   role: string;
   enrolled_courses?: string[];
   department?: string;
+  semester?: string;
 }
-
 interface Course {
   id: string;
   code: string;
@@ -27,6 +29,265 @@ interface Course {
   updated_at: string;
 }
 
+// COEModal for viewing Certificate of Enrollment
+const COEModal = ({ coe, open, onClose }: { coe: any, open: boolean, onClose: () => void }) => {
+  if (!coe || !open) return null;
+  // Download as PDF using jsPDF + autoTable function
+  const handleDownload = () => {
+    // Dynamically import jsPDF and autoTable
+    import('jspdf').then(jsPDFModule => {
+      import('jspdf-autotable').then(autoTableModule => {
+        const jsPDF = jsPDFModule.default;
+        const autoTable = autoTableModule.default;
+        const doc = new jsPDF();
+        
+        // Add logo to PDF
+        const logo = new Image();
+        logo.src = '/img/logo.png';
+        logo.onload = () => {
+          doc.addImage(logo, 'PNG', 85, 15, 25, 25);
+          
+          doc.setFontSize(18);
+          doc.text('SMCBI', 105, 50, { align: 'center' });
+          doc.setFontSize(14);
+          doc.text('Certificate of Enrollment', 105, 60, { align: 'center' });
+          doc.setFontSize(11);
+          doc.text(`Date: ${new Date(coe.date_issued).toLocaleDateString()}`, 20, 70);
+          let y = 80;
+          doc.text(`Student ID: ${coe.student_number || coe.student_id}`, 20, y);
+          doc.text(`Full Name: ${coe.full_name || 'N/A'}`, 120, y);
+          y += 7;
+          doc.text(`School Year: ${coe.school_year}`, 20, y);
+          doc.text(`Semester: ${coe.semester}`, 120, y);
+          y += 7;
+          doc.text(`Year Level: ${coe.year_level || 'N/A'}`, 20, y);
+          doc.text(`Department: ${coe.department || 'N/A'}`, 120, y);
+          y += 7;
+          doc.text(`School Portal Email: ${coe.email || 'N/A'}`, 20, y);
+          autoTable(doc, {
+            startY: y + 10,
+            head: [['Course Code', 'Course Name', 'Units']],
+            body: Array.isArray(coe.subjects) ? [
+              ...coe.subjects.map((subj: any) => [subj.code, subj.name, subj.units]),
+              ["", "Total Units", coe.subjects.reduce((sum: number, subj: any) => sum + (Number(subj.units) || 0), 0)]
+            ] : [],
+            theme: 'grid',
+            headStyles: { fillColor: [41, 128, 185] },
+            styles: { fontSize: 10 }
+          });
+          const finalY = (doc as any).lastAutoTable.finalY || y + 30;
+          doc.setFontSize(12);
+          doc.text('ENROLLED', 105, finalY + 15, { align: 'center' });
+          doc.setFontSize(10);
+          doc.text('This is to certify that the above-named student is officially enrolled in the above-mentioned program for the current academic year.', 105, finalY + 22, { align: 'center', maxWidth: 170 });
+          doc.text('Registrar', 20, finalY + 38);
+          doc.text('Signature over printed name', 20, finalY + 45);
+          doc.save(`COE-${coe.school_year}-${coe.semester}.pdf`);
+        };
+      });
+    });
+  };
+  const handlePrint = () => {
+    import('jspdf').then(jsPDFModule => {
+      import('jspdf-autotable').then(autoTableModule => {
+        const jsPDF = jsPDFModule.default;
+        const autoTable = autoTableModule.default;
+        const doc = new jsPDF();
+        
+        // Add logo to PDF
+        const logo = new Image();
+        logo.src = '/img/logo.png';
+        logo.onload = () => {
+          doc.addImage(logo, 'PNG', 85, 15, 25, 25);
+          
+          doc.setFontSize(18);
+          doc.text('SMCBI', 105, 50, { align: 'center' });
+          doc.setFontSize(14);
+          doc.text('Certificate of Enrollment', 105, 60, { align: 'center' });
+          doc.setFontSize(11);
+          doc.text(`Date: ${new Date(coe.date_issued).toLocaleDateString()}`, 20, 70);
+          let y = 80;
+          doc.text(`Student ID: ${coe.student_number || coe.student_id}`, 20, y);
+          doc.text(`Full Name: ${coe.full_name || 'N/A'}`, 120, y);
+          y += 7;
+          doc.text(`School Year: ${coe.school_year}`, 20, y);
+          doc.text(`Semester: ${coe.semester}`, 120, y);
+          y += 7;
+          doc.text(`Year Level: ${coe.year_level || 'N/A'}`, 20, y);
+          doc.text(`Department: ${coe.department || 'N/A'}`, 120, y);
+          y += 7;
+          doc.text(`School Portal Email: ${coe.email || 'N/A'}`, 20, y);
+          autoTable(doc, {
+            startY: y + 10,
+            head: [['Course Code', 'Course Name', 'Units']],
+            body: Array.isArray(coe.subjects) ? [
+              ...coe.subjects.map((subj: any) => [subj.code, subj.name, subj.units]),
+              ["", "Total Units", coe.subjects.reduce((sum: number, subj: any) => sum + (Number(subj.units) || 0), 0)]
+            ] : [],
+            theme: 'grid',
+            headStyles: { fillColor: [41, 128, 185] },
+            styles: { fontSize: 10 }
+          });
+          const finalY = (doc as any).lastAutoTable.finalY || y + 30;
+          doc.setFontSize(12);
+          doc.text('ENROLLED', 105, finalY + 15, { align: 'center' });
+          doc.setFontSize(10);
+          doc.text('This is to certify that the above-named student is officially enrolled in the above-mentioned program for the current academic year.', 105, finalY + 22, { align: 'center', maxWidth: 170 });
+          doc.text('Registrar', 20, finalY + 38);
+          doc.text('Signature over printed name', 20, finalY + 45);
+          doc.autoPrint();
+          doc.output('dataurlnewwindow');
+        };
+      });
+    });
+  };
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  };
+  return (
+    <>
+      {/* Full screen overlay to completely block all interactions */}
+      <div 
+        className="fixed inset-0 z-[99999] bg-black bg-opacity-50"
+        onClick={handleBackdropClick}
+        style={{ 
+          pointerEvents: 'auto',
+          userSelect: 'none',
+          touchAction: 'none'
+        }}
+      />
+      
+      {/* Modal container */}
+      <div
+        className="fixed inset-0 z-[100000] flex items-center justify-center"
+        style={{ 
+          minHeight: '100vh',
+          pointerEvents: 'none'
+        }}
+      >
+        <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100 w-full max-w-xl relative mx-4 flex flex-col"
+          style={{ 
+            maxHeight: '90vh', 
+            overflowY: 'auto', 
+            boxSizing: 'border-box',
+            pointerEvents: 'auto'
+          }}>
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 text-2xl font-bold"
+            aria-label="Close"
+          >
+            &times;
+          </button>
+          <div className="flex justify-end gap-2 mb-4">
+            <button
+              onClick={handleDownload}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Download className="w-4 h-4" /> Download
+            </button>
+            <button
+              onClick={handlePrint}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              <Printer className="w-4 h-4" /> Print
+            </button>
+          </div>
+          <div className="text-center mb-8">
+            <div className="flex flex-col items-center gap-3 mb-4">
+              <img 
+                src="/img/logo.png" 
+                alt="SMCBI Logo" 
+                className="w-20 h-20 object-contain"
+              />
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">SMCBI</h1>
+                <p className="text-gray-600 mt-1">Certificate of Enrollment</p>
+              </div>
+            </div>
+            <p className="text-gray-500">Date: {new Date(coe.date_issued).toLocaleDateString()}</p>
+          </div>
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <p className="text-sm text-gray-500">Student ID</p>
+                <p className="font-medium">{coe.student_number || coe.student_id}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Full Name</p>
+                <p className="font-medium">{coe.full_name || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">School Year</p>
+                <p className="font-medium">{coe.school_year}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Semester</p>
+                <p className="font-medium">{coe.semester}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Year Level</p>
+                <p className="font-medium">{coe.year_level || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Department</p>
+                <p className="font-medium">{coe.department || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">School Portal Email</p>
+                <p className="font-medium">{coe.email || 'N/A'}</p>
+              </div>
+            </div>
+            <div className="mt-8">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Enrolled Courses</h3>
+              <div className="border rounded-lg overflow-hidden w-full">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Course Code</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Course Name</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Units</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {Array.isArray(coe.subjects) && coe.subjects.map((subject: any, idx: number) => (
+                      <tr key={idx}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{subject.code}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{subject.name}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{subject.units}</td>
+                      </tr>
+                    ))}
+                    {/* Total Units Row */}
+                    <tr>
+                      <td></td>
+                      <td className="px-6 py-4 font-bold text-right">Total Units</td>
+                      <td className="px-6 py-4 font-bold text-gray-900">{Array.isArray(coe.subjects) ? coe.subjects.reduce((sum: number, subj: any) => sum + (Number(subj.units) || 0), 0) : 0}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div className="mt-8 text-center">
+              <p className="text-2xl font-bold text-green-600">ENROLLED</p>
+              <p className="text-sm text-gray-500 mt-2">This is to certify that the above-named student is officially enrolled in the above-mentioned program for the current academic year.</p>
+            </div>
+            <div className="mt-12 flex justify-between">
+              <div className="text-center">
+                <p className="font-medium">Registrar</p>
+                <div className="mt-8 border-t border-gray-300 pt-2">
+                  <p className="text-sm text-gray-600">Signature over printed name</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+};
+
 const RegistrarEnrollment: React.FC = () => {
   const [students, setStudents] = useState<Student[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
@@ -36,6 +297,10 @@ const RegistrarEnrollment: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [coeModalOpen, setCOEModalOpen] = useState(false);
+  const [coeLoading, setCOELoading] = useState(false);
+  const [coeError, setCOEError] = useState<string | null>(null);
+  const [coeData, setCOEData] = useState<any | null>(null);
 
   // Fetch students and courses on component mount
   useEffect(() => {
@@ -195,7 +460,7 @@ const RegistrarEnrollment: React.FC = () => {
       const schoolYear = new Date().getMonth() >= 5
         ? `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`
         : `${new Date().getFullYear() - 1}-${new Date().getFullYear()}`;
-      const semester = '1st Semester'; // You may want to fetch this from student profile if available
+      const semester = studentProfile.semester || '1st Semester';
       const dateIssued = new Date().toISOString();
       // Build subjects array from selectedCourses and courses
       const enrolledSubjects = selectedCourses.map(subjectId => {
@@ -240,6 +505,32 @@ const RegistrarEnrollment: React.FC = () => {
       fetchStudents();
     } catch (error) {
       toast.error('Failed to enroll student or issue COE');
+    }
+  };
+
+  // Handler to view COE for a student
+  const handleViewCOE = async (studentId: string) => {
+    setCOELoading(true);
+    setCOEError(null);
+    setCOEData(null);
+    setCOEModalOpen(true);
+    try {
+      const { data, error } = await supabase
+        .from('coe')
+        .select('*')
+        .eq('student_id', studentId)
+        .order('date_issued', { ascending: false })
+        .limit(1);
+      if (error) throw error;
+      if (data && data.length > 0) {
+        setCOEData(data[0]);
+      } else {
+        setCOEError('No Certificate of Enrollment found for this student.');
+      }
+    } catch (err: any) {
+      setCOEError(err.message || 'Failed to fetch COE.');
+    } finally {
+      setCOELoading(false);
     }
   };
 
@@ -329,16 +620,33 @@ const RegistrarEnrollment: React.FC = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {student.enrollment_status === 'pending' ? (
-                      <button
-                        onClick={() => handleEnrollClick(student)}
-                        className="text-blue-600 hover:text-blue-900 font-medium"
-                      >
-                        Enroll
-                      </button>
-                      ) : (
-                        <span className="text-gray-400 cursor-not-allowed">Enroll</span>
-                      )}
+                      <div className="flex gap-2 items-center">
+                        {student.enrollment_status === 'pending' ? (
+                          <button
+                            onClick={() => handleEnrollClick(student)}
+                            className="px-3 py-1 bg-blue-600 text-white rounded-lg shadow-sm hover:bg-blue-700 transition-colors font-semibold flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                            style={{ minWidth: 80 }}
+                          >
+                            Enroll
+                          </button>
+                        ) : (
+                          <button
+                            className="px-3 py-1 bg-gray-200 text-gray-400 rounded-lg font-semibold cursor-not-allowed flex items-center gap-1"
+                            style={{ minWidth: 80 }}
+                            disabled
+                          >
+                            Enroll
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleViewCOE(student.id)}
+                          className="px-3 py-1 bg-green-600 text-white rounded-lg shadow-sm hover:bg-green-700 transition-colors font-semibold flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-green-400"
+                          title="View Certificate of Enrollment"
+                          style={{ minWidth: 110 }}
+                        >
+                          <Eye className="w-4 h-4" /> View COE
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -405,6 +713,34 @@ const RegistrarEnrollment: React.FC = () => {
                 </button>
               </div>
             </motion.div>
+          </div>
+        )}
+
+        {/* COE Modal */}
+        {coeModalOpen && createPortal(
+          <COEModal
+            coe={coeData}
+            open={coeModalOpen}
+            onClose={() => setCOEModalOpen(false)}
+          />,
+          document.body
+        )}
+        {coeModalOpen && coeLoading && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+            <div className="bg-white rounded-xl shadow-xl p-8">
+              <div className="flex items-center gap-2">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                <span className="text-gray-700">Loading COE...</span>
+              </div>
+            </div>
+          </div>
+        )}
+        {coeModalOpen && coeError && !coeLoading && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+            <div className="bg-white rounded-xl shadow-xl p-8">
+              <div className="text-red-600 font-medium">{coeError}</div>
+              <button className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg" onClick={() => setCOEModalOpen(false)}>Close</button>
+            </div>
           </div>
         )}
       </motion.div>

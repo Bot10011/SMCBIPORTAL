@@ -11,7 +11,8 @@ import {
   Calendar,
   Users,
   CheckCircle2,
-  XCircle
+  XCircle,
+  Sparkles
 } from 'lucide-react';
 
 interface Program {
@@ -203,196 +204,173 @@ export const MyProfile: React.FC = () => {
   }
 
   return (
-    <div className="max-w-[1400px] mx-auto space-y-6 px-4 sm:px-6">
-      {/* Header Section with enhanced styling */}
+    <div className="max-w-4xl mx-auto space-y-8 px-4 sm:px-8 py-8">
+      {/* Premium Header Section */}
       <motion.div 
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="relative overflow-hidden rounded-xl bg-gradient-to-br from-purple-50 via-white to-blue-50 shadow-[inset_0_2px_8px_rgba(0,0,0,0.1)]"
+        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 via-white to-purple-50 shadow-2xl border border-blue-100"
       >
-        <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
-        <div className="relative p-6 sm:p-8 shadow-[inset_0_2px_8px_rgba(0,0,0,0.1)] bg-white/50 backdrop-blur-sm rounded-xl">
-          <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
-            {/* Profile Picture Section */}
-            <motion.div 
-              whileHover={{ scale: 1.02 }}
-              className="relative group"
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-100/30 to-purple-100/30 pointer-events-none" />
+        <div className="absolute top-0 right-0 m-6 opacity-30">
+          <Sparkles className="w-16 h-16 text-blue-300" />
+        </div>
+        <div className="relative p-8 sm:p-12 flex flex-col sm:flex-row items-center gap-8">
+          {/* Profile Picture Section */}
+          <motion.div 
+            whileHover={{ scale: 1.04 }}
+            className="relative group shadow-xl rounded-2xl"
+          >
+            <div 
+              className="relative w-36 h-36 sm:w-44 sm:h-44 rounded-2xl bg-gradient-to-br from-purple-200 to-blue-200 shadow-lg flex items-center justify-center overflow-hidden cursor-pointer border-4 border-white hover:border-blue-200 transition-all duration-300"
+              onMouseEnter={() => setIsHovering(true)}
+              onMouseLeave={() => setIsHovering(false)}
             >
-              <div 
-                className="relative w-32 h-32 sm:w-40 sm:h-40 rounded-2xl bg-gradient-to-br from-purple-100 to-blue-100 shadow-[inset_4px_4px_16px_rgba(180,180,255,0.15),inset_-4px_-4px_16px_rgba(255,255,255,0.8)] flex items-center justify-center overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-[inset_6px_6px_20px_rgba(180,180,255,0.2),inset_-6px_-6px_20px_rgba(255,255,255,0.9)]"
-                onMouseEnter={() => setIsHovering(true)}
-                onMouseLeave={() => setIsHovering(false)}
-              >
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleProfileUpload}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                  disabled={isUploading}
-                />
-                {profilePictureUrl ? (
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleProfileUpload}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                disabled={isUploading}
+              />
+              {profilePictureUrl ? (
+                <>
+                  <img 
+                    src={profilePictureUrl} 
+                    alt="Profile" 
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      const imgElement = e.target as HTMLImageElement;
+                      console.error('Error loading profile image:', {
+                        url: imgElement.src,
+                        error: e,
+                        currentSrc: imgElement.currentSrc,
+                        complete: imgElement.complete,
+                        naturalWidth: imgElement.naturalWidth,
+                        naturalHeight: imgElement.naturalHeight
+                      });
+                      setProfilePictureUrl(null);
+                    }}
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-br from-blue-50/30 to-purple-50/30" />
+                </>
+              ) : (
+                <UserCircle className="w-28 h-28 sm:w-36 sm:h-36 text-purple-300" />
+              )}
+              {/* Upload Overlay */}
+              <AnimatePresence>
+                {isHovering && (
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    className="absolute inset-0 bg-gradient-to-br from-blue-600/90 to-purple-600/90 backdrop-blur-sm flex flex-col items-center justify-center gap-2"
+                  >
+                    {isUploading ? (
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+                    ) : (
+                      <>
+                        <div className="p-3 rounded-xl bg-white/20 backdrop-blur-sm">
+                          <Camera className="w-8 h-8 text-white" />
+                        </div>
+                        <span className="text-sm text-white font-medium px-4 py-2 rounded-xl bg-white/20 backdrop-blur-sm">
+                          {profilePictureUrl ? 'Change Photo' : 'Upload Photo'}
+                        </span>
+                      </>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </motion.div>
+
+          {/* Profile Info Section */}
+          <div className="flex-1 text-center sm:text-left space-y-2">
+            <motion.h1 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="text-3xl sm:text-4xl font-extrabold bg-gradient-to-r from-blue-700 to-purple-600 bg-clip-text text-transparent drop-shadow-sm"
+            >
+              {profile?.first_name} {profile?.middle_name ? profile.middle_name + ' ' : ''}{profile?.last_name}
+            </motion.h1>
+            <motion.p 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="text-base text-gray-600 font-medium"
+            >
+              {profile?.email}
+            </motion.p>
+            {/* Status Box */}
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+              className="mt-4 flex justify-center sm:justify-start"
+            >
+              <div className="w-44 h-10 rounded-xl shadow-inner bg-white flex items-center justify-center gap-2 border border-blue-100">
+                {profile?.enrollment_status === 'enrolled' ? (
                   <>
-                    <img 
-                      src={profilePictureUrl} 
-                      alt="Profile" 
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        const imgElement = e.target as HTMLImageElement;
-                        console.error('Error loading profile image:', {
-                          url: imgElement.src,
-                          error: e,
-                          currentSrc: imgElement.currentSrc,
-                          complete: imgElement.complete,
-                          naturalWidth: imgElement.naturalWidth,
-                          naturalHeight: imgElement.naturalHeight
-                        });
-                        setProfilePictureUrl(null);
-                      }}
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-br from-blue-50/20 to-purple-50/20"></div>
+                    <CheckCircle2 className="w-5 h-5 text-green-600" />
+                    <span className="text-base font-semibold text-green-600">
+                      Enrolled
+                    </span>
                   </>
                 ) : (
-                  <UserCircle className="w-24 h-24 sm:w-32 sm:h-32 text-purple-400" />
+                  <>
+                    <XCircle className="w-5 h-5 text-red-600" />
+                    <span className="text-base font-semibold text-red-600">
+                      Not Enrolled
+                    </span>
+                  </>
                 )}
-                
-                {/* Upload Overlay */}
-                <AnimatePresence>
-                  {isHovering && (
-                    <motion.div 
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      className="absolute inset-0 bg-gradient-to-br from-blue-600/90 to-purple-600/90 backdrop-blur-sm flex flex-col items-center justify-center gap-2"
-                    >
-                      {isUploading ? (
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-                      ) : (
-                        <>
-                          <div className="p-3 rounded-xl bg-white/20 backdrop-blur-sm">
-                            <Camera className="w-8 h-8 text-white" />
-                          </div>
-                          <span className="text-sm text-white font-medium px-4 py-2 rounded-xl bg-white/20 backdrop-blur-sm">
-                            {profilePictureUrl ? 'Change Photo' : 'Upload Photo'}
-                          </span>
-                        </>
-                      )}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
               </div>
             </motion.div>
-
-            {/* Profile Info Section */}
-            <div className="flex-1 text-center sm:text-left">
-              <motion.h1 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent"
-              >
-                {profile?.first_name} {profile?.middle_name ? profile.middle_name + ' ' : ''}{profile?.last_name}
-              </motion.h1>
-              <motion.p 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-                className="mt-1 text-sm text-gray-600"
-              >
-                {profile?.email}
-              </motion.p>
-
-              {/* Status Box */}
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 }}
-                className="mt-4 flex justify-center sm:justify-start"
-              >
-                <div className="w-40 h-8 rounded-lg shadow-[inset_0_2px_4px_rgba(0,0,0,0.1)] bg-white flex items-center justify-center gap-2">
-                  {profile?.enrollment_status === 'enrolled' ? (
-                    <>
-                      <CheckCircle2 className="w-4 h-4 text-green-600" />
-                      <span className="text-sm font-medium text-green-600">
-                        Enrolled
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <XCircle className="w-4 h-4 text-red-600" />
-                      <span className="text-sm font-medium text-red-600">
-                        Not Enrolled
-                      </span>
-                    </>
-                  )}
-                </div>
-              </motion.div>
-
-              {/* Student Information Grid - More Compact */}
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-                className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2"
-              >
-                {/* Student ID */}
-                <div className="flex items-center gap-2 p-2 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
-                  <div className="p-1.5 rounded-md bg-purple-50">
-                    <Hash className="w-4 h-4 text-purple-600" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500">Student ID</p>
-                    <p className="text-sm font-medium text-gray-900">{profile?.student_id ?? 'N/A'}</p>
-                  </div>
-                </div>
-
-                {/* Program */}
-                <div className="flex items-center gap-2 p-2 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
-                  <div className="p-1.5 rounded-md bg-blue-50">
-                    <BookOpen className="w-4 h-4 text-blue-600" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500">Program</p>
-                    <p className="text-sm font-medium text-gray-900">
-                      {program?.code ?? 'N/A'}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Year Level */}
-                <div className="flex items-center gap-2 p-2 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
-                  <div className="p-1.5 rounded-md bg-green-50">
-                    <Calendar className="w-4 h-4 text-green-600" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500">Year Level</p>
-                    <p className="text-sm font-medium text-gray-900">{profile?.year_level ?? 'N/A'}</p>
-                  </div>
-                </div>
-
-                {/* Section */}
-                <div className="flex items-center gap-2 p-2 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
-                  <div className="p-1.5 rounded-md bg-yellow-50">
-                    <Users className="w-4 h-4 text-yellow-600" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500">Section</p>
-                    <p className="text-sm font-medium text-gray-900">{profile?.section ?? 'N/A'}</p>
-                  </div>
-                </div>
-              </motion.div>
-            </div>
           </div>
         </div>
       </motion.div>
 
-      {/* Edit Profile Button */}
+      {/* Student Information Grid - Premium Card Style */}
       <motion.div 
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.6 }}
-        className="flex justify-center"
+        transition={{ delay: 0.2 }}
+        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"
       >
+        {/* Student ID */}
+        <div className="flex flex-col items-center bg-white rounded-2xl shadow-lg border border-blue-100 p-6 gap-2 hover:shadow-2xl transition-all">
+          <div className="p-3 rounded-full bg-blue-50 mb-2">
+            <Hash className="w-6 h-6 text-blue-600" />
+          </div>
+          <div className="text-xs text-gray-500">Student ID</div>
+          <div className="text-lg font-bold text-gray-900">{profile?.student_id ?? 'N/A'}</div>
+        </div>
+        {/* Program */}
+        <div className="flex flex-col items-center bg-white rounded-2xl shadow-lg border border-blue-100 p-6 gap-2 hover:shadow-2xl transition-all">
+          <div className="p-3 rounded-full bg-purple-50 mb-2">
+            <BookOpen className="w-6 h-6 text-purple-600" />
+          </div>
+          <div className="text-xs text-gray-500">Program</div>
+          <div className="text-lg font-bold text-gray-900">{program?.code ?? 'N/A'}</div>
+        </div>
+        {/* Year Level */}
+        <div className="flex flex-col items-center bg-white rounded-2xl shadow-lg border border-blue-100 p-6 gap-2 hover:shadow-2xl transition-all">
+          <div className="p-3 rounded-full bg-green-50 mb-2">
+            <Calendar className="w-6 h-6 text-green-600" />
+          </div>
+          <div className="text-xs text-gray-500">Year Level</div>
+          <div className="text-lg font-bold text-gray-900">{profile?.year_level ?? 'N/A'}</div>
+        </div>
+        {/* Section */}
+        <div className="flex flex-col items-center bg-white rounded-2xl shadow-lg border border-blue-100 p-6 gap-2 hover:shadow-2xl transition-all">
+          <div className="p-3 rounded-full bg-yellow-50 mb-2">
+            <Users className="w-6 h-6 text-yellow-600" />
+          </div>
+          <div className="text-xs text-gray-500">Section</div>
+          <div className="text-lg font-bold text-gray-900">{profile?.section ?? 'N/A'}</div>
+        </div>
       </motion.div>
     </div>
   );

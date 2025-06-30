@@ -49,7 +49,7 @@ const AccessRestrictedView: React.FC<{
 
 // Add a helper to map roles to dashboard paths
 const getDashboardPath = (role: string) => {
-  if (role === 'program_head') return '/programhead/dashboard';
+  if (role === 'program_head') return '/program_head/dashboard/';
   return `/${role}/dashboard`;
 };
 

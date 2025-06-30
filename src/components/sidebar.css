@@ -17,23 +17,84 @@
   animation: gradient-x 3s ease infinite;
 }
 
-/* Custom scrollbar styling */
+/* Lightweight fade-in animation for navigation items */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Simple fade-in animation for main content */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Custom scrollbar styling for light theme */
 .custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
+  width: 4px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(0, 0, 0, 0.3);
+}
+
+/* Smooth transitions for sidebar elements */
+.sidebar-transition {
+  transition: all 0.2s ease-in-out;
+}
+
+/* Optimized hover effects */
+.nav-item-hover {
+  transition: background-color 0.15s ease-in-out, color 0.15s ease-in-out;
+}
+
+/* Button press effect */
+.button-press {
+  transition: transform 0.1s ease-in-out;
+}
+
+.button-press:active {
+  transform: scale(0.95);
+}
+
+/* Text transition for collapsed state */
+.text-transition {
+  transition: opacity 0.2s ease-in-out, width 0.2s ease-in-out;
+}
+
+/* Logo transition */
+.logo-transition {
+  transition: width 0.2s ease-in-out, height 0.2s ease-in-out;
+}
+
+/* Mobile menu button transition */
+.mobile-menu-transition {
+  transition: all 0.15s ease-in-out;
+}
+
+/* Content area transition */
+.content-transition {
+  transition: margin-left 0.3s ease-in-out, width 0.3s ease-in-out;
 }
 
 /* Background page styling */

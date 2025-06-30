@@ -19,10 +19,12 @@ export default defineConfig({
       'dayjs': path.resolve('./node_modules/dayjs'),
       '@': path.resolve(__dirname, './src'),
     },
-    dedupe: ['cookie'] // Prevents duplicate instances of "cookie" across packages
+    dedupe: ['react', 'react-dom', 'cookie'] // Prevents duplicate instances
   },
   optimizeDeps: {
     include: [
+      'react',
+      'react-dom',
       '@emotion/react',
       '@emotion/styled',
       '@mui/material',
@@ -35,7 +37,9 @@ export default defineConfig({
       'dayjs',
       'jspdf',
       'jspdf-autotable',
-      'cookie' // Ensures "cookie" is bundled properly
+      'cookie', // Ensures "cookie" is bundled properly
+      'react-router-dom',
+      'react-hot-toast'
     ],
     exclude: ['lucide-react']
   },

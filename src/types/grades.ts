@@ -37,6 +37,7 @@ export interface GradeSummary {
   student_name: string;
   subject_code: string;
   subject_name: string;
+  teacher_name?: string;
   prelim_grade?: number;
   midterm_grade?: number;
   final_grade?: number;

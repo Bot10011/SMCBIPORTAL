@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, Loader2 } from 'lucide-react';
+import { X, Loader2, RefreshCw } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useModal } from '../contexts/ModalContext';
 import toast from 'react-hot-toast';
@@ -45,9 +45,11 @@ export default function EditUserModal() {
   const [formData, setFormData] = useState<Partial<UserProfile>>({});
   const [showSaveConfirm, setShowSaveConfirm] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [isGeneratingId, setIsGeneratingId] = useState(false);
 
   useEffect(() => {
     if (showEditUserModal && selectedUserId) {
+      console.log('EditUserModal: Opening modal for user ID:', selectedUserId);
       fetchUserData();
       fetchPrograms();
     }
@@ -67,6 +69,7 @@ export default function EditUserModal() {
   const fetchUserData = async () => {
     try {
       setLoading(true);
+      console.log('EditUserModal: Fetching user data for ID:', selectedUserId);
       const { data, error } = await supabase
         .from('user_profiles')
         .select('*')
@@ -74,11 +77,13 @@ export default function EditUserModal() {
         .single();
 
       if (error) throw error;
+      console.log('EditUserModal: User data loaded:', data);
       setUser(data);
       setFormData(data);
     } catch (error) {
       console.error('Error fetching user:', error);
       toast.error('Failed to load user data');
+      setUser(null); // Set user to null to show error state
     } finally {
       setLoading(false);
     }
@@ -98,6 +103,53 @@ export default function EditUserModal() {
       toast.error('Failed to load programs');
     }
   };
+
+  // Student ID generation function (same logic as Program Head)
+  const generateStudentId = async () => {
+    setIsGeneratingId(true);
+    try {
+      if (formData.school_year && formData.first_name && formData.last_name) {
+        // Extract last two digits of school year start
+        const match = formData.school_year.match(/(\d{4})/);
+        if (!match) {
+          setFormData(prev => ({ ...prev, student_id: '' }));
+          return;
+        }
+        const yearPrefix = match[1].slice(-2);
+        
+        // Query how many students are already enrolled in this school year
+        const { count, error } = await supabase
+          .from('user_profiles')
+          .select('id', { count: 'exact', head: true })
+          .ilike('student_id', `C-${yearPrefix}%`);
+        
+        let regNum = 1;
+        if (!error && typeof count === 'number') {
+          regNum = count + 1;
+        }
+        
+        const regNumStr = regNum.toString().padStart(4, '0');
+        const studentId = `C-${yearPrefix}${regNumStr}`;
+        
+        setFormData(prev => ({ ...prev, student_id: studentId }));
+        setHasChanges(true);
+      } else {
+        setFormData(prev => ({ ...prev, student_id: '' }));
+      }
+    } catch (error) {
+      console.error('Error generating student ID:', error);
+      toast.error('Failed to generate student ID. Please try again.');
+    } finally {
+      setIsGeneratingId(false);
+    }
+  };
+
+  // Auto-generate Student ID when required fields change (same logic as Program Head)
+  useEffect(() => {
+    if (user?.role === 'student' && formData.school_year && formData.first_name && formData.last_name && !formData.student_id) {
+      generateStudentId();
+    }
+  }, [formData.school_year, formData.first_name, formData.last_name]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -132,6 +184,20 @@ export default function EditUserModal() {
   };
 
   if (!showEditUserModal) return null;
+
+  // Debug information
+  console.log('EditUserModal render state:', {
+    showEditUserModal,
+    selectedUserId,
+    loading,
+    user: user ? 'loaded' : 'not loaded'
+  });
+
+  // Don't show modal if no user ID is selected
+  if (!selectedUserId) {
+    console.log('EditUserModal: No selectedUserId provided');
+    return null;
+  }
 
   return (
     <>
@@ -235,6 +301,44 @@ export default function EditUserModal() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Student ID
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={formData.student_id || ''}
+                          onChange={(e) => setFormData({ ...formData, student_id: e.target.value })}
+                          className="flex-1 px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="C-YY####"
+                        />
+                        <button
+                          type="button"
+                          onClick={generateStudentId}
+                          disabled={isGeneratingId}
+                          className="px-3 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                        >
+                          {isGeneratingId ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <RefreshCw className="w-4 h-4" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        School Year
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.school_year || ''}
+                        onChange={(e) => setFormData({ ...formData, school_year: e.target.value })}
+                        className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="2024-2025"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
                         Program
                       </label>
                       <select
@@ -318,7 +422,14 @@ export default function EditUserModal() {
               </form>
             ) : (
               <div className="text-center py-12 text-gray-500">
-                User not found
+                <p className="text-lg font-medium mb-2">User not found</p>
+                <p className="text-sm">Unable to load user data. Please try again or contact support.</p>
+                <button
+                  onClick={() => setShowEditUserModal(false)}
+                  className="mt-4 px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                >
+                  Close Modal
+                </button>
               </div>
             )}
           </div>

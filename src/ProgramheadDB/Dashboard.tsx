@@ -310,6 +310,7 @@ const ProgramHeadDashboard: React.FC = () => {
         <Routes>
           <Route path="/" element={<DashboardOverview />} />
           <Route path="/requests" element={<ProgramHeadEnrollment />} />
+          <Route path="/enroll-student" element={<ProgramHeadEnrollment />} />
           <Route path="/assign-subjects" element={<SubjectAssignment />} />
           <Route path="/academic-history" element={<CoursesOffered />} />
           <Route path="*" element={<DashboardOverview />} />

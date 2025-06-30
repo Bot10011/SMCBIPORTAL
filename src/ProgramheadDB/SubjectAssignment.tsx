@@ -175,7 +175,7 @@ const SubjectAssignment: React.FC = () => {
             }
           })
         );
-        setAssignments(formattedAssignments.filter(Boolean));
+        setAssignments(formattedAssignments.filter(Boolean) as TeacherSubject[]);
       }
     } catch (error) {
       console.error('Error fetching assignments:', error);

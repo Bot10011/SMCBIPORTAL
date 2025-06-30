@@ -7,7 +7,6 @@ export interface Database {
         Row: {
           id: string;
           email: string;
-          username: string;
           role: UserRole;
           student_status?: StudentStatus;
           first_name: string;

@@ -1,14 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Dialog } from '@headlessui/react';
-import { Loader2, CheckCircle2, X, Pencil, PlusCircle, User } from 'lucide-react';
+import { Loader2, CheckCircle2, X, User, BookOpen, TrendingUp, Search, Download, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
+import { useAuth } from '../contexts/AuthContext';
+
+interface Student {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  grade?: number;
+}
 
 interface GradeInputModalProps {
   open: boolean;
   onClose: () => void;
-  student: any;
+  student: Student;
   classId: string;
   onGradeSaved: (grade: number) => void;
 }
@@ -44,38 +53,69 @@ const GradeInputModal: React.FC<GradeInputModalProps> = ({ open, onClose, studen
 
   return (
     <Dialog open={open} onClose={onClose} className="fixed z-50 inset-0 flex items-center justify-center">
-      <Dialog.Overlay className="fixed inset-0 bg-black/30 backdrop-blur-sm" />
-      <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} transition={{ duration: 0.2 }} className="relative bg-white rounded-xl shadow-xl p-8 w-full max-w-md mx-auto z-10">
-        <button className="absolute top-3 right-3 p-1 rounded hover:bg-gray-100" onClick={onClose}>
+      <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" />
+      <motion.div 
+        initial={{ scale: 0.95, opacity: 0 }} 
+        animate={{ scale: 1, opacity: 1 }} 
+        exit={{ scale: 0.95, opacity: 0 }} 
+        transition={{ duration: 0.2 }} 
+        className="relative bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md mx-4 z-10 border border-gray-100"
+      >
+        <button 
+          className="absolute top-4 right-4 p-2 rounded-full hover:bg-gray-100 transition-colors" 
+          onClick={onClose}
+        >
           <X className="w-5 h-5 text-gray-400" />
         </button>
-        <Dialog.Title className="text-lg font-bold mb-2 flex items-center gap-2">
-          <CheckCircle2 className="text-green-600" /> Grade Input
+        <Dialog.Title className="text-xl font-bold mb-4 flex items-center gap-3 text-gray-800">
+          <div className="p-2 bg-green-100 rounded-lg">
+            <CheckCircle2 className="w-6 h-6 text-green-600" />
+          </div>
+          Grade Input
         </Dialog.Title>
-        <div className="mb-4">
-          <div className="font-medium text-gray-800">{student.first_name} {student.last_name}</div>
-          <div className="text-sm text-gray-500">{student.email}</div>
+        <div className="mb-6 p-4 bg-gray-50 rounded-xl">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2 bg-blue-100 rounded-full">
+              <User className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <div className="font-semibold text-lg text-gray-800">{student.first_name} {student.last_name}</div>
+              <div className="text-sm text-gray-500">{student.email}</div>
+            </div>
+          </div>
         </div>
-        <form onSubmit={handleSave} className="space-y-4">
+        <form onSubmit={handleSave} className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700">Grade</label>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Grade</label>
             <input
               type="number"
               min="0"
               max="100"
               step="0.01"
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all text-lg font-medium"
               value={grade}
               onChange={e => setGrade(e.target.value === '' ? '' : Number(e.target.value))}
+              placeholder="Enter grade (0-100)"
               required
             />
+            <p className="text-xs text-gray-500 mt-1">Enter a grade between 0 and 100</p>
           </div>
           <button
             type="submit"
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+            className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
             disabled={loading}
           >
-            {loading ? <Loader2 className="animate-spin w-5 h-5" /> : 'Save Grade'}
+            {loading ? (
+              <>
+                <Loader2 className="animate-spin w-5 h-5" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="w-5 h-5" />
+                Save Grade
+              </>
+            )}
           </button>
         </form>
       </motion.div>
@@ -83,86 +123,642 @@ const GradeInputModal: React.FC<GradeInputModalProps> = ({ open, onClose, studen
   );
 };
 
-const dummyStudents = [
-  { id: 'student1', first_name: 'Test', last_name: 'Student', email: 'john.doe@smcbi.edu.ph', grade: 85 },
-  { id: 'student2', first_name: 'Jane', last_name: 'Smith', email: 'jane.smith@smcbi.edu.ph', grade: 92 },
-];
+interface Row {
+  course_code: string;
+  course_name: string;
+  student_name: string;
+  prelim_grade: number | null;
+  midterm_grade: number | null;
+  final_grade: number | null;
+  remarks: string | null;
+  enrollment_id: string;
+  year_level: string | null;
+  section: string | null;
+  program: string | null;
+}
 
-const GradeInput: React.FC = () => {
-  const [students, setStudents] = useState(dummyStudents);
-  const [selectedStudent, setSelectedStudent] = useState<any | null>(null);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [classId] = useState('demo-class'); // Replace with actual classId if needed
+const GradeInputTable: React.FC = () => {
+  const { user } = useAuth();
+  const [rows, setRows] = useState<Row[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCourse, setSelectedCourse] = useState('');
+  const [editingGrades, setEditingGrades] = useState<{ [key: string]: { prelim?: string; midterm?: string; final?: string } }>({});
+  const [savingGrades, setSavingGrades] = useState<{ [key: string]: boolean }>({});
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
+  const [showAllStudents, setShowAllStudents] = useState(true);
 
-  const handleOpenModal = (student: any) => {
-    setSelectedStudent(student);
-    setModalOpen(true);
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        // 0. Fetch programs for mapping
+        const { data: programsData, error: programsError } = await supabase
+          .from('programs')
+          .select('id, name');
+        if (programsError) throw programsError;
+        
+        const programsMap: { [key: string]: string } = {};
+        programsData?.forEach((program: { id: string; name: string }) => {
+          programsMap[program.id] = program.name;
+        });
+
+        // 1. Fetch assigned courses for the teacher
+        const { data: teacherSubjects, error: teacherSubjectsError } = await supabase
+          .from('teacher_subjects')
+          .select('id, subject_id, course:courses(code, name)')
+          .eq('teacher_id', user?.id);
+        if (teacherSubjectsError) throw teacherSubjectsError;
+        if (!teacherSubjects || teacherSubjects.length === 0) {
+          setRows([]);
+          return;
+        }
+        // 2. For each course, fetch enrolled students
+        const subjectIds = teacherSubjects.map(ts => ts.subject_id);
+        const { data: enrollments, error: enrollmentsError } = await supabase
+          .from('enrollcourse')
+          .select('id, subject_id, student:user_profiles(id, first_name, last_name, year_level, section, program_id)')
+          .in('subject_id', subjectIds)
+          .eq('status', 'active');
+        if (enrollmentsError) throw enrollmentsError;
+        if (!enrollments || enrollments.length === 0) {
+          setRows([]);
+          return;
+        }
+        // 3. For each enrollment, fetch grades
+        const enrollmentIds = enrollments.map(e => e.id);
+        const { data: grades, error: gradesError } = await supabase
+          .from('grades')
+          .select('id, student_id, prelim_grade, midterm_grade, final_grade, remarks')
+          .in('student_id', enrollmentIds);
+        if (gradesError) throw gradesError;
+        // 4. Build table rows
+        const rows: Row[] = enrollments.map(enrollment => {
+          const teacherSubject = teacherSubjects.find(ts => ts.subject_id === enrollment.subject_id);
+          const course = teacherSubject?.course as unknown as { code: string; name: string } | null;
+          const student = enrollment.student as unknown as { id: string; first_name: string; last_name: string; year_level: string; section: string; program_id: string } | null;
+          const grade = grades.find(g => g.student_id === enrollment.id);
+          
+          // Auto-calculate remarks if grades exist but no remarks
+          if (grade && (grade.prelim_grade !== null || grade.midterm_grade !== null || grade.final_grade !== null) && !grade.remarks) {
+            const calculatedRemarks = calculateRemarks(grade.prelim_grade ?? null, grade.midterm_grade ?? null, grade.final_grade ?? null);
+            // Update remarks in database
+            supabase
+              .from('grades')
+              .update({ remarks: calculatedRemarks })
+              .eq('id', grade.id)
+              .then(({ error }) => {
+                if (error) console.error('Error auto-updating remarks:', error);
+              });
+          }
+          
+          return {
+            course_code: course?.code || '',
+            course_name: course?.name || '',
+            student_name: student ? `${student.first_name} ${student.last_name}` : '',
+            prelim_grade: grade?.prelim_grade ?? null,
+            midterm_grade: grade?.midterm_grade ?? null,
+            final_grade: grade?.final_grade ?? null,
+            remarks: grade?.remarks ?? null,
+            enrollment_id: enrollment.id,
+            year_level: student?.year_level || null,
+            section: student?.section || null,
+            program: student?.program_id ? programsMap[student.program_id] || null : null,
+          };
+        });
+        setRows(rows);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        setRows([]);
+      }
+    };
+    fetchData();
+  }, [user?.id]);
+
+  // Filter rows based on search and filter
+  const filteredRows = rows.filter(row => {
+    const matchesSearch = row.student_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         row.course_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         row.course_name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesFilter = !selectedCourse || row.course_code === selectedCourse;
+    return matchesSearch && matchesFilter;
+  });
+
+  // Get unique courses for filter
+  const uniqueCourses = Array.from(new Set(rows.map(row => row.course_code)));
+
+  // Group students by program, year level, and section
+  const groupedStudents = filteredRows.reduce((groups, row) => {
+    const key = `${row.program || 'Unknown Program'} - ${row.year_level || 'Unknown Year'} - ${row.section || 'Unknown Section'}`;
+    if (!groups[key]) {
+      groups[key] = {
+        program: row.program || 'Unknown Program',
+        yearLevel: row.year_level || 'Unknown Year',
+        section: row.section || 'Unknown Section',
+        students: []
+      };
+    }
+    groups[key].students.push(row);
+    return groups;
+  }, {} as { [key: string]: { program: string; yearLevel: string; section: string; students: Row[] } });
+
+  // Sort groups by program, year level, and section
+  const sortedGroups = Object.entries(groupedStudents).sort(([a], [b]) => a.localeCompare(b));
+
+  // Calculate statistics
+  const totalStudents = filteredRows.length;
+  const completedGrades = filteredRows.filter(row => row.final_grade !== null).length;
+  const completionRate = totalStudents > 0 ? Math.round((completedGrades / totalStudents) * 100) : 0;
+
+  // Function to calculate remarks based on average grade
+  const calculateRemarks = (prelimGrade: number | null, midtermGrade: number | null, finalGrade: number | null): string => {
+    // Calculate average of available grades
+    const grades = [prelimGrade, midtermGrade, finalGrade].filter(grade => grade !== null) as number[];
+    
+    if (grades.length === 0) return 'N/A';
+    
+    const average = grades.reduce((sum, grade) => sum + grade, 0) / grades.length;
+    
+    if (average >= 75) return 'PASSED';
+    return 'FAILED';
   };
 
-  const handleCloseModal = () => {
-    setModalOpen(false);
-    setSelectedStudent(null);
+  // Function to calculate average grade
+  const calculateAverageGrade = (prelimGrade: number | null, midtermGrade: number | null, finalGrade: number | null): number | null => {
+    const grades = [prelimGrade, midtermGrade, finalGrade].filter(grade => grade !== null) as number[];
+    
+    if (grades.length === 0) return null;
+    
+    return Math.round((grades.reduce((sum, grade) => sum + grade, 0) / grades.length) * 100) / 100;
   };
 
-  const handleGradeSaved = (newGrade: number) => {
-    if (selectedStudent) {
-      setStudents(students => students.map(s => s.id === selectedStudent.id ? { ...s, grade: newGrade } : s));
+  // Function to get remarks display value
+  const getRemarksDisplay = (row: Row): string => {
+    // If there's a stored remarks value, use it
+    if (row.remarks) return row.remarks;
+    // Otherwise calculate based on average of all grades
+    return calculateRemarks(row.prelim_grade, row.midterm_grade, row.final_grade);
+  };
+
+  // Function to update remarks in database
+  const updateRemarks = async (enrollmentId: string, remarks: string) => {
+    try {
+      const { error } = await supabase
+        .from('grades')
+        .upsert({
+          student_id: enrollmentId,
+          remarks: remarks,
+          updated_at: new Date().toISOString()
+        });
+
+      if (error) {
+        console.error('Error updating remarks:', error);
+        toast.error('Failed to update remarks');
+      } else {
+        toast.success('Remarks updated successfully');
+        // Refresh the data
+        window.location.reload();
+      }
+    } catch (error) {
+      console.error('Error updating remarks:', error);
+      toast.error('Failed to update remarks');
     }
   };
 
+  // Function to handle remarks edit
+  const handleRemarksEdit = async (row: Row, enrollmentId: string) => {
+    const currentRemarks = getRemarksDisplay(row);
+    const newRemarks = currentRemarks === 'PASSED' ? 'FAILED' : 
+                      currentRemarks === 'FAILED' ? 'PASSED' : 'PASSED';
+    
+    await updateRemarks(enrollmentId, newRemarks);
+  };
+
+  // Function to start editing grades for a student
+  const startEditingGrades = (enrollmentId: string) => {
+    const row = rows.find(r => r.enrollment_id === enrollmentId);
+    if (row) {
+      setEditingGrades(prev => ({
+        ...prev,
+        [enrollmentId]: {
+          prelim: row.prelim_grade?.toString() || '',
+          midterm: row.midterm_grade?.toString() || '',
+          final: row.final_grade?.toString() || ''
+        }
+      }));
+    }
+  };
+
+  // Function to handle grade input changes
+  const handleGradeChange = (enrollmentId: string, gradeType: 'prelim' | 'midterm' | 'final', value: string) => {
+    setEditingGrades(prev => ({
+      ...prev,
+      [enrollmentId]: {
+        ...prev[enrollmentId],
+        [gradeType]: value
+      }
+    }));
+  };
+
+  // Function to save grades for a student
+  const saveGrades = async (enrollmentId: string) => {
+    const editingData = editingGrades[enrollmentId];
+    if (!editingData) return;
+
+    setSavingGrades(prev => ({ ...prev, [enrollmentId]: true }));
+
+    try {
+      const prelimGrade = editingData.prelim ? parseFloat(editingData.prelim) : null;
+      const midtermGrade = editingData.midterm ? parseFloat(editingData.midterm) : null;
+      const finalGrade = editingData.final ? parseFloat(editingData.final) : null;
+
+      // Validate grades
+      if (prelimGrade !== null && (prelimGrade < 0 || prelimGrade > 100)) {
+        toast.error('Prelim grade must be between 0 and 100');
+        return;
+      }
+      if (midtermGrade !== null && (midtermGrade < 0 || midtermGrade > 100)) {
+        toast.error('Midterm grade must be between 0 and 100');
+        return;
+      }
+      if (finalGrade !== null && (finalGrade < 0 || finalGrade > 100)) {
+        toast.error('Final grade must be between 0 and 100');
+        return;
+      }
+
+      // Calculate new remarks based on average
+      const calculatedRemarks = calculateRemarks(prelimGrade, midtermGrade, finalGrade);
+
+      // Update grades in database
+      const { error } = await supabase
+        .from('grades')
+        .upsert({
+          student_id: enrollmentId,
+          prelim_grade: prelimGrade,
+          midterm_grade: midtermGrade,
+          final_grade: finalGrade,
+          remarks: calculatedRemarks,
+          updated_at: new Date().toISOString()
+        });
+
+      if (error) {
+        console.error('Error saving grades:', error);
+        toast.error('Failed to save grades');
+      } else {
+        toast.success('Grades saved successfully!');
+        // Update local state
+        setRows(prev => prev.map(row => 
+          row.enrollment_id === enrollmentId 
+            ? { ...row, prelim_grade: prelimGrade, midterm_grade: midtermGrade, final_grade: finalGrade, remarks: calculatedRemarks }
+            : row
+        ));
+        // Stop editing
+        setEditingGrades(prev => {
+          const newState = { ...prev };
+          delete newState[enrollmentId];
+          return newState;
+        });
+      }
+    } catch (error) {
+      console.error('Error saving grades:', error);
+      toast.error('Failed to save grades');
+    } finally {
+      setSavingGrades(prev => ({ ...prev, [enrollmentId]: false }));
+    }
+  };
+
+  // Function to cancel editing
+  const cancelEditing = (enrollmentId: string) => {
+    setEditingGrades(prev => {
+      const newState = { ...prev };
+      delete newState[enrollmentId];
+      return newState;
+    });
+  };
+
   return (
-    <div className="p-6 max-w-3xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6 flex items-center gap-2">
-        <CheckCircle2 className="text-blue-500" /> Grade Input
-      </h1>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-        {students.map(student => (
-          <motion.div
-            key={student.id}
-            whileHover={{ scale: 1.03, boxShadow: '0 8px 32px rgba(0,0,0,0.08)' }}
-            className="bg-white rounded-xl shadow-md p-5 flex flex-col gap-2 border border-gray-100 transition-all"
-          >
-            <div className="flex items-center gap-3 mb-2">
-              <User className="w-8 h-8 text-blue-400" />
-              <div>
-                <div className="font-semibold text-lg text-gray-800">{student.first_name} {student.last_name}</div>
-                <div className="text-xs text-gray-500">{student.email}</div>
-              </div>
+    <div className="min-h-screenfrom-slate-50 to-blue-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header Section */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-3">
+                <div className="p-2 bg-blue-100 rounded-xl">
+                  <BookOpen className="w-8 h-8 text-blue-600" />
+                </div>
+                Grade Management
+              </h1>
+              <p className="text-gray-600">Manage and input student grades for your assigned courses</p>
             </div>
-            <div className="flex items-center gap-2 mt-2">
-              <span className="text-sm text-gray-600">Grade:</span>
-              <span className="font-bold text-blue-700 text-lg">{student.grade}</span>
-              <button
-                className="ml-auto px-3 py-1 bg-blue-100 text-blue-700 rounded-lg flex items-center gap-1 hover:bg-blue-200 transition"
-                onClick={() => handleOpenModal(student)}
-              >
-                <Pencil className="w-4 h-4" /> Edit
+            <div className="flex items-center gap-3">
+              <button className="p-3 bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-all">
+                <Download className="w-5 h-5 text-gray-600" />
+              </button>
+              <button className="p-3 bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-all">
+                <RefreshCw className="w-5 h-5 text-gray-600" />
               </button>
             </div>
-          </motion.div>
-        ))}
+          </div>
+
+          {/* Statistics Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Total Students</p>
+                  <p className="text-2xl font-bold text-gray-900">{totalStudents}</p>
+                </div>
+                <div className="p-3 bg-blue-100 rounded-xl">
+                  <User className="w-6 h-6 text-blue-600" />
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Completed Grades</p>
+                  <p className="text-2xl font-bold text-gray-900">{completedGrades}</p>
+                </div>
+                <div className="p-3 bg-green-100 rounded-xl">
+                  <CheckCircle2 className="w-6 h-6 text-green-600" />
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Completion Rate</p>
+                  <p className="text-2xl font-bold text-gray-900">{completionRate}%</p>
+                </div>
+                <div className="p-3 bg-purple-100 rounded-xl">
+                  <TrendingUp className="w-6 h-6 text-purple-600" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Search and Filter Section */}
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-6">
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="flex-1">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search students, courses..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-200 focus:border-blue-500 transition-all"
+                  />
+                </div>
+              </div>
+              <div className="md:w-64">
+                <select
+                  value={selectedCourse}
+                  onChange={(e) => setSelectedCourse(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-200 focus:border-blue-500 transition-all"
+                >
+                  <option value="">All Courses</option>
+                  {uniqueCourses.map(course => (
+                    <option key={course} value={course}>{course}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Table Section */}
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="overflow-x-auto">
+            {showAllStudents ? (
+              // Show group buttons
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-lg font-semibold text-gray-900">Student Groups</h3>
+                  <button
+                    onClick={() => setShowAllStudents(false)}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    View All Students
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {sortedGroups.map(([groupKey, group]) => (
+                    <button
+                      key={groupKey}
+                      onClick={() => {
+                        setSelectedGroup(groupKey);
+                        setShowAllStudents(false);
+                      }}
+                      className="p-4 bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg hover:from-blue-100 hover:to-purple-100 transition-all duration-200 text-left"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-semibold text-gray-900 text-sm">
+                          {group.program}
+                        </h4>
+                        <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
+                          {group.students.length} students
+                        </span>
+                      </div>
+                      <p className="text-gray-600 text-sm">
+                        Year {group.yearLevel} - Section {group.section}
+                      </p>
+                      <div className="mt-2 flex items-center text-xs text-gray-500">
+                        <span>Click to view students</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              // Show students table
+              <div>
+                {/* Back button and group info */}
+                <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-4 flex items-center justify-between">
+                  <div>
+                    <button
+                      onClick={() => {
+                        setShowAllStudents(true);
+                        setSelectedGroup(null);
+                      }}
+                      className="flex items-center text-blue-100 hover:text-white transition-colors mb-2"
+                    >
+                      ← Back to Groups
+                    </button>
+                    {selectedGroup && (
+                      <h3 className="text-lg font-semibold">
+                        {selectedGroup}
+                      </h3>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setShowAllStudents(true)}
+                    className="px-4 py-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30 transition-all"
+                  >
+                    View All Groups
+                  </button>
+                </div>
+                
+                {/* Students table */}
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Student Name
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Course
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Prelim
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Midterm
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Final
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Average & Remarks
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {(selectedGroup ? (groupedStudents[selectedGroup]?.students || []) : filteredRows).map((row, index) => (
+                      <tr key={`${row.enrollment_id}-${index}`} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">{row.student_name}</div>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">{row.course_code}</div>
+                          <div className="text-sm text-gray-500">{row.course_name}</div>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          {editingGrades[row.enrollment_id] ? (
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              step="0.01"
+                              value={editingGrades[row.enrollment_id].prelim || ''}
+                              onChange={(e) => handleGradeChange(row.enrollment_id, 'prelim', e.target.value)}
+                              className="w-16 px-2 py-1 border border-gray-300 rounded text-sm"
+                            />
+                          ) : (
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                              row.prelim_grade !== null ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                            }`}>
+                              {row.prelim_grade !== null ? row.prelim_grade : 'N/A'}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          {editingGrades[row.enrollment_id] ? (
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              step="0.01"
+                              value={editingGrades[row.enrollment_id].midterm || ''}
+                              onChange={(e) => handleGradeChange(row.enrollment_id, 'midterm', e.target.value)}
+                              className="w-16 px-2 py-1 border border-gray-300 rounded text-sm"
+                            />
+                          ) : (
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                              row.midterm_grade !== null ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                            }`}>
+                              {row.midterm_grade !== null ? row.midterm_grade : 'N/A'}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          {editingGrades[row.enrollment_id] ? (
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              step="0.01"
+                              value={editingGrades[row.enrollment_id].final || ''}
+                              onChange={(e) => handleGradeChange(row.enrollment_id, 'final', e.target.value)}
+                              className="w-16 px-2 py-1 border border-gray-300 rounded text-sm"
+                            />
+                          ) : (
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                              row.final_grade !== null ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                            }`}>
+                              {row.final_grade !== null ? row.final_grade : 'N/A'}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="flex flex-col items-start">
+                            {(() => {
+                              const averageGrade = calculateAverageGrade(row.prelim_grade, row.midterm_grade, row.final_grade);
+                              const remarks = getRemarksDisplay(row);
+                              return (
+                                <div className="flex flex-col space-y-1">
+                                  {averageGrade !== null && (
+                                    <span className="text-sm font-semibold text-gray-900">
+                                      {averageGrade}
+                                    </span>
+                                  )}
+                                  {remarks && (
+                                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full cursor-pointer transition-colors ${
+                                      remarks.includes('PASSED') 
+                                        ? 'bg-green-100 text-green-800 hover:bg-green-200' 
+                                        : 'bg-red-100 text-red-800 hover:bg-red-200'
+                                    }`}
+                                    onClick={() => handleRemarksEdit(row, row.enrollment_id)}
+                                    title={`Prelim: ${row.prelim_grade || 'N/A'}, Midterm: ${row.midterm_grade || 'N/A'}, Final: ${row.final_grade || 'N/A'}`}>
+                                      {remarks}
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap text-sm font-medium">
+                          {editingGrades[row.enrollment_id] ? (
+                            <div className="flex space-x-2">
+                              <button
+                                onClick={() => saveGrades(row.enrollment_id)}
+                                disabled={savingGrades[row.enrollment_id]}
+                                className="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+                              >
+                                {savingGrades[row.enrollment_id] ? 'Saving...' : 'Save'}
+                              </button>
+                              <button
+                                onClick={() => cancelEditing(row.enrollment_id)}
+                                className="inline-flex items-center px-3 py-1 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => startEditingGrades(row.enrollment_id)}
+                              className="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                            >
+                              Edit
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
-      <AnimatePresence>
-        {modalOpen && selectedStudent && (
-          <GradeInputModal
-            open={modalOpen}
-            onClose={handleCloseModal}
-            student={selectedStudent}
-            classId={classId}
-            onGradeSaved={handleGradeSaved}
-          />
-        )}
-      </AnimatePresence>
-      <button
-        className="fixed bottom-8 right-8 bg-blue-600 text-white rounded-full shadow-lg p-4 flex items-center gap-2 hover:bg-blue-700 transition z-50"
-        onClick={() => toast('To add a new student, integrate with your enrollment system!', { icon: <PlusCircle className='text-blue-500' /> })}
-        title="Add Student (Demo)"
-      >
-        <PlusCircle className="w-6 h-6" />
-        <span className="hidden sm:inline">Add Student</span>
-      </button>
     </div>
   );
 };
 
-export default GradeInput; 
+export { GradeInputModal };
+export default GradeInputTable; 

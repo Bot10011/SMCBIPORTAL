@@ -1,15 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { PlusCircle, Edit, Trash2, Check, X, Search, RefreshCw } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, X, Search, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import './dashboard.css';
 
 interface Program {
   id: number;
-  name: string;
   code: string;
+  name: string;
   description: string;
+  major: string;
+  is_active: boolean;
   created_at: string;
+  updated_at: string;
 }
 
 const ProgramManagement: React.FC = () => {  const [programs, setPrograms] = useState<Program[]>([]);
@@ -19,9 +22,11 @@ const ProgramManagement: React.FC = () => {  const [programs, setPrograms] = use
   const [newProgram, setNewProgram] = useState({ 
     name: '', 
     code: '', 
-    description: ''
+    description: '',
+    major: '',
+    is_active: true
   });
-  const [editingProgram, setEditingProgram] = useState<Program | null>(null);  const [isAddingNew, setIsAddingNew] = useState(false);
+  const [isAddingNew, setIsAddingNew] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   
@@ -51,7 +56,7 @@ const ProgramManagement: React.FC = () => {  const [programs, setPrograms] = use
       setLoading(true);
       const { data, error } = await supabase
         .from('programs')
-        .select('*')
+        .select('id, code, name, description, major, is_active, created_at, updated_at')
         .order('code', { ascending: true });
 
       console.log('Supabase response:', { data, error });
@@ -62,6 +67,8 @@ const ProgramManagement: React.FC = () => {  const [programs, setPrograms] = use
       }
       
       console.log('Setting programs data:', data);
+      console.log('First program data structure:', data?.[0]);
+      console.log('Program data keys:', data?.[0] ? Object.keys(data[0]) : 'No data');
       setPrograms(data || []);
       setFilteredPrograms(data || []);
     } catch (err: Error | unknown) {
@@ -77,9 +84,11 @@ const ProgramManagement: React.FC = () => {  const [programs, setPrograms] = use
   const handleRefresh = () => {
     setRefreshing(true);
     fetchPrograms();
-  };  const handleAddNew = () => {
+  };
+
+  const handleAddNew = () => {
     setIsAddingNew(true);
-    setNewProgram({ name: '', code: '', description: '' });
+    setNewProgram({ name: '', code: '', description: '', major: '', is_active: true });
   };
 
   const handleCancelAdd = () => {
@@ -109,7 +118,8 @@ const ProgramManagement: React.FC = () => {  const [programs, setPrograms] = use
             name: newProgram.name,
             code: newProgram.code.toUpperCase().substring(0, 10), // enforce limit
             description: newProgram.description,
-            is_active: true
+            major: newProgram.major,
+            is_active: newProgram.is_active,
           },
         ])
         .select();
@@ -122,7 +132,7 @@ const ProgramManagement: React.FC = () => {  const [programs, setPrograms] = use
       console.log('Successfully inserted program:', data);
       setPrograms([...(data || []), ...programs]);
       setIsAddingNew(false);
-      setNewProgram({ name: '', code: '', description: '' });
+      setNewProgram({ name: '', code: '', description: '', major: '', is_active: true });
       fetchPrograms(); // Refresh the list
     } catch (err: Error | unknown) {
       console.error('Error in handleSubmitNew:', err);
@@ -130,64 +140,7 @@ const ProgramManagement: React.FC = () => {  const [programs, setPrograms] = use
     }
   };
 
-  const handleEdit = (program: Program) => {
-    setEditingProgram({ ...program });
-  };
-
-  const handleCancelEdit = () => {
-    setEditingProgram(null);
-  };
-
-  const handleSaveEdit = async () => {
-    if (!editingProgram) return;
-    if (!editingProgram.name.trim()) {
-      setError('Program name is required');
-      return;
-    }
-    
-    if (!editingProgram.code.trim()) {
-      setError('Program code is required');
-      return;
-    }
-
-    try {
-      const { error } = await supabase
-        .from('programs')
-        .update({
-          name: editingProgram.name,
-          code: editingProgram.code.toUpperCase(),
-          description: editingProgram.description,
-        })
-        .eq('id', editingProgram.id);
-
-      if (error) throw error;
-      
-      setPrograms(
-        programs.map((p) => (p.id === editingProgram.id ? editingProgram : p))
-      );
-      setEditingProgram(null);
-    } catch (err: Error | unknown) {
-      setError(err instanceof Error ? err.message : 'An unknown error occurred');
-    }
-  };
-
-  const handleDelete = async (id: number) => {
-    if (!window.confirm('Are you sure you want to delete this program?')) return;
-
-    try {
-      const { error } = await supabase
-        .from('programs')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
-      
-      setPrograms(programs.filter((p) => p.id !== id));
-      setFilteredPrograms(filteredPrograms.filter((p) => p.id !== id));
-    } catch (err: Error | unknown) {
-      setError(err instanceof Error ? err.message : 'An unknown error occurred');
-    }
-  };  // Function to generate program code from name, using PREFIX-YYMMDD, max 10 chars
+  // Function to generate program code from name, using PREFIX-YYMMDD, max 10 chars
   type CodeDateOptions = { date?: Date };
   const generateProgramCode = (name: string, options: CodeDateOptions = {}): string => {
     if (!name) return '';
@@ -217,10 +170,10 @@ const ProgramManagement: React.FC = () => {  const [programs, setPrograms] = use
     console.log('Rendering error state:', error);
   }
 
-  console.log('Rendering main component with programs:', programs);
-
   return (
     <div className="container mx-auto p-6">
+  
+
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -361,6 +314,33 @@ const ProgramManagement: React.FC = () => {  const [programs, setPrograms] = use
                   rows={3}
                 />
               </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium mb-2 text-gray-700">
+                  Major
+                </label>
+                <input
+                  type="text"
+                  value={newProgram.major}
+                  onChange={(e) =>
+                    setNewProgram({ ...newProgram, major: e.target.value })
+                  }
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="Enter program major"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium mb-2 text-gray-700">
+                  Active
+                </label>
+                <input
+                  type="checkbox"
+                  checked={newProgram.is_active}
+                  onChange={(e) =>
+                    setNewProgram({ ...newProgram, is_active: e.target.checked })
+                  }
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                />
+              </div>
               <div className="md:col-span-2 flex justify-end gap-3">
                 <motion.button
                   whileHover={{ scale: 1.03 }}
@@ -403,7 +383,16 @@ const ProgramManagement: React.FC = () => {  const [programs, setPrograms] = use
                 Description
               </th>
               <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">
+                Major
+              </th>
+              <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">
+                Active
+              </th>
+              <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">
                 Created At
+              </th>
+              <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">
+                Updated At
               </th>
               <th className="px-6 py-4 text-right text-xs font-medium text-white uppercase tracking-wider">
                 Actions
@@ -413,7 +402,7 @@ const ProgramManagement: React.FC = () => {  const [programs, setPrograms] = use
           <tbody className="bg-white divide-y divide-gray-200">
             {filteredPrograms.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
                   {searchQuery ? 
                     <div className="flex flex-col items-center">
                       <Search className="h-8 w-8 text-gray-400 mb-2" />
@@ -433,117 +422,50 @@ const ProgramManagement: React.FC = () => {  const [programs, setPrograms] = use
                 </td>
               </tr>
             ) : (
-              filteredPrograms.map((program) => (                <motion.tr 
-                  key={program.id} 
-                  layout
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="hover:bg-indigo-50 transition-colors duration-150"
-                ><td className="px-6 py-4 whitespace-nowrap font-medium text-indigo-700">
-                    {editingProgram && editingProgram.id === program.id ? (
-                      <div className="relative">
-                        <input
-                          type="text"
-                          value={editingProgram.code}
-                          readOnly
-                          className="w-full p-2 pl-3 border border-indigo-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50"
-                        />
-                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                          <span className="text-xs text-indigo-600 bg-indigo-100 py-1 px-2 rounded-full">Auto</span>
-                        </div>
-                      </div>
-                    ) : (
-                      <span className="bg-indigo-100 text-indigo-800 py-1 px-3 rounded-full text-xs font-semibold">
-                        {program.code}
-                      </span>
-                    )}
-                  </td><td className="px-6 py-4 whitespace-nowrap">
-                    {editingProgram && editingProgram.id === program.id ? (
-                      <input
-                        type="text"
-                        value={editingProgram.name}
-                        onChange={(e) => {
-                          const name = e.target.value;
-                          // Auto-generate code when editing name
-                          setEditingProgram({
-                            ...editingProgram,
-                            name,
-                            code: name ? generateProgramCode(name) : editingProgram.code
-                          });
-                        }}
-                        className="w-full p-2 border border-indigo-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      />
-                    ) : (
-                      <span className="font-medium text-gray-900">{program.name}</span>
-                    )}
+              filteredPrograms.map((program, index) => (
+                <tr key={program.id || index} className="hover:bg-indigo-50 transition-colors duration-150">
+                  <td className="px-6 py-4 whitespace-nowrap font-medium text-indigo-700">
+                    <span className="bg-indigo-100 text-indigo-800 py-1 px-3 rounded-full text-xs font-semibold">
+                      {program.code || 'N/A'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="font-medium text-gray-900">{program.name || 'N/A'}</span>
                   </td>
                   <td className="px-6 py-4">
-                    {editingProgram && editingProgram.id === program.id ? (
-                      <textarea
-                        value={editingProgram.description}
-                        onChange={(e) =>
-                          setEditingProgram({
-                            ...editingProgram,
-                            description: e.target.value,
-                          })
-                        }
-                        className="w-full p-2 border border-indigo-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        rows={2}
-                      />
-                    ) : (
-                      <span className="text-gray-700">{program.description}</span>
-                    )}
+                    <span className="text-gray-700">{program.description || 'N/A'}</span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="text-gray-700">{program.major || 'N/A'}</span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="text-gray-700">{program.is_active ? 'Yes' : 'No'}</span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-gray-500">
-                    {new Date(program.created_at).toLocaleDateString('en-US', {
+                    {program.created_at ? new Date(program.created_at).toLocaleDateString('en-US', {
                       year: 'numeric',
                       month: 'short',
                       day: 'numeric'
-                    })}
+                    }) : 'N/A'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-gray-500">
+                    {program.updated_at ? new Date(program.updated_at).toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric'
+                    }) : 'N/A'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    {editingProgram && editingProgram.id === program.id ? (
-                      <div className="flex justify-end gap-2">
-                        <motion.button
-                          whileHover={{ scale: 1.2 }}
-                          whileTap={{ scale: 0.9 }}
-                          onClick={handleSaveEdit}
-                          className="p-1 rounded-full bg-green-100 text-green-600 hover:bg-green-200"
-                        >
-                          <Check size={18} />
-                        </motion.button>
-                        <motion.button
-                          whileHover={{ scale: 1.2 }}
-                          whileTap={{ scale: 0.9 }}
-                          onClick={handleCancelEdit}
-                          className="p-1 rounded-full bg-red-100 text-red-600 hover:bg-red-200"
-                        >
-                          <X size={18} />
-                        </motion.button>
-                      </div>
-                    ) : (
-                      <div className="flex justify-end gap-2">
-                        <motion.button
-                          whileHover={{ scale: 1.2 }}
-                          whileTap={{ scale: 0.9 }}
-                          onClick={() => handleEdit(program)}
-                          className="p-1 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200"
-                        >
-                          <Edit size={18} />
-                        </motion.button>
-                        <motion.button
-                          whileHover={{ scale: 1.2 }}
-                          whileTap={{ scale: 0.9 }}
-                          onClick={() => handleDelete(program.id)}
-                          className="p-1 rounded-full bg-red-100 text-red-600 hover:bg-red-200"
-                        >
-                          <Trash2 size={18} />
-                        </motion.button>
-                      </div>
-                    )}
+                    <div className="flex justify-end gap-2">
+                      <button className="p-1 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200">
+                        <Edit size={18} />
+                      </button>
+                      <button className="p-1 rounded-full bg-red-100 text-red-600 hover:bg-red-200">
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
                   </td>
-                </motion.tr>
+                </tr>
               ))
             )}
           </tbody>

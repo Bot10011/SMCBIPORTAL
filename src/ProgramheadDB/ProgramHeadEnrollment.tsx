@@ -80,6 +80,7 @@ const ProgramHeadEnrollment: React.FC = () => {
   const [existingFilterYear, setExistingFilterYear] = useState('');
   const [endSemesterOpen, setEndSemesterOpen] = useState(false);
   const [endSemesterLoading, setEndSemesterLoading] = useState(false);
+  const [courseSearch, setCourseSearch] = useState('');
 
   const getDefaultSchoolYear = () => {
     const now = new Date();
@@ -391,34 +392,36 @@ const ProgramHeadEnrollment: React.FC = () => {
     return categories;
   };
 
-  const categorizedCourses = categorizeCourses(courses);
-
-  // Helper to filter courses by student type and year level
+  // Helper to filter courses by student type, year level, and search
   const getVisibleCourses = () => {
     // If Irregular or Transferee, show all
+    let filteredCourses = courses;
+    if (courseSearch.trim() !== '') {
+      const search = courseSearch.trim().toLowerCase();
+      filteredCourses = courses.filter(
+        c => c.code.toLowerCase().includes(search) || c.name.toLowerCase().includes(search)
+      );
+    }
+    const categorized = categorizeCourses(filteredCourses);
     if (["Irregular", "Transferee"].includes(createForm.studentType)) {
-      return categorizedCourses;
+      return categorized;
     }
-    // For Regular, allow mixed if toggled
     if (createForm.studentType === "Regular" && allowMixedCourses) {
-      return categorizedCourses;
+      return categorized;
     }
-    // For Regular or Freshman, only show courses for the selected year level
     const yearMap: Record<string, string> = {
       '1': '1st Year',
       '2': '2nd Year',
       '3': '3rd Year',
       '4': '4th Year',
     };
-    const yearLabel = yearMap[String(createForm.yearLevel) as keyof typeof yearMap] || '1st Year';
-    const filtered: Record<string, Record<string, any[]>> = {};
-    // Major: only show for the year
-    if (categorizedCourses['Major'] && categorizedCourses['Major'][yearLabel]) {
-      filtered['Major'] = { [yearLabel]: categorizedCourses['Major'][yearLabel] };
+    const yearLabel = (yearMap as any)[String(createForm.yearLevel)] || '1st Year';
+    const filtered: any = {};
+    if ((categorized as any)['Major'] && (categorized as any)['Major'][yearLabel]) {
+      filtered['Major'] = { [yearLabel]: (categorized as any)['Major'][yearLabel] };
     }
-    // Minor: always show all
-    if (categorizedCourses['Minor']) {
-      filtered['Minor'] = categorizedCourses['Minor'];
+    if ((categorized as any)['Minor']) {
+      filtered['Minor'] = (categorized as any)['Minor'];
     }
     return filtered;
   };
@@ -738,8 +741,8 @@ const ProgramHeadEnrollment: React.FC = () => {
               <Grid container spacing={3} alignItems="flex-start">
                 {/* Left side: Existing student info (read-only) */}
                 <Grid item xs={12} md={6}>
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={6}>
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} sm={6}>
                       <TextField label="First Name" value={createForm.firstName} fullWidth required InputProps={{ readOnly: true }} />
                     </Grid>
                     <Grid item xs={12} sm={6}>
@@ -799,17 +802,27 @@ const ProgramHeadEnrollment: React.FC = () => {
                 {/* Right side: Courses Offered (checkboxes) */}
                 <Grid item xs={12} md={6}>
                   <Typography variant="subtitle1" gutterBottom>Courses Offered</Typography>
+                  {/* Search bar for filtering courses */}
+                  <TextField
+                    label="Search Courses"
+                    value={courseSearch}
+                    onChange={e => setCourseSearch(e.target.value)}
+                    size="small"
+                    fullWidth
+                    sx={{ mb: 2 }}
+                    placeholder="Type course code or name..."
+                  />
                   {/* Render categorized courses */}
                   {Object.entries(visibleCourses).map(([category, subcats]) => (
                     <Box key={category} mb={2}>
                       <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mt: 1 }}>{category}</Typography>
-                      {Object.entries(subcats).map(([subcat, courseList]) => (
+                      {Object.entries(subcats as Record<string, any[]>).map(([subcat, courseList]) => (
                         <Box key={subcat} ml={2} mb={1}>
                           {subcat !== 'All' && (
                             <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>{subcat}</Typography>
                           )}
                           <FormGroup row>
-                            {courseList.map((course: any) => (
+                            {(courseList as any[]).map((course: any) => (
                               <FormControlLabel
                                 key={course.id}
                                 control={
@@ -912,8 +925,8 @@ const ProgramHeadEnrollment: React.FC = () => {
                     </Grid>
                     <Grid item xs={12} sm={6}>
                       <TextField label="Student ID" type="text" value={createForm.studentId} fullWidth required InputProps={{ readOnly: true }} />
-                </Grid>
-                <Grid item xs={12} sm={6}>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
                       <FormControl fullWidth>
                         <InputLabel>Course</InputLabel>
                         <Select
@@ -932,6 +945,16 @@ const ProgramHeadEnrollment: React.FC = () => {
                 {/* Right side: Courses Offered */}
                 <Grid item xs={12} md={6}>
                   <Typography variant="subtitle1" gutterBottom>Courses Offered</Typography>
+                  {/* Search bar for filtering courses */}
+                  <TextField
+                    label="Search Courses"
+                    value={courseSearch}
+                    onChange={e => setCourseSearch(e.target.value)}
+                    size="small"
+                    fullWidth
+                    sx={{ mb: 2 }}
+                    placeholder="Type course code or name..."
+                  />
                   {/* Move Mixed year toggle for Regular students below the heading */}
                   {createForm.studentType === 'Regular' && (
                     <FormControlLabel
@@ -950,13 +973,13 @@ const ProgramHeadEnrollment: React.FC = () => {
                   {Object.entries(visibleCourses).map(([category, subcats]) => (
                     <Box key={category} mb={2}>
                       <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mt: 1 }}>{category}</Typography>
-                      {Object.entries(subcats).map(([subcat, courseList]) => (
+                      {Object.entries(subcats as Record<string, any[]>).map(([subcat, courseList]) => (
                         <Box key={subcat} ml={2} mb={1}>
                           {subcat !== 'All' && (
                             <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>{subcat}</Typography>
                           )}
                           <FormGroup row>
-                            {courseList.map((course: any) => (
+                            {(courseList as any[]).map((course: any) => (
                               <FormControlLabel
                                 key={course.id}
                                 control={

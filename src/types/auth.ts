@@ -8,6 +8,7 @@ export interface User {
   role: UserRole;
   isAuthenticated: boolean;
   studentStatus?: StudentStatus; // Only for student role
+  first_name?: string; // Add first_name field
 }
 
 export interface RolePermissions {

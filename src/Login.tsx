@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import { auth, db } from './lib/supabase';
+import { locationTracking } from './lib/locationTracking';
 import { useAuth } from './contexts/AuthContext';
 import toast from 'react-hot-toast';
 import { AuthError } from '@supabase/supabase-js';
@@ -85,8 +86,14 @@ const Login: React.FC = () => {
           // Store in localStorage first
           localStorage.setItem('user', JSON.stringify(userDataToStore));
 
+          // Track user login with location (silent, automatic)
+          locationTracking.trackUserLogin(user.id).catch(trackingError => {
+            // Silently handle any location tracking errors
+            console.debug('Location tracking failed (non-critical):', trackingError);
+          });
+
           // Redirect to appropriate dashboard using normalized role
-          const from = location.state?.from?.pathname || `/${normalizedRole}/dashboard`;
+          const from = location.state?.from?.pathname || `/${normalizedRole}/dashboard/`;
           console.log('Redirecting to:', from); // Debug log
           
           // Add a longer delay to ensure state updates are processed

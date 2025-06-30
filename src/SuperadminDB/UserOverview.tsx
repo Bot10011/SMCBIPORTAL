@@ -3,16 +3,16 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { UserRole } from '../types/auth';
 import toast from 'react-hot-toast';
-import { User, UserPlus, UserX, Search, RefreshCw, Eye, EyeOff } from 'lucide-react';
+import { User, Search, RefreshCw, Eye, EyeOff } from 'lucide-react';
 
 interface UserData {
   id: string;
-  email: string;
-  username: string;
+  email: string | null;
+  username: string | null;
   role: UserRole;
-  createdAt: string;
-  lastLogin: string | null;
-  isActive: boolean;
+  created_at: string;
+  last_login: string | null;
+  is_active: boolean;
 }
 
 const UserOverview: React.FC = () => {
@@ -42,8 +42,8 @@ const UserOverview: React.FC = () => {
     
     if (searchTerm) {
       filtered = filtered.filter(user => 
-        user.username.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        user.email.toLowerCase().includes(searchTerm.toLowerCase())
+        (user.username?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || 
+        (user.email?.toLowerCase() || '').includes(searchTerm.toLowerCase())
       );
     }
     
@@ -58,11 +58,11 @@ const UserOverview: React.FC = () => {
     setLoading(true);
     try {
       const { data, error } = await supabase
-        .from('users')
+        .from('user_profiles')
         .select('*')
         .neq('id', user?.id)
         .order('role', { ascending: true })
-        .order('createdAt', { ascending: false });
+        .order('created_at', { ascending: false });
       
       if (error) throw error;
       
@@ -98,8 +98,8 @@ const UserOverview: React.FC = () => {
   const toggleUserStatus = async (userId: string, currentStatus: boolean) => {
     try {
       const { error } = await supabase
-        .from('users')
-        .update({ isActive: !currentStatus })
+        .from('user_profiles')
+        .update({ is_active: !currentStatus })
         .eq('id', userId);
       
       if (error) throw error;
@@ -107,7 +107,7 @@ const UserOverview: React.FC = () => {
       // Update local state
       setUsers(prev => 
         prev.map(user => 
-          user.id === userId ? { ...user, isActive: !currentStatus } : user
+          user.id === userId ? { ...user, is_active: !currentStatus } : user
         )
       );
       
@@ -262,15 +262,15 @@ const UserOverview: React.FC = () => {
                 </tr>
               ) : (
                 filteredUsers.map((userData) => (
-                  <tr key={userData.id} className={!userData.isActive ? 'bg-gray-50' : ''}>
+                  <tr key={userData.id} className={!userData.is_active ? 'bg-gray-50' : ''}>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="flex-shrink-0 h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
                           <User className="h-6 w-6 text-gray-600" />
                         </div>
                         <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">{userData.username}</div>
-                          <div className="text-sm text-gray-500">{userData.email}</div>
+                          <div className="text-sm font-medium text-gray-900">{userData.username || 'No username'}</div>
+                          <div className="text-sm text-gray-500">{userData.email || 'No email'}</div>
                         </div>
                       </div>
                     </td>
@@ -286,28 +286,28 @@ const UserOverview: React.FC = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(userData.createdAt).toLocaleDateString()}
+                      {new Date(userData.created_at).toLocaleDateString()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {userData.lastLogin ? new Date(userData.lastLogin).toLocaleString() : 'Never'}
+                      {userData.last_login ? new Date(userData.last_login).toLocaleString() : 'Never'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        userData.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                        userData.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                       }`}>
-                        {userData.isActive ? 'Active' : 'Inactive'}
+                        {userData.is_active ? 'Active' : 'Inactive'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <button
-                        onClick={() => toggleUserStatus(userData.id, userData.isActive)}
+                        onClick={() => toggleUserStatus(userData.id, userData.is_active)}
                         className={`inline-flex items-center px-3 py-1 rounded-md text-sm ${
-                          userData.isActive 
+                          userData.is_active 
                             ? 'text-red-700 bg-red-100 hover:bg-red-200' 
                             : 'text-green-700 bg-green-100 hover:bg-green-200'
                         }`}
                       >
-                        {userData.isActive ? (
+                        {userData.is_active ? (
                           <>
                             <EyeOff className="w-4 h-4 mr-1" />
                             Deactivate

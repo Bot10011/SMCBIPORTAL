@@ -125,9 +125,9 @@ const App: React.FC = () => {
                 }
               />
               <Route
-                path="/programhead/dashboard/*"
+                path="/program_head/dashboard/*"
                 element={
-                  <ProtectedRoute allowedRoles={['admin', 'registrar', 'programhead']} requiresAccessCheck={true}>
+                  <ProtectedRoute allowedRoles={['admin', 'registrar', 'program_head']} requiresAccessCheck={true}>
                     <ProgramHeadDashboard />
                   </ProtectedRoute>
                 }
@@ -135,7 +135,7 @@ const App: React.FC = () => {
               <Route
                 path="/teacher/dashboard/*"
                 element={
-                  <ProtectedRoute allowedRoles={['admin', 'registrar', 'programhead', 'teacher']} requiresAccessCheck={true}>
+                  <ProtectedRoute allowedRoles={['admin', 'registrar', 'program_head', 'teacher']} requiresAccessCheck={true}>
                     <TeacherDashboard />
                   </ProtectedRoute>
                 }
@@ -143,7 +143,7 @@ const App: React.FC = () => {
               <Route
                 path="/student/dashboard/*"
                 element={
-                  <ProtectedRoute allowedRoles={['admin', 'registrar', 'programhead', 'teacher', 'student']} requiresAccessCheck={true}>
+                  <ProtectedRoute allowedRoles={['admin', 'registrar', 'program_head', 'teacher', 'student']} requiresAccessCheck={true}>
                     <StudentDashboard />
                   </ProtectedRoute>
                 }
