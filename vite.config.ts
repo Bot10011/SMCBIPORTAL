@@ -7,24 +7,16 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      '@mui/material': path.resolve('./node_modules/@mui/material'),
-      '@mui/icons-material': path.resolve('./node_modules/@mui/icons-material'),
-      '@mui/x-data-grid': path.resolve('./node_modules/@mui/x-data-grid'),
-      '@mui/x-date-pickers': path.resolve('./node_modules/@mui/x-date-pickers'),
-      '@mui/x-charts': path.resolve('./node_modules/@mui/x-charts'),
-      '@mui/x-tree-view': path.resolve('./node_modules/@mui/x-tree-view'),
-      '@emotion/react': path.resolve('./node_modules/@emotion/react'),
-      '@emotion/styled': path.resolve('./node_modules/@emotion/styled'),
-      'clsx': path.resolve('./node_modules/clsx'),
-      'dayjs': path.resolve('./node_modules/dayjs'),
       '@': path.resolve(__dirname, './src'),
     },
-    dedupe: ['react', 'react-dom', 'cookie'] // Prevents duplicate instances
   },
   optimizeDeps: {
+    
     include: [
       'react',
       'react-dom',
+      'react-router-dom',
+      'react-hot-toast',
       '@emotion/react',
       '@emotion/styled',
       '@mui/material',
@@ -35,11 +27,6 @@ export default defineConfig({
       '@mui/x-tree-view',
       'clsx',
       'dayjs',
-      'jspdf',
-      'jspdf-autotable',
-      'cookie', // Ensures "cookie" is bundled properly
-      'react-router-dom',
-      'react-hot-toast'
     ],
     exclude: ['lucide-react']
   },
@@ -50,16 +37,16 @@ export default defineConfig({
   },
   build: {
     commonjsOptions: {
-      include: [/jspdf/, /jspdf-autotable/],
+      include: [/node_modules/],
     },
     rollupOptions: {
-      external: ['jspdf', 'jspdf-autotable'],
       output: {
-        globals: {
-          jspdf: 'jsPDF',
-          'jspdf-autotable': 'jspdf-autotable'
-        }
-      }
-    }
-  }
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          router: ['react-router-dom'],
+          mui: ['@mui/material', '@mui/icons-material', '@mui/x-data-grid', '@mui/x-date-pickers', '@mui/x-charts'],
+        },
+      },
+    },
+  },
 });
