@@ -1,4 +1,6 @@
 /** @type {import('tailwindcss').Config} */
+const colors = require('tailwindcss/colors');
+
 export default {
   content: [
     './index.html',
@@ -8,6 +10,7 @@ export default {
   theme: {
     extend: {
       colors: {
+        ...colors,
         primary: {
           DEFAULT: '#1E2B3A',
           hover: '#2C3E50',
