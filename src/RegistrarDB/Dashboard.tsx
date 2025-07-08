@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { RegistrarGradeViewer } from './Allcourse';
 import { supabase } from '../lib/supabase';
+import StudentGrades from './StudentGrades';
 
 // Import registrar-specific components
 const StudentRecords = () => <div>Student Records</div>;
@@ -286,6 +287,7 @@ const RegistrarDashboard: React.FC = () => {
         <Route path="/enrollment-approvals" element={<RegistrarEnrollment />} />
         <Route path="/student-records" element={<StudentRecords />} />
         <Route path="/subject-review" element={<RegistrarGradeViewer />} />
+        <Route path="/student-grades" element={<StudentGrades />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="*" element={<DashboardOverview />} />
       </Routes>
