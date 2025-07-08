@@ -167,8 +167,8 @@ const sidebarItems: SidebarItem[] = [
     roles: ['registrar'],
   },
   {
-    label: 'Student Records',
-    path: '/registrar/dashboard/student-records',
+    label: 'Student Grades',
+    path: '/registrar/dashboard/student-grades',
     icon: <FileText className="w-5 h-5" />,
     roles: ['registrar'],
   },
