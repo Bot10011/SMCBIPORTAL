@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import DashboardLayout from '../components/Sidebar';
 import ProgramHeadEnrollment from './ProgramHeadEnrollment';
@@ -11,38 +11,86 @@ import {
   ClipboardList,
   BookOpenCheck,
   BarChart3,
-  Calendar,
-  Sparkles
+  Calendar
 } from 'lucide-react';
 import ErrorBoundary from '../components/ErrorBoundary';
+import { supabase } from '../lib/supabase';
 
 // Import program head-specific components
 
 // Dashboard Overview Component
 const DashboardOverview: React.FC = () => {
-  const [stats] = useState({
-    activeStudents: 182,
-    pendingRequests: 18,
-    subjectsManaged: 42,
-    completedSubjects: 26
+  const [stats, setStats] = useState({
+    activeStudents: 0,
+    pendingRequests: 0,
+    subjectsManaged: 0,
+    completedSubjects: 0
   });
+  const [studentPerformance, setStudentPerformance] = useState<{
+    course: string;
+    rating: number;
+    students: number;
+    color: string;
+  }[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
-  const [studentPerformance] = useState([
-    { course: 'Computer Science', rating: 85, students: 45, color: 'blue' },
-    { course: 'Information Technology', rating: 78, students: 62, color: 'green' },
-    { course: 'Information Systems', rating: 90, students: 38, color: 'purple' },
-    { course: 'Computer Engineering', rating: 82, students: 37, color: 'orange' }
-  ]);
-
-  const [recentRequests] = useState([
-    { id: 1, student: 'Alex Johnson', type: 'Subject Waiver', status: 'pending', time: '2 hours ago' },
-    { id: 2, student: 'Sarah Miller', type: 'Curriculum Adjustment', status: 'approved', time: '1 day ago' },
-    { id: 3, student: 'David Chen', type: 'Subject Addition', status: 'pending', time: '3 hours ago' },
-    { id: 4, student: 'Emma Rodriguez', type: 'Prerequisite Override', status: 'declined', time: '2 days ago' },
-  ]);
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        setError(null);
+        // 1. All Students (count unique student_id in enrollcourse)
+        const { data: enrollments, error: enrollmentsError } = await supabase
+          .from('enrollcourse')
+          .select('student_id, subject_id, status');
+        if (enrollmentsError) throw enrollmentsError;
+        // 2. Fetch all courses to map subject_id to code
+        const { data: courses, error: coursesError } = await supabase
+          .from('courses')
+          .select('id, code');
+        if (coursesError) throw coursesError;
+        const courseCodeMap: Record<string, string> = {};
+        (courses || []).forEach((c: { id: string, code: string }) => {
+          courseCodeMap[c.id] = c.code;
+        });
+        // Unique students
+        const uniqueStudentIds = new Set((enrollments || []).map((e: { student_id: string }) => e.student_id));
+        // Unique subjects
+        const uniqueSubjectIds = new Set((enrollments || []).map((e: { subject_id: string }) => e.subject_id));
+        // Courses Performance: for each subject_id, count unique student_id
+        const subjectStudentMap: Record<string, Set<string>> = {};
+        (enrollments || []).forEach((e: { subject_id: string, student_id: string }) => {
+          if (!subjectStudentMap[e.subject_id]) subjectStudentMap[e.subject_id] = new Set();
+          subjectStudentMap[e.subject_id].add(e.student_id);
+        });
+        const performance = Object.entries(subjectStudentMap).map(([subjectId, studentsSet]) => ({
+          course: courseCodeMap[subjectId] || subjectId,
+          rating: 0,
+          students: studentsSet.size,
+          color: 'blue',
+        }));
+        setStats({
+          activeStudents: uniqueStudentIds.size,
+          pendingRequests: 0,
+          subjectsManaged: uniqueSubjectIds.size,
+          completedSubjects: 0
+        });
+        setStudentPerformance(performance);
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : 'Failed to load dashboard data';
+        setError(errorMsg);
+        console.error('Dashboard fetch error:', err);
+      }
+    };
+    fetchDashboardData();
+  }, []);
 
   return (
     <div className="space-y-8">
+      {error && (
+        <div className="bg-red-100 border border-red-300 text-red-800 px-4 py-3 rounded mb-4">
+          <strong>Error:</strong> {error}
+        </div>
+      )}
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -102,7 +150,7 @@ const DashboardOverview: React.FC = () => {
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-semibold text-gray-800 flex items-center">
               <BarChart3 className="w-5 h-5 mr-2 text-gray-600" />
-              Program Performance
+              Courses Performance
             </h2>
             <select className="bg-gray-50 border border-gray-200 text-gray-700 py-2 px-3 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
               <option value="current">Current Semester</option>
@@ -112,26 +160,43 @@ const DashboardOverview: React.FC = () => {
           </div>
 
           <div className="space-y-4">
-            {studentPerformance.map(course => (
-              <div key={course.course} className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-700 font-medium">{course.course}</span>
-                  <span className="text-gray-500 text-sm">{course.students} students</span>
+            {studentPerformance.map(course => {
+              const maxStudents = 100;
+              const percent = Math.min((course.students / maxStudents) * 100, 100);
+              // Year indicator from course code (e.g., IT101 => 1st Year, IT202 => 2nd Year)
+              let yearLabel = '';
+              const match = course.course.match(/(\d{3})/);
+              if (match) {
+                const yearDigit = match[1][0];
+                if (yearDigit === '1') yearLabel = '1st Year';
+                else if (yearDigit === '2') yearLabel = '2nd Year';
+                else if (yearDigit === '3') yearLabel = '3rd Year';
+                else if (yearDigit === '4') yearLabel = '4th Year';
+              }
+              return (
+                <div key={course.course} className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-700 font-medium">Course Code: {course.course}</span>
+                    <span className="text-gray-500 text-sm">{course.students} students</span>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-2.5">
+                    <motion.div 
+                      initial={{ width: 0 }}
+                      animate={{ width: `${percent}%` }}
+                      transition={{ duration: 1, delay: 0.5 }}
+                      className={`h-2.5 rounded-full bg-${course.color}-500`}
+                    ></motion.div>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-500">Enrolled Students</span>
+                    <span className="font-semibold text-gray-700">{course.students}</span>
+                  </div>
+                  {yearLabel && (
+                    <div className="text-xs text-blue-600 font-semibold mt-1">{yearLabel}</div>
+                  )}
                 </div>
-                <div className="w-full bg-gray-100 rounded-full h-2.5">
-                  <motion.div 
-                    initial={{ width: 0 }}
-                    animate={{ width: `${course.rating}%` }}
-                    transition={{ duration: 1, delay: 0.5 }}
-                    className={`h-2.5 rounded-full bg-${course.color}-500`}
-                  ></motion.div>
-                </div>
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-500">Performance Index</span>
-                  <span className="font-semibold text-gray-700">{course.rating}%</span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </motion.div>
 
@@ -183,71 +248,7 @@ const DashboardOverview: React.FC = () => {
         </motion.div>
       </div>
 
-      {/* Student Requests Table */}
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.4 }}
-        className="bg-white rounded-2xl shadow-lg p-6"
-      >
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-semibold text-gray-800 flex items-center">
-            <ClipboardList className="w-5 h-5 mr-2 text-gray-600" />
-            Recent Student Requests
-          </h2>
-          <button className="bg-indigo-50 text-indigo-600 hover:bg-indigo-100 text-sm font-medium py-2 px-4 rounded-lg flex items-center transition-colors">
-            <Sparkles className="w-4 h-4 mr-1" />
-            Process All
-          </button>
-        </div>
-        
-        <div className="overflow-x-auto">
-          <table className="min-w-full">
-            <thead>
-              <tr className="border-b border-gray-200">
-                <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student</th>
-                <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Request Type</th>
-                <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
-                <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {recentRequests.map(request => (
-                <tr key={request.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="py-4 px-4 whitespace-nowrap">
-                    <div className="font-medium text-gray-800">{request.student}</div>
-                  </td>
-                  <td className="py-4 px-4 whitespace-nowrap text-gray-600">{request.type}</td>
-                  <td className="py-4 px-4 whitespace-nowrap text-gray-500 text-sm">{request.time}</td>
-                  <td className="py-4 px-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      request.status === 'approved' ? 'bg-green-100 text-green-800' :
-                      request.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-red-100 text-red-800'
-                    }`}>
-                      {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
-                    </span>
-                  </td>
-                  <td className="py-4 px-4 whitespace-nowrap text-sm">
-                    <button className="text-indigo-600 hover:text-indigo-900 font-medium">Review</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        
-        <div className="mt-4 flex justify-between items-center">
-          <span className="text-sm text-gray-600">Showing 4 of 18 requests</span>
-          <button className="text-indigo-600 hover:text-indigo-800 text-sm font-medium flex items-center">
-            View all requests
-            <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
-            </svg>
-          </button>
-        </div>
-      </motion.div>
+      {/* Student Requests Table removed due to missing table */}
     </div>
   );
 };
