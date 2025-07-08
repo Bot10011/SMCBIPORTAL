@@ -262,34 +262,41 @@ const TeacherSettings: React.FC = () => {
           </div>
           {/* Profile Info Section */}
           <div className="w-full flex flex-col items-center gap-1">
-            <h3 className="text-2xl sm:text-3xl font-semibold text-gray-900 tracking-tight">
+            <h3 className="text-2xl sm:text-3xl font-semibold text-gray-900 tracking-tight text-center">
               {profile.first_name} {profile.middle_name ? profile.middle_name + ' ' : ''}{profile.last_name}
             </h3>
-            <span className="text-xs bg-blue-100 text-blue-700 rounded px-2 py-1 mt-1">{profile.role}</span>
-            <div className="mt-3 flex items-center gap-2">
-              <Mail className="w-5 h-5 text-gray-400" />
-              <span className="text-base text-gray-400 font-light">{profile.email}</span>
-            </div>
-            <div className="mt-1 flex items-center gap-2">
-              <User className="w-5 h-5 text-gray-400" />
-              <span className="text-base text-gray-400 font-light">Username: {profile.username}</span>
-            </div>
-            {profile.department && (
-              <div className="mt-1 flex items-center gap-2">
-                <Briefcase className="w-5 h-5 text-gray-400" />
-                <span className="text-base text-gray-400 font-light">Department: {profile.department}</span>
+            <span className="text-xs bg-blue-100 text-blue-700 rounded px-2 py-1 mt-1 mb-2">{profile.role}</span>
+            <div className="w-full flex flex-col sm:flex-row items-center justify-center gap-4 mt-4">
+              <div className="flex flex-col items-center sm:items-start gap-2 flex-1">
+                <div className="flex items-center gap-2">
+                  <Mail className="w-5 h-5 text-gray-400" />
+                  <span className="text-base text-gray-700 font-light">{profile.email}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <User className="w-5 h-5 text-gray-400" />
+                  <span className="text-base text-gray-700 font-light">Username: {profile.email}</span>
+                </div>
+                {profile.department && (
+                  <div className="flex items-center gap-2">
+                    <Briefcase className="w-5 h-5 text-gray-400" />
+                    <span className="text-base text-gray-700 font-light">Department: {profile.department}</span>
+                  </div>
+                )}
               </div>
-            )}
-            <div className="mt-1 flex items-center gap-2">
-              <BadgeCheck className="w-5 h-5 text-gray-400" />
-              <span className={
-                "font-medium px-2 py-1 rounded " +
-                (profile.is_active
-                  ? 'bg-green-100 text-green-700'
-                  : 'bg-gray-100 text-gray-500')
-              }>
-                {profile.is_active ? 'Active' : 'Inactive'}
-              </span>
+              <div className="hidden sm:block h-16 w-px bg-gray-200 mx-2"></div>
+              <div className="flex flex-col items-center sm:items-start gap-2 flex-1">
+                <div className="flex items-center gap-2">
+                  <BadgeCheck className="w-5 h-5 text-gray-400" />
+                  <span className={
+                    "font-medium px-2 py-1 rounded " +
+                    (profile.is_active
+                      ? 'bg-green-100 text-green-700'
+                      : 'bg-gray-100 text-gray-500')
+                  }>
+                    {profile.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
