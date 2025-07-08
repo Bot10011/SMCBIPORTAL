@@ -33,6 +33,7 @@ export interface GradeFilter {
 }
 
 export interface GradeSummary {
+  id: string;
   student_id: string;
   student_name: string;
   subject_code: string;
