@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
-import { Download, Printer, Eye, Users, BookOpen, CheckCircle2, X, Loader2 } from 'lucide-react';
+import { Download, Printer, Eye, Users, BookOpen, CheckCircle2, X, Loader2, UserCheck, UserPlus, UserX } from 'lucide-react';
 
 interface Student {
   id: string;
@@ -302,6 +302,11 @@ const RegistrarEnrollment: React.FC = () => {
   const [coeError, setCOEError] = useState<string | null>(null);
   const [coeData, setCOEData] = useState<any | null>(null);
 
+  // Stats
+  const totalStudents = students.length;
+  const pendingStudents = students.filter(s => s.enrollment_status === 'pending').length;
+  const enrolledStudents = students.filter(s => s.enrollment_status === 'enrolled').length;
+
   // Fetch students and courses on component mount
   useEffect(() => {
     fetchStudents();
@@ -546,32 +551,73 @@ const RegistrarEnrollment: React.FC = () => {
   });
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-white rounded-xl shadow-lg p-6"
-      >
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-800">Student Enrollment</h1>
+    <div className="min-h-screen  from-blue-50 via-white to-indigo-50 py-8">
+      <div className="max-w-7xl mx-auto px-4">
+        {/* Header */}
+        <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+          <div>
+            <h1 className="text-4xl font-bold text-gray-900 mb-2 flex items-center gap-3">
+              <UserCheck className="w-8 h-8 text-blue-600" />
+              Enrollment Approvals
+            </h1>
+            <p className="text-gray-600 text-lg">Approve, enroll, and manage student registrations</p>
+          </div>
           <button
             onClick={fetchStudents}
-            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors font-medium"
+            className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-3 rounded-xl shadow-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 font-semibold flex items-center gap-3"
           >
+            <Loader2 className="w-5 h-5 animate-spin mr-2 hidden" />
             Refresh List
           </button>
-          <div className="flex gap-4">
-            <input
-              type="text"
-              placeholder="Search students..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
+        </div>
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 flex items-center gap-4">
+            <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+              <Users className="w-6 h-6 text-blue-600" />
+            </div>
+            <div>
+              <p className="text-gray-600 text-sm font-medium">Total Students</p>
+              <p className="text-3xl font-bold text-gray-900">{totalStudents}</p>
+            </div>
+          </div>
+          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 flex items-center gap-4">
+            <div className="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
+              <UserPlus className="w-6 h-6 text-yellow-600" />
+            </div>
+            <div>
+              <p className="text-gray-600 text-sm font-medium">Pending Approvals</p>
+              <p className="text-3xl font-bold text-gray-900">{pendingStudents}</p>
+            </div>
+          </div>
+          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 flex items-center gap-4">
+            <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+              <CheckCircle2 className="w-6 h-6 text-green-600" />
+            </div>
+            <div>
+              <p className="text-gray-600 text-sm font-medium">Enrolled Students</p>
+              <p className="text-3xl font-bold text-gray-900">{enrolledStudents}</p>
+            </div>
+          </div>
+        </div>
+        {/* Search/Filter Bar */}
+        <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="flex-1 max-w-md">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search students by name or ID..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-4 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              />
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
             >
               <option value="all">All Status</option>
               <option value="enrolled">Enrolled</option>
@@ -580,15 +626,26 @@ const RegistrarEnrollment: React.FC = () => {
             </select>
           </div>
         </div>
-
         {loading ? (
-          <div className="flex justify-center items-center h-64">
+          <div className="flex flex-col items-center justify-center h-64 gap-4">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+            <p className="text-gray-500 font-medium">Loading students...</p>
+          </div>
+        ) : filteredStudents.length === 0 ? (
+          <div className="bg-white rounded-2xl p-12 text-center shadow-lg border border-gray-100">
+            <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-gray-600 mb-2">No students found</h3>
+            <p className="text-gray-500 mb-6">
+              {searchTerm || filterStatus !== 'all' 
+                ? 'Try adjusting your search or filter criteria.'
+                : 'No students available for enrollment.'
+              }
+            </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+              <thead className="bg-gray-50 sticky top-0 z-10">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student ID</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
@@ -601,7 +658,7 @@ const RegistrarEnrollment: React.FC = () => {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredStudents.map((student) => (
-                  <tr key={student.id} className="hover:bg-gray-50">
+                  <tr key={student.id} className="hover:bg-blue-50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{student.student_id}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {student.last_name}, {student.first_name}
@@ -627,7 +684,7 @@ const RegistrarEnrollment: React.FC = () => {
                             className="px-3 py-1 bg-blue-600 text-white rounded-lg shadow-sm hover:bg-blue-700 transition-colors font-semibold flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-blue-400"
                             style={{ minWidth: 80 }}
                           >
-                            Enroll
+                            <UserCheck className="w-4 h-4 mr-1" /> Enroll
                           </button>
                         ) : (
                           <button
@@ -635,7 +692,7 @@ const RegistrarEnrollment: React.FC = () => {
                             style={{ minWidth: 80 }}
                             disabled
                           >
-                            Enroll
+                            <UserCheck className="w-4 h-4 mr-1" /> Enroll
                           </button>
                         )}
                         <button
@@ -644,7 +701,7 @@ const RegistrarEnrollment: React.FC = () => {
                           title="View Certificate of Enrollment"
                           style={{ minWidth: 110 }}
                         >
-                          <Eye className="w-4 h-4" /> View COE
+                          <Eye className="w-4 h-4 mr-1" /> View COE
                         </button>
                       </div>
                     </td>
@@ -743,7 +800,7 @@ const RegistrarEnrollment: React.FC = () => {
             </div>
           </div>
         )}
-      </motion.div>
+      </div>
     </div>
   );
 };
