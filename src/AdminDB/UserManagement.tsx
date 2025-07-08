@@ -168,41 +168,71 @@ export default function UserManagement() {
   }, [activeTab, users]);
 
   return (
-    <div className="container mx-auto p-6">
-      {/* User Management Header with inner shadow */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 bg-white p-6 rounded-2xl shadow-inner border border-gray-100">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-1">User Management</h2>
-          <p className="text-gray-500 text-sm">Manage and organize all system users</p>
-        </div>
-        <button
-          className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 transition-all duration-200 shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 hover:-translate-y-0.5 w-full sm:w-auto"
-          onClick={() => setShowCreateUserModal(true)}
+    <div className="min-h-screen from-blue-50 via-white to-indigo-50">
+      <div className="max-w-7xl mx-auto px-6 py-8">
+        {/* Header Section */}
+        <motion.div 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-8"
         >
-          <UserPlus className="w-5 h-5" /> Add New User
-        </button>
-      </div>
-      {/* Search Bar */}
-      <div className="mb-6">
-        <div className="relative">
-          <input
-            type="text"
-            placeholder="Search users by full name..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full px-4 py-3 pl-10 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200"
-          />
-          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
-            </svg>
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+            <div>
+              <h1 className="text-4xl font-bold text-gray-900 mb-2 flex items-center gap-3">
+                <Users className="w-8 h-8 text-blue-600" />
+                User Management
+              </h1>
+              <p className="text-gray-600 text-lg">Manage and organize all system users efficiently</p>
+            </div>
+            <div className="flex gap-3">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setShowCreateUserModal(true)}
+                className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-3 rounded-xl shadow-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 font-semibold flex items-center gap-3"
+              >
+                <UserPlus className="w-5 h-5" />
+                Add New User
+              </motion.button>
+            </div>
           </div>
-        </div>
-      </div>
+        </motion.div>
 
-      {/* Tabs */}
-      <div className="mb-6 bg-white rounded-2xl shadow-lg p-1 border border-gray-100">
-        <div className="flex gap-2">
+
+        {/* Search Bar */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 mb-8"
+        >
+          <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
+            <div className="flex-1 max-w-md">
+              <div className="relative">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Search users by full name..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                />
+              </div>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Tabs */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="mb-6"
+        >
+          <div className="bg-white rounded-2xl shadow-lg p-1 border border-gray-100">
+            <div className="flex gap-2">
           <button
             onClick={() => setActiveTab('all')}
             className={`flex-1 sm:flex-none px-6 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
@@ -251,10 +281,16 @@ export default function UserManagement() {
               </span>
             </div>
           </button>
-        </div>
-      </div>
+            </div>
+          </div>
+        </motion.div>
 
-      {/* Table Section - Enhanced with better card layout */}
+        {/* Table Section - Enhanced with better card layout */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+        >
       <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100">
         {loading ? (
           <div className="flex justify-center items-center py-20">
@@ -447,6 +483,8 @@ export default function UserManagement() {
           
         )}
       </div>
+        </motion.div>
     </div>
+  </div>
   );
 }
