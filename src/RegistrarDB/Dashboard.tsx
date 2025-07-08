@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import DashboardLayout from '../components/Sidebar';
 import RegistrarEnrollment from './RegistrarEnrollment';
@@ -14,25 +14,86 @@ import {
   Clock
 } from 'lucide-react';
 import { RegistrarGradeViewer } from './Allcourse';
+import { supabase } from '../lib/supabase';
 
 // Import registrar-specific components
 const StudentRecords = () => <div>Student Records</div>;
 
 // Dashboard Overview Components
-const DashboardOverview: React.FC = () => {
-  const [stats] = useState({
-    pendingEnrollments: 24,
-    subjectsForReview: 15,
-    studentRecords: 350,
-    classesWithConflicts: 3
-  });
+type ActivityLog = {
+  id: string;
+  action?: string;
+  description?: string;
+  student?: string;
+  subject?: string;
+  classes?: string;
+  time?: string;
+  created_at?: string;
+};
 
-  const [recentActivities] = useState([
-    { id: 1, action: "Approved enrollment request", student: "Maria Santos", time: "10 minutes ago" },
-    { id: 2, action: "Updated subject schedule", subject: "COMP 101", time: "1 hour ago" },
-    { id: 3, action: "Reviewed student records", student: "John Smith", time: "2 hours ago" },
-    { id: 4, action: "Resolved schedule conflict", classes: "MATH 201 & PHYS 101", time: "Yesterday" }
-  ]);
+const DashboardOverview: React.FC = () => {
+  const [stats, setStats] = useState({
+    pendingEnrollments: 0,
+    subjectsForReview: 0,
+    studentRecords: 0,
+    classesWithConflicts: 0
+  });
+  const [recentActivities, setRecentActivities] = useState<ActivityLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        // Fetch pending enrollments
+        const { data: enrollments } = await supabase
+          .from('enrollcourse')
+          .select('*')
+          .eq('status', 'pending');
+        // Fetch subjects for review
+        const { data: subjects } = await supabase
+          .from('subjects')
+          .select('*')
+          .eq('status', 'for_review');
+        // Fetch student records
+        const { count: studentCount } = await supabase
+          .from('user_profiles')
+          .select('*', { count: 'exact', head: true })
+          .eq('role', 'student');
+        // Fetch classes with conflicts
+        const { data: conflicts } = await supabase
+          .from('class_conflicts')
+          .select('*');
+        // Fetch recent activities (example: from an 'activity_logs' table)
+        const { data: activities } = await supabase
+          .from('activity_logs')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(5);
+        setStats({
+          pendingEnrollments: enrollments?.length || 0,
+          subjectsForReview: subjects?.length || 0,
+          studentRecords: studentCount || 0,
+          classesWithConflicts: conflicts?.length || 0
+        });
+        setRecentActivities((activities as ActivityLog[]) || []);
+      } catch {
+        setError('Failed to load dashboard data.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchDashboardData();
+  }, []);
+
+  if (loading) {
+    return <div className="text-center py-10">Loading dashboard...</div>;
+  }
+  if (error) {
+    return <div className="text-center py-10 text-red-500">{error}</div>;
+  }
 
   return (
     <div className="space-y-8">
@@ -92,20 +153,24 @@ const DashboardOverview: React.FC = () => {
             Recent Activity
           </h2>
           <div className="space-y-4">
-            {recentActivities.map(activity => (
-              <div key={activity.id} className="flex items-start p-3 rounded-xl hover:bg-gray-50 transition-colors">
-                <div className="w-2 h-2 rounded-full bg-blue-500 mt-2 mr-3"></div>
-                <div>
-                  <p className="text-gray-800 font-medium">
-                    {activity.action}
-                    {activity.student && <span className="text-blue-600"> - {activity.student}</span>}
-                    {activity.subject && <span className="text-green-600"> - {activity.subject}</span>}
-                    {activity.classes && <span className="text-red-600"> - {activity.classes}</span>}
-                  </p>
-                  <p className="text-gray-500 text-sm">{activity.time}</p>
+            {recentActivities.length === 0 ? (
+              <div className="text-gray-500">No recent activity.</div>
+            ) : (
+              recentActivities.map(activity => (
+                <div key={activity.id} className="flex items-start p-3 rounded-xl hover:bg-gray-50 transition-colors">
+                  <div className="w-2 h-2 rounded-full bg-blue-500 mt-2 mr-3"></div>
+                  <div>
+                    <p className="text-gray-800 font-medium">
+                      {activity.action || activity.description}
+                      {activity.student && <span className="text-blue-600"> - {activity.student}</span>}
+                      {activity.subject && <span className="text-green-600"> - {activity.subject}</span>}
+                      {activity.classes && <span className="text-red-600"> - {activity.classes}</span>}
+                    </p>
+                    <p className="text-gray-500 text-sm">{activity.time || activity.created_at}</p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
           <button className="mt-4 text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center">
             View all activity
