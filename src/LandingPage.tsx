@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Login from './Login';
 import { motion, useMotionValue, useTransform, useSpring, AnimatePresence } from 'framer-motion';
 
@@ -6,6 +6,10 @@ const LandingPage = () => {
   const [showLogin, setShowLogin] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   const [showDevStatus, setShowDevStatus] = useState(true);
+  const [showDevModal, setShowDevModal] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [currentDevIndex, setCurrentDevIndex] = useState(0);
+  const [direction, setDirection] = useState(1); // 1 for next, -1 for prev
 
   // Add motion values for 3D effect
   const x = useMotionValue(0);
@@ -34,6 +38,83 @@ const LandingPage = () => {
     x.set(0);
     y.set(0);
   };
+
+  // Prevent background scroll when modal is open
+  useEffect(() => {
+    if (showDevModal) {
+      document.body.classList.add('overflow-hidden');
+    } else {
+      document.body.classList.remove('overflow-hidden');
+    }
+    return () => {
+      document.body.classList.remove('overflow-hidden');
+    };
+  }, [showDevModal]);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.matchMedia('(max-width: 640px)').matches);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  const devs = [
+    {
+      img: '/img/1.jpg',
+      name: 'Retchel Cabaron ',
+      role: 'Team Lead',
+      fb: 'https://www.facebook.com/retchel.cabaron.1',
+    },
+    {
+      img: '/img/2.png',
+      name: 'Jesson Mondejar',
+      role: 'Lead Full-Stack Developer & UX/UI Designer',
+      fb: 'https://www.facebook.com/code.write.debug.learn.build.repeat.improve.grow',
+      gh: 'https://github.com/Bot10011',
+      
+    },
+    {
+      img: '/img/3.jpg',
+      name: 'Larecion Rams',
+      role: 'Co Full-Stack Developer & UX Designer',
+      fb: 'https://www.facebook.com/larecion.rams.2024',
+      gh: 'https://github.com/midastouch79',
+    },
+    {
+      img: '/img/4.jpg',
+      name: 'Jay Ayop',
+      role: 'Documentation Specialist',
+      fb: 'https://facebook.com/david',
+    },
+    {
+      img: '/img/5.jpg',
+      name: 'Manilyn  Matanggo',
+      role: 'Documentation Specialist',
+      fb: 'https://www.facebook.com/manilyn.bayoga.matanggo',
+    },
+  ];
+
+  // Auto-slide effect for mobile
+  // Remove auto-slide logic for mobile
+  // Remove startAutoSlide and any setInterval/clearInterval for mobile
+
+  useEffect(() => {
+    if (!isMobile) return;
+    // The auto-slide logic is now handled by drag gestures on mobile
+  }, [isMobile, devs.length]);
+
+  const handlePrev = () => {
+    setDirection(-1);
+    setCurrentDevIndex((prev) => (prev - 1 + devs.length) % devs.length);
+    // The auto-slide logic is now handled by drag gestures on mobile
+  };
+  const handleNext = () => {
+    setDirection(1);
+    setCurrentDevIndex((prev) => (prev + 1) % devs.length);
+    // The auto-slide logic is now handled by drag gestures on mobile
+  };
+
+  // Remove touch state and handlers
 
   return (
     <div className={`min-h-screen flex flex-col font-sans relative ${showDevStatus ? 'pt-12' : ''}`}>
@@ -277,6 +358,8 @@ const LandingPage = () => {
                 {/* Glow effect */}
                 <div className="absolute inset-0 bg-gradient-to-r from-[#2C3E50]/30 via-[#34495E]/30 to-[#2C3E50]/30 opacity-0 group-hover:opacity-100 blur-xl transition-opacity duration-300" />
               </motion.button>
+
+
               
               {/* Forgot Links */}
               <div className="flex justify-between w-full mt-2 text-white/90 text-sm">
@@ -301,6 +384,8 @@ const LandingPage = () => {
             </div>
           </div>
         </div>
+        
+
         
         {/* Footer */}
         <footer className="w-full py-4 px-4 flex flex-col items-center text-xs text-white">
@@ -330,6 +415,7 @@ const LandingPage = () => {
         </div>
       )}
 
+  
       {/* Feedback Tab and Panel */}
       <div>
         {/* Overlay */}
@@ -418,23 +504,24 @@ const LandingPage = () => {
             {/* Branding */}
             <div className="flex flex-col items-center justify-center gap-1 px-8 pt-4 pb-4 border-b border-gray-200">
               <img src="/img/logo1.png" alt="SMCBI Logo" className="w-10 h-10" />
-              <span className="font-medium text-sm text-[#002656]">Feedback Form</span>
+              <span className="font-medium text-sm text-[#2C3E50]">Feedback Form</span>
             </div>
             {/* Feedback Content */}
             <div className="flex-1 overflow-y-auto px-8 py-6">
               <div className="mb-8">
-                <label className="block font-semibold mb-2 text-[#002656]">What was your first impression when you logged into the SMCBI School Portal & Enrollment System?</label>
+                <label className="block font-semibold mb-2 text-[#2C3E50]">What was your first impression when you logged into the SMCBI School Portal & Enrollment System?</label>
                 <textarea className="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-green-300 shadow-sm transition" rows={3} placeholder="Your answer..." />
               </div>
               <div className="mb-8">
                 <label className="block font-semibold mb-2 text-[#002656]">What do you like the most about our new SMCBI School Portal & Enrollment System?</label>
                 <textarea className="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-green-300 shadow-sm transition" rows={3} placeholder="Your answer..." />
               </div>
-              <button className="w-full py-2 rounded-lg bg-[#002656] text-white font-semibold hover:bg-[#001a3e] transition-all duration-200 shadow-md hover:scale-105">Submit Feedback</button>
+              <button className="w-full py-2 rounded-lg bg-[#2C3E50] text-white font-semibold hover:bg-[#1a2634] transition-all duration-200 shadow-md hover:scale-105">Submit Feedback</button>
             </div>
           </div>
         </div>
       </div>
+
 
       {/* Animations */}
       <style>{`
@@ -486,7 +573,251 @@ const LandingPage = () => {
         .translate-x-[-400px] {
           animation: slideLeft 0.3s ease forwards;
         }
+        .card-glow {
+          transition: box-shadow 0.3s, transform 0.3s;
+        }
+        .card-glow:hover {
+          box-shadow: 0 8px 32px 0 rgba(59,130,246,0.25), 0 0 16px 2px #60a5fa33;
+        }
       `}</style>
+
+      {/* Floating Developer Button */}
+      <button
+        onClick={() => setShowDevModal(true)}
+        className="fixed z-50 bottom-6 right-6 bg-gradient-to-br from-blue-600 to-indigo-700 text-white p-4 rounded-full shadow-lg hover:scale-110 transition-transform duration-300 flex items-center justify-center"
+        aria-label="Show Developer Info"
+        style={{ boxShadow: '0 4px 16px 0 rgba(59,130,246,0.15)' }}
+      >
+        {/* Developer Icon (simple SVG) */}
+        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="w-7 h-7">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+        </svg>
+      </button>
+
+      {/* Developer Modal */}
+      <AnimatePresence>
+        {showDevModal && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            style={{ overflow: 'hidden' }}
+          >
+            <motion.div
+              className={`dev-modal-sheet w-full max-w-6xl ${isMobile ? 'max-h-[70vh] p-1' : 'p-2'} relative bg-white rounded-3xl shadow-2xl border border-gray-200`}
+              initial={isMobile ? { y: '100%', opacity: 0 } : { scale: 0.8, opacity: 0, y: 40 }}
+              animate={isMobile ? { y: 0, opacity: 1 } : { scale: 1, opacity: 1, y: 0 }}
+              exit={isMobile ? { y: '100%', opacity: 0 } : { scale: 0.8, opacity: 0, y: 40 }}
+              transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+              style={{
+                maxHeight: isMobile ? '70vh' : '99vh',
+                overflow: isMobile ? 'hidden' : 'visible',
+                overflowY: isMobile ? undefined : 'auto',
+                padding: isMobile ? '0.25rem' : '2rem',
+                borderRadius: isMobile ? '1.5rem 1.5rem 0 0' : '1.5rem',
+                boxShadow: isMobile ? undefined : '0 8px 40px 0 rgba(31, 38, 135, 0.18)',
+                border: '1px solid #e5e7eb',
+              }}
+            >
+              {/* Modal Header with right-aligned close button */}
+              <div className="flex justify-end items-start w-full mb-2">
+                <button
+                  className="dev-modal-close w-7 h-7 flex items-center justify-center text-lg font-bold text-white bg-red-500 hover:bg-red-600 rounded-full shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 animate-pop-in hover:scale-110 hover:rotate-90"
+                  onClick={() => setShowDevModal(false)}
+                  aria-label="Close Developer Info"
+                  style={{ backgroundColor: '#ef4444', boxShadow: '0 2px 8px rgba(239, 68, 68, 0.3)', zIndex: 50 }}
+                >
+                  ×
+                </button>
+              </div>
+              <div className={`flex flex-col items-center gap-2 mb-2 ${isMobile ? 'pt-1' : 'pt-2'}`}>
+                <img src="/img/logo1.png" alt="SMCBI Logo" className="w-20 h-20 mb-1" />
+                <h2 className="text-xl font-bold text-[#2C3E50] mb-1">System Developers</h2>
+                <div className="text-xs text-gray-500">© {new Date().getFullYear()} SMCBI School Portal</div>
+              </div>
+              {/* Developer Cards Grid */}
+              <div
+                className={`dev-modal-scroll ${isMobile ? 'flex flex-col items-center w-full' : 'flex flex-wrap justify-center'} gap-4 px-2 scrollbar-hide mb-2`}
+                style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+              >
+                {isMobile ? (
+                  <div className="w-full flex flex-col items-center">
+                    <div className="relative h-64 w-full flex items-center justify-center">
+                      <AnimatePresence mode="wait" initial={false}>
+                        <motion.div
+                          key={devs[currentDevIndex].name}
+                          className="absolute left-0 right-0 mx-auto flex flex-col items-center bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-4 shadow-lg transition-all duration-300 w-64"
+                          initial={{ x: direction === 1 ? '100vw' : '-100vw', scale: 0.92, opacity: 0.7 }}
+                          animate={{ x: 0, scale: 1, opacity: 1 }}
+                          exit={{ x: direction === 1 ? '-100vw' : '100vw', scale: 0.92, opacity: 0.7 }}
+                          transition={{ type: 'spring', stiffness: 120, damping: 18, mass: 0.7 }}
+                          drag="x"
+                          dragConstraints={{ left: 0, right: 0 }}
+                          dragElastic={0.8}
+                          onDragEnd={(e, info) => {
+                            if (info.offset.x < -80) {
+                              setDirection(1);
+                              handleNext();
+                            } else if (info.offset.x > 80) {
+                              setDirection(-1);
+                              handlePrev();
+                            }
+                          }}
+                        >
+                          <div className="relative mb-3">
+                            <img
+                              src={devs[currentDevIndex].img}
+                              alt={devs[currentDevIndex].name}
+                              className="w-32 h-32 rounded-full object-cover border-2 border-blue-400 shadow-lg"
+                            />
+                            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-white"></div>
+                          </div>
+                          <div className="font-semibold text-[#2C3E50] text-center text-sm mb-1">{devs[currentDevIndex].name}</div>
+                          <div className="text-xs text-gray-500 mb-3 text-center leading-tight">{devs[currentDevIndex].role}</div>
+                          <div className="flex gap-2">
+                            {/* Facebook */}
+                            <a
+                              href={devs[currentDevIndex].fb}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              aria-label="Facebook"
+                              className="p-2 bg-blue-50 hover:bg-blue-100 rounded-lg transition-all duration-200 hover:scale-110"
+                            >
+                              <svg width="18" height="18" fill="currentColor" className="text-blue-600" viewBox="0 0 24 24"><path d="M22.675 0h-21.35C.595 0 0 .592 0 1.326v21.348C0 23.408.595 24 1.325 24h11.495v-9.294H9.692v-3.622h3.128V8.413c0-3.1 1.893-4.788 4.659-4.788 1.325 0 2.463.099 2.797.143v3.24l-1.918.001c-1.504 0-1.797.715-1.797 1.763v2.313h3.587l-.467 3.622h-3.12V24h6.116C23.406 24 24 23.408 24 22.674V1.326C24 .592 23.406 0 22.675 0"/></svg>
+                            </a>
+                            {/* GitHub */}
+                            {devs[currentDevIndex].gh && (
+                              <a
+                                href={devs[currentDevIndex].gh}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                aria-label="GitHub"
+                                className="p-2 bg-gray-50 hover:bg-gray-100 rounded-lg transition-all duration-200 hover:scale-110"
+                              >
+                                <svg width="18" height="18" fill="currentColor" className="text-gray-700" viewBox="0 0 24 24"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.387.6.113.82-.258.82-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.084-.729.084-.729 1.205.084 1.84 1.236 1.84 1.236 1.07 1.834 2.809 1.304 3.495.997.108-.775.418-1.305.762-1.605-2.665-.305-5.466-1.334-5.466-5.93 0-1.31.469-2.381 1.236-3.221-.124-.303-.535-1.523.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.553 3.297-1.23 3.297-1.23.653 1.653.242 2.873.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.803 5.624-5.475 5.921.43.372.823 1.102.823 2.222v3.293c0 .322.218.694.825.576C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+                              </a>
+                            )}
+                          </div>
+                        </motion.div>
+                      </AnimatePresence>
+                    </div>
+                    <div className="flex justify-center items-center gap-10 mt-8">
+                      <button
+                        onClick={() => { setDirection(-1); handlePrev(); }}
+                        aria-label="Previous"
+                        className="text-3xl px-4 py-2 rounded-full bg-gray-200 hover:bg-gray-300 shadow-md"
+                      >
+                        &#8592;
+                      </button>
+                      <button
+                        onClick={() => { setDirection(1); handleNext(); }}
+                        aria-label="Next"
+                        className="text-3xl px-4 py-2 rounded-full bg-gray-200 hover:bg-gray-300 shadow-md"
+                      >
+                        &#8594;
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  devs.map((dev, i) => (
+                    <motion.div
+                      key={dev.name}
+                      className="flex flex-col items-center bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-4 shadow-lg hover:shadow-xl transition-all duration-300 w-48"
+                      initial={{ opacity: 0, y: 40 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.1 + i * 0.12, duration: 0.5, type: 'spring', stiffness: 120, damping: 18, mass: 0.7 }}
+                    >
+                      <div className="relative mb-3">
+                        <img
+                          src={dev.img}
+                          alt={dev.name}
+                          className="w-24 h-24 rounded-full object-cover border-2 border-blue-400 shadow-lg"
+                        />
+                        <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-white"></div>
+                      </div>
+                      <div className="font-semibold text-[#2C3E50] text-center text-sm mb-1">{dev.name}</div>
+                      <div className="text-xs text-gray-500 mb-3 text-center leading-tight">{dev.role}</div>
+                      <div className="flex gap-2">
+                        {/* Facebook */}
+                        <a
+                          href={dev.fb}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          aria-label="Facebook"
+                          className="p-2 bg-blue-50 hover:bg-blue-100 rounded-lg transition-all duration-200 hover:scale-110"
+                        >
+                          <svg width="18" height="18" fill="currentColor" className="text-blue-600" viewBox="0 0 24 24"><path d="M22.675 0h-21.35C.595 0 0 .592 0 1.326v21.348C0 23.408.595 24 1.325 24h11.495v-9.294H9.692v-3.622h3.128V8.413c0-3.1 1.893-4.788 4.659-4.788 1.325 0 2.463.099 2.797.143v3.24l-1.918.001c-1.504 0-1.797.715-1.797 1.763v2.313h3.587l-.467 3.622h-3.12V24h6.116C23.406 24 24 23.408 24 22.674V1.326C24 .592 23.406 0 22.675 0"/></svg>
+                        </a>
+                        {/* GitHub */}
+                        {dev.gh && (
+                          <a
+                            href={dev.gh}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            aria-label="GitHub"
+                            className="p-2 bg-gray-50 hover:bg-gray-100 rounded-lg transition-all duration-200 hover:scale-110"
+                          >
+                            <svg width="18" height="18" fill="currentColor" className="text-gray-700" viewBox="0 0 24 24"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.387.6.113.82-.258.82-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.084-.729.084-.729 1.205.084 1.84 1.236 1.84 1.236 1.07 1.834 2.809 1.304 3.495.997.108-.775.418-1.305.762-1.605-2.665-.305-5.466-1.334-5.466-5.93 0-1.31.469-2.381 1.236-3.221-.124-.303-.535-1.523.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.553 3.297-1.23 3.297-1.23.653 1.653.242 2.873.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.803 5.624-5.475 5.921.43.372.823 1.102.823 2.222v3.293c0 .322.218.694.825.576C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+                          </a>
+                        )}
+                      </div>
+                    </motion.div>
+                  ))
+                )}
+              </div>
+              <style>{`
+                .dev-modal-sheet {
+                  max-height: 90vh;
+                  overflow: hidden;
+                  box-shadow: 0 8px 40px 0 rgba(31, 38, 135, 0.18);
+                  border: 1px solid #e5e7eb;
+                }
+                .dev-modal-scroll {
+                  overflow-x: auto;
+                  scrollbar-width: none;
+                  -ms-overflow-style: none;
+                  scrollbar-color: transparent transparent;
+                }
+                .dev-modal-scroll::-webkit-scrollbar {
+                  display: none;
+                }
+                @media (max-width: 640px) {
+                  .dev-modal-sheet {
+                    border-radius: 1.5rem 1.5rem 0 0 !important;
+                    max-width: 100vw !important;
+                    width: 100vw !important;
+                    left: 0 !important;
+                    right: 0 !important;
+                    bottom: 0 !important;
+                    top: auto !important;
+                    position: fixed !important;
+                    padding: 1rem !important;
+                    min-height: 60vh !important;
+                    max-height: 95vh !important;
+                    animation: slideUpSheet 0.4s cubic-bezier(0.4,0,0.2,1);
+                  }
+                  .dev-modal-close {
+                    position: sticky !important;
+                    top: 0.5rem !important;
+                    right: 0.5rem !important;
+                    z-index: 100 !important;
+                  }
+                  .dev-modal-scroll {
+                    max-height: 60vh !important;
+                    padding-bottom: 1.5rem !important;
+                  }
+                }
+                @keyframes slideUpSheet {
+                  from { transform: translateY(100%); opacity: 0; }
+                  to { transform: translateY(0); opacity: 1; }
+                }
+              `}</style>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
