@@ -99,8 +99,8 @@ const sidebarItems: SidebarItem[] = [
     roles: ['admin'],
   },
   {
-    label: 'Syllabus',
-    path: '/admin/dashboard/syllabus',
+    label: 'Announcements',
+    path: '/admin/dashboard/announcements',
     icon: <BookOpen className="w-5 h-5" />,
     roles: ['admin'],
   },
