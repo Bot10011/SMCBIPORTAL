@@ -607,10 +607,14 @@ const LandingPage = () => {
           >
             <motion.div
               className={`dev-modal-sheet w-full max-w-6xl ${isMobile ? 'max-h-[70vh] p-1' : 'p-2'} relative bg-white rounded-3xl shadow-2xl border border-gray-200`}
-              initial={isMobile ? { y: '100%', opacity: 0 } : { scale: 0.8, opacity: 0, y: 40 }}
-              animate={isMobile ? { y: 0, opacity: 1 } : { scale: 1, opacity: 1, y: 0 }}
-              exit={isMobile ? { y: '100%', opacity: 0 } : { scale: 0.8, opacity: 0, y: 40 }}
-              transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+              initial={isMobile ? { y: '100%', opacity: 0 } : { opacity: 0, y: 20 }}
+              animate={isMobile ? { y: 0, opacity: 1 } : { opacity: 1, y: 0 }}
+              exit={isMobile ? { y: '100%', opacity: 0 } : { opacity: 0, y: 20 }}
+              transition={{ 
+                type: 'tween', 
+                duration: isMobile ? 0.2 : 0.25, 
+                ease: "easeOut"
+              }}
               style={{
                 maxHeight: isMobile ? '70vh' : '99vh',
                 overflow: isMobile ? 'hidden' : 'visible',
@@ -619,6 +623,9 @@ const LandingPage = () => {
                 borderRadius: isMobile ? '1.5rem 1.5rem 0 0' : '1.5rem',
                 boxShadow: isMobile ? undefined : '0 8px 40px 0 rgba(31, 38, 135, 0.18)',
                 border: '1px solid #e5e7eb',
+                willChange: 'transform, opacity',
+                backfaceVisibility: 'hidden',
+                transform: 'translateZ(0)'
               }}
             >
               {/* Modal Header with right-aligned close button */}
@@ -627,12 +634,17 @@ const LandingPage = () => {
                   className="dev-modal-close w-7 h-7 flex items-center justify-center text-lg font-bold text-white bg-red-500 hover:bg-red-600 rounded-full shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 animate-pop-in hover:scale-110 hover:rotate-90"
                   onClick={() => setShowDevModal(false)}
                   aria-label="Close Developer Info"
-                  style={{ backgroundColor: '#ef4444', boxShadow: '0 2px 8px rgba(239, 68, 68, 0.3)', zIndex: 50 }}
+                  style={{ 
+                    backgroundColor: '#ef4444', 
+                    boxShadow: '0 2px 8px rgba(239, 68, 68, 0.3)', 
+                    zIndex: 50,
+                    marginTop: '0.10rem'
+                  }}
                 >
                   ×
                 </button>
               </div>
-              <div className={`flex flex-col items-center gap-2 mb-2 ${isMobile ? 'pt-1' : 'pt-2'}`}>
+              <div className={`flex flex-col items-center gap-2 mb-2 ${isMobile ? 'pt-0' : 'pt-0'}`}>
                 <img src="/img/logo1.png" alt="SMCBI Logo" className="w-20 h-20 mb-1" />
                 <h2 className="text-xl font-bold text-[#2C3E50] mb-1">System Developers</h2>
                 <div className="text-xs text-gray-500">© {new Date().getFullYear()} SMCBI School Portal</div>
@@ -640,7 +652,12 @@ const LandingPage = () => {
               {/* Developer Cards Grid */}
               <div
                 className={`dev-modal-scroll ${isMobile ? 'flex flex-col items-center w-full' : 'flex flex-wrap justify-center'} gap-4 px-2 scrollbar-hide mb-2`}
-                style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                style={{ 
+                  scrollbarWidth: 'none', 
+                  msOverflowStyle: 'none',
+                  willChange: 'transform',
+                  backfaceVisibility: 'hidden'
+                }}
               >
                 {isMobile ? (
                   <div className="w-full flex flex-col items-center">
@@ -649,13 +666,23 @@ const LandingPage = () => {
                         <motion.div
                           key={devs[currentDevIndex].name}
                           className="absolute left-0 right-0 mx-auto flex flex-col items-center bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-4 shadow-lg transition-all duration-300 w-64"
-                          initial={{ x: direction === 1 ? '100vw' : '-100vw', scale: 0.92, opacity: 0.7 }}
-                          animate={{ x: 0, scale: 1, opacity: 1 }}
-                          exit={{ x: direction === 1 ? '-100vw' : '100vw', scale: 0.92, opacity: 0.7 }}
-                          transition={{ type: 'spring', stiffness: 120, damping: 18, mass: 0.7 }}
+                          initial={{ x: direction === 1 ? '100vw' : '-100vw', opacity: 0.7 }}
+                          animate={{ x: 0, opacity: 1 }}
+                          exit={{ x: direction === 1 ? '-100vw' : '100vw', opacity: 0.7 }}
+                          transition={{ 
+                            type: 'tween', 
+                            duration: 0.25, 
+                            ease: "easeOut"
+                          }}
                           drag="x"
                           dragConstraints={{ left: 0, right: 0 }}
-                          dragElastic={0.8}
+                          dragElastic={0.6}
+                          dragTransition={{ bounceStiffness: 600, bounceDamping: 20 }}
+                          style={{
+                            willChange: 'transform',
+                            backfaceVisibility: 'hidden',
+                            transform: 'translateZ(0)'
+                          }}
                           onDragEnd={(e, info) => {
                             if (info.offset.x < -80) {
                               setDirection(1);
@@ -683,9 +710,9 @@ const LandingPage = () => {
                               target="_blank"
                               rel="noopener noreferrer"
                               aria-label="Facebook"
-                              className="p-2 bg-blue-50 hover:bg-blue-100 rounded-lg transition-all duration-200 hover:scale-110"
+                              className="p-2 bg-blue-50 hover:bg-blue-100 rounded-xl transition-all duration-200 hover:scale-110"
                             >
-                              <svg width="18" height="18" fill="currentColor" className="text-blue-600" viewBox="0 0 24 24"><path d="M22.675 0h-21.35C.595 0 0 .592 0 1.326v21.348C0 23.408.595 24 1.325 24h11.495v-9.294H9.692v-3.622h3.128V8.413c0-3.1 1.893-4.788 4.659-4.788 1.325 0 2.463.099 2.797.143v3.24l-1.918.001c-1.504 0-1.797.715-1.797 1.763v2.313h3.587l-.467 3.622h-3.12V24h6.116C23.406 24 24 23.408 24 22.674V1.326C24 .592 23.406 0 22.675 0"/></svg>
+                              <svg width="18" height="18" fill="currentColor" className="text-blue-600 rounded-md" viewBox="0 0 24 24"><path d="M22.675 0h-21.35C.595 0 0 .592 0 1.326v21.348C0 23.408.595 24 1.325 24h11.495v-9.294H9.692v-3.622h3.128V8.413c0-3.1 1.893-4.788 4.659-4.788 1.325 0 2.463.099 2.797.143v3.24l-1.918.001c-1.504 0-1.797.715-1.797 1.763v2.313h3.587l-.467 3.622h-3.12V24h6.116C23.406 24 24 23.408 24 22.674V1.326C24 .592 23.406 0 22.675 0"/></svg>
                             </a>
                             {/* GitHub */}
                             {devs[currentDevIndex].gh && (
@@ -707,14 +734,22 @@ const LandingPage = () => {
                       <button
                         onClick={() => { setDirection(-1); handlePrev(); }}
                         aria-label="Previous"
-                        className="text-3xl px-4 py-2 rounded-full bg-gray-200 hover:bg-gray-300 shadow-md"
+                        className="text-3xl px-4 py-2 rounded-full bg-gray-200 hover:bg-gray-300 shadow-md transition-transform duration-200 active:scale-95"
+                        style={{
+                          willChange: 'transform',
+                          backfaceVisibility: 'hidden'
+                        }}
                       >
                         &#8592;
                       </button>
                       <button
                         onClick={() => { setDirection(1); handleNext(); }}
                         aria-label="Next"
-                        className="text-3xl px-4 py-2 rounded-full bg-gray-200 hover:bg-gray-300 shadow-md"
+                        className="text-3xl px-4 py-2 rounded-full bg-gray-200 hover:bg-gray-300 shadow-md transition-transform duration-200 active:scale-95"
+                        style={{
+                          willChange: 'transform',
+                          backfaceVisibility: 'hidden'
+                        }}
                       >
                         &#8594;
                       </button>
@@ -725,9 +760,19 @@ const LandingPage = () => {
                     <motion.div
                       key={dev.name}
                       className="flex flex-col items-center bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-4 shadow-lg hover:shadow-xl transition-all duration-300 w-48"
-                      initial={{ opacity: 0, y: 40 }}
+                      initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.1 + i * 0.12, duration: 0.5, type: 'spring', stiffness: 120, damping: 18, mass: 0.7 }}
+                      transition={{ 
+                        delay: 0.05 + i * 0.08, 
+                        duration: 0.3, 
+                        ease: "easeOut",
+                        type: 'tween'
+                      }}
+                      style={{
+                        willChange: 'transform, opacity',
+                        backfaceVisibility: 'hidden',
+                        transform: 'translateZ(0)'
+                      }}
                     >
                       <div className="relative mb-3">
                         <img
@@ -746,9 +791,9 @@ const LandingPage = () => {
                           target="_blank"
                           rel="noopener noreferrer"
                           aria-label="Facebook"
-                          className="p-2 bg-blue-50 hover:bg-blue-100 rounded-lg transition-all duration-200 hover:scale-110"
+                          className="p-2 bg-blue-50 hover:bg-blue-100 rounded-xl transition-all duration-200 hover:scale-110"
                         >
-                          <svg width="18" height="18" fill="currentColor" className="text-blue-600" viewBox="0 0 24 24"><path d="M22.675 0h-21.35C.595 0 0 .592 0 1.326v21.348C0 23.408.595 24 1.325 24h11.495v-9.294H9.692v-3.622h3.128V8.413c0-3.1 1.893-4.788 4.659-4.788 1.325 0 2.463.099 2.797.143v3.24l-1.918.001c-1.504 0-1.797.715-1.797 1.763v2.313h3.587l-.467 3.622h-3.12V24h6.116C23.406 24 24 23.408 24 22.674V1.326C24 .592 23.406 0 22.675 0"/></svg>
+                          <svg width="18" height="18" fill="currentColor" className="text-blue-600 rounded-md" viewBox="0 0 24 24"><path d="M22.675 0h-21.35C.595 0 0 .592 0 1.326v21.348C0 23.408.595 24 1.325 24h11.495v-9.294H9.692v-3.622h3.128V8.413c0-3.1 1.893-4.788 4.659-4.788 1.325 0 2.463.099 2.797.143v3.24l-1.918.001c-1.504 0-1.797.715-1.797 1.763v2.313h3.587l-.467 3.622h-3.12V24h6.116C23.406 24 24 23.408 24 22.674V1.326C24 .592 23.406 0 22.675 0"/></svg>
                         </a>
                         {/* GitHub */}
                         {dev.gh && (
@@ -773,12 +818,16 @@ const LandingPage = () => {
                   overflow: hidden;
                   box-shadow: 0 8px 40px 0 rgba(31, 38, 135, 0.18);
                   border: 1px solid #e5e7eb;
+                  transform: translateZ(0);
+                  will-change: transform;
                 }
                 .dev-modal-scroll {
                   overflow-x: auto;
                   scrollbar-width: none;
                   -ms-overflow-style: none;
                   scrollbar-color: transparent transparent;
+                  transform: translateZ(0);
+                  will-change: transform;
                 }
                 .dev-modal-scroll::-webkit-scrollbar {
                   display: none;
@@ -796,22 +845,51 @@ const LandingPage = () => {
                     padding: 1rem !important;
                     min-height: 60vh !important;
                     max-height: 95vh !important;
-                    animation: slideUpSheet 0.4s cubic-bezier(0.4,0,0.2,1);
+                    animation: slideUpSheet 0.25s ease-out;
+                    transform: translateZ(0);
+                    will-change: transform;
+                    -webkit-overflow-scrolling: touch;
                   }
                   .dev-modal-close {
                     position: sticky !important;
                     top: 0.5rem !important;
                     right: 0.5rem !important;
                     z-index: 100 !important;
+                    transform: translateZ(0);
+                    will-change: transform;
                   }
                   .dev-modal-scroll {
                     max-height: 60vh !important;
                     padding-bottom: 1.5rem !important;
+                    transform: translateZ(0);
+                    will-change: transform;
+                    -webkit-overflow-scrolling: touch;
+                  }
+                  .dev-modal-scroll * {
+                    transform: translateZ(0);
+                    backface-visibility: hidden;
                   }
                 }
                 @keyframes slideUpSheet {
-                  from { transform: translateY(100%); opacity: 0; }
-                  to { transform: translateY(0); opacity: 1; }
+                  from { 
+                    transform: translateY(100%) translateZ(0); 
+                    opacity: 0; 
+                  }
+                  to { 
+                    transform: translateY(0) translateZ(0); 
+                    opacity: 1; 
+                  }
+                }
+                @media (max-width: 640px) {
+                  .dev-modal-sheet {
+                    -webkit-transform: translateZ(0);
+                    -webkit-backface-visibility: hidden;
+                    -webkit-perspective: 1000px;
+                  }
+                  .dev-modal-scroll {
+                    -webkit-transform: translateZ(0);
+                    -webkit-backface-visibility: hidden;
+                  }
                 }
               `}</style>
             </motion.div>
