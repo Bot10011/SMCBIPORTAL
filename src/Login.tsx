@@ -149,7 +149,7 @@ const Login: React.FC = () => {
           className="h-16 w-auto mx-auto mb-3"
         />
  
-        <p className="text-sm text-gray-500">Sign in to your account</p>
+      
       </div>
 
       <form className="space-y-4" onSubmit={handleSubmit} autoComplete="on">
