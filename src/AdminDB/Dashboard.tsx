@@ -6,6 +6,7 @@ import { Users, Settings, Bell, ShieldAlert, TrendingUp, Activity, Database, Boo
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
+import Announcement from './Announcement';
 
 // Import admin-specific components and styles
 import UserManagement from './UserManagement';
@@ -40,20 +41,58 @@ const SystemSettings = () => {
     sessionTimeout: 30,
     maxFileSize: 10
   });
+  const [loading, setLoading] = useState(true);
 
+  // Fetch settings from DB on mount
+  useEffect(() => {
+    const fetchSettings = async () => {
+      const { data, error } = await supabase
+        .from('system_settings')
+        .select('*')
+        .eq('id', 1)
+        .single();
+      if (error) {
+        toast.error('Failed to load settings');
+      } else if (data) {
+        setSettings({
+          systemName: data.system_name,
+          maintenanceMode: data.maintenance_mode,
+          emailNotifications: data.email_notifications,
+          autoBackup: data.auto_backup,
+          sessionTimeout: data.session_timeout,
+          maxFileSize: data.max_file_size
+        });
+      }
+      setLoading(false);
+    };
+    fetchSettings();
+  }, []);
+
+  // Update setting in DB
   const handleSettingChange = async (key: string, value: unknown) => {
-    try {
-      // In a real application, you would save to database
-      setSettings(prev => ({ ...prev, [key]: value }));
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      toast.success('Setting updated successfully');
-    } catch {
+    setSettings(prev => ({ ...prev, [key]: value }));
+    const updateObj: Record<string, unknown> = {};
+    switch (key) {
+      case 'systemName': updateObj.system_name = value; break;
+      case 'maintenanceMode': updateObj.maintenance_mode = value; break;
+      case 'emailNotifications': updateObj.email_notifications = value; break;
+      case 'autoBackup': updateObj.auto_backup = value; break;
+      case 'sessionTimeout': updateObj.session_timeout = value; break;
+      case 'maxFileSize': updateObj.max_file_size = value; break;
+      default: break;
+    }
+    const { error } = await supabase
+      .from('system_settings')
+      .update(updateObj)
+      .eq('id', 1);
+    if (error) {
       toast.error('Failed to update setting');
+    } else {
+      toast.success('Setting updated successfully');
     }
   };
+
+  if (loading) return <div>Loading...</div>;
 
   return (
     <div className="p-6">
@@ -77,7 +116,6 @@ const SystemSettings = () => {
             <Settings className="w-6 h-6 text-blue-600" />
             <h3 className="text-lg font-semibold text-gray-800">General Settings</h3>
           </div>
-          
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">System Name</label>
@@ -88,7 +126,6 @@ const SystemSettings = () => {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
-            
             <div className="flex items-center justify-between">
               <div>
                 <label className="text-sm font-medium text-gray-700">Maintenance Mode</label>
@@ -107,7 +144,6 @@ const SystemSettings = () => {
             </div>
           </div>
         </motion.div>
-
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -118,7 +154,6 @@ const SystemSettings = () => {
             <ShieldAlert className="w-6 h-6 text-green-600" />
             <h3 className="text-lg font-semibold text-gray-800">Security Settings</h3>
           </div>
-          
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
@@ -136,7 +171,6 @@ const SystemSettings = () => {
                 }`} />
               </button>
             </div>
-            
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Session Timeout (minutes)</label>
               <input
@@ -150,7 +184,6 @@ const SystemSettings = () => {
             </div>
           </div>
         </motion.div>
-
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -161,7 +194,6 @@ const SystemSettings = () => {
             <Database className="w-6 h-6 text-purple-600" />
             <h3 className="text-lg font-semibold text-gray-800">Backup Settings</h3>
           </div>
-          
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
@@ -179,7 +211,6 @@ const SystemSettings = () => {
                 }`} />
               </button>
             </div>
-            
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Max File Size (MB)</label>
               <input
@@ -190,33 +221,6 @@ const SystemSettings = () => {
                 min="1"
                 max="50"
               />
-            </div>
-          </div>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="bg-white rounded-xl shadow-lg border border-gray-100 p-6"
-        >
-          <div className="flex items-center gap-3 mb-4">
-            <Activity className="w-6 h-6 text-orange-600" />
-            <h3 className="text-lg font-semibold text-gray-800">System Status</h3>
-          </div>
-          
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">Database Status</span>
-              <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">Online</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">Storage Usage</span>
-              <span className="text-sm font-medium text-gray-800">67%</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">Last Backup</span>
-              <span className="text-sm text-gray-800">2 hours ago</span>
             </div>
           </div>
         </motion.div>
@@ -769,6 +773,7 @@ const AdminDashboard: React.FC = () => {
             <Route path="/" element={<DashboardOverview />} />
             <Route path="/users" element={<UserManagement />} />
             <Route path="/courses" element={<CourseManagement />} />
+            <Route path="/announcements" element={<Announcement />} />
             <Route path="/program-management" element={<ProgramManagement />} />
             <Route path="/settings" element={<SystemSettings />} />
           </Routes>
