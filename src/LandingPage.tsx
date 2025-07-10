@@ -1,12 +1,30 @@
 import { useEffect, useState } from 'react';
 import Login from './Login';
 import { motion, useMotionValue, useTransform, useSpring, AnimatePresence } from 'framer-motion';
+import AnnouncementModal from './components/AnnouncementModal';
+import { supabase } from './lib/supabase';
+
+interface Announcement {
+  id: string;
+  title: string;
+  content: string;
+  author: string;
+  date: string;
+  priority: 'low' | 'medium' | 'high';
+  category: string;
+  image?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
 
 const LandingPage = () => {
   const [showLogin, setShowLogin] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   const [showDevStatus, setShowDevStatus] = useState(true);
   const [showDevModal, setShowDevModal] = useState(false);
+  const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [isMobile, setIsMobile] = useState(false);
   const [currentDevIndex, setCurrentDevIndex] = useState(0);
   const [direction, setDirection] = useState(1); // 1 for next, -1 for prev
@@ -50,6 +68,34 @@ const LandingPage = () => {
       document.body.classList.remove('overflow-hidden');
     };
   }, [showDevModal]);
+
+  // Fetch announcements from database
+  useEffect(() => {
+    const fetchAnnouncements = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('announcements')
+          .select('*')
+          .eq('is_active', true)
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error('Error fetching announcements:', error);
+        } else {
+          const activeAnnouncements = data || [];
+          setAnnouncements(activeAnnouncements);
+          // Only show modal if there are active announcements
+          if (activeAnnouncements.length > 0) {
+            setShowAnnouncementModal(true);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching announcements:', error);
+      }
+    };
+
+    fetchAnnouncements();
+  }, []);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.matchMedia('(max-width: 640px)').matches);
@@ -581,18 +627,22 @@ const LandingPage = () => {
         }
       `}</style>
 
+
+
       {/* Floating Developer Button */}
-      <button
-        onClick={() => setShowDevModal(true)}
-        className="fixed z-50 bottom-6 right-6 bg-gradient-to-br from-blue-600 to-indigo-700 text-white p-4 rounded-full shadow-lg hover:scale-110 transition-transform duration-300 flex items-center justify-center"
-        aria-label="Show Developer Info"
-        style={{ boxShadow: '0 4px 16px 0 rgba(59,130,246,0.15)' }}
-      >
-        {/* Developer Icon (simple SVG) */}
-        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="w-7 h-7">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
-        </svg>
-      </button>
+      {!showFeedback && (
+        <button
+          onClick={() => setShowDevModal(true)}
+          className="fixed z-50 bottom-6 right-6 bg-gradient-to-br from-blue-600 to-indigo-700 text-white p-4 rounded-full shadow-lg hover:scale-110 transition-transform duration-300 flex items-center justify-center"
+          aria-label="Show Developer Info"
+          style={{ boxShadow: '0 4px 16px 0 rgba(59,130,246,0.15)' }}
+        >
+          {/* Developer Icon (simple SVG) */}
+          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="w-7 h-7">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+          </svg>
+        </button>
+      )}
 
       {/* Developer Modal */}
       <AnimatePresence>
@@ -896,6 +946,13 @@ const LandingPage = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Announcement Modal */}
+      <AnnouncementModal
+        isOpen={showAnnouncementModal}
+        onClose={() => setShowAnnouncementModal(false)}
+        announcements={announcements}
+      />
     </div>
   );
 };
