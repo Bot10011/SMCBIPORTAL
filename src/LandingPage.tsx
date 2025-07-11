@@ -159,7 +159,7 @@ const LandingPage = () => {
       img: '/img/4.jpg',
       name: 'Jay Ayop',
       role: 'Documentation Specialist',
-      fb: 'https://facebook.com/david',
+      fb: 'https://www.facebook.com/jay.ayop.56',
     },
     {
       img: '/img/5.jpg',
