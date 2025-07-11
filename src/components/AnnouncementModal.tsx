@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Bell, Calendar, User, FileText, Clock, CheckCircle } from 'lucide-react';
+import { Bell, Calendar, User } from 'lucide-react';
 
 
 // ============================================================================
@@ -141,7 +141,7 @@ const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
             }}
           >
             {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-[#2C3E50] to-[#34495E] text-white">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-[#2C3E50] to-[#34495E] text-white relative">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-white/20 rounded-lg">
                   <Bell className="w-6 h-6 text-white" />
@@ -155,10 +155,15 @@ const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
               </div>
               <button
                 onClick={onClose}
-                className="p-2 hover:bg-white/10 rounded-lg transition-colors duration-200"
+                className="absolute w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center text-lg sm:text-xl font-bold text-white bg-red-500 hover:bg-red-600 rounded-full shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 animate-pop-in hover:scale-110 hover:rotate-90 top-2 right-2 sm:top-3 sm:right-3"
                 aria-label="Close announcements"
+                style={{
+                  backgroundColor: '#ef4444',
+                  boxShadow: '0 2px 8px rgba(239, 68, 68, 0.3)',
+                  zIndex: 50
+                }}
               >
-                <X className="w-5 h-5 text-white" />
+                ×
               </button>
             </div>
 
@@ -176,7 +181,7 @@ const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
               >
                 {/* Banner Image */}
                 {currentAnnouncement.image && (
-                  <div className="relative h-48 rounded-xl overflow-hidden bg-gradient-to-br from-blue-50 to-indigo-100">
+                  <div className="relative h-96 rounded-xl overflow-hidden bg-gradient-to-br from-blue-50 to-indigo-100">
                     <img 
                       src={currentAnnouncement.image} 
                       alt={currentAnnouncement.title}
@@ -195,37 +200,40 @@ const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
                 
                 {/* Fallback when no image */}
                 {!currentAnnouncement.image && (
-                  <div className="relative h-48 rounded-xl overflow-hidden bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+                  <div className="relative h-96 rounded-xl overflow-hidden bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
                     <Bell className="w-12 h-12 text-blue-600" />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
                   </div>
                 )}
 
-                {/* Title and Badges */}
-                <div className="flex items-center gap-2 mb-3">
-                  <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getPriorityColor(currentAnnouncement.priority)}`}>
-                    {currentAnnouncement.priority.toUpperCase()}
-                  </span>
-                  <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium">
-                    {currentAnnouncement.category}
-                  </span>
+                {/* Title, Badges, and Meta Info - One Line Responsive */}
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-1 sm:gap-2">
+                    <span className={`px-1.5 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs font-medium border ${getPriorityColor(currentAnnouncement.priority)}`}>
+                      {currentAnnouncement.priority.toUpperCase()}
+                    </span>
+                    <span className="px-1.5 sm:px-3 py-0.5 sm:py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium">
+                      {currentAnnouncement.category}
+                    </span>
+                  </div>
+                  
+                  {/* Meta Info with Icons - Responsive */}
+                  <div className="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm text-gray-500">
+                    <div className="flex items-center gap-1 sm:gap-2">
+                      <User className="w-3 h-3 sm:w-4 sm:h-4 text-blue-500" />
+                      <span className="font-medium">{currentAnnouncement.author}</span>
+                    </div>
+                    <div className="flex items-center gap-1 sm:gap-2">
+                      <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-green-500" />
+                      <span className="truncate max-w-20 sm:max-w-none">{formatDate(currentAnnouncement.date)}</span>
+                    </div>
+                  </div>
                 </div>
                 
-                <h3 className="text-2xl font-bold text-gray-900 leading-tight mb-3">
+                <h3 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-[#2C3E50] via-[#34495E] to-[#2C3E50] leading-tight mb-4 relative">
                   {currentAnnouncement.title}
+                  <div className="absolute -bottom-1 left-0 w-16 h-1 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full"></div>
                 </h3>
-
-                {/* Meta Info with Icons */}
-                <div className="flex items-center gap-6 text-sm text-gray-500 bg-gray-50 rounded-lg p-3">
-                  <div className="flex items-center gap-2">
-                    <User className="w-4 h-4 text-blue-500" />
-                    <span className="font-medium">{currentAnnouncement.author}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-green-500" />
-                    <span>{formatDate(currentAnnouncement.date)}</span>
-                  </div>
-                </div>
 
                 {/* Content with Modern Typography */}
                 <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
@@ -234,21 +242,7 @@ const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
                   </p>
                 </div>
 
-                {/* Interactive Elements */}
-                <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-                  <div className="flex items-center gap-2 text-sm text-gray-500">
-                    <Clock className="w-4 h-4" />
-                    <span>Read time: 2 min</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button className="p-2 hover:bg-blue-50 rounded-lg transition-colors duration-200 text-blue-600">
-                      <FileText className="w-4 h-4" />
-                    </button>
-                    <button className="p-2 hover:bg-green-50 rounded-lg transition-colors duration-200 text-green-600">
-                      <CheckCircle className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
+
               </motion.div>
             </div>
 
