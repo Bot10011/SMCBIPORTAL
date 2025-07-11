@@ -29,21 +29,24 @@ const LandingPage = () => {
   const [currentDevIndex, setCurrentDevIndex] = useState(0);
   const [direction, setDirection] = useState(1); // 1 for next, -1 for prev
 
-  // Add motion values for 3D effect
+  // Add motion values for 3D effect with performance optimization
   const x = useMotionValue(0);
   const y = useMotionValue(0);
 
-  // Transform mouse movement to rotation
-  const rotateX = useTransform(y, [-100, 100], [30, -30]);
-  const rotateY = useTransform(x, [-100, 100], [-30, 30]);
+  // Transform mouse movement to rotation with reduced sensitivity for better performance
+  const rotateX = useTransform(y, [-50, 50], [15, -15]);
+  const rotateY = useTransform(x, [-50, 50], [-15, 15]);
 
-  // Add spring physics for smooth movement
-  const springConfig = { damping: 15, stiffness: 150 };
+  // Add spring physics with optimized config for better performance
+  const springConfig = { damping: 20, stiffness: 100 };
   const springRotateX = useSpring(rotateX, springConfig);
   const springRotateY = useSpring(rotateY, springConfig);
 
-  // Handle mouse movement
+  // Handle mouse movement with throttling for better performance
   const handleMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
+    // Throttle mouse events for better performance on low-end devices
+    if (event.movementX === 0 && event.movementY === 0) return;
+    
     const rect = event.currentTarget.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height / 2;
@@ -69,39 +72,65 @@ const LandingPage = () => {
     };
   }, [showDevModal]);
 
-  // Fetch announcements from database
+  // Show announcement modal immediately on page load with performance optimization
   useEffect(() => {
+    // Show modal immediately when component mounts
+    const timer = setTimeout(() => {
+      setShowAnnouncementModal(true);
+    }, 100); // Small delay to ensure smooth loading
+    
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Fetch announcements from database with performance optimization
+  useEffect(() => {
+    let isMounted = true;
+    
     const fetchAnnouncements = async () => {
       try {
         const { data, error } = await supabase
           .from('announcements')
           .select('*')
           .eq('is_active', true)
-          .order('created_at', { ascending: false });
+          .order('created_at', { ascending: false })
+          .limit(10); // Limit results for better performance
 
         if (error) {
           console.error('Error fetching announcements:', error);
-        } else {
+        } else if (isMounted) {
           const activeAnnouncements = data || [];
           setAnnouncements(activeAnnouncements);
-          // Only show modal if there are active announcements
-          if (activeAnnouncements.length > 0) {
-            setShowAnnouncementModal(true);
-          }
         }
       } catch (error) {
         console.error('Error fetching announcements:', error);
       }
     };
 
-    fetchAnnouncements();
+    // Add small delay to prioritize UI rendering
+    const timer = setTimeout(fetchAnnouncements, 200);
+    
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
   }, []);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.matchMedia('(max-width: 640px)').matches);
     checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    
+    // Throttled resize handler for better performance
+    let resizeTimer: NodeJS.Timeout;
+    const handleResize = () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(checkMobile, 100);
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      clearTimeout(resizeTimer);
+    };
   }, []);
 
   const devs = [
@@ -214,7 +243,7 @@ const LandingPage = () => {
         )}
       </AnimatePresence>
 
-      {/* Background with overlay */}
+      {/* Background with overlay - optimized for performance */}
       <div className="fixed inset-0 w-full h-full">
         <video 
           className="absolute inset-0 w-full h-full object-cover scale-[1.02] sm:scale-100 transform-gpu filter blur-[2px]"
@@ -222,12 +251,14 @@ const LandingPage = () => {
           muted
           loop
           playsInline
+          preload="metadata"
           style={{
             objectFit: 'cover',
             objectPosition: 'center',
             WebkitBackfaceVisibility: 'hidden',
             backfaceVisibility: 'hidden',
-            filter: 'blur(2px)'
+            filter: 'blur(2px)',
+            willChange: 'transform'
           }}
         >
           <source src="/img/bg.mp4" type="video/mp4" />
@@ -305,15 +336,16 @@ const LandingPage = () => {
                   rotateX: springRotateX,
                   rotateY: springRotateY,
                   transformStyle: 'preserve-3d',
-                  filter: 'drop-shadow(0 10px 15px rgba(0, 0, 0, 0.3))'
+                  filter: 'drop-shadow(0 10px 15px rgba(0, 0, 0, 0.3))',
+                  willChange: 'transform'
                 }}
                 whileHover={{ 
                   scale: 1.05,
                   filter: 'drop-shadow(0 15px 20px rgba(0, 0, 0, 0.4))'
                 }}
                 animate={{
-                  y: [0, -10, 0],
-                  rotateZ: [0, 2, -2, 0],
+                  y: [0, -8, 0],
+                  rotateZ: [0, 1, -1, 0],
                   filter: [
                     'drop-shadow(0 10px 15px rgba(0, 0, 0, 0.3))',
                     'drop-shadow(0 15px 20px rgba(0, 0, 0, 0.4))',
@@ -322,17 +354,17 @@ const LandingPage = () => {
                 }}
                 transition={{
                   y: {
-                    duration: 4,
-                    repeat: Infinity,
-                    ease: "easeInOut"
-                  },
-                  rotateZ: {
                     duration: 6,
                     repeat: Infinity,
                     ease: "easeInOut"
                   },
+                  rotateZ: {
+                    duration: 8,
+                    repeat: Infinity,
+                    ease: "easeInOut"
+                  },
                   filter: {
-                    duration: 4,
+                    duration: 6,
                     repeat: Infinity,
                     ease: "easeInOut"
                   }
@@ -569,13 +601,15 @@ const LandingPage = () => {
       </div>
 
 
-      {/* Animations */}
+      {/* Optimized Animations */}
       <style>{`
         .animate-fade-in {
           animation: fadeIn 0.4s ease;
+          will-change: opacity, transform;
         }
         .animate-pop-in {
           animation: popIn 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+          will-change: opacity, transform;
         }
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(20px); }
@@ -596,6 +630,7 @@ const LandingPage = () => {
         }
         .animate-slide-in-right {
           animation: slideInRight 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+          will-change: transform, opacity;
         }
         @keyframes slideInRight {
           from { transform: translateX(100%); opacity: 0; }
@@ -618,28 +653,65 @@ const LandingPage = () => {
         }
         .translate-x-[-400px] {
           animation: slideLeft 0.3s ease forwards;
+          will-change: transform;
         }
         .card-glow {
           transition: box-shadow 0.3s, transform 0.3s;
+          will-change: box-shadow, transform;
         }
         .card-glow:hover {
           box-shadow: 0 8px 32px 0 rgba(59,130,246,0.25), 0 0 16px 2px #60a5fa33;
+        }
+        
+        /* Performance optimizations for low-end devices */
+        @media (prefers-reduced-motion: reduce) {
+          .animate-fade-in,
+          .animate-pop-in,
+          .animate-slide-in-right {
+            animation: none;
+          }
+          .transition-all {
+            transition: none;
+          }
+        }
+        
+        /* Optimize for mobile devices */
+        @media (max-width: 640px) {
+          .animate-fade-in {
+            animation-duration: 0.3s;
+          }
+          .animate-pop-in {
+            animation-duration: 0.4s;
+          }
         }
       `}</style>
 
 
 
-      {/* Floating Developer Button */}
+      {/* Floating Developer Button - Optimized */}
       {!showFeedback && (
         <button
           onClick={() => setShowDevModal(true)}
-          className="fixed z-50 bottom-6 right-6 bg-gradient-to-br from-blue-600 to-indigo-700 text-white p-4 rounded-full shadow-lg hover:scale-110 transition-transform duration-300 flex items-center justify-center"
+          className="fixed z-50 bottom-6 right-6 bg-gradient-to-br from-[#2C3E50] to-[#34495E] text-white p-3 sm:p-4 rounded-full shadow-lg hover:scale-110 transition-all duration-300 flex items-center justify-center group"
           aria-label="Show Developer Info"
-          style={{ boxShadow: '0 4px 16px 0 rgba(59,130,246,0.15)' }}
+          style={{ 
+            boxShadow: '0 4px 16px 0 rgba(44, 62, 80, 0.25)',
+            willChange: 'transform'
+          }}
         >
-          {/* Developer Icon (simple SVG) */}
-          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="w-7 h-7">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+          {/* Code/Developer Icon */}
+          <svg 
+            xmlns="http://www.w3.org/2000/svg" 
+            width="24" 
+            height="24" 
+            fill="none" 
+            viewBox="0 0 24 24" 
+            stroke="currentColor" 
+            strokeWidth="2" 
+            className="w-6 h-6 sm:w-7 sm:h-7 group-hover:rotate-12 transition-transform duration-300"
+            style={{ willChange: 'transform' }}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
         </button>
       )}
