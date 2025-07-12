@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, UserPlus, Loader2, ChevronLeft, ChevronRight, CheckCircle2, Check, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { X, UserPlus, Loader2, ChevronLeft, ChevronRight, CheckCircle2, Check, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
 import { sanitizeTextInput } from '../utils/validation';
@@ -18,10 +18,7 @@ interface Department {
 
 interface CreateUserForm {
   email: string;
-
-
   role: 'teacher' | 'student' | 'registrar' | 'program_head';
-
   first_name: string;
   middle_name?: string;
   last_name: string;
@@ -44,16 +41,7 @@ interface CreateUserForm {
   emergency_contact_relationship?: string;
   emergency_contact_phone?: string;
   password: string;
-  confirmPassword: string;
-}
-
-interface PasswordValidation {
-  length: boolean;
-  hasNumber: boolean;
-  hasUpperCase: boolean;
-  hasLowerCase: boolean;
-  hasSpecialChar: boolean;
-  matches: boolean;
+  // confirmPassword removed
 }
 
 interface CreateUserModalProps {
@@ -69,7 +57,7 @@ interface RoleRequirements {
 const roleRequirements: Record<CreateUserForm['role'], RoleRequirements> = {
   student: {
     requiredFields: [
-      'email', 'role', 'first_name', 'last_name', 'password', 'confirmPassword',
+      'email', 'role', 'first_name', 'last_name', 'password',
       'student_id', 'gender', 'birthdate', 'phone', 'address',
       'program_id', 'year_level', 'student_type', 'enrollment_status',
       'section', 'semester', 'school_year',
@@ -79,24 +67,21 @@ const roleRequirements: Record<CreateUserForm['role'], RoleRequirements> = {
   },
   teacher: {
     requiredFields: [
-      'email', 'role', 'first_name', 'last_name', 'password', 'confirmPassword',
+      'email', 'role', 'first_name', 'last_name', 'password',
       'gender', 'birthdate', 'phone', 'address', 'department'
     ],
     optionalFields: ['middle_name', 'suffix']
   },
   registrar: {
     requiredFields: [
-      'email', 'role', 'first_name', 'last_name', 'password', 'confirmPassword',
+      'email', 'role', 'first_name', 'last_name', 'password',
       'gender', 'birthdate', 'phone', 'address'
     ],
     optionalFields: ['middle_name', 'suffix']
   },
-
-
   program_head: {
-
     requiredFields: [
-      'email', 'role', 'first_name', 'last_name', 'password', 'confirmPassword',
+      'email', 'role', 'first_name', 'last_name', 'password',
       'gender', 'birthdate', 'phone', 'address', 'department'
     ],
     optionalFields: ['middle_name', 'suffix']
@@ -159,16 +144,13 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose }) =>
     emergency_contact_name: '',
     emergency_contact_relationship: '',
     emergency_contact_phone: '',
-    password: '',
-    confirmPassword: '',
+    password: 'TempPass@123', // Set default password
+    // confirmPassword removed
   });
 
   // UI state
   const [step, setStep] = useState(0);
   const [creating, setCreating] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [showRequirements, setShowRequirements] = useState(false);
   const [emailStatus, setEmailStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
   const [phoneError, setPhoneError] = useState('');
   const [emergencyPhoneError, setEmergencyPhoneError] = useState('');
@@ -207,24 +189,8 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose }) =>
     `${currentYear + 2}-${currentYear + 3}`
   ];
 
-  // Password validation state
-  const [passwordValidation, setPasswordValidation] = useState<PasswordValidation>({
-    length: false,
-    hasNumber: false,
-    hasUpperCase: false,
-    hasLowerCase: false,
-    hasSpecialChar: false,
-    matches: false
-  });
-
-  const passwordRequirements = [
-    { key: 'length', text: 'At least 8 characters', icon: Check },
-    { key: 'hasNumber', text: 'Contains a number', icon: Check },
-    { key: 'hasUpperCase', text: 'Contains uppercase letter', icon: Check },
-    { key: 'hasLowerCase', text: 'Contains lowercase letter', icon: Check },
-    { key: 'hasSpecialChar', text: 'Contains special character', icon: Check },
-    { key: 'matches', text: 'Passwords match', icon: Check }
-  ];
+  // Remove password validation state and requirements
+  // Remove passwordValidation, passwordRequirements, showRequirements, and related logic
 
   // Phone validation state
   const [phoneTouched, setPhoneTouched] = useState(false);
@@ -324,21 +290,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose }) =>
     }
   };
 
-  // Password validation
-  const validatePassword = (password: string, confirmPassword: string) => {
-    setPasswordValidation({
-      length: password.length >= 8,
-      hasNumber: /\d/.test(password),
-      hasUpperCase: /[A-Z]/.test(password),
-      hasLowerCase: /[a-z]/.test(password),
-      hasSpecialChar: /[!@#$%^&*(),.?":{}|<>]/.test(password),
-      matches: password === confirmPassword && password !== ''
-    });
-  };
-
-  const areAllRequirementsMet = () => {
-    return Object.values(passwordValidation).every(Boolean);
-  };
+  // Remove areAllRequirementsMet and validatePassword functions
 
   // Phone validation handler
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -424,10 +376,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose }) =>
   // Update the form submission to include ID uniqueness check
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!areAllRequirementsMet()) {
-      toast.error('Please meet all password requirements');
-      return;
-    }
+    // Remove areAllRequirementsMet and confirmPassword checks
 
     // Show confirmation dialog instead of submitting directly
     setShowConfirmation(true);
@@ -617,8 +566,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose }) =>
         form.role &&
         form.first_name &&
         form.last_name &&
-        emailStatus === 'valid' &&
-        areAllRequirementsMet()
+        emailStatus === 'valid'
       );
     }
 
@@ -868,91 +816,20 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose }) =>
                       </div>
                     </div>
 
+                    {/* Remove password and confirm password fields from the modal UI, replace with a single read-only password field */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700">Password</label>
-                      <div className="relative">
-                        <input
-                          type={showPassword ? "text" : "password"}
-                          className={`w-full border rounded-lg px-3 py-2 mt-1 pr-10 ${
-                            areAllRequirementsMet() ? 'border-green-500' : ''
-                          }`}
-                          value={form.password}
-                          onChange={e => {
-                            const value = e.target.value;
-                            setForm(prev => ({ ...prev, password: value }));
-                            validatePassword(value, form.confirmPassword);
-                            setShowRequirements(value.length > 0);
-                          }}
-                          onFocus={() => setShowRequirements(true)}
-                          required
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                        >
-                          {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                        </button>
-                      </div>
-                      {showRequirements && (
-                        <div className="mt-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                          <h4 className="text-sm font-medium text-gray-700 mb-2">Password Requirements</h4>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                            {passwordRequirements.map(({ key, text, icon: Icon }) => (
-                              <div key={key} className="flex items-center gap-2">
-                                <div className={`w-5 h-5 rounded-full flex items-center justify-center ${
-                                  passwordValidation[key as keyof PasswordValidation]
-                                    ? 'bg-green-100 text-green-600'
-                                    : 'bg-gray-100 text-gray-400'
-                                }`}>
-                                  <Icon className="w-3 h-3" />
-                                </div>
-                                <span className={`text-sm ${
-                                  passwordValidation[key as keyof PasswordValidation]
-                                    ? 'text-green-600'
-                                    : 'text-gray-500'
-                                }`}>
-                                  {text}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
+                      <input
+                        type="text"
+                        className="w-full border rounded-lg px-3 py-2 mt-1 bg-gray-100 text-gray-500 cursor-not-allowed"
+                        value={form.password}
+                        readOnly
+                        disabled
+                      />
+                      <p className="mt-1 text-xs text-gray-500">Default password is <span className="font-mono">TempPass@123</span>. User will be required to change this on first login.</p>
                     </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Confirm Password</label>
-                      <div className="relative">
-                        <input
-                          type={showConfirmPassword ? "text" : "password"}
-                          className={`w-full border rounded-lg px-3 py-2 mt-1 pr-10 ${
-                            form.confirmPassword
-                              ? passwordValidation.matches
-                                ? 'border-green-500'
-                                : 'border-red-500'
-                              : ''
-                          }`}
-                          value={form.confirmPassword}
-                          onChange={e => {
-                            const value = e.target.value;
-                            setForm(prev => ({ ...prev, confirmPassword: value }));
-                            validatePassword(form.password, value);
-                          }}
-                          required
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                        >
-                          {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                        </button>
-                      </div>
-                      {form.confirmPassword && !passwordValidation.matches && (
-                        <p className="mt-1 text-sm text-red-500">Passwords do not match</p>
-                      )}
-                    </div>
+                    {/* Remove confirm password field and password requirements indicator from the UI */}
                   </motion.div>
                 )}
 
