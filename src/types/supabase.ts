@@ -14,6 +14,7 @@ export interface Database {
           middle_name?: string;
           profile_picture_url?: string;
           is_active: boolean;
+          password_changed?: boolean;
           created_at: string;
           updated_at: string;
         };
