@@ -28,10 +28,10 @@ import {
   FormGroup,
   FormControlLabel,
   Switch,
+  Paper,
 } from '@mui/material';
 import { toast } from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
-import axios from 'axios';
 
 interface Student {
   id: string;
@@ -57,22 +57,18 @@ interface Subject {
 
 const ProgramHeadEnrollment: React.FC = () => {
   const [students, setStudents] = useState<Student[]>([]);
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
-  const [selectedDoneSubjects, setSelectedDoneSubjects] = useState<string[]>([]);
+  const [selectedCourses, setSelectedCourses] = useState<string[]>([]);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [courses, setCourses] = useState<any[]>([]);
-  const [selectedCourses, setSelectedCourses] = useState<string[]>([]);
+  const [courses, setCourses] = useState<Record<string, unknown>[]>([]);
   const [allowMixedCourses, setAllowMixedCourses] = useState(false);
   const [filterSearch, setFilterSearch] = useState('');
   const [filterYear, setFilterYear] = useState('');
   const [filterType, setFilterType] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
-  const [editStudent, setEditStudent] = useState<Student | null>(null);
-  const [editForm, setEditForm] = useState<any>(null);
+  const [editForm, setEditForm] = useState<Student | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
   const [isExistingModalOpen, setIsExistingModalOpen] = useState(false);
   const [existingStudentsByYear, setExistingStudentsByYear] = useState<Record<string, Student[]>>({});
@@ -178,17 +174,17 @@ const ProgramHeadEnrollment: React.FC = () => {
         .order('created_at', { ascending: true });
       if (error) throw error;
       // Map to Student interface if needed
-      const students = (data || []).map((student: any) => ({
-        id: student.student_id || student.id,
-        name: `${student.first_name} ${student.last_name}`,
-        studentType: student.student_type || 'Freshman',
-        yearLevel: student.year_level || 1,
-          currentSubjects: [],
-          doneSubjects: [],
-        status: student.enrollment_status || 'pending',
-        department: student.department || '',
-        schoolYear: student.school_year || '',
-        semester: student.semester || '',
+      const students = (data || []).map((student: Record<string, unknown>) => ({
+        id: String(student.student_id || student.id),
+        name: `${String(student.first_name)} ${String(student.last_name)}`,
+        studentType: (student.student_type as Student['studentType']) || 'Freshman',
+        yearLevel: Number(student.year_level) || 1,
+        currentSubjects: [],
+        doneSubjects: [],
+        status: (student.enrollment_status as Student['status']) || 'pending',
+        department: String(student.department || ''),
+        schoolYear: String(student.school_year || ''),
+        semester: String(student.semester || ''),
       }));
       setStudents(students);
     } catch (err) {
@@ -196,34 +192,6 @@ const ProgramHeadEnrollment: React.FC = () => {
       console.error('Error loading enrollments:', err);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleReview = (student: Student) => {
-    setSelectedStudent(student);
-    setSelectedSubjects(student.currentSubjects.map(subject => subject.id));
-    setSelectedDoneSubjects(student.doneSubjects.map(subject => subject.id));
-  };
-
-  const handleApprove = async () => {
-    try {
-      // TODO: Implement API call
-      toast.success('Enrollment approved successfully');
-      loadEnrollments();
-    } catch (err) {
-      toast.error('Failed to approve enrollment');
-      console.error('Error approving enrollment:', err);
-    }
-  };
-
-  const handleReturn = async () => {
-    try {
-      // TODO: Implement API call
-      toast('Enrollment returned for revision');
-      loadEnrollments();
-    } catch (err) {
-      toast.error('Failed to return enrollment');
-      console.error('Error returning enrollment:', err);
     }
   };
 
@@ -250,6 +218,9 @@ const ProgramHeadEnrollment: React.FC = () => {
     e.preventDefault();
     setCreating(true);
     try {
+      // Note: The authentication issue where creating a student would log out the program head
+      // has been resolved by removing the problematic signInWithPassword calls in ProtectedRoute
+      // and StudentDashboard components. The password change modal will only appear for actual students.
       if (selectedExistingStudent) {
         // Look up the UUID for the existing student_id
         const { data: userProfile, error: lookupError } = await supabase
@@ -298,24 +269,36 @@ const ProgramHeadEnrollment: React.FC = () => {
         return;
       }
       const fullEmail = createForm.email + '@smcbi.edu.ph';
-      // 1. Create auth user
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+      // 1. Check if email already exists
+      const { count: emailCount, error: emailError } = await supabase
+        .from('user_profiles')
+        .select('id', { count: 'exact', head: true })
+        .eq('email', fullEmail);
+      if (emailError) throw emailError;
+      if (emailCount && emailCount > 0) {
+        toast.error('Email already exists. Please choose a different email.');
+        setCreating(false);
+        return;
+      }
+      
+      // 2. Create auth user first
+      const { data: authData, error: authError } = await supabase.auth.signUp({
         email: fullEmail,
         password: createForm.password,
         options: {
           data: {
-            first_name: createForm.firstName,
-            last_name: createForm.lastName,
             role: 'student',
-          },
-        },
+            first_name: createForm.firstName,
+            last_name: createForm.lastName
+          }
+        }
       });
-      if (signUpError) throw signUpError;
-      const userId = signUpData.user?.id;
-      if (!userId) throw new Error('User ID not returned from sign up');
-      // 2. Create user profile
+      if (authError) throw authError;
+      if (!authData.user) throw new Error('Failed to create auth user');
+      
+      // 3. Create user profile with the auth user ID
       const { error: profileError } = await supabase.from('user_profiles').insert({
-        id: userId,
+        id: authData.user.id, // Use the auth user ID
         email: fullEmail,
         first_name: createForm.firstName,
         last_name: createForm.lastName,
@@ -328,6 +311,7 @@ const ProgramHeadEnrollment: React.FC = () => {
         department: createForm.department,
         semester: createForm.semester,
         enrollment_status: 'pending',
+        password_changed: false, // Initialize as false since they're using default password
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       });
@@ -335,7 +319,7 @@ const ProgramHeadEnrollment: React.FC = () => {
       // Insert enrollments for selected courses
       if (selectedCourses.length > 0) {
         const enrollments = selectedCourses.map(courseId => ({
-          student_id: userId,
+          student_id: authData.user.id, // Use the auth user ID directly
           subject_id: courseId,
           status: 'active',
           enrollment_date: new Date().toISOString(),
@@ -345,14 +329,15 @@ const ProgramHeadEnrollment: React.FC = () => {
         const { error: enrollError } = await supabase.from('enrollcourse').insert(enrollments);
         if (enrollError) throw enrollError;
       }
-      toast.success('Student account created and enrolled!');
+      toast.success('Student account successfully created.');
       setIsCreateDialogOpen(false);
       setCreateForm({ firstName: '', lastName: '', email: '', password: 'TempPass@123', studentType: 'Freshman', yearLevel: 1, schoolYear: getDefaultSchoolYear(), studentId: '', department: 'BSIT', semester: '1st Semester' });
       setSelectedCourses([]);
       setSelectedExistingStudent(null);
       loadEnrollments();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to create student');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to create student';
+      toast.error(errorMessage);
     } finally {
       setCreating(false);
     }
@@ -367,8 +352,8 @@ const ProgramHeadEnrollment: React.FC = () => {
   };
 
   // Helper to categorize courses
-  const categorizeCourses = (courses: any[]) => {
-    const categories: Record<string, Record<string, any[]>> = {};
+  const categorizeCourses = (courses: Record<string, unknown>[]) => {
+    const categories: Record<string, Record<string, unknown[]>> = {};
     courses.forEach(course => {
       if (course.code.startsWith('IT')) {
         // Major
@@ -442,7 +427,7 @@ const ProgramHeadEnrollment: React.FC = () => {
 
   // Handler to save edited student
   const handleSaveEdit = async () => {
-    if (!editStudent || !editForm) return;
+    if (!editForm) return;
     setSavingEdit(true);
     try {
       const { error } = await supabase.from('user_profiles').update({
@@ -458,7 +443,6 @@ const ProgramHeadEnrollment: React.FC = () => {
       }).eq('student_id', editForm.id);
       if (error) throw error;
       toast.success('Student info updated!');
-      setEditStudent(null);
       setEditForm(null);
       loadEnrollments();
     } catch (err: any) {
@@ -527,25 +511,6 @@ const ProgramHeadEnrollment: React.FC = () => {
     }
   };
 
-  const handleExistingSubmit = async () => {
-    try {
-      const response = await axios.post('/api/enrollments/update', {
-        studentId: existingForm.studentId,
-        schoolYear: existingForm.schoolYear,
-        semester: existingForm.semester,
-        subjects: existingForm.subjects,
-        type: existingForm.type,
-        yearLevel: existingForm.yearLevel,
-        status: 'pending'
-      });
-      toast.success('Student enrolled successfully');
-      setExistingDialogOpen(false);
-      loadEnrollments();
-    } catch (err) {
-      toast.error('Failed to enroll student');
-    }
-  };
-
   // Helper to reset the new student form
   const flushNewStudentForm = () => {
     setCreateForm({
@@ -581,41 +546,35 @@ const ProgramHeadEnrollment: React.FC = () => {
   }
 
   return (
-    <Box p={3}>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-      <Typography variant="h5" gutterBottom>
+    <Box component={Paper} elevation={3} sx={{ p: { xs: 1, sm: 3 }, borderRadius: 4, background: 'linear-gradient(135deg, #f8fafc 0%, #e0e7ef 100%)', minHeight: '100vh' }}>
+      <Typography variant="h4" fontWeight={700} gutterBottom mb={3} sx={{ letterSpacing: 1 }}>
         Enrollment Management
       </Typography>
-        <Button variant="contained" color="primary" size="small" onClick={loadEnrollments}>
-          Refresh List
-        </Button>
-      </Box>
-      {/* Student List Filters */}
-      <Box mb={2}>
-        <Box display="flex" gap={2} justifyContent="center" mb={2}>
-          <Button variant="outlined" color="error" size="small" onClick={() => setEndSemesterOpen(true)}>
+      <Card sx={{ mb: 3, p: 2, borderRadius: 3, boxShadow: 2, background: 'rgba(255,255,255,0.95)' }}>
+        <Box display="flex" flexWrap="wrap" gap={2} alignItems="center" mb={2}>
+          <Button variant="outlined" color="error" size="medium" onClick={() => setEndSemesterOpen(true)} startIcon={<i className="fas fa-calendar-times" />} sx={{ borderRadius: 99, px: 3, fontWeight: 600 }}>
             End Semester
           </Button>
-          <Button variant="contained" color="primary" size="small" onClick={() => {
-            setSelectedExistingStudent(null);
-            flushNewStudentForm();
-            setIsCreateDialogOpen(true);
-          }}>
+          <Button variant="contained" color="primary" size="medium" onClick={() => { setSelectedExistingStudent(null); flushNewStudentForm(); setIsCreateDialogOpen(true); }} startIcon={<i className="fas fa-user-plus" />} sx={{ borderRadius: 99, px: 3, fontWeight: 600, boxShadow: 1 }}>
             Enroll New Student
           </Button>
-          <Button variant="contained" color="success" size="small" onClick={handleOpenExistingModal}>
+          <Button variant="contained" color="success" size="medium" onClick={handleOpenExistingModal} startIcon={<i className="fas fa-user-check" />} sx={{ borderRadius: 99, px: 3, fontWeight: 600, boxShadow: 1 }}>
             Enroll Existing Student
           </Button>
+          <Button variant="outlined" color="primary" size="medium" onClick={loadEnrollments} startIcon={<i className="fas fa-sync-alt" />} sx={{ borderRadius: 99, px: 3, fontWeight: 600 }}>
+            Refresh List
+          </Button>
         </Box>
-        <Box display="flex" flexWrap="wrap" gap={2} alignItems="center" justifyContent="center">
+        <Box display="flex" flexWrap="wrap" gap={2} alignItems="center" justifyContent="flex-start" sx={{ background: '#f3f6fa', borderRadius: 99, p: 2, boxShadow: 0, mb: 1 }}>
           <TextField
             label="Search by Name or Student ID"
             value={filterSearch}
             onChange={e => setFilterSearch(e.target.value)}
             size="small"
-            sx={{ minWidth: 220 }}
+            sx={{ minWidth: 220, borderRadius: 99, background: '#fff' }}
+            InputProps={{ startAdornment: <i className="fas fa-search" style={{ marginRight: 8 }} /> }}
           />
-          <FormControl size="small" sx={{ minWidth: 140 }}>
+          <FormControl size="small" sx={{ minWidth: 140, borderRadius: 99, background: '#fff' }}>
             <InputLabel>Year Level</InputLabel>
             <Select
               value={filterYear}
@@ -629,7 +588,7 @@ const ProgramHeadEnrollment: React.FC = () => {
               <MenuItem value="4">4th Year</MenuItem>
             </Select>
           </FormControl>
-          <FormControl size="small" sx={{ minWidth: 140 }}>
+          <FormControl size="small" sx={{ minWidth: 140, borderRadius: 99, background: '#fff' }}>
             <InputLabel>Student Type</InputLabel>
             <Select
               value={filterType}
@@ -660,12 +619,15 @@ const ProgramHeadEnrollment: React.FC = () => {
             </Select>
           </FormControl>
         </Box>
-      </Box>
+      </Card>
+      <Typography variant="h6" fontWeight={600} gutterBottom mb={1}>
+        Student List
+      </Typography>
       <Card>
-        <CardContent>
+        <CardContent sx={{ p: 0 }}>
           <TableContainer>
             <Table>
-              <TableHead>
+              <TableHead sx={{ background: '#f0f4f8' }}>
                 <TableRow>
                   <TableCell>Student ID</TableCell>
                   <TableCell>Name</TableCell>
@@ -673,12 +635,12 @@ const ProgramHeadEnrollment: React.FC = () => {
                   <TableCell>Year Level</TableCell>
                   <TableCell>Department</TableCell>
                   <TableCell>Status</TableCell>
-                  <TableCell>Action</TableCell>
+                  <TableCell sx={{ position: 'sticky', right: 0, background: '#fff', zIndex: 1 }}>Action</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {filteredStudents.map((student) => (
-                  <TableRow key={student.id}>
+                {filteredStudents.map((student, idx) => (
+                  <TableRow key={student.id} sx={{ background: idx % 2 === 0 ? '#f9fbfc' : '#fff' }}>
                     <TableCell>{student.id}</TableCell>
                     <TableCell>{student.name}</TableCell>
                     <TableCell>
@@ -697,12 +659,13 @@ const ProgramHeadEnrollment: React.FC = () => {
                         size="small"
                       />
                     </TableCell>
-                    <TableCell>
+                    <TableCell sx={{ position: 'sticky', right: 0, background: '#fff', zIndex: 1 }}>
                       <Button
                         variant="contained"
                         color="primary"
                         size="small"
-                        onClick={() => { setEditStudent(student); setEditForm({ ...student }); }}
+                        onClick={() => { setEditForm(student); }}
+                        title="Review and Edit Student"
                       >
                         Review
                       </Button>
@@ -816,13 +779,13 @@ const ProgramHeadEnrollment: React.FC = () => {
                   {Object.entries(visibleCourses).map(([category, subcats]) => (
                     <Box key={category} mb={2}>
                       <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mt: 1 }}>{category}</Typography>
-                      {Object.entries(subcats as Record<string, any[]>).map(([subcat, courseList]) => (
+                      {Object.entries(subcats as Record<string, unknown[]>).map(([subcat, courseList]) => (
                         <Box key={subcat} ml={2} mb={1}>
                           {subcat !== 'All' && (
                             <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>{subcat}</Typography>
                           )}
                           <FormGroup row>
-                            {(courseList as any[]).map((course: any) => (
+                            {(courseList as unknown[]).map((course: unknown) => (
                               <FormControlLabel
                                 key={course.id}
                                 control={
@@ -831,7 +794,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                                     onChange={() => handleCourseCheckbox(course.id)}
                                   />
                                 }
-                                label={`${course.code} - ${course.name}`}
+                                label={`${(course as { id: string; code: string; name: string; units: number; yearLevel: number; status: string }).code} - ${(course as { id: string; code: string; name: string; units: number; yearLevel: number; status: string }).name}`}
                               />
                             ))}
                           </FormGroup>
@@ -973,13 +936,13 @@ const ProgramHeadEnrollment: React.FC = () => {
                   {Object.entries(visibleCourses).map(([category, subcats]) => (
                     <Box key={category} mb={2}>
                       <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mt: 1 }}>{category}</Typography>
-                      {Object.entries(subcats as Record<string, any[]>).map(([subcat, courseList]) => (
+                      {Object.entries(subcats as Record<string, unknown[]>).map(([subcat, courseList]) => (
                         <Box key={subcat} ml={2} mb={1}>
                           {subcat !== 'All' && (
                             <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>{subcat}</Typography>
                           )}
                           <FormGroup row>
-                            {(courseList as any[]).map((course: any) => (
+                            {(courseList as unknown[]).map((course: unknown) => (
                               <FormControlLabel
                                 key={course.id}
                                 control={
@@ -988,7 +951,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                                     onChange={() => handleCourseCheckbox(course.id)}
                                   />
                                 }
-                                label={`${course.code} - ${course.name}`}
+                                label={`${(course as { id: string; code: string; name: string; units: number; yearLevel: number; status: string }).code} - ${(course as { id: string; code: string; name: string; units: number; yearLevel: number; status: string }).name}`}
                               />
                             ))}
                           </FormGroup>
@@ -1008,7 +971,7 @@ const ProgramHeadEnrollment: React.FC = () => {
       </Dialog>
 
       {/* Edit Student Modal */}
-      <Dialog open={!!editStudent} onClose={() => { setEditStudent(null); setEditForm(null); }} maxWidth="md" fullWidth>
+      <Dialog open={!!editForm} onClose={() => { setEditForm(null); }} maxWidth="md" fullWidth>
         <DialogTitle>Edit Student Info</DialogTitle>
         <DialogContent
           sx={{
@@ -1116,7 +1079,7 @@ const ProgramHeadEnrollment: React.FC = () => {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => { setEditStudent(null); setEditForm(null); }} disabled={savingEdit}>Cancel</Button>
+          <Button onClick={() => { setEditForm(null); }} disabled={savingEdit}>Cancel</Button>
           <Button onClick={handleSaveEdit} variant="contained" color="primary" disabled={savingEdit}>{savingEdit ? 'Saving...' : 'Save Changes'}</Button>
         </DialogActions>
       </Dialog>
