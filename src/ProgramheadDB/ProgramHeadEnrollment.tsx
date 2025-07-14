@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Button,
@@ -76,6 +76,8 @@ const ProgramHeadEnrollment: React.FC = () => {
   const [existingFilterYear, setExistingFilterYear] = useState('');
   const [endSemesterOpen, setEndSemesterOpen] = useState(false);
   const [endSemesterLoading, setEndSemesterLoading] = useState(false);
+  const [endSemesterConfirmation, setEndSemesterConfirmation] = useState('');
+  const [endSemesterConfirmationError, setEndSemesterConfirmationError] = useState(false);
   const [courseSearch, setCourseSearch] = useState('');
 
   const getDefaultSchoolYear = () => {
@@ -192,25 +194,6 @@ const ProgramHeadEnrollment: React.FC = () => {
       console.error('Error loading enrollments:', err);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const getStudentTypeColor = (type: string) => {
-    switch (type) {
-      case 'Freshman': return 'primary';
-      case 'Regular': return 'success';
-      case 'Irregular': return 'warning';
-      case 'Transferee': return 'secondary';
-      default: return 'default';
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending': return 'warning';
-      case 'approved': return 'success';
-      case 'returned': return 'error';
-      default: return 'default';
     }
   };
 
@@ -354,7 +337,7 @@ const ProgramHeadEnrollment: React.FC = () => {
   // Helper to categorize courses
   const categorizeCourses = (courses: Record<string, unknown>[]) => {
     const categories: Record<string, Record<string, unknown[]>> = {};
-    courses.forEach(course => {
+    courses.forEach((course: { id: string; code: string; name: string; units: number; yearLevel?: number; status?: string }) => {
       if (course.code.startsWith('IT')) {
         // Major
         const yearDigit = course.code.replace('IT', '').trim()[0];
@@ -384,7 +367,8 @@ const ProgramHeadEnrollment: React.FC = () => {
     if (courseSearch.trim() !== '') {
       const search = courseSearch.trim().toLowerCase();
       filteredCourses = courses.filter(
-        c => c.code.toLowerCase().includes(search) || c.name.toLowerCase().includes(search)
+        (c: { id: string; code: string; name: string; units: number; yearLevel?: number; status?: string }) =>
+          c.code.toLowerCase().includes(search) || c.name.toLowerCase().includes(search)
       );
     }
     const categorized = categorizeCourses(filteredCourses);
@@ -411,10 +395,10 @@ const ProgramHeadEnrollment: React.FC = () => {
     return filtered;
   };
 
-  const visibleCourses = getVisibleCourses();
+  const visibleCourses = useMemo(() => getVisibleCourses(), [courses, createForm, courseSearch, allowMixedCourses]);
 
   // Filtered students
-  const filteredStudents = students.filter(student => {
+  const filteredStudents = useMemo(() => students.filter(student => {
     const matchesSearch =
       filterSearch === '' ||
       student.name.toLowerCase().includes(filterSearch.toLowerCase()) ||
@@ -423,7 +407,7 @@ const ProgramHeadEnrollment: React.FC = () => {
     const matchesType = filterType === '' || student.studentType === filterType;
     const matchesStatus = filterStatus === '' || (student.status && student.status.toLowerCase() === filterStatus.toLowerCase());
     return matchesSearch && matchesYear && matchesType && matchesStatus;
-  });
+  }), [students, filterSearch, filterYear, filterType, filterStatus]);
 
   // Handler to save edited student
   const handleSaveEdit = async () => {
@@ -503,12 +487,27 @@ const ProgramHeadEnrollment: React.FC = () => {
       if (error) throw error;
       toast.success('All enrolled students are now active!');
       setEndSemesterOpen(false);
+      setEndSemesterConfirmation('');
+      setEndSemesterConfirmationError(false);
       loadEnrollments();
     } catch (err: any) {
       toast.error(err.message || 'Failed to end semester');
     } finally {
       setEndSemesterLoading(false);
     }
+  };
+
+  // Helper to reset end semester modal state
+  const handleOpenEndSemesterModal = () => {
+    setEndSemesterOpen(true);
+    setEndSemesterConfirmation('');
+    setEndSemesterConfirmationError(false);
+  };
+
+  const handleCloseEndSemesterModal = () => {
+    setEndSemesterOpen(false);
+    setEndSemesterConfirmation('');
+    setEndSemesterConfirmationError(false);
   };
 
   // Helper to reset the new student form
@@ -526,6 +525,8 @@ const ProgramHeadEnrollment: React.FC = () => {
       semester: '1st Semester',
     });
     setSelectedCourses([]);
+
+    
     setAllowMixedCourses(false);
   };
 
@@ -546,128 +547,617 @@ const ProgramHeadEnrollment: React.FC = () => {
   }
 
   return (
-    <Box component={Paper} elevation={3} sx={{ p: { xs: 1, sm: 3 }, borderRadius: 4, background: 'linear-gradient(135deg, #f8fafc 0%, #e0e7ef 100%)', minHeight: '100vh' }}>
-      <Typography variant="h4" fontWeight={700} gutterBottom mb={3} sx={{ letterSpacing: 1 }}>
-        Enrollment Management
-      </Typography>
-      <Card sx={{ mb: 3, p: 2, borderRadius: 3, boxShadow: 2, background: 'rgba(255,255,255,0.95)' }}>
-        <Box display="flex" flexWrap="wrap" gap={2} alignItems="center" mb={2}>
-          <Button variant="outlined" color="error" size="medium" onClick={() => setEndSemesterOpen(true)} startIcon={<i className="fas fa-calendar-times" />} sx={{ borderRadius: 99, px: 3, fontWeight: 600 }}>
-            End Semester
-          </Button>
-          <Button variant="contained" color="primary" size="medium" onClick={() => { setSelectedExistingStudent(null); flushNewStudentForm(); setIsCreateDialogOpen(true); }} startIcon={<i className="fas fa-user-plus" />} sx={{ borderRadius: 99, px: 3, fontWeight: 600, boxShadow: 1 }}>
-            Enroll New Student
-          </Button>
-          <Button variant="contained" color="success" size="medium" onClick={handleOpenExistingModal} startIcon={<i className="fas fa-user-check" />} sx={{ borderRadius: 99, px: 3, fontWeight: 600, boxShadow: 1 }}>
-            Enroll Existing Student
-          </Button>
-          <Button variant="outlined" color="primary" size="medium" onClick={loadEnrollments} startIcon={<i className="fas fa-sync-alt" />} sx={{ borderRadius: 99, px: 3, fontWeight: 600 }}>
-            Refresh List
-          </Button>
+    <Box sx={{ 
+      minHeight: '100vh',
+      p: { xs: 2, sm: 4 },
+      position: 'relative',
+      '&::before': {
+        content: '""',
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: 4,
+        background: 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)'
+      }
+    }}>
+      {/* Header Section */}
+      <Box sx={{ mb: 4, position: 'relative' }}>
+        <Typography variant="h3" sx={{ 
+          fontWeight: 800, 
+          color: '#1f2937',
+          mb: 1,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 2
+        }}>
+          <Box sx={{ 
+            width: 48, 
+            height: 48, 
+            borderRadius: '50%', 
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '1.5rem',
+            color: 'white'
+          }}>
+            📚
+          </Box>
+          Enrollment Management
+        </Typography>
+        <Typography variant="body1" sx={{ color: '#6b7280', fontSize: '1.1rem' }}>
+          Manage student enrollments, course assignments, and academic status
+        </Typography>
+      </Box>
+
+      {/* Action Cards Section */}
+      <Box sx={{ mb: 2, width: '100%' }}>
+        <Typography variant="h6" sx={{ 
+          fontWeight: 600, 
+          color: '#374151',
+          mb: 1.5,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+          fontSize: '1rem'
+        }}>
+          <Box sx={{ 
+            width: 18, 
+            height: 18, 
+            borderRadius: '50%', 
+            background: '#667eea',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '0.7rem',
+            color: 'white'
+          }}>
+            ⚡
+          </Box>
+          Quick Actions
+        </Typography>
+        <Box sx={{ 
+          display: 'grid', 
+          gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(4, 1fr)' },
+          gap: 1,
+          mb: 1,
+          width: '100%',
+          maxWidth: 600,
+          mx: 'auto',
+        }}>
+          {/* Enroll New Student */}
+          <Card sx={{ 
+            borderRadius: 2,
+            boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
+            background: '#fff',
+            border: '1px solid #e5e7eb',
+            transition: 'all 0.2s',
+            minHeight: 60,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            p: 0,
+          }}>
+            <CardContent sx={{ p: 0.5, textAlign: 'center', width: '100%', pb: '8px!important' }}>
+              <Button 
+                variant="contained" 
+                color="primary" 
+                size="small"
+                onClick={() => { setSelectedExistingStudent(null); flushNewStudentForm(); setIsCreateDialogOpen(true); }}
+                sx={{
+                  borderRadius: 1.5,
+                  px: 0.8,
+                  py: 0.4,
+                  fontWeight: 500,
+                  fontSize: '0.8rem',
+                  background: '#667eea',
+                  minHeight: 28,
+                  width: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 0.2
+                }}
+              >
+                <Box sx={{ fontSize: '0.9rem', mb: 0.1 }}>➕</Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 500, color: 'white', fontSize: '0.8rem' }}>
+                  Enroll New
+                </Typography>
+              </Button>
+            </CardContent>
+          </Card>
+          {/* Enroll Existing Student */}
+          <Card sx={{ 
+            borderRadius: 2,
+            boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
+            background: '#fff',
+            border: '1px solid #e5e7eb',
+            transition: 'all 0.2s',
+            minHeight: 60,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            p: 0,
+          }}>
+            <CardContent sx={{ p: 0.5, textAlign: 'center', width: '100%', pb: '8px!important' }}>
+              <Button 
+                variant="contained" 
+                color="success" 
+                size="small"
+                onClick={handleOpenExistingModal}
+                sx={{
+                  borderRadius: 1.5,
+                  px: 0.8,
+                  py: 0.4,
+                  fontWeight: 500,
+                  fontSize: '0.8rem',
+                  background: '#10b981',
+                  minHeight: 28,
+                  width: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 0.2
+                }}
+              >
+                <Box sx={{ fontSize: '0.9rem', mb: 0.1 }}>👥</Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 500, color: 'white', fontSize: '0.8rem' }}>
+                  Enroll Existing
+                </Typography>
+              </Button>
+            </CardContent>
+          </Card>
+          {/* Refresh List */}
+          <Card sx={{ 
+            borderRadius: 2,
+            boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
+            background: '#fff',
+            border: '1px solid #e5e7eb',
+            transition: 'all 0.2s',
+            minHeight: 60,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            p: 0,
+          }}>
+            <CardContent sx={{ p: 0.5, textAlign: 'center', width: '100%', pb: '8px!important' }}>
+              <Button 
+                variant="outlined" 
+                color="primary" 
+                size="small"
+                onClick={loadEnrollments}
+                sx={{
+                  borderRadius: 1.5,
+                  px: 0.8,
+                  py: 0.4,
+                  fontWeight: 500,
+                  fontSize: '0.8rem',
+                  borderColor: '#667eea',
+                  color: '#667eea',
+                  minHeight: 28,
+                  width: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 0.2
+                }}
+              >
+                <Box sx={{ fontSize: '0.9rem', mb: 0.1 }}>🔄</Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 500, fontSize: '0.8rem' }}>
+                  Refresh
+                </Typography>
+              </Button>
+            </CardContent>
+          </Card>
+          {/* End Semester */}
+          <Card sx={{ 
+            borderRadius: 2,
+            boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
+            background: '#fff',
+            border: '1px solid #e5e7eb',
+            transition: 'all 0.2s',
+            minHeight: 60,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            p: 0,
+          }}>
+            <CardContent sx={{ p: 0.5, textAlign: 'center', width: '100%', pb: '8px!important' }}>
+              <Button 
+                variant="outlined" 
+                color="error" 
+                size="small"
+                onClick={handleOpenEndSemesterModal}
+                sx={{
+                  borderRadius: 1.5,
+                  px: 0.8,
+                  py: 0.4,
+                  fontWeight: 500,
+                  fontSize: '0.8rem',
+                  borderColor: '#ef4444',
+                  color: '#ef4444',
+                  minHeight: 28,
+                  width: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 0.2
+                }}
+              >
+                <Box sx={{ fontSize: '0.9rem', mb: 0.1 }}>⚠️</Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 500, fontSize: '0.8rem' }}>
+                  End Semester
+                </Typography>
+              </Button>
+            </CardContent>
+          </Card>
         </Box>
-        <Box display="flex" flexWrap="wrap" gap={2} alignItems="center" justifyContent="flex-start" sx={{ background: '#f3f6fa', borderRadius: 99, p: 2, boxShadow: 0, mb: 1 }}>
-          <TextField
-            label="Search by Name or Student ID"
-            value={filterSearch}
-            onChange={e => setFilterSearch(e.target.value)}
-            size="small"
-            sx={{ minWidth: 220, borderRadius: 99, background: '#fff' }}
-            InputProps={{ startAdornment: <i className="fas fa-search" style={{ marginRight: 8 }} /> }}
-          />
-          <FormControl size="small" sx={{ minWidth: 140, borderRadius: 99, background: '#fff' }}>
-            <InputLabel>Year Level</InputLabel>
-            <Select
-              value={filterYear}
-              label="Year Level"
-              onChange={e => setFilterYear(e.target.value)}
-            >
-              <MenuItem value="">All</MenuItem>
-              <MenuItem value="1">1st Year</MenuItem>
-              <MenuItem value="2">2nd Year</MenuItem>
-              <MenuItem value="3">3rd Year</MenuItem>
-              <MenuItem value="4">4th Year</MenuItem>
-            </Select>
-          </FormControl>
-          <FormControl size="small" sx={{ minWidth: 140, borderRadius: 99, background: '#fff' }}>
-            <InputLabel>Student Type</InputLabel>
-            <Select
-              value={filterType}
-              label="Student Type"
-              onChange={e => setFilterType(e.target.value)}
-            >
-              <MenuItem value="">All</MenuItem>
-              <MenuItem value="Freshman">Freshman</MenuItem>
-              <MenuItem value="Regular">Regular</MenuItem>
-              <MenuItem value="Irregular">Irregular</MenuItem>
-              <MenuItem value="Transferee">Transferee</MenuItem>
-            </Select>
-          </FormControl>
-          <FormControl size="small" sx={{ minWidth: 140 }}>
-            <InputLabel>Status</InputLabel>
-            <Select
-              value={filterStatus}
-              label="Status"
-              onChange={e => setFilterStatus(e.target.value)}
-            >
-              <MenuItem value="">All</MenuItem>
-              <MenuItem value="pending">Pending</MenuItem>
-              <MenuItem value="enrolled">Enrolled</MenuItem>
-              <MenuItem value="active">Active</MenuItem>
-              <MenuItem value="approved">Approved</MenuItem>
-              <MenuItem value="returned">Returned</MenuItem>
-              <MenuItem value="dropped">Dropped</MenuItem>
-            </Select>
-          </FormControl>
-        </Box>
+      </Box>
+
+      {/* Filters Section */}
+      <Card sx={{ 
+        mb: 4, 
+        borderRadius: 3, 
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+        background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+        border: '1px solid #e5e7eb'
+      }}>
+        <CardContent sx={{ p: 3 }}>
+          <Typography variant="h6" sx={{ 
+            fontWeight: 600, 
+            color: '#374151',
+            mb: 3,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1
+          }}>
+            <Box sx={{ 
+              width: 24, 
+              height: 24, 
+              borderRadius: '50%', 
+              background: '#10b981',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '0.8rem',
+              color: 'white'
+            }}>
+              🔍
+            </Box>
+            Search & Filter
+          </Typography>
+          
+          <Box sx={{ 
+            display: 'grid', 
+            gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' },
+            gap: 2
+          }}>
+            <TextField
+              label="Search by Name or Student ID"
+              value={filterSearch}
+              onChange={e => setFilterSearch(e.target.value)}
+              size="small"
+              sx={{ 
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: 2,
+                  '& fieldset': {
+                    borderColor: '#d1d5db'
+                  },
+                  '&:hover fieldset': {
+                    borderColor: '#9ca3af'
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: '#667eea'
+                  }
+                }
+              }}
+              InputProps={{ 
+                startAdornment: (
+                  <Box sx={{ mr: 1, color: '#6b7280' }}>
+                    🔍
+                  </Box>
+                )
+              }}
+            />
+            
+            <FormControl size="small">
+              <InputLabel>Year Level</InputLabel>
+              <Select
+                value={filterYear}
+                label="Year Level"
+                onChange={e => setFilterYear(e.target.value)}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2,
+                    '& fieldset': {
+                      borderColor: '#d1d5db'
+                    },
+                    '&:hover fieldset': {
+                      borderColor: '#9ca3af'
+                    },
+                    '&.Mui-focused fieldset': {
+                      borderColor: '#667eea'
+                    }
+                  }
+                }}
+              >
+                <MenuItem value="">All</MenuItem>
+                <MenuItem value="1">1st Year</MenuItem>
+                <MenuItem value="2">2nd Year</MenuItem>
+                <MenuItem value="3">3rd Year</MenuItem>
+                <MenuItem value="4">4th Year</MenuItem>
+              </Select>
+            </FormControl>
+            
+            <FormControl size="small">
+              <InputLabel>Student Type</InputLabel>
+              <Select
+                value={filterType}
+                label="Student Type"
+                onChange={e => setFilterType(e.target.value)}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2,
+                    '& fieldset': {
+                      borderColor: '#d1d5db'
+                    },
+                    '&:hover fieldset': {
+                      borderColor: '#9ca3af'
+                    },
+                    '&.Mui-focused fieldset': {
+                      borderColor: '#667eea'
+                    }
+                  }
+                }}
+              >
+                <MenuItem value="">All</MenuItem>
+                <MenuItem value="Freshman">Freshman</MenuItem>
+                <MenuItem value="Regular">Regular</MenuItem>
+                <MenuItem value="Irregular">Irregular</MenuItem>
+                <MenuItem value="Transferee">Transferee</MenuItem>
+              </Select>
+            </FormControl>
+            
+            <FormControl size="small">
+              <InputLabel>Status</InputLabel>
+              <Select
+                value={filterStatus}
+                label="Status"
+                onChange={e => setFilterStatus(e.target.value)}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2,
+                    '& fieldset': {
+                      borderColor: '#d1d5db'
+                    },
+                    '&:hover fieldset': {
+                      borderColor: '#9ca3af'
+                    },
+                    '&.Mui-focused fieldset': {
+                      borderColor: '#667eea'
+                    }
+                  }
+                }}
+              >
+                <MenuItem value="">All</MenuItem>
+                <MenuItem value="pending">Pending</MenuItem>
+                <MenuItem value="enrolled">Enrolled</MenuItem>
+                <MenuItem value="active">Active</MenuItem>
+                <MenuItem value="approved">Approved</MenuItem>
+                <MenuItem value="returned">Returned</MenuItem>
+                <MenuItem value="dropped">Dropped</MenuItem>
+              </Select>
+            </FormControl>
+          </Box>
+        </CardContent>
       </Card>
-      <Typography variant="h6" fontWeight={600} gutterBottom mb={1}>
-        Student List
-      </Typography>
-      <Card>
-        <CardContent sx={{ p: 0 }}>
+      {/* Student List Section */}
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h5" sx={{ 
+          fontWeight: 600, 
+          color: '#374151',
+          mb: 3,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1
+        }}>
+          <Box sx={{ 
+            width: 24, 
+            height: 24, 
+            borderRadius: '50%', 
+            background: '#667eea',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '0.8rem',
+            color: 'white'
+          }}>
+            👥
+          </Box>
+          Student List
+          <Box sx={{ 
+            ml: 2, 
+            px: 2, 
+            py: 0.5, 
+            borderRadius: 2, 
+            background: '#f3f4f6',
+            fontSize: '0.875rem',
+            color: '#6b7280',
+            fontWeight: 500
+          }}>
+            {filteredStudents.length} students
+          </Box>
+        </Typography>
+        
+        <Card sx={{ 
+          borderRadius: 3, 
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+          background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+          border: '1px solid #e5e7eb',
+          overflow: 'hidden'
+        }}>
           <TableContainer>
             <Table>
-              <TableHead sx={{ background: '#f0f4f8' }}>
-                <TableRow>
-                  <TableCell>Student ID</TableCell>
-                  <TableCell>Name</TableCell>
-                  <TableCell>Type</TableCell>
-                  <TableCell>Year Level</TableCell>
-                  <TableCell>Department</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell sx={{ position: 'sticky', right: 0, background: '#fff', zIndex: 1 }}>Action</TableCell>
+              <TableHead>
+                <TableRow sx={{ background: 'linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%)' }}>
+                  <TableCell sx={{ 
+                    fontWeight: 600, 
+                    color: '#374151',
+                    fontSize: '0.875rem',
+                    borderBottom: '2px solid #e5e7eb'
+                  }}>
+                    Student ID
+                  </TableCell>
+                  <TableCell sx={{ 
+                    fontWeight: 600, 
+                    color: '#374151',
+                    fontSize: '0.875rem',
+                    borderBottom: '2px solid #e5e7eb'
+                  }}>
+                    Name
+                  </TableCell>
+                  <TableCell sx={{ 
+                    fontWeight: 600, 
+                    color: '#374151',
+                    fontSize: '0.875rem',
+                    borderBottom: '2px solid #e5e7eb'
+                  }}>
+                    Type
+                  </TableCell>
+                  <TableCell sx={{ 
+                    fontWeight: 600, 
+                    color: '#374151',
+                    fontSize: '0.875rem',
+                    borderBottom: '2px solid #e5e7eb'
+                  }}>
+                    Year Level
+                  </TableCell>
+                  <TableCell sx={{ 
+                    fontWeight: 600, 
+                    color: '#374151',
+                    fontSize: '0.875rem',
+                    borderBottom: '2px solid #e5e7eb'
+                  }}>
+                    Department
+                  </TableCell>
+                  <TableCell sx={{ 
+                    fontWeight: 600, 
+                    color: '#374151',
+                    fontSize: '0.875rem',
+                    borderBottom: '2px solid #e5e7eb'
+                  }}>
+                    Status
+                  </TableCell>
+                  <TableCell sx={{ 
+                    position: 'sticky', 
+                    right: 0, 
+                    background: 'linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%)',
+                    zIndex: 1,
+                    fontWeight: 600, 
+                    color: '#374151',
+                    fontSize: '0.875rem',
+                    borderBottom: '2px solid #e5e7eb'
+                  }}>
+                    Action
+                  </TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {filteredStudents.map((student, idx) => (
-                  <TableRow key={student.id} sx={{ background: idx % 2 === 0 ? '#f9fbfc' : '#fff' }}>
-                    <TableCell>{student.id}</TableCell>
-                    <TableCell>{student.name}</TableCell>
-                    <TableCell>
-                      <Chip
-                        label={student.studentType}
-                        color={getStudentTypeColor(student.studentType)}
-                        size="small"
-                      />
+                  <TableRow 
+                    key={student.id} 
+                    sx={{ 
+                      background: idx % 2 === 0 ? '#f9fafb' : '#ffffff',
+                      '&:hover': {
+                        background: '#f0f9ff',
+                        transform: 'scale(1.01)',
+                        transition: 'all 0.2s ease'
+                      },
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <TableCell sx={{ 
+                      fontWeight: 500, 
+                      fontFamily: 'monospace',
+                      fontSize: '0.875rem'
+                    }}>
+                      {student.id}
                     </TableCell>
-                    <TableCell>{student.yearLevel}</TableCell>
-                    <TableCell>{student.department}</TableCell>
-                    <TableCell>
-                      <Chip
-                        label={student.status.toUpperCase()}
-                        color={getStatusColor(student.status)}
-                        size="small"
-                      />
+                    <TableCell sx={{ 
+                      fontWeight: 500,
+                      fontSize: '0.875rem'
+                    }}>
+                      {student.name}
                     </TableCell>
-                    <TableCell sx={{ position: 'sticky', right: 0, background: '#fff', zIndex: 1 }}>
+                    <TableCell>
+                      <Box sx={{ 
+                        display: 'inline-block',
+                        px: 1.5,
+                        py: 0.5,
+                        borderRadius: 1,
+                        fontSize: '0.75rem',
+                        fontWeight: 500,
+                        background: '#e0e7ef',
+                        color: '#111827',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.05em'
+                      }}>
+                        {student.studentType}
+                      </Box>
+                    </TableCell>
+                    <TableCell sx={{ 
+                      fontWeight: 500,
+                      fontSize: '0.875rem'
+                    }}>
+                      {student.yearLevel}
+                    </TableCell>
+                    <TableCell sx={{ 
+                      fontWeight: 500,
+                      fontSize: '0.875rem'
+                    }}>
+                      {student.department}
+                    </TableCell>
+                    <TableCell>
+                      <Box sx={{ 
+                        display: 'inline-block',
+                        px: 1.5,
+                        py: 0.5,
+                        borderRadius: 1,
+                        fontSize: '0.75rem',
+                        fontWeight: 500,
+                        background: '#f3f4f6',
+                        color: '#111827',
+                        textTransform: 'capitalize'
+                      }}>
+                        {student.status}
+                      </Box>
+                    </TableCell>
+                    <TableCell sx={{ 
+                      position: 'sticky', 
+                      right: 0, 
+                      background: idx % 2 === 0 ? '#f9fafb' : '#ffffff',
+                      zIndex: 1
+                    }}>
                       <Button
                         variant="contained"
-                        color="primary"
                         size="small"
                         onClick={() => { setEditForm(student); }}
                         title="Review and Edit Student"
+                        sx={{
+                          borderRadius: 2,
+                          px: 2,
+                          py: 0.5,
+                          fontWeight: 600,
+                          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                          '&:hover': {
+                            background: 'linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%)',
+                            transform: 'translateY(-1px)',
+                            boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)'
+                          },
+                          transition: 'all 0.2s ease'
+                        }}
                       >
-                        Review
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <Box sx={{ fontSize: '0.8rem' }}>✏️</Box>
+                          Review
+                        </Box>
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -675,8 +1165,8 @@ const ProgramHeadEnrollment: React.FC = () => {
               </TableBody>
             </Table>
           </TableContainer>
-        </CardContent>
-      </Card>
+        </Card>
+      </Box>
 
       <Dialog
         open={isCreateDialogOpen}
@@ -687,37 +1177,167 @@ const ProgramHeadEnrollment: React.FC = () => {
         }}
         maxWidth="lg"
         fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)',
+            overflow: 'hidden'
+          }
+        }}
       >
-        <DialogTitle>{selectedExistingStudent ? 'Enroll Existing Student' : 'Enroll New Student'}</DialogTitle>
+        <DialogTitle 
+          sx={{
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            color: 'white',
+            py: 3,
+            px: 4,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2,
+            '& .MuiTypography-root': {
+              fontSize: '1.5rem',
+              fontWeight: 600
+            }
+          }}
+        >
+          <Box
+            sx={{
+              width: 40,
+              height: 40,
+              borderRadius: '50%',
+              background: 'rgba(255, 255, 255, 0.2)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '1.2rem'
+            }}
+          >
+            {selectedExistingStudent ? '👤' : '➕'}
+          </Box>
+          {selectedExistingStudent ? 'Enroll Existing Student' : 'Enroll New Student'}
+        </DialogTitle>
         {selectedExistingStudent ? (
           <form onSubmit={handleCreateStudent}>
             <DialogContent
               sx={{
                 minWidth: { xs: 0, sm: 700, md: 950 },
                 background: 'linear-gradient(135deg, #f8fafc 0%, #e0e7ef 100%)',
-                borderRadius: 4,
-                boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.10)',
-                border: '1px solid #e5e7eb',
+                borderRadius: 0,
                 p: { xs: 2, sm: 4 },
+                position: 'relative',
+                '&::before': {
+                  content: '""',
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: 4,
+                  background: 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)'
+                }
               }}
             >
               <Grid container spacing={3} alignItems="flex-start">
                 {/* Left side: Existing student info (read-only) */}
                 <Grid item xs={12} md={6}>
+                  <Box sx={{ mb: 3 }}>
+                    <Typography variant="h6" sx={{ 
+                      fontWeight: 600, 
+                      color: '#374151',
+                      mb: 2,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1
+                    }}>
+                      <Box sx={{ 
+                        width: 24, 
+                        height: 24, 
+                        borderRadius: '50%', 
+                        background: '#667eea',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '0.8rem',
+                        color: 'white'
+                      }}>
+                        👤
+                      </Box>
+                      Student Information
+                    </Typography>
+                  </Box>
                   <Grid container spacing={2}>
                     <Grid item xs={12} sm={6}>
-                      <TextField label="First Name" value={createForm.firstName} fullWidth required InputProps={{ readOnly: true }} />
+                      <TextField 
+                        label="First Name" 
+                        value={createForm.firstName} 
+                        fullWidth 
+                        required 
+                        InputProps={{ readOnly: true }}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            backgroundColor: '#f9fafb',
+                            '& fieldset': {
+                              borderColor: '#d1d5db'
+                            }
+                          }
+                        }}
+                      />
                     </Grid>
                     <Grid item xs={12} sm={6}>
-                      <TextField label="Last Name" value={createForm.lastName} fullWidth required InputProps={{ readOnly: true }} />
+                      <TextField 
+                        label="Last Name" 
+                        value={createForm.lastName} 
+                        fullWidth 
+                        required 
+                        InputProps={{ readOnly: true }}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            backgroundColor: '#f9fafb',
+                            '& fieldset': {
+                              borderColor: '#d1d5db'
+                            }
+                          }
+                        }}
+                      />
                     </Grid>
                     <Grid item xs={12}>
-                      <TextField label="Email" type="text" value={createForm.email} fullWidth required InputProps={{ endAdornment: <span>@smcbi.edu.ph</span>, readOnly: true }} disabled />
+                      <TextField 
+                        label="Email" 
+                        type="text" 
+                        value={createForm.email} 
+                        fullWidth 
+                        required 
+                        InputProps={{ 
+                          endAdornment: <span style={{ color: '#6b7280' }}>@smcbi.edu.ph</span>, 
+                          readOnly: true 
+                        }} 
+                        disabled
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            backgroundColor: '#f3f4f6',
+                            '& fieldset': {
+                              borderColor: '#d1d5db'
+                            }
+                          }
+                        }}
+                      />
                     </Grid>
                     <Grid item xs={12} sm={6}>
                       <FormControl fullWidth>
                         <InputLabel>Student Type</InputLabel>
-                        <Select value={createForm.studentType} label="Student Type" onChange={e => setCreateForm(f => ({ ...f, studentType: e.target.value }))} required fullWidth>
+                        <Select 
+                          value={createForm.studentType} 
+                          label="Student Type" 
+                          onChange={e => setCreateForm(f => ({ ...f, studentType: e.target.value }))} 
+                          required 
+                          fullWidth
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              '& fieldset': {
+                                borderColor: '#d1d5db'
+                              }
+                            }
+                          }}
+                        >
                           <MenuItem value="Freshman">Freshman</MenuItem>
                           <MenuItem value="Regular">Regular</MenuItem>
                           <MenuItem value="Irregular">Irregular</MenuItem>
@@ -728,7 +1348,20 @@ const ProgramHeadEnrollment: React.FC = () => {
                     <Grid item xs={12} sm={6}>
                       <FormControl fullWidth>
                         <InputLabel>Year Level</InputLabel>
-                        <Select value={createForm.yearLevel} label="Year Level" onChange={e => setCreateForm(f => ({ ...f, yearLevel: Number(e.target.value) }))} required fullWidth>
+                        <Select 
+                          value={createForm.yearLevel} 
+                          label="Year Level" 
+                          onChange={e => setCreateForm(f => ({ ...f, yearLevel: Number(e.target.value) }))} 
+                          required 
+                          fullWidth
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              '& fieldset': {
+                                borderColor: '#d1d5db'
+                              }
+                            }
+                          }}
+                        >
                           <MenuItem value={1}>1st Year</MenuItem>
                           <MenuItem value={2}>2nd Year</MenuItem>
                           <MenuItem value={3}>3rd Year</MenuItem>
@@ -737,24 +1370,80 @@ const ProgramHeadEnrollment: React.FC = () => {
                       </FormControl>
                     </Grid>
                     <Grid item xs={12} sm={6}>
-                      <TextField label="School Year" type="text" value={createForm.schoolYear} fullWidth required InputProps={{ readOnly: true }} />
+                      <TextField 
+                        label="School Year" 
+                        type="text" 
+                        value={createForm.schoolYear} 
+                        fullWidth 
+                        required 
+                        InputProps={{ readOnly: true }}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            backgroundColor: '#f9fafb',
+                            '& fieldset': {
+                              borderColor: '#d1d5db'
+                            }
+                          }
+                        }}
+                      />
                     </Grid>
                     <Grid item xs={12} sm={6}>
                       <FormControl fullWidth>
                         <InputLabel>Semester</InputLabel>
-                        <Select value={createForm.semester} label="Semester" onChange={e => setCreateForm(f => ({ ...f, semester: e.target.value }))} required fullWidth>
+                        <Select 
+                          value={createForm.semester} 
+                          label="Semester" 
+                          onChange={e => setCreateForm(f => ({ ...f, semester: e.target.value }))} 
+                          required 
+                          fullWidth
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              '& fieldset': {
+                                borderColor: '#d1d5db'
+                              }
+                            }
+                          }}
+                        >
                           <MenuItem value="1st Semester">1st Semester</MenuItem>
                           <MenuItem value="2nd Semester">2nd Semester</MenuItem>
                         </Select>
                       </FormControl>
                     </Grid>
                     <Grid item xs={12} sm={6}>
-                      <TextField label="Student ID" type="text" value={createForm.studentId} fullWidth required InputProps={{ readOnly: true }} />
+                      <TextField 
+                        label="Student ID" 
+                        type="text" 
+                        value={createForm.studentId} 
+                        fullWidth 
+                        required 
+                        InputProps={{ readOnly: true }}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            backgroundColor: '#f9fafb',
+                            '& fieldset': {
+                              borderColor: '#d1d5db'
+                            }
+                          }
+                        }}
+                      />
                     </Grid>
                     <Grid item xs={12} sm={6}>
                       <FormControl fullWidth>
                         <InputLabel>Course</InputLabel>
-                        <Select value={createForm.department} label="Course" disabled fullWidth>
+                        <Select 
+                          value={createForm.department} 
+                          label="Course" 
+                          disabled 
+                          fullWidth
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              backgroundColor: '#f3f4f6',
+                              '& fieldset': {
+                                borderColor: '#d1d5db'
+                              }
+                            }
+                          }}
+                        >
                           <MenuItem value="BSIT">BSIT</MenuItem>
                           {/* Add more courses here if needed */}
                         </Select>
@@ -764,7 +1453,32 @@ const ProgramHeadEnrollment: React.FC = () => {
                 </Grid>
                 {/* Right side: Courses Offered (checkboxes) */}
                 <Grid item xs={12} md={6}>
-                  <Typography variant="subtitle1" gutterBottom>Courses Offered</Typography>
+                  <Box sx={{ mb: 3 }}>
+                    <Typography variant="h6" sx={{ 
+                      fontWeight: 600, 
+                      color: '#374151',
+                      mb: 2,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1
+                    }}>
+                      <Box sx={{ 
+                        width: 24, 
+                        height: 24, 
+                        borderRadius: '50%', 
+                        background: '#10b981',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '0.8rem',
+                        color: 'white'
+                      }}>
+                        📚
+                      </Box>
+                      Course Selection
+                    </Typography>
+                  </Box>
+                  
                   {/* Search bar for filtering courses */}
                   <TextField
                     label="Search Courses"
@@ -772,42 +1486,207 @@ const ProgramHeadEnrollment: React.FC = () => {
                     onChange={e => setCourseSearch(e.target.value)}
                     size="small"
                     fullWidth
-                    sx={{ mb: 2 }}
+                    sx={{ 
+                      mb: 3,
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: 2,
+                        '& fieldset': {
+                          borderColor: '#d1d5db'
+                        },
+                        '&:hover fieldset': {
+                          borderColor: '#9ca3af'
+                        },
+                        '&.Mui-focused fieldset': {
+                          borderColor: '#667eea'
+                        }
+                      }
+                    }}
                     placeholder="Type course code or name..."
-                  />
-                  {/* Render categorized courses */}
-                  {Object.entries(visibleCourses).map(([category, subcats]) => (
-                    <Box key={category} mb={2}>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mt: 1 }}>{category}</Typography>
-                      {Object.entries(subcats as Record<string, unknown[]>).map(([subcat, courseList]) => (
-                        <Box key={subcat} ml={2} mb={1}>
-                          {subcat !== 'All' && (
-                            <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>{subcat}</Typography>
-                          )}
-                          <FormGroup row>
-                            {(courseList as unknown[]).map((course: unknown) => (
-                              <FormControlLabel
-                                key={course.id}
-                                control={
-                                  <Checkbox
-                                    checked={selectedCourses.includes(course.id)}
-                                    onChange={() => handleCourseCheckbox(course.id)}
-                                  />
-                                }
-                                label={`${(course as { id: string; code: string; name: string; units: number; yearLevel: number; status: string }).code} - ${(course as { id: string; code: string; name: string; units: number; yearLevel: number; status: string }).name}`}
-                              />
-                            ))}
-                          </FormGroup>
+                    InputProps={{
+                      startAdornment: (
+                        <Box sx={{ mr: 1, color: '#6b7280' }}>
+                          🔍
                         </Box>
-                      ))}
-                    </Box>
-                  ))}
+                      )
+                    }}
+                  />
+                  
+                  {/* Course selection summary */}
+                  <Box sx={{ 
+                    mb: 2, 
+                    p: 2, 
+                    borderRadius: 2, 
+                    background: selectedCourses.length > 0 ? '#f0f9ff' : '#f9fafb',
+                    border: `1px solid ${selectedCourses.length > 0 ? '#0ea5e9' : '#e5e7eb'}`
+                  }}>
+                    <Typography variant="body2" sx={{ 
+                      fontWeight: 500, 
+                      color: selectedCourses.length > 0 ? '#0369a1' : '#6b7280',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1
+                    }}>
+                      <Box sx={{ 
+                        width: 16, 
+                        height: 16, 
+                        borderRadius: '50%', 
+                        background: selectedCourses.length > 0 ? '#0ea5e9' : '#9ca3af',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '0.6rem',
+                        color: 'white'
+                      }}>
+                        {selectedCourses.length > 0 ? '✓' : '0'}
+                      </Box>
+                      {selectedCourses.length > 0 
+                        ? `${selectedCourses.length} course${selectedCourses.length > 1 ? 's' : ''} selected`
+                        : 'No courses selected'
+                      }
+                    </Typography>
+                  </Box>
+                  
+                  {/* Render categorized courses */}
+                  <Box sx={{ 
+                    maxHeight: 400, 
+                    overflowY: 'auto',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: 2,
+                    p: 2,
+                    background: '#ffffff'
+                  }}>
+                    {Object.entries(visibleCourses).map(([category, subcats]) => (
+                      <Box key={category} mb={3}>
+                        <Typography variant="subtitle1" sx={{ 
+                          fontWeight: 600, 
+                          color: '#374151',
+                          mb: 2,
+                          pb: 1,
+                          borderBottom: '2px solid #f3f4f6'
+                        }}>
+                          {category}
+                        </Typography>
+                        {Object.entries(subcats as Record<string, unknown[]>).map(([subcat, courseList]) => (
+                          <Box key={subcat} mb={2}>
+                            {subcat !== 'All' && (
+                              <Typography variant="body2" sx={{ 
+                                fontWeight: 500, 
+                                mb: 1,
+                                color: '#6b7280',
+                                textTransform: 'uppercase',
+                                fontSize: '0.75rem',
+                                letterSpacing: '0.05em'
+                              }}>
+                                {subcat}
+                              </Typography>
+                            )}
+                            <FormGroup>
+                              {(courseList as { id: string; code: string; name: string; units: number; yearLevel?: number; status?: string }[]).map((course) => (
+                                <FormControlLabel
+                                  key={course.id}
+                                  control={
+                                    <Checkbox
+                                      checked={selectedCourses.includes(course.id)}
+                                      onChange={() => handleCourseCheckbox(course.id)}
+                                      sx={{
+                                        color: '#d1d5db',
+                                        '&.Mui-checked': {
+                                          color: '#667eea'
+                                        }
+                                      }}
+                                    />
+                                  }
+                                  label={
+                                    <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                        {course.code}
+                                      </Typography>
+                                      <Typography variant="body2" sx={{ color: '#6b7280', fontSize: '0.875rem' }}>
+                                        {course.name}
+                                      </Typography>
+                                    </Box>
+                                  }
+                                  sx={{
+                                    margin: 0,
+                                    padding: '8px 12px',
+                                    borderRadius: 1,
+                                    '&:hover': {
+                                      background: '#f9fafb'
+                                    },
+                                    '&.Mui-checked': {
+                                      background: '#f0f9ff'
+                                    }
+                                  }}
+                                />
+                              ))}
+                            </FormGroup>
+                          </Box>
+                        ))}
+                      </Box>
+                    ))}
+                  </Box>
                 </Grid>
               </Grid>
             </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setIsCreateDialogOpen(false)} disabled={creating}>Cancel</Button>
-              <Button type="submit" variant="contained" color="primary" disabled={creating}>{creating ? 'Enrolling...' : 'Enroll'}</Button>
+            <DialogActions sx={{ 
+              p: 3, 
+              background: '#f9fafb',
+              borderTop: '1px solid #e5e7eb',
+              gap: 2
+            }}>
+              <Button 
+                onClick={() => setIsCreateDialogOpen(false)} 
+                disabled={creating}
+                variant="outlined"
+                sx={{
+                  borderRadius: 2,
+                  px: 3,
+                  py: 1.5,
+                  fontWeight: 600,
+                  borderColor: '#d1d5db',
+                  color: '#374151',
+                  '&:hover': {
+                    borderColor: '#9ca3af',
+                    background: '#f3f4f6'
+                  }
+                }}
+              >
+                Cancel
+              </Button>
+              <Button 
+                type="submit" 
+                variant="contained" 
+                disabled={creating}
+                sx={{
+                  borderRadius: 2,
+                  px: 3,
+                  py: 1.5,
+                  fontWeight: 600,
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  '&:hover': {
+                    background: 'linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%)',
+                    transform: 'translateY(-1px)',
+                    boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)'
+                  },
+                  '&:disabled': {
+                    background: '#d1d5db',
+                    transform: 'none',
+                    boxShadow: 'none'
+                  }
+                }}
+              >
+                {creating ? (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <CircularProgress size={16} sx={{ color: 'white' }} />
+                    Enrolling...
+                  </Box>
+                ) : (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Box sx={{ fontSize: '1rem' }}>✓</Box>
+                    Enroll Student
+                  </Box>
+                )}
+              </Button>
             </DialogActions>
           </form>
         ) : (
@@ -816,26 +1695,131 @@ const ProgramHeadEnrollment: React.FC = () => {
               sx={{
                 minWidth: { xs: 0, sm: 700, md: 950 },
                 background: 'linear-gradient(135deg, #f8fafc 0%, #e0e7ef 100%)',
-                borderRadius: 4,
-                boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.10)',
-                border: '1px solid #e5e7eb',
+                borderRadius: 0,
                 p: { xs: 2, sm: 4 },
+                position: 'relative',
+                '&::before': {
+                  content: '""',
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: 4,
+                  background: 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)'
+                }
               }}
             >
               <Grid container spacing={3} alignItems="flex-start">
                 <Grid item xs={12} md={6}>
+                  <Box sx={{ mb: 3 }}>
+                    <Typography variant="h6" sx={{ 
+                      fontWeight: 600, 
+                      color: '#374151',
+                      mb: 2,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1
+                    }}>
+                      <Box sx={{ 
+                        width: 24, 
+                        height: 24, 
+                        borderRadius: '50%', 
+                        background: '#667eea',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '0.8rem',
+                        color: 'white'
+                      }}>
+                        👤
+                      </Box>
+                      Student Information
+                    </Typography>
+                  </Box>
                   <Grid container spacing={2}>
                     <Grid item xs={12} sm={6}>
-                      <TextField label="First Name" value={createForm.firstName} onChange={e => setCreateForm(f => ({ ...f, firstName: e.target.value }))} fullWidth required />
+                      <TextField 
+                        label="First Name" 
+                        value={createForm.firstName} 
+                        onChange={e => setCreateForm(f => ({ ...f, firstName: e.target.value }))} 
+                        fullWidth 
+                        required
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            '& fieldset': {
+                              borderColor: '#d1d5db'
+                            },
+                            '&:hover fieldset': {
+                              borderColor: '#9ca3af'
+                            },
+                            '&.Mui-focused fieldset': {
+                              borderColor: '#667eea'
+                            }
+                          }
+                        }}
+                      />
                     </Grid>
                     <Grid item xs={12} sm={6}>
-                      <TextField label="Last Name" value={createForm.lastName} onChange={e => setCreateForm(f => ({ ...f, lastName: e.target.value }))} fullWidth required />
+                      <TextField 
+                        label="Last Name" 
+                        value={createForm.lastName} 
+                        onChange={e => setCreateForm(f => ({ ...f, lastName: e.target.value }))} 
+                        fullWidth 
+                        required
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            '& fieldset': {
+                              borderColor: '#d1d5db'
+                            },
+                            '&:hover fieldset': {
+                              borderColor: '#9ca3af'
+                            },
+                            '&.Mui-focused fieldset': {
+                              borderColor: '#667eea'
+                            }
+                          }
+                        }}
+                      />
                     </Grid>
                     <Grid item xs={12}>
-                      <TextField label="Email" type="text" value={createForm.email} fullWidth required InputProps={{ endAdornment: <span>@smcbi.edu.ph</span>, readOnly: true }} disabled />
+                      <TextField 
+                        label="Email" 
+                        type="text" 
+                        value={createForm.email} 
+                        fullWidth 
+                        required 
+                        InputProps={{ 
+                          endAdornment: <span style={{ color: '#6b7280' }}>@smcbi.edu.ph</span>, 
+                          readOnly: true 
+                        }} 
+                        disabled
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            backgroundColor: '#f3f4f6',
+                            '& fieldset': {
+                              borderColor: '#d1d5db'
+                            }
+                          }
+                        }}
+                      />
                     </Grid>
                     <Grid item xs={12} sm={6}>
-                      <TextField label="Password" type="text" value={createForm.password} fullWidth required InputProps={{ readOnly: true }} />
+                      <TextField 
+                        label="Password" 
+                        type="text" 
+                        value={createForm.password} 
+                        fullWidth 
+                        required 
+                        InputProps={{ readOnly: true }}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            backgroundColor: '#f9fafb',
+                            '& fieldset': {
+                              borderColor: '#d1d5db'
+                            }
+                          }
+                        }}
+                      />
                     </Grid>
                     <Grid item xs={12} sm={6}>
                       <FormControl fullWidth>
@@ -845,6 +1829,19 @@ const ProgramHeadEnrollment: React.FC = () => {
                           label="Student Type"
                           onChange={e => setCreateForm(f => ({ ...f, studentType: e.target.value }))}
                           required
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              '& fieldset': {
+                                borderColor: '#d1d5db'
+                              },
+                              '&:hover fieldset': {
+                                borderColor: '#9ca3af'
+                              },
+                              '&.Mui-focused fieldset': {
+                                borderColor: '#667eea'
+                              }
+                            }
+                          }}
                         >
                           <MenuItem value="Freshman" disabled={Number(createForm.yearLevel) >= 2}>Freshman</MenuItem>
                           <MenuItem value="Regular">Regular</MenuItem>
@@ -861,6 +1858,19 @@ const ProgramHeadEnrollment: React.FC = () => {
                           label="Year Level"
                           onChange={e => setCreateForm(f => ({ ...f, yearLevel: Number(e.target.value) }))}
                           required
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              '& fieldset': {
+                                borderColor: '#d1d5db'
+                              },
+                              '&:hover fieldset': {
+                                borderColor: '#9ca3af'
+                              },
+                              '&.Mui-focused fieldset': {
+                                borderColor: '#667eea'
+                              }
+                            }
+                          }}
                         >
                           <MenuItem value={1}>1st Year</MenuItem>
                           <MenuItem value={2}>2nd Year</MenuItem>
@@ -870,7 +1880,22 @@ const ProgramHeadEnrollment: React.FC = () => {
                       </FormControl>
                     </Grid>
                     <Grid item xs={12} sm={6}>
-                      <TextField label="School Year" type="text" value={createForm.schoolYear} fullWidth required InputProps={{ readOnly: true }} />
+                      <TextField 
+                        label="School Year" 
+                        type="text" 
+                        value={createForm.schoolYear} 
+                        fullWidth 
+                        required 
+                        InputProps={{ readOnly: true }}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            backgroundColor: '#f9fafb',
+                            '& fieldset': {
+                              borderColor: '#d1d5db'
+                            }
+                          }
+                        }}
+                      />
                     </Grid>
                     <Grid item xs={12} sm={6}>
                       <FormControl fullWidth>
@@ -880,6 +1905,19 @@ const ProgramHeadEnrollment: React.FC = () => {
                           label="Semester"
                           onChange={e => setCreateForm(f => ({ ...f, semester: e.target.value }))}
                           required
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              '& fieldset': {
+                                borderColor: '#d1d5db'
+                              },
+                              '&:hover fieldset': {
+                                borderColor: '#9ca3af'
+                              },
+                              '&.Mui-focused fieldset': {
+                                borderColor: '#667eea'
+                              }
+                            }
+                          }}
                         >
                           <MenuItem value="1st Semester">1st Semester</MenuItem>
                           <MenuItem value="2nd Semester">2nd Semester</MenuItem>
@@ -887,7 +1925,22 @@ const ProgramHeadEnrollment: React.FC = () => {
                       </FormControl>
                     </Grid>
                     <Grid item xs={12} sm={6}>
-                      <TextField label="Student ID" type="text" value={createForm.studentId} fullWidth required InputProps={{ readOnly: true }} />
+                      <TextField 
+                        label="Student ID" 
+                        type="text" 
+                        value={createForm.studentId} 
+                        fullWidth 
+                        required 
+                        InputProps={{ readOnly: true }}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            backgroundColor: '#f9fafb',
+                            '& fieldset': {
+                              borderColor: '#d1d5db'
+                            }
+                          }
+                        }}
+                      />
                     </Grid>
                     <Grid item xs={12} sm={6}>
                       <FormControl fullWidth>
@@ -897,6 +1950,19 @@ const ProgramHeadEnrollment: React.FC = () => {
                           label="Course"
                           onChange={e => setCreateForm(f => ({ ...f, department: e.target.value }))}
                           required
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              '& fieldset': {
+                                borderColor: '#d1d5db'
+                              },
+                              '&:hover fieldset': {
+                                borderColor: '#9ca3af'
+                              },
+                              '&.Mui-focused fieldset': {
+                                borderColor: '#667eea'
+                              }
+                            }
+                          }}
                         >
                           <MenuItem value="BSIT">BSIT</MenuItem>
                           {/* Add more courses here if needed */}
@@ -907,7 +1973,32 @@ const ProgramHeadEnrollment: React.FC = () => {
                 </Grid>
                 {/* Right side: Courses Offered */}
                 <Grid item xs={12} md={6}>
-                  <Typography variant="subtitle1" gutterBottom>Courses Offered</Typography>
+                  <Box sx={{ mb: 3 }}>
+                    <Typography variant="h6" sx={{ 
+                      fontWeight: 600, 
+                      color: '#374151',
+                      mb: 2,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1
+                    }}>
+                      <Box sx={{ 
+                        width: 24, 
+                        height: 24, 
+                        borderRadius: '50%', 
+                        background: '#10b981',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '0.8rem',
+                        color: 'white'
+                      }}>
+                        📚
+                      </Box>
+                      Course Selection
+                    </Typography>
+                  </Box>
+                  
                   {/* Search bar for filtering courses */}
                   <TextField
                     label="Search Courses"
@@ -915,50 +2006,172 @@ const ProgramHeadEnrollment: React.FC = () => {
                     onChange={e => setCourseSearch(e.target.value)}
                     size="small"
                     fullWidth
-                    sx={{ mb: 2 }}
-                    placeholder="Type course code or name..."
-                  />
-                  {/* Move Mixed year toggle for Regular students below the heading */}
-                  {createForm.studentType === 'Regular' && (
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={allowMixedCourses}
-                          onChange={e => setAllowMixedCourses(e.target.checked)}
-                          color="primary"
-                        />
+                    sx={{ 
+                      mb: 3,
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: 2,
+                        '& fieldset': {
+                          borderColor: '#d1d5db'
+                        },
+                        '&:hover fieldset': {
+                          borderColor: '#9ca3af'
+                        },
+                        '&.Mui-focused fieldset': {
+                          borderColor: '#667eea'
+                        }
                       }
-                      label="Allow Mixed Year Courses"
-                      sx={{ mb: 1 }}
-                    />
-                  )}
-                  {/* Render categorized courses */}
-                  {Object.entries(visibleCourses).map(([category, subcats]) => (
-                    <Box key={category} mb={2}>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mt: 1 }}>{category}</Typography>
-                      {Object.entries(subcats as Record<string, unknown[]>).map(([subcat, courseList]) => (
-                        <Box key={subcat} ml={2} mb={1}>
-                          {subcat !== 'All' && (
-                            <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>{subcat}</Typography>
-                          )}
-                          <FormGroup row>
-                            {(courseList as unknown[]).map((course: unknown) => (
-                              <FormControlLabel
-                                key={course.id}
-                                control={
-                                  <Checkbox
-                                    checked={selectedCourses.includes(course.id)}
-                                    onChange={() => handleCourseCheckbox(course.id)}
-                                  />
-                                }
-                                label={`${(course as { id: string; code: string; name: string; units: number; yearLevel: number; status: string }).code} - ${(course as { id: string; code: string; name: string; units: number; yearLevel: number; status: string }).name}`}
-                              />
-                            ))}
-                          </FormGroup>
+                    }}
+                    placeholder="Type course code or name..."
+                    InputProps={{
+                      startAdornment: (
+                        <Box sx={{ mr: 1, color: '#6b7280' }}>
+                          🔍
                         </Box>
-                      ))}
+                      )
+                    }}
+                  />
+                  
+                  {/* Move Mixed year toggle for Regular students */}
+                  {createForm.studentType === 'Regular' && (
+                    <Box sx={{ mb: 2, p: 2, borderRadius: 2, background: '#f0f9ff', border: '1px solid #0ea5e9' }}>
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={allowMixedCourses}
+                            onChange={e => setAllowMixedCourses(e.target.checked)}
+                            sx={{
+                              '& .MuiSwitch-switchBase.Mui-checked': {
+                                color: '#0ea5e9',
+                                '& + .MuiSwitch-track': {
+                                  backgroundColor: '#0ea5e9'
+                                }
+                              }
+                            }}
+                          />
+                        }
+                        label={
+                          <Typography variant="body2" sx={{ fontWeight: 500, color: '#0369a1' }}>
+                            Allow Mixed Year Courses
+                          </Typography>
+                        }
+                      />
                     </Box>
-                  ))}
+                  )}
+                  
+                  {/* Course selection summary */}
+                  <Box sx={{ 
+                    mb: 2, 
+                    p: 2, 
+                    borderRadius: 2, 
+                    background: selectedCourses.length > 0 ? '#f0f9ff' : '#f9fafb',
+                    border: `1px solid ${selectedCourses.length > 0 ? '#0ea5e9' : '#e5e7eb'}`
+                  }}>
+                    <Typography variant="body2" sx={{ 
+                      fontWeight: 500, 
+                      color: selectedCourses.length > 0 ? '#0369a1' : '#6b7280',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1
+                    }}>
+                      <Box sx={{ 
+                        width: 16, 
+                        height: 16, 
+                        borderRadius: '50%', 
+                        background: selectedCourses.length > 0 ? '#0ea5e9' : '#9ca3af',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '0.6rem',
+                        color: 'white'
+                      }}>
+                        {selectedCourses.length > 0 ? '✓' : '0'}
+                      </Box>
+                      {selectedCourses.length > 0 
+                        ? `${selectedCourses.length} course${selectedCourses.length > 1 ? 's' : ''} selected`
+                        : 'No courses selected'
+                      }
+                    </Typography>
+                  </Box>
+                  
+                  {/* Render categorized courses */}
+                  <Box sx={{ 
+                    maxHeight: 400, 
+                    overflowY: 'auto',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: 2,
+                    p: 2,
+                    background: '#ffffff'
+                  }}>
+                    {Object.entries(visibleCourses).map(([category, subcats]) => (
+                      <Box key={category} mb={3}>
+                        <Typography variant="subtitle1" sx={{ 
+                          fontWeight: 600, 
+                          color: '#374151',
+                          mb: 2,
+                          pb: 1,
+                          borderBottom: '2px solid #f3f4f6'
+                        }}>
+                          {category}
+                        </Typography>
+                        {Object.entries(subcats as Record<string, unknown[]>).map(([subcat, courseList]) => (
+                          <Box key={subcat} mb={2}>
+                            {subcat !== 'All' && (
+                              <Typography variant="body2" sx={{ 
+                                fontWeight: 500, 
+                                mb: 1,
+                                color: '#6b7280',
+                                textTransform: 'uppercase',
+                                fontSize: '0.75rem',
+                                letterSpacing: '0.05em'
+                              }}>
+                                {subcat}
+                              </Typography>
+                            )}
+                            <FormGroup>
+                              {(courseList as { id: string; code: string; name: string; units: number; yearLevel?: number; status?: string }[]).map((course) => (
+                                <FormControlLabel
+                                  key={course.id}
+                                  control={
+                                    <Checkbox
+                                      checked={selectedCourses.includes(course.id)}
+                                      onChange={() => handleCourseCheckbox(course.id)}
+                                      sx={{
+                                        color: '#d1d5db',
+                                        '&.Mui-checked': {
+                                          color: '#667eea'
+                                        }
+                                      }}
+                                    />
+                                  }
+                                  label={
+                                    <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                        {course.code}
+                                      </Typography>
+                                      <Typography variant="body2" sx={{ color: '#6b7280', fontSize: '0.875rem' }}>
+                                        {course.name}
+                                      </Typography>
+                                    </Box>
+                                  }
+                                  sx={{
+                                    margin: 0,
+                                    padding: '8px 12px',
+                                    borderRadius: 1,
+                                    '&:hover': {
+                                      background: '#f9fafb'
+                                    },
+                                    '&.Mui-checked': {
+                                      background: '#f0f9ff'
+                                    }
+                                  }}
+                                />
+                              ))}
+                            </FormGroup>
+                          </Box>
+                        ))}
+                      </Box>
+                    ))}
+                  </Box>
                 </Grid>
               </Grid>
             </DialogContent>
@@ -971,16 +2184,62 @@ const ProgramHeadEnrollment: React.FC = () => {
       </Dialog>
 
       {/* Edit Student Modal */}
-      <Dialog open={!!editForm} onClose={() => { setEditForm(null); }} maxWidth="md" fullWidth>
-        <DialogTitle>Edit Student Info</DialogTitle>
+      <Dialog open={!!editForm} onClose={() => { setEditForm(null); }} maxWidth="md" fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)',
+            overflow: 'hidden'
+          }
+        }}
+      >
+        <DialogTitle 
+          sx={{
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            color: 'white',
+            py: 3,
+            px: 4,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2,
+            '& .MuiTypography-root': {
+              fontSize: '1.5rem',
+              fontWeight: 600
+            }
+          }}
+        >
+          <Box
+            sx={{
+              width: 40,
+              height: 40,
+              borderRadius: '50%',
+              background: 'rgba(255, 255, 255, 0.2)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '1.2rem'
+            }}
+          >
+            ✏️
+          </Box>
+          Edit Student Info
+        </DialogTitle>
         <DialogContent
           sx={{
             minWidth: { xs: 0, sm: 600, md: 800 },
             background: 'linear-gradient(135deg, #f8fafc 0%, #e0e7ef 100%)',
-            borderRadius: 4,
-            boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.10)',
-            border: '1px solid #e5e7eb',
+            borderRadius: 0,
             p: { xs: 2, sm: 4 },
+            position: 'relative',
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 4,
+              background: 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)'
+            }
           }}
         >
           {editForm && (
@@ -1085,16 +2344,108 @@ const ProgramHeadEnrollment: React.FC = () => {
       </Dialog>
 
       {/* Enroll Existing Student Modal */}
-      <Dialog open={isExistingModalOpen} onClose={() => setIsExistingModalOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle>Enroll Existing Student</DialogTitle>
-        <DialogContent sx={{ minWidth: { xs: 0, sm: 600, md: 800 }, p: { xs: 2, sm: 4 } }}>
-          <Box mb={2} display="flex" alignItems="center" gap={2}>
+      <Dialog open={isExistingModalOpen} onClose={() => setIsExistingModalOpen(false)} maxWidth="md" fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)',
+            overflow: 'hidden'
+          }
+        }}
+      >
+        <DialogTitle 
+          sx={{
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            color: 'white',
+            py: 3,
+            px: 4,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2,
+            '& .MuiTypography-root': {
+              fontSize: '1.5rem',
+              fontWeight: 600
+            }
+          }}
+        >
+          <Box
+            sx={{
+              width: 40,
+              height: 40,
+              borderRadius: '50%',
+              background: 'rgba(255, 255, 255, 0.2)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '1.2rem'
+            }}
+          >
+            👥
+          </Box>
+          Enroll Existing Student
+        </DialogTitle>
+        <DialogContent 
+          sx={{ 
+            minWidth: { xs: 0, sm: 600, md: 800 }, 
+            p: { xs: 2, sm: 4 },
+            background: 'linear-gradient(135deg, #f8fafc 0%, #e0e7ef 100%)',
+            position: 'relative',
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 4,
+              background: 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)'
+            }
+          }}
+        >
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="h6" sx={{ 
+              fontWeight: 600, 
+              color: '#374151',
+              mb: 2,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1
+            }}>
+              <Box sx={{ 
+                width: 24, 
+                height: 24, 
+                borderRadius: '50%', 
+                background: '#10b981',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '0.8rem',
+                color: 'white'
+              }}>
+                🔍
+              </Box>
+              Student Filter
+            </Typography>
+          </Box>
+          <Box mb={3} display="flex" alignItems="center" gap={2}>
             <FormControl size="small" sx={{ minWidth: 180 }}>
               <InputLabel>Filter by Year Level</InputLabel>
               <Select
                 value={existingFilterYear}
                 label="Filter by Year Level"
                 onChange={e => setExistingFilterYear(e.target.value)}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    '& fieldset': {
+                      borderColor: '#d1d5db'
+                    },
+                    '&:hover fieldset': {
+                      borderColor: '#9ca3af'
+                    },
+                    '&.Mui-focused fieldset': {
+                      borderColor: '#667eea'
+                    }
+                  }
+                }}
               >
                 <MenuItem value="">All</MenuItem>
                 <MenuItem value="1">1st Year</MenuItem>
@@ -1105,30 +2456,115 @@ const ProgramHeadEnrollment: React.FC = () => {
             </FormControl>
           </Box>
           {Object.keys(existingStudentsByYear).sort().filter(year => !existingFilterYear || year === existingFilterYear).map(year => (
-            <Box key={year} mb={3}>
-              <Typography variant="h6" sx={{ mb: 1 }}>{getYearLabel(year)}</Typography>
-              <TableContainer>
+            <Box key={year} mb={4}>
+              <Typography variant="h6" sx={{ 
+                mb: 2, 
+                fontWeight: 600,
+                color: '#374151',
+                pb: 1,
+                borderBottom: '2px solid #f3f4f6',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1
+              }}>
+                <Box sx={{ 
+                  width: 20, 
+                  height: 20, 
+                  borderRadius: '50%', 
+                  background: '#667eea',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '0.7rem',
+                  color: 'white'
+                }}>
+                  {year}
+                </Box>
+                {getYearLabel(year)}
+              </Typography>
+              <TableContainer sx={{ 
+                borderRadius: 2,
+                border: '1px solid #e5e7eb',
+                overflow: 'hidden',
+                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+              }}>
                 <Table>
                   <TableHead>
-                    <TableRow>
-                      <TableCell>Student ID</TableCell>
-                      <TableCell>Name</TableCell>
-                      <TableCell>Type</TableCell>
-                      <TableCell>Status</TableCell>
-                      <TableCell>Action</TableCell>
+                    <TableRow sx={{ background: '#f9fafb' }}>
+                      <TableCell sx={{ fontWeight: 600, color: '#374151', fontSize: '0.875rem' }}>Student ID</TableCell>
+                      <TableCell sx={{ fontWeight: 600, color: '#374151', fontSize: '0.875rem' }}>Name</TableCell>
+                      <TableCell sx={{ fontWeight: 600, color: '#374151', fontSize: '0.875rem' }}>Type</TableCell>
+                      <TableCell sx={{ fontWeight: 600, color: '#374151', fontSize: '0.875rem' }}>Status</TableCell>
+                      <TableCell sx={{ fontWeight: 600, color: '#374151', fontSize: '0.875rem' }}>Action</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {existingStudentsByYear[year].map(student => (
-                      <TableRow key={student.id}>
-                        <TableCell>{student.id}</TableCell>
-                        <TableCell>{student.name}</TableCell>
-                        <TableCell>{student.studentType}</TableCell>
-                        <TableCell>{student.status}</TableCell>
+                      <TableRow key={student.id} sx={{ 
+                        '&:hover': { 
+                          background: '#f9fafb',
+                          transform: 'scale(1.01)',
+                          transition: 'all 0.2s ease'
+                        },
+                        transition: 'all 0.2s ease'
+                      }}>
+                        <TableCell sx={{ fontWeight: 500, fontFamily: 'monospace' }}>{student.id}</TableCell>
+                        <TableCell sx={{ fontWeight: 500 }}>{student.name}</TableCell>
                         <TableCell>
-                          <Button variant="contained" size="small" onClick={() => handleEnrollExisting(student)}>
-                            Enroll
-          </Button>
+                          <Box sx={{ 
+                            display: 'inline-block',
+                            px: 1.5,
+                            py: 0.5,
+                            borderRadius: 1,
+                            fontSize: '0.75rem',
+                            fontWeight: 500,
+                            background: '#e0e7ef',
+                            color: '#111827',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em'
+                          }}>
+                            {student.studentType}
+                          </Box>
+                        </TableCell>
+                        <TableCell>
+                          <Box sx={{ 
+                            display: 'inline-block',
+                            px: 1.5,
+                            py: 0.5,
+                            borderRadius: 1,
+                            fontSize: '0.75rem',
+                            fontWeight: 500,
+                            background: '#f3f4f6',
+                            color: '#111827',
+                            textTransform: 'capitalize'
+                          }}>
+                            {student.status}
+                          </Box>
+                        </TableCell>
+                        <TableCell>
+                          <Button 
+                            variant="contained" 
+                            size="small" 
+                            onClick={() => handleEnrollExisting(student)}
+                            sx={{
+                              borderRadius: 2,
+                              px: 2,
+                              py: 0.5,
+                              fontWeight: 600,
+                              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                              '&:hover': {
+                                background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                                transform: 'translateY(-1px)',
+                                boxShadow: '0 4px 12px rgba(16, 185, 129, 0.4)'
+                              },
+                              transition: 'all 0.2s ease'
+                            }}
+                          >
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                              <Box sx={{ fontSize: '0.8rem' }}>➕</Box>
+                              Enroll
+                            </Box>
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -1138,21 +2574,395 @@ const ProgramHeadEnrollment: React.FC = () => {
             </Box>
           ))}
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setIsExistingModalOpen(false)}>Close</Button>
+        <DialogActions sx={{ 
+          p: 3, 
+          background: '#f9fafb',
+          borderTop: '1px solid #e5e7eb',
+          gap: 2
+        }}>
+          <Button 
+            onClick={() => setIsExistingModalOpen(false)}
+            variant="outlined"
+            sx={{
+              borderRadius: 2,
+              px: 3,
+              py: 1.5,
+              fontWeight: 600,
+              borderColor: '#d1d5db',
+              color: '#374151',
+              '&:hover': {
+                borderColor: '#9ca3af',
+                background: '#f3f4f6'
+              }
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ fontSize: '1rem' }}>✕</Box>
+              Close
+            </Box>
+          </Button>
         </DialogActions>
       </Dialog>
 
       {/* End Semester Confirmation Dialog */}
-      <Dialog open={endSemesterOpen} onClose={() => setEndSemesterOpen(false)}>
-        <DialogTitle>End Semester</DialogTitle>
-        <DialogContent>
-          <Typography>Are you sure you want to end the semester? This will set all students with status 'enrolled' to 'active'.</Typography>
+      <Dialog open={endSemesterOpen} onClose={handleCloseEndSemesterModal}
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)',
+            overflow: 'hidden'
+          }
+        }}
+      >
+        <DialogTitle 
+          sx={{
+            background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+            color: 'white',
+            py: 3,
+            px: 4,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2,
+            '& .MuiTypography-root': {
+              fontSize: '1.5rem',
+              fontWeight: 600
+            }
+          }}
+        >
+          <Box
+            sx={{
+              width: 40,
+              height: 40,
+              borderRadius: '50%',
+              background: 'rgba(255, 255, 255, 0.2)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '1.2rem'
+            }}
+          >
+            ⚠️
+          </Box>
+          End Semester
+        </DialogTitle>
+        <DialogContent
+          sx={{
+            p: 4,
+            background: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)',
+            position: 'relative',
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 4,
+              background: 'linear-gradient(90deg, #ef4444 0%, #dc2626 100%)'
+            }
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+            <Box sx={{ 
+              width: 48, 
+              height: 48, 
+              borderRadius: '50%', 
+              background: '#fef3c7',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '1.5rem'
+            }}>
+              ⚠️
+            </Box>
+            <Typography variant="h6" sx={{ fontWeight: 600, color: '#991b1b' }}>
+              Important Action Required
+            </Typography>
+          </Box>
+          
+          <Typography sx={{ 
+            color: '#7f1d1d',
+            fontSize: '1rem',
+            lineHeight: 1.6,
+            mb: 3
+          }}>
+            Are you sure you want to end the semester? This action will:
+          </Typography>
+          
+          <Box sx={{ 
+            mb: 3,
+            p: 3,
+            borderRadius: 2,
+            background: 'rgba(239, 68, 68, 0.05)',
+            border: '1px solid rgba(239, 68, 68, 0.2)'
+          }}>
+            <Typography sx={{ 
+              color: '#7f1d1d',
+              fontSize: '0.95rem',
+              mb: 2,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              fontWeight: 500
+            }}>
+              <Box sx={{ 
+                width: 20, 
+                height: 20, 
+                borderRadius: '50%', 
+                background: '#ef4444',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '0.8rem',
+                color: 'white'
+              }}>
+                1
+              </Box>
+              Set all students with status 'enrolled' to 'active'
+            </Typography>
+            <Typography sx={{ 
+              color: '#7f1d1d',
+              fontSize: '0.95rem',
+              mb: 2,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              fontWeight: 500
+            }}>
+              <Box sx={{ 
+                width: 20, 
+                height: 20, 
+                borderRadius: '50%', 
+                background: '#ef4444',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '0.8rem',
+                color: 'white'
+              }}>
+                2
+              </Box>
+              This action cannot be undone
+            </Typography>
+            <Typography sx={{ 
+              color: '#7f1d1d',
+              fontSize: '0.95rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              fontWeight: 500
+            }}>
+              <Box sx={{ 
+                width: 20, 
+                height: 20, 
+                borderRadius: '50%', 
+                background: '#ef4444',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '0.8rem',
+                color: 'white'
+              }}>
+                3
+              </Box>
+              Please ensure all enrollments are complete
+            </Typography>
+          </Box>
+          
+          <Box sx={{ 
+            p: 2, 
+            borderRadius: 2, 
+            background: '#fef3c7',
+            border: '1px solid #f59e0b',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            mb: 3
+          }}>
+            <Box sx={{ fontSize: '1.2rem' }}>💡</Box>
+            <Typography sx={{ 
+              color: '#92400e',
+              fontSize: '0.875rem',
+              fontWeight: 500
+            }}>
+              Tip: Review all student enrollments before proceeding
+            </Typography>
+          </Box>
+          
+          {/* Typing Confirmation Section */}
+          <Box sx={{ 
+            p: 3, 
+            borderRadius: 2, 
+            background: '#f8fafc',
+            border: '1px solid #e5e7eb',
+            mb: 3
+          }}>
+            <Typography sx={{ 
+              color: '#374151',
+              fontSize: '0.95rem',
+              fontWeight: 600,
+              mb: 2,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1
+            }}>
+              <Box sx={{ 
+                width: 20, 
+                height: 20, 
+                borderRadius: '50%', 
+                background: '#ef4444',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '0.8rem',
+                color: 'white'
+              }}>
+                🔒
+              </Box>
+              Safety Confirmation Required
+            </Typography>
+            
+            <Typography sx={{ 
+              color: '#6b7280',
+              fontSize: '0.875rem',
+              mb: 2
+            }}>
+              To prevent accidental actions, please type <strong>"END SEMESTER"</strong> to confirm:
+            </Typography>
+            
+            <TextField
+              fullWidth
+              size="small"
+              placeholder="Type 'END SEMESTER' to confirm"
+              value={endSemesterConfirmation}
+              onChange={(e) => {
+                setEndSemesterConfirmation(e.target.value);
+                setEndSemesterConfirmationError(false);
+              }}
+              error={endSemesterConfirmationError}
+              helperText={endSemesterConfirmationError ? "Please type exactly 'END SEMESTER' to continue" : ""}
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  '& fieldset': {
+                    borderColor: endSemesterConfirmationError ? '#ef4444' : '#d1d5db'
+                  },
+                  '&:hover fieldset': {
+                    borderColor: endSemesterConfirmationError ? '#ef4444' : '#9ca3af'
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: endSemesterConfirmationError ? '#ef4444' : '#667eea'
+                  }
+                }
+              }}
+            />
+            
+            <Box sx={{ 
+              mt: 2, 
+              p: 2, 
+              borderRadius: 1, 
+              background: endSemesterConfirmation === 'END SEMESTER' ? '#f0fdf4' : '#fef2f2',
+              border: `1px solid ${endSemesterConfirmation === 'END SEMESTER' ? '#bbf7d0' : '#fecaca'}`
+            }}>
+              <Typography sx={{ 
+                color: endSemesterConfirmation === 'END SEMESTER' ? '#166534' : '#991b1b',
+                fontSize: '0.875rem',
+                fontWeight: 500,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1
+              }}>
+                <Box sx={{ fontSize: '1rem' }}>
+                  {endSemesterConfirmation === 'END SEMESTER' ? '✅' : '⏳'}
+                </Box>
+                {endSemesterConfirmation === 'END SEMESTER' 
+                  ? 'Confirmation complete - Proceed with caution'
+                  : 'Waiting for confirmation...'
+                }
+              </Typography>
+            </Box>
+          </Box>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setEndSemesterOpen(false)} disabled={endSemesterLoading}>Cancel</Button>
-          <Button onClick={handleEndSemester} color="error" variant="contained" disabled={endSemesterLoading}>
-            {endSemesterLoading ? 'Processing...' : 'Confirm'}
+        <DialogActions sx={{ 
+          p: 3, 
+          background: '#fef2f2',
+          borderTop: '1px solid #fecaca',
+          gap: 2
+        }}>
+          <Button 
+            onClick={handleCloseEndSemesterModal} 
+            disabled={endSemesterLoading}
+            variant="outlined"
+            sx={{
+              borderRadius: 2,
+              px: 3,
+              py: 1.5,
+              fontWeight: 600,
+              borderColor: '#fca5a5',
+              color: '#991b1b',
+              '&:hover': {
+                borderColor: '#f87171',
+                background: '#fef2f2'
+              },
+              '&:disabled': {
+                borderColor: '#d1d5db',
+                color: '#9ca3af'
+              }
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ fontSize: '1rem' }}>✕</Box>
+              Cancel
+            </Box>
+          </Button>
+          <Button 
+            onClick={() => {
+              if (endSemesterConfirmation !== 'END SEMESTER') {
+                setEndSemesterConfirmationError(true);
+                return;
+              }
+              handleEndSemester();
+            }}
+            variant="contained" 
+            disabled={endSemesterLoading || endSemesterConfirmation !== 'END SEMESTER'}
+            sx={{
+              borderRadius: 2,
+              px: 3,
+              py: 1.5,
+              fontWeight: 600,
+              background: endSemesterConfirmation === 'END SEMESTER' 
+                ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
+                : '#d1d5db',
+              '&:hover': {
+                background: endSemesterConfirmation === 'END SEMESTER'
+                  ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)'
+                  : '#d1d5db',
+                transform: endSemesterConfirmation === 'END SEMESTER' ? 'translateY(-1px)' : 'none',
+                boxShadow: endSemesterConfirmation === 'END SEMESTER' 
+                  ? '0 4px 12px rgba(239, 68, 68, 0.4)'
+                  : 'none'
+              },
+              '&:disabled': {
+                background: '#d1d5db',
+                transform: 'none',
+                boxShadow: 'none'
+              }
+            }}
+          >
+            {endSemesterLoading ? (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <CircularProgress size={16} sx={{ color: 'white' }} />
+                Processing...
+              </Box>
+            ) : (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box sx={{ fontSize: '1rem' }}>
+                  {endSemesterConfirmation === 'END SEMESTER' ? '⚠️' : '🔒'}
+                </Box>
+                {endSemesterConfirmation === 'END SEMESTER' 
+                  ? 'Confirm End Semester'
+                  : 'Type Confirmation First'
+                }
+              </Box>
+            )}
           </Button>
         </DialogActions>
       </Dialog>
