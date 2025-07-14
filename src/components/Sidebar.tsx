@@ -523,7 +523,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                 duration: 0.3,
                 ease: 'easeInOut',
               }}
-              className={`fixed inset-y-0 left-0 text-gray-700 z-[40] overflow-hidden ${isMobile ? 'bg-white shadow-lg border-r border-gray-200' : ''} ${isMobile && isCollapsed ? 'hidden' : ''}`}
+              className={`fixed inset-y-0 left-0 text-gray-700 z-[40] overflow-hidden ${isMobile ? 'bg-white shadow-lg border-r border-gray-200' : ''} ${isMobile && isCollapsed ? 'hidden' : ''} ${shouldBlur() ? 'pointer-events-none' : ''}`}
               onMouseEnter={handleMouseEnter}
               onMouseLeave={handleMouseLeave}
               style={{
