@@ -75,15 +75,41 @@ export default function CourseManagement() {
         if (imagePath && imagePath.trim() !== '' && course.id !== undefined && course.id !== null) {
           newLoading[String(course.id)] = true;
           try {
-            const { data: fileData, error: fileError } = await supabase.storage
+            // First check if the file exists
+            const { data: fileList, error: listError } = await supabase.storage
               .from('course')
-              .download(imagePath);
-            if (!fileError && fileData) {
-              const blobUrl = URL.createObjectURL(fileData);
-              newImages[String(course.id)] = blobUrl;
+              .list('', {
+                search: imagePath
+              });
+            
+            if (!listError && fileList && fileList.length > 0) {
+              // File exists, try to download it
+              const { data: fileData, error: fileError } = await supabase.storage
+                .from('course')
+                .download(imagePath);
+              if (!fileError && fileData) {
+                const blobUrl = URL.createObjectURL(fileData);
+                newImages[String(course.id)] = blobUrl;
+              }
+            } else {
+              // File doesn't exist, clear the image_url from database
+              console.warn('Image not found for course:', course.id, imagePath);
+              await supabase
+                .from('courses')
+                .update({ image_url: null })
+                .eq('id', course.id);
             }
           } catch (error) {
             console.error('Error fetching image for course:', course.id, error);
+            // Clear the invalid image_url from database
+            try {
+              await supabase
+                .from('courses')
+                .update({ image_url: null })
+                .eq('id', course.id);
+            } catch (updateError) {
+              console.error('Error clearing invalid image_url:', updateError);
+            }
           } finally {
             newLoading[String(course.id)] = false;
           }
