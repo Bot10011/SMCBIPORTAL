@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, X } from 'lucide-react';
 
@@ -33,24 +33,59 @@ const CourseModal: React.FC<CourseModalProps> = ({
   handleInputChange,
   formSubmitting
 }) => {
+  useEffect(() => {
+    if (isOpen) {
+      // Disable scrolling on body when modal is open
+      document.body.style.overflow = 'hidden';
+      
+      // Prevent Escape key from closing the modal
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      };
+      
+      window.addEventListener('keydown', handleKeyDown);
+      
+      return () => {
+        // Re-enable scrolling when modal closes
+        document.body.style.overflow = 'auto';
+        window.removeEventListener('keydown', handleKeyDown);
+      };
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   return (
     <>
-      {/* Full screen overlay with blur */}
+      {/* Full screen overlay with strong blur, blocks all pointer events to background and blurs the entire page */}
       <div 
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9998]"
-        onClick={onClose}
+        className="fixed inset-0 z-[9998] pointer-events-auto"
+        aria-hidden="true"
+        style={{
+          backdropFilter: 'blur(10px)',
+          WebkitBackdropFilter: 'blur(10px)',
+          background: 'rgba(0,0,0,0.35)',
+          cursor: 'default',
+        }}
+        onClick={(e) => e.stopPropagation()}
       />
       
-      {/* Centered modal container */}
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+      {/* Centered modal container, allow pointer events */}
+      <div 
+        className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+        // Prevent clicks outside modal from closing it
+        onClick={(e) => e.stopPropagation()}
+      >
         <motion.div
           initial={{ scale: 0.95, opacity: 0, y: 20 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.95, opacity: 0, y: 20 }}
           transition={{ type: "spring", stiffness: 300, damping: 30 }}
-          className="bg-gradient-to-br from-white/95 to-white/90 backdrop-blur-md rounded-3xl p-8 max-w-md w-full mx-4 shadow-2xl border border-white/20"
+          className="bg-gradient-to-br from-white/95 to-white/90 backdrop-blur-md rounded-3xl p-8 max-w-md w-full mx-4 shadow-2xl border border-white/20 pointer-events-auto"
+          // Prevent clicks on modal from propagating to parent elements
           onClick={(e) => e.stopPropagation()}
         >
           {/* Modal header */}
@@ -164,16 +199,15 @@ const CourseModal: React.FC<CourseModalProps> = ({
                   type="number"
                   id="units"
                   name="units"
-                  value={newCourse.units}
+                  value={newCourse.units === 0 ? '' : newCourse.units}
                   onChange={handleInputChange}
                   className={`w-full px-4 py-2.5 rounded-xl border ${
                     formErrors.units 
                       ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
                       : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
                   } focus:ring-2 focus:ring-opacity-50 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm`}
-                  placeholder="Enter number of units"
+                  placeholder="Enter units"
                   min={1}
-                  max={6}
                 />
                 {formErrors.units && (
                   <p className="mt-1 text-sm text-red-600">{formErrors.units}</p>
