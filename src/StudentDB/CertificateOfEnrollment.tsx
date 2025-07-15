@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { FileText, Download, Printer, Eye } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -78,9 +78,9 @@ const COEModal = ({ coe, open, onClose }: { coe: any, open: boolean, onClose: ()
       doc.text(`Semester: ${coe.semester}`, 120, y);
       y += 7;
       doc.text(`Year Level: ${coe.year_level || 'N/A'}`, 20, y);
-      doc.text(`Department: ${coe.department || 'N/A'}`, 120, y);
+      doc.text(`Program: ${coe.department || 'N/A'}`, 120, y);
       y += 7;
-      doc.text(`School Portal Email: ${coe.email || 'N/A'}`, 20, y);
+      doc.text(`Email: ${coe.email || 'N/A'}`, 20, y);
       // Table of courses
       autoTable(doc, {
         startY: y + 10,
@@ -132,9 +132,9 @@ const COEModal = ({ coe, open, onClose }: { coe: any, open: boolean, onClose: ()
       doc.text(`Semester: ${coe.semester}`, 120, y);
       y += 7;
       doc.text(`Year Level: ${coe.year_level || 'N/A'}`, 20, y);
-      doc.text(`Department: ${coe.department || 'N/A'}`, 120, y);
+      doc.text(`Porgram: ${coe.department || 'N/A'}`, 120, y);
       y += 7;
-      doc.text(`School Portal Email: ${coe.email || 'N/A'}`, 20, y);
+      doc.text(`Email: ${coe.email || 'N/A'}`, 20, y);
       autoTable(doc, {
         startY: y + 10,
         head: [['Course Code', 'Course Name', 'Units']],
@@ -170,7 +170,6 @@ const COEModal = ({ coe, open, onClose }: { coe: any, open: boolean, onClose: ()
       {/* Full screen overlay to completely block all interactions */}
       <div 
         className="fixed inset-0 z-[99999] bg-black bg-opacity-50"
-        onClick={handleBackdropClick}
         style={{ 
           pointerEvents: 'auto',
           userSelect: 'none',
@@ -257,11 +256,11 @@ const COEModal = ({ coe, open, onClose }: { coe: any, open: boolean, onClose: ()
                 <p className="font-medium">{coe.year_level || 'N/A'}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">Department</p>
+                <p className="text-sm text-gray-500">Program</p>
                 <p className="font-medium">{coe.department || 'N/A'}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">School Portal Email</p>
+                <p className="text-sm text-gray-500">Email</p>
                 <p className="font-medium">{coe.email || 'N/A'}</p>
               </div>
             </div>
@@ -320,6 +319,11 @@ export const CertificateOfEnrollment: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [selectedCOE, setSelectedCOE] = useState<any | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+
+  // Debug: log state changes
+  useEffect(() => {
+    console.log('selectedCOE:', selectedCOE, 'modalOpen:', modalOpen);
+  }, [selectedCOE, modalOpen]);
 
   useEffect(() => {
     const fetchCOEs = async () => {
@@ -389,7 +393,11 @@ export const CertificateOfEnrollment: React.FC = () => {
                     <td className="px-4 py-2 whitespace-nowrap">
                       <button
                         className="inline-flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                        onClick={() => { setSelectedCOE(coe); setModalOpen(true); }}
+                        onClick={() => { 
+                          console.log('View button clicked', coe);
+                          setSelectedCOE(coe); 
+                          setModalOpen(true); 
+                        }}
                       >
                         <Eye className="w-4 h-4" /> View
                       </button>
@@ -401,11 +409,13 @@ export const CertificateOfEnrollment: React.FC = () => {
           </div>
         )}
       </div>
-      <AnimatePresence>
-        {modalOpen && selectedCOE && (
-          createPortal(<COEModal coe={selectedCOE} open={modalOpen} onClose={() => setModalOpen(false)} />, document.body)
-        )}
-      </AnimatePresence>
+      {/* Only render the portal when modalOpen and selectedCOE are true */}
+      {modalOpen && selectedCOE &&
+        createPortal(
+          <COEModal coe={selectedCOE} open={modalOpen} onClose={() => setModalOpen(false)} />, 
+          document.body
+        )
+      }
     </div>
   );
 }; 
