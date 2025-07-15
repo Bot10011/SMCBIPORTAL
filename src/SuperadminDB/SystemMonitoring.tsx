@@ -233,6 +233,10 @@ const SystemMonitoring: React.FC = () => {
     return new Intl.NumberFormat().format(num);
   };
 
+  const STORAGE_LIMIT_BYTES = 2 * 1024 * 1024 * 1024; // 2GB default quota
+  const usedBytes = databaseHealth?.totalStorageSize || 0;
+  const leftBytes = STORAGE_LIMIT_BYTES - usedBytes;
+
   const handleSessionClick = (session: LoginSession) => {
     setSelectedSession(session);
     setShowUserLocationModal(true);
@@ -298,9 +302,12 @@ const SystemMonitoring: React.FC = () => {
               <div>
                 <p className="text-sm font-medium text-gray-500">Storage Used</p>
                 <p className="text-2xl font-bold text-gray-800">
-                  {formatBytes(databaseHealth?.totalStorageSize || 0)}
+                  {formatBytes(usedBytes)}
                 </p>
                 <p className="text-sm text-purple-500">Files & documents</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Space Left: <span className="font-semibold">{formatBytes(leftBytes > 0 ? leftBytes : 0)}</span> / {formatBytes(STORAGE_LIMIT_BYTES)}
+                </p>
               </div>
             </div>
 
