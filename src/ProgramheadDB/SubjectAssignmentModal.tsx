@@ -9,6 +9,7 @@ interface TeacherSubject {
   section: string;
   academic_year: string;
   semester: string;
+  year_level: string; // Added year_level
   is_active: boolean;
 }
 
@@ -67,6 +68,9 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
     `${currentYear + 1}-${currentYear + 2}`,
     `${currentYear + 2}-${currentYear + 3}`
   ];
+
+  // Add year levels array
+  const yearLevels = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
 
   if (!isOpen) return null;
 
@@ -185,6 +189,33 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
               </select>
               {formErrors.section && (
                 <p className="mt-1 text-sm text-red-600">{formErrors.section}</p>
+              )}
+            </div>
+
+            {/* Year Level */}
+            <div className="mb-5">
+              <label htmlFor="year_level" className="block text-sm font-medium text-gray-700 mb-1">
+                Year Level <span className="text-red-500">*</span>
+              </label>
+              <select
+                id="year_level"
+                name="year_level"
+                value={assignment.year_level}
+                onChange={handleInputChange}
+                className={`w-full px-4 py-2.5 rounded-xl border ${
+                  formErrors.year_level 
+                    ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
+                    : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
+                } focus:ring-2 focus:ring-opacity-50 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm`}
+                required
+              >
+                <option value="">Select Year Level</option>
+                {yearLevels.map((level) => (
+                  <option key={level} value={level}>{level}</option>
+                ))}
+              </select>
+              {formErrors.year_level && (
+                <p className="mt-1 text-sm text-red-600">{formErrors.year_level}</p>
               )}
             </div>
 
