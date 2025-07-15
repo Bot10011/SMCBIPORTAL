@@ -170,11 +170,50 @@ const DashboardOverview = () => {
     }));
   }, []);
 
-  const [recentAnnouncements] = useState([
-    { id: 1, title: 'Midterm Schedule Released', date: '2 hours ago', type: 'academic' },
-    { id: 2, title: 'Registration for Next Semester', date: '1 day ago', type: 'registration' },
-    { id: 3, title: 'Campus Event: Tech Week', date: '2 days ago', type: 'event' }
-  ]);
+  // Remove the dummy announcements state and add real fetching logic
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [loadingAnnouncements, setLoadingAnnouncements] = useState(true);
+
+  // Announcement type based on LandingPage.tsx
+  interface Announcement {
+    id: string;
+    title: string;
+    content: string;
+    author: string;
+    date: string;
+    priority: 'low' | 'medium' | 'high';
+    category: string;
+    image?: string;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+  }
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchAnnouncements = async () => {
+      setLoadingAnnouncements(true);
+      try {
+        const { data, error } = await supabase
+          .from('announcements')
+          .select('*')
+          .eq('is_active', true)
+          .order('created_at', { ascending: false })
+          .limit(10);
+        if (error) {
+          console.error('Error fetching announcements:', error);
+        } else if (isMounted) {
+          setAnnouncements(data || []);
+        }
+      } catch (error) {
+        console.error('Error fetching announcements:', error);
+      } finally {
+        setLoadingAnnouncements(false);
+      }
+    };
+    fetchAnnouncements();
+    return () => { isMounted = false; };
+  }, []);
 
   return (
     <div className="flex flex-col h-full">
@@ -307,33 +346,62 @@ const DashboardOverview = () => {
               </h2>
             </div>
             <div className="divide-y divide-gray-200/50">
-              {recentAnnouncements.map((announcement, index) => (
-                <motion.div
-                  key={announcement.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: 0.4 + index * 0.1 }}
-                  className="group p-5 sm:p-6 md:p-8 hover:bg-gray-200/50 transition-colors duration-200 border border-gray-200/50 mx-4 my-2 rounded-lg shadow-[inset_2px_2px_4px_rgba(0,0,0,0.05),inset_-2px_-2px_4px_rgba(255,255,255,0.7)] hover:shadow-[inset_3px_3px_6px_rgba(0,0,0,0.08),inset_-3px_-3px_6px_rgba(255,255,255,0.8)]"
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                    <div className="flex-1 space-y-1">
-                      <h3 className="font-medium text-gray-900 group-hover:text-gray-800 transition-colors">
-                        {announcement.title}
-                      </h3>
-                      <p className="text-sm text-gray-500">{announcement.date}</p>
+              {loadingAnnouncements ? (
+                <div className="flex justify-center items-center h-32">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                </div>
+              ) : announcements.length === 0 ? (
+                <div className="p-6 text-center text-gray-500">No announcements available.</div>
+              ) : (
+                announcements.map((announcement, index) => (
+                  <motion.div
+                    key={announcement.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3, delay: 0.4 + index * 0.1 }}
+                    className="group flex flex-col sm:flex-row items-stretch gap-6 p-6 md:p-8 bg-white rounded-xl shadow-lg border border-gray-200 my-4 mx-2 sm:mx-4 hover:shadow-xl transition-all duration-200"
+                  >
+                    {/* Image section */}
+                    {announcement.image && (
+                      <div className="flex-shrink-0 flex items-center justify-center w-full sm:w-40 md:w-48 h-40 bg-gray-50 rounded-lg overflow-hidden border border-gray-100 shadow-sm mb-4 sm:mb-0">
+                        <img
+                          src={announcement.image}
+                          alt="Announcement"
+                          className="object-cover w-full h-full"
+                          onError={e => { e.currentTarget.style.display = 'none'; }}
+                        />
+                      </div>
+                    )}
+                    {/* Content section */}
+                    <div className="flex-1 flex flex-col justify-between min-w-0">
+                      <div>
+                        <h3 className="text-xl md:text-2xl font-bold text-gray-900 mb-2 group-hover:text-blue-700 transition-colors truncate">
+                          {announcement.title}
+                        </h3>
+                        <p className="text-gray-600 text-sm md:text-base mb-3 whitespace-pre-line line-clamp-4">
+                          {announcement.content}
+                        </p>
+                      </div>
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between mt-4 gap-2">
+                        <div className="flex items-center gap-3 text-xs text-gray-500">
+                          <span>By <span className="font-semibold text-gray-700">{announcement.author}</span></span>
+                          <span className="hidden sm:inline">•</span>
+                          <span>{new Date(announcement.created_at).toLocaleString()}</span>
+                        </div>
+                        <span className={`px-4 py-1.5 text-xs font-semibold rounded-full transition-colors border border-gray-200 shadow-sm ${
+                          announcement.category === 'academic' 
+                            ? 'bg-blue-50 text-blue-700' 
+                            : announcement.category === 'registration' 
+                            ? 'bg-green-50 text-green-700' 
+                            : 'bg-purple-50 text-purple-700'
+                        }`}>
+                          {announcement.category}
+                        </span>
+                      </div>
                     </div>
-                    <span className={`px-3 py-1.5 text-xs font-medium rounded-full self-start sm:self-auto transition-colors shadow-[inset_1px_1px_2px_rgba(0,0,0,0.1),inset_-1px_-1px_2px_rgba(255,255,255,0.8)] border border-gray-200/50 ${
-                      announcement.type === 'academic' 
-                        ? 'bg-gray-200/80 text-blue-700 group-hover:bg-gray-300/80' 
-                        : announcement.type === 'registration' 
-                        ? 'bg-gray-200/80 text-green-700 group-hover:bg-gray-300/80' 
-                        : 'bg-gray-200/80 text-purple-700 group-hover:bg-gray-300/80'
-                    }`}>
-                      {announcement.type}
-                    </span>
-                  </div>
-                </motion.div>
-              ))}
+                  </motion.div>
+                ))
+              )}
             </div>
           </motion.div>
         </div>
