@@ -1,0 +1,787 @@
+/* Prospectus Container */
+.prospectus-container {
+  min-height: 100vh;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-family: 'Times New Roman', serif;
+}
+
+.prospectus-header {
+  text-align: center;
+  margin-bottom: 2rem;
+  color: #2c3e50;
+}
+
+.prospectus-header h1 {
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
+  color: #34495e;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+}
+
+.prospectus-header p {
+  font-size: 1.2rem;
+  color: #7f8c8d;
+  font-style: italic;
+  margin-bottom: 1rem;
+}
+
+.download-btn {
+  background: linear-gradient(135deg, #8b4513 0%, #a0522d 100%);
+  color: white;
+  border: none;
+  padding: 0.8rem 1.5rem;
+  border-radius: 25px;
+  font-size: 0.9rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 8px rgba(139, 69, 19, 0.3);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 auto;
+}
+
+.download-btn:hover {
+  background: linear-gradient(135deg, #a0522d 0%, #8b4513 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(139, 69, 19, 0.4);
+}
+
+.download-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.download-btn::before {
+  content: '📄';
+  font-size: 1rem;
+}
+
+.download-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.download-btn.secondary {
+  background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+}
+
+.download-btn.secondary:hover {
+  background: linear-gradient(135deg, #495057 0%, #6c757d 100%);
+}
+
+.download-btn.secondary::before {
+  content: '🖼️';
+}
+
+/* Flip Card Container */
+.flip-card-container {
+  perspective: 1000px;
+  width: 100%;
+  max-width: 1200px;
+  height: calc(100vh - 180px); /* header + margin estimate */
+  min-height: 400px;
+  margin: 0 auto;
+  display: flex;
+  align-items: stretch;
+}
+
+.flip-card {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  text-align: left;
+  transition: transform 0.8s;
+  transform-style: preserve-3d;
+  cursor: pointer;
+  display: flex;
+}
+
+.flip-card.flipped {
+  transform: rotateY(180deg);
+}
+
+.flip-card-front,
+.flip-card-back {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+  border-radius: 15px;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.flip-card-back {
+  transform: rotateY(180deg);
+}
+
+/* Document Styling */
+.prospectus-document {
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 100%;
+  background: linear-gradient(135deg, #f5f2eb 0%, #e8e4d9 50%, #d4c8b8 100%);
+  padding: 1.5rem;
+  overflow-y: auto;
+  position: relative;
+  font-size: 0.8rem;
+  line-height: 1.3;
+  color: #2c3e50;
+  scrollbar-width: thin;
+  scrollbar-color: #8b4513 #f5f2eb;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* Paper texture effect */
+.prospectus-document::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: 
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 2px,
+      rgba(139, 69, 19, 0.03) 2px,
+      rgba(139, 69, 19, 0.03) 4px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(139, 69, 19, 0.02) 2px,
+      rgba(139, 69, 19, 0.02) 4px
+    );
+  pointer-events: none;
+  opacity: 0.8;
+}
+
+/* Document Header */
+.document-header {
+  margin-bottom: 2rem;
+  position: relative;
+  z-index: 1;
+}
+
+.header-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.5rem;
+  max-width: 100%;
+}
+
+.logo-section {
+  flex-shrink: 0;
+}
+
+.logo-seal {
+  position: relative;
+}
+
+.logo-image {
+  width: 90px;
+  height: 90px;
+  object-fit: contain;
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(139, 69, 19, 0.3);
+}
+
+.institution-info {
+  flex: 1;
+  text-align: left;
+}
+
+.institution-info h2 {
+  font-size: 1.3rem;
+  font-weight: bold;
+  margin-bottom: 0.3rem;
+  color: #2c3e50;
+  line-height: 1.2;
+}
+
+.institution-info .former-name {
+  font-size: 0.8rem;
+  color: #7f8c8d;
+  margin-bottom: 0.2rem;
+  font-style: italic;
+}
+
+.institution-info .address {
+  font-size: 0.8rem;
+  color: #34495e;
+  margin-bottom: 0.8rem;
+  line-height: 1.3;
+}
+
+.institution-info h3 {
+  font-size: 1.1rem;
+  font-weight: bold;
+  margin: 0.8rem 0 0.3rem 0;
+  color: #8b4513;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.institution-info .effective-date {
+  font-size: 0.85rem;
+  color: #7f8c8d;
+  font-weight: 500;
+}
+
+/* Semester Sections */
+.semester-section {
+  margin-bottom: 2rem;
+  position: relative;
+  z-index: 1;
+}
+
+.semester-section h4 {
+  font-size: 0.9rem;
+  font-weight: bold;
+  margin-bottom: 1rem;
+  color: #8b4513;
+  text-align: center;
+  background: #f8f4f0;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid #8b4513;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: 0 1px 3px rgba(139, 69, 19, 0.2);
+}
+
+/* Table Styling */
+.prospectus-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1.5rem;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #8b4513;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+  font-size: 0.7rem;
+}
+
+.prospectus-table th {
+  background: #8b4513;
+  color: white;
+  padding: 0.4rem 0.3rem;
+  text-align: center;
+  font-size: 0.65rem;
+  font-weight: bold;
+  border: 1px solid #654321;
+  vertical-align: middle;
+}
+
+.prospectus-table th:first-child {
+  width: 8%;
+}
+
+.prospectus-table th:nth-child(2) {
+  width: 12%;
+}
+
+.prospectus-table th:nth-child(3) {
+  width: 35%;
+}
+
+.prospectus-table th:nth-child(4),
+.prospectus-table th:nth-child(5),
+.prospectus-table th:nth-child(6) {
+  width: 8%;
+}
+
+.prospectus-table th:nth-child(7) {
+  width: 15%;
+}
+
+.prospectus-table th:last-child {
+  width: 12%;
+}
+
+.prospectus-table td {
+  padding: 0.3rem 0.2rem;
+  text-align: center;
+  border: 1px solid #ddd;
+  font-size: 0.65rem;
+  vertical-align: middle;
+  line-height: 1.2;
+}
+
+.prospectus-table td:nth-child(3) {
+  text-align: left;
+  font-size: 0.6rem;
+  padding-left: 0.4rem;
+  padding-right: 0.4rem;
+}
+
+.prospectus-table td:nth-child(7) {
+  font-size: 0.6rem;
+}
+
+.prospectus-table tr:nth-child(even) {
+  background: rgba(248, 244, 240, 0.6);
+}
+
+.prospectus-table tr:hover {
+  background: rgba(139, 69, 19, 0.05);
+}
+
+.total-row {
+  background: #f8f4f0 !important;
+  font-weight: bold;
+  color: #8b4513;
+}
+
+.total-row td {
+  border-top: 2px solid #8b4513;
+  font-size: 0.7rem;
+}
+
+.total-row td:first-child {
+  text-align: right;
+  padding-right: 0.5rem;
+}
+
+/* Electives Section */
+.electives-section {
+  margin: 2rem 0;
+  position: relative;
+  z-index: 1;
+}
+
+.electives-section h4 {
+  font-size: 1rem;
+  font-weight: bold;
+  margin-bottom: 1rem;
+  color: #8b4513;
+  text-align: center;
+  background: #f8f4f0;
+  padding: 0.5rem;
+  border-radius: 5px;
+  border-left: 4px solid #8b4513;
+}
+
+.electives-list {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 0.5rem;
+}
+
+.electives-list li {
+  background: rgba(255, 255, 255, 0.8);
+  padding: 0.5rem;
+  border-radius: 5px;
+  border-left: 3px solid #8b4513;
+  font-size: 0.75rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+/* Signatures Section */
+.signatures-section {
+  margin: 2rem 0;
+  position: relative;
+  z-index: 1;
+}
+
+.signature-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+  gap: 2rem;
+}
+
+.signature-item {
+  flex: 1;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.8);
+  padding: 1rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.signature-item p {
+  margin: 0.3rem 0;
+  font-size: 0.75rem;
+}
+
+.signature-line {
+  width: 150px;
+  height: 2px;
+  background: #8b4513;
+  margin: 1rem auto 0;
+  border-radius: 1px;
+}
+
+.stamp-section {
+  text-align: center;
+  margin: 2rem 0;
+}
+
+.stamp {
+  display: inline-block;
+  background: #8b4513;
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: bold;
+  margin-bottom: 0.5rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+/* Document Footer */
+.document-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid #8b4513;
+  position: relative;
+  z-index: 1;
+}
+
+.footer-left,
+.footer-right {
+  font-size: 0.65rem;
+  color: #7f8c8d;
+  line-height: 1.2;
+}
+
+.footer-left p,
+.footer-right p {
+  margin: 0.1rem 0;
+}
+
+.footer-center {
+  text-align: center;
+  flex: 1;
+  margin: 0 1rem;
+}
+
+.footer-center .stamp {
+  font-size: 0.6rem;
+  padding: 0.2rem 0.6rem;
+  background: #8b4513;
+  color: white;
+  border-radius: 12px;
+  display: inline-block;
+  margin-bottom: 0.2rem;
+  font-weight: bold;
+}
+
+.footer-center .signature {
+  font-size: 0.65rem;
+  color: #7f8c8d;
+  margin-top: 0.2rem;
+  font-style: italic;
+}
+
+/* Instructions */
+.prospectus-instructions {
+  text-align: center;
+  margin-top: 2rem;
+  color: #7f8c8d;
+  font-style: italic;
+  font-size: 0.9rem;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .prospectus-container {
+    padding: 1rem;
+  }
+  
+  .flip-card-container {
+    height: calc(100vh - 120px);
+    min-height: 300px;
+  }
+  
+  .prospectus-document {
+    padding: 1rem;
+    font-size: 0.75rem;
+  }
+  
+  .signature-row {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .electives-list {
+    grid-template-columns: 1fr;
+  }
+  
+  .prospectus-table {
+    font-size: 0.6rem;
+  }
+  
+  .prospectus-table th,
+  .prospectus-table td {
+    padding: 0.3rem 0.2rem;
+    font-size: 0.6rem;
+  }
+}
+
+/* Scrollbar Styling */
+.prospectus-document::-webkit-scrollbar {
+  width: 10px;
+}
+
+.prospectus-document::-webkit-scrollbar-track {
+  background: #f5f2eb;
+  border-radius: 4px;
+}
+
+.prospectus-document::-webkit-scrollbar-thumb {
+  background: #8b4513;
+  border-radius: 4px;
+  border: 2px solid #f5f2eb;
+}
+
+.prospectus-document::-webkit-scrollbar-thumb:hover {
+  background: #a0522d;
+}
+
+/* Ensure proper scrolling behavior */
+.flip-card-front .prospectus-document,
+.flip-card-back .prospectus-document {
+  overflow-y: scroll;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* Page Indicators */
+.page-indicator {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: rgba(139, 69, 19, 0.9);
+  color: white;
+  padding: 0.3rem 0.8rem;
+  border-radius: 15px;
+  font-size: 0.7rem;
+  font-weight: bold;
+  z-index: 10;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.flip-card-back .page-indicator {
+  background: rgba(139, 69, 19, 0.9);
+}
+
+/* Animation for page load */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.prospectus-container {
+  animation: fadeInUp 0.8s ease-out;
+}
+
+/* Paper fold effect removed */ 
+
+/* Print and Download Styles - Ensure html2canvas captures everything correctly */
+@media print, screen {
+  .prospectus-document {
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  
+  .prospectus-table {
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    border-collapse: collapse !important;
+    border: 1px solid #8b4513 !important;
+  }
+  
+  .prospectus-table th {
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    background: #8b4513 !important;
+    color: white !important;
+    border: 1px solid #654321 !important;
+  }
+  
+  .prospectus-table td {
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    border: 1px solid #ddd !important;
+  }
+  
+  .prospectus-table tr:nth-child(even) {
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    background: rgba(248, 244, 240, 0.6) !important;
+  }
+  
+  .total-row {
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    background: #f8f4f0 !important;
+    color: #8b4513 !important;
+  }
+  
+  .semester-section h4 {
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    background: #f8f4f0 !important;
+    color: #8b4513 !important;
+    border: 1px solid #8b4513 !important;
+  }
+  
+  .stamp {
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    background: #8b4513 !important;
+    color: white !important;
+  }
+  
+  .signature-line {
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    background: #8b4513 !important;
+  }
+  
+  .electives-list li {
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    background: rgba(255, 255, 255, 0.8) !important;
+    border-left: 3px solid #8b4513 !important;
+  }
+  
+  .signature-item {
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    background: rgba(255, 255, 255, 0.8) !important;
+  }
+}
+
+/* Inverted text styles for download */
+.prospectus-document.download-mode {
+  background: #2c3e50 !important;
+  color: white !important;
+}
+
+.prospectus-document.download-mode .prospectus-table {
+  background: rgba(255, 255, 255, 0.95) !important;
+  color: #2c3e50 !important;
+}
+
+.prospectus-document.download-mode .prospectus-table th {
+  background: #34495e !important;
+  color: white !important;
+}
+
+.prospectus-document.download-mode .prospectus-table td {
+  color: #2c3e50 !important;
+}
+
+.prospectus-document.download-mode .semester-section h4 {
+  background: #34495e !important;
+  color: white !important;
+  border-color: #2c3e50 !important;
+}
+
+.prospectus-document.download-mode .total-row {
+  background: #ecf0f1 !important;
+  color: #2c3e50 !important;
+}
+
+.prospectus-document.download-mode .stamp {
+  background: #34495e !important;
+  color: white !important;
+}
+
+.prospectus-document.download-mode .signature-line {
+  background: #34495e !important;
+}
+
+.prospectus-document.download-mode .electives-list li {
+  background: rgba(255, 255, 255, 0.9) !important;
+  color: #2c3e50 !important;
+  border-left-color: #34495e !important;
+}
+
+.prospectus-document.download-mode .signature-item {
+  background: rgba(255, 255, 255, 0.9) !important;
+  color: #2c3e50 !important;
+}
+
+/* Enhanced table styling for better capture */
+.prospectus-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1.5rem;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #8b4513;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+  font-size: 0.7rem;
+  table-layout: fixed;
+}
+
+.prospectus-table th {
+  background: #8b4513;
+  color: white;
+  padding: 0.4rem 0.3rem;
+  text-align: center;
+  font-size: 0.65rem;
+  font-weight: bold;
+  border: 1px solid #654321;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.prospectus-table td {
+  padding: 0.3rem 0.2rem;
+  text-align: center;
+  border: 1px solid #ddd;
+  font-size: 0.65rem;
+  vertical-align: middle;
+  line-height: 1.2;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.prospectus-table td:nth-child(3) {
+  text-align: left;
+  font-size: 0.6rem;
+  padding-left: 0.4rem;
+  padding-right: 0.4rem;
+  white-space: normal;
+} 
