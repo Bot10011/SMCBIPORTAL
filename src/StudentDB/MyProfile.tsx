@@ -15,21 +15,15 @@ import {
   Sparkles
 } from 'lucide-react';
 
-interface Program {
-  id: number;
-  code: string;
-  name: string;
-  description?: string;
-}
-
 type UserProfile = Database['public']['Tables']['user_profiles']['Row'] & {
   course?: string;
   enrollment_date?: string;
   year_level?: string;
   student_id?: string;
   program_id?: number;
-  section?: string;
+  section?: string; // ensure section is included
   enrollment_status?: 'enrolled' | 'not_enrolled' | 'pending';
+  department?: string; // ensure department is included
 };
 
 export const MyProfile: React.FC = () => {
@@ -39,7 +33,6 @@ export const MyProfile: React.FC = () => {
   const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(null);
   const [isHovering, setIsHovering] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [program, setProgram] = useState<Program | null>(null);
 
   const handleProfileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -57,6 +50,9 @@ export const MyProfile: React.FC = () => {
       if (file.size > 5 * 1024 * 1024) {
         throw new Error('File size must be less than 5MB');
       }
+
+      // Get the current image path from the profile
+      const oldImagePath = profile?.profile_picture_url;
 
       // Create a unique file name
       const fileExt = file.name.split('.').pop();
@@ -105,6 +101,11 @@ export const MyProfile: React.FC = () => {
         throw updateError;
       }
 
+      // Delete the old image from storage if it exists and is different from the new one
+      if (oldImagePath && oldImagePath !== filePath) {
+        await supabase.storage.from('avatar').remove([oldImagePath]);
+      }
+
       // Update local state with the blob URL
       setProfilePictureUrl(blobUrl);
 
@@ -143,18 +144,6 @@ export const MyProfile: React.FC = () => {
           if (error) throw error;
           setProfile(data);
           
-          // Fetch program details if program_id exists
-          if (data.program_id) {
-            const { data: programData, error: programError } = await supabase
-              .from('programs')
-              .select('*')
-              .eq('id', data.program_id)
-              .single();
-
-            if (programError) throw programError;
-            setProgram(programData);
-          }
-
           if (data?.profile_picture_url) {
             try {
               // First verify the file exists
@@ -353,7 +342,7 @@ export const MyProfile: React.FC = () => {
             <BookOpen className="w-6 h-6 text-purple-600" />
           </div>
           <div className="text-xs text-gray-500">Program</div>
-          <div className="text-lg font-bold text-gray-900">{program?.code ?? 'N/A'}</div>
+          <div className="text-lg font-bold text-gray-900">{profile?.department ?? 'N/A'}</div>
         </div>
         {/* Year Level */}
         <div className="flex flex-col items-center bg-white rounded-2xl shadow-lg border border-blue-100 p-6 gap-2 hover:shadow-2xl transition-all">
