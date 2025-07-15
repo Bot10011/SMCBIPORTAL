@@ -25,6 +25,38 @@ import { motion, AnimatePresence } from 'framer-motion';
 // Add custom CSS for animations and scrollbar
 import './sidebar.css';
 
+// Custom Prospectus Icon Component
+const ProspectusIcon: React.FC<{ className?: string }> = ({ className = "w-5 h-5" }) => (
+  <svg 
+    className={className} 
+    viewBox="0 0 24 24" 
+    fill="none" 
+    stroke="currentColor" 
+    strokeWidth="2" 
+    strokeLinecap="round" 
+    strokeLinejoin="round"
+  >
+    {/* Document base */}
+    <rect x="3" y="2" width="18" height="20" rx="2" ry="2" />
+    {/* Document header with title */}
+    <line x1="6" y1="5" x2="18" y2="5" />
+    <line x1="6" y1="7" x2="18" y2="7" />
+    {/* Document content lines */}
+    <line x1="6" y1="10" x2="16" y2="10" />
+    <line x1="6" y1="12" x2="16" y2="12" />
+    <line x1="6" y1="14" x2="14" y2="14" />
+    {/* Academic seal/emblem */}
+    <circle cx="12" cy="17" r="2.5" />
+    <path d="M12 14.5v-1" />
+    {/* Graduation cap symbol */}
+    <path d="M9 19l3-2 3 2" />
+    <path d="M12 17v-1" />
+    {/* Small tassel */}
+    <path d="M11 16h2" />
+    <path d="M11.5 15l0.5 1 0.5-1" />
+  </svg>
+);
+
 interface SidebarItem {
   label: string;
   path: string;
@@ -235,6 +267,12 @@ const sidebarItems: SidebarItem[] = [
     label: 'COE',
     path: '/student/dashboard/coe',
     icon: <FileText className="w-5 h-5" />,
+    roles: ['student'],
+  },
+  {
+    label: 'Prospectus',
+    path: '/student/dashboard/prospectus',
+    icon: <ProspectusIcon />,
     roles: ['student'],
   },
   {
