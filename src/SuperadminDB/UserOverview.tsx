@@ -13,6 +13,8 @@ interface UserData {
   created_at: string;
   last_login: string | null;
   is_active: boolean;
+  first_name?: string;
+  last_name?: string;
 }
 
 const UserOverview: React.FC = () => {
@@ -269,7 +271,11 @@ const UserOverview: React.FC = () => {
                           <User className="h-6 w-6 text-gray-600" />
                         </div>
                         <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">{userData.username || 'No username'}</div>
+                          <div className="text-sm font-medium text-gray-900">
+                            {(userData.first_name || userData.last_name)
+                              ? `${userData.first_name || ''} ${userData.last_name || ''}`.trim()
+                              : (userData.email || 'No email')}
+                          </div>
                           <div className="text-sm text-gray-500">{userData.email || 'No email'}</div>
                         </div>
                       </div>
