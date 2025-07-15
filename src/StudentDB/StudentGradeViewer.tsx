@@ -3,13 +3,11 @@ import { useAuth } from '../contexts/AuthContext';
 import { GradeSummary } from '../types/grades';
 import { supabase } from '../lib/supabase';
 import { 
-  GraduationCap, 
   Search, 
   BookOpen, 
   Users, 
   TrendingUp,
   Award,
-  Calendar,
   ChevronDown,
   ChevronUp
 } from 'lucide-react';
@@ -20,7 +18,6 @@ const YEAR_LABELS = [
   'Second Year',
   'Third Year',
   'Fourth Year',
-  'Unsorted',
 ];
 
 const YEAR_ICONS: Record<string, JSX.Element> = {
@@ -28,7 +25,6 @@ const YEAR_ICONS: Record<string, JSX.Element> = {
   'Second Year': <BookOpen className="w-5 h-5 text-green-500 mr-3" />,
   'Third Year': <BookOpen className="w-5 h-5 text-yellow-500 mr-3" />,
   'Fourth Year': <BookOpen className="w-5 h-5 text-purple-500 mr-3" />,
-  'Unsorted': <BookOpen className="w-5 h-5 text-gray-400 mr-3" />,
 };
 
 const YEAR_COLORS: Record<string, string> = {
@@ -36,7 +32,6 @@ const YEAR_COLORS: Record<string, string> = {
   'Second Year': 'from-green-500 to-green-600',
   'Third Year': 'from-yellow-500 to-yellow-600',
   'Fourth Year': 'from-purple-500 to-purple-600',
-  'Unsorted': 'from-gray-500 to-gray-600',
 };
 
 export const StudentGradeViewer: React.FC = () => {
@@ -49,7 +44,6 @@ export const StudentGradeViewer: React.FC = () => {
     'Second Year': false,
     'Third Year': false,
     'Fourth Year': false,
-    'Unsorted': true,
   });
 
   useEffect(() => {
@@ -83,9 +77,9 @@ export const StudentGradeViewer: React.FC = () => {
           const subjectIds = enrollments.map(e => e.subject_id);
           const { data: teacherAssignmentsRaw } = await supabase
             .from('teacher_subjects')
-            .select(`subject_id, teacher:user_profiles!teacher_subjects_teacher_id_fkey(first_name, last_name)`)
+            .select(`subject_id, year_level, teacher:user_profiles!teacher_subjects_teacher_id_fkey(first_name, last_name)`)
             .in('subject_id', subjectIds);
-          const teacherAssignments = (teacherAssignmentsRaw || []) as { subject_id: string; teacher: { first_name: string; last_name: string } | { first_name: string; last_name: string }[] }[];
+          const teacherAssignments = (teacherAssignmentsRaw || []) as { subject_id: string; year_level?: string; teacher: { first_name: string; last_name: string } | { first_name: string; last_name: string }[] }[];
 
           // 4. Build GradeSummary[] for the table
           const gradesSummary = gradesData.map(grade => {
@@ -94,6 +88,7 @@ export const StudentGradeViewer: React.FC = () => {
             const course = Array.isArray(enrollment.course) ? enrollment.course[0] : enrollment.course;
             const teacherAssignment = teacherAssignments.find(t => t.subject_id === enrollment.subject_id);
             let teacherName: string | null = null;
+            let yearLevel: string | null = null;
             if (teacherAssignment) {
               if (Array.isArray(teacherAssignment.teacher)) {
                 const t = teacherAssignment.teacher[0];
@@ -101,21 +96,24 @@ export const StudentGradeViewer: React.FC = () => {
               } else if (teacherAssignment.teacher) {
                 teacherName = `${teacherAssignment.teacher.first_name} ${teacherAssignment.teacher.last_name}`;
               }
+              yearLevel = teacherAssignment.year_level || null;
             }
             return {
+              id: grade.id,
               student_id: user.id,
               student_name: '',
               subject_code: String(course?.code || ''),
               subject_name: String(course?.name || ''),
-              teacher_name: teacherName || null,
+              teacher_name: teacherName !== undefined ? teacherName : null,
               prelim_grade: grade.prelim_grade ?? null,
               midterm_grade: grade.midterm_grade ?? null,
               final_grade: grade.final_grade ?? null,
               status: (grade.status ?? '') as GradeSummary['status'],
-              remarks: grade.remarks ?? null
+              remarks: grade.remarks ?? null,
+              year_level: yearLevel,
             };
-          }).filter((g): g is GradeSummary => g !== null);
-          setGrades(gradesSummary as GradeSummary[]);
+          }).filter((g): g is GradeSummary & { year_level?: string | null } => g !== null);
+          setGrades(gradesSummary as any);
         }
       } catch (error) {
         console.error('Error fetching grades or enrolled subjects:', error);
@@ -133,13 +131,28 @@ export const StudentGradeViewer: React.FC = () => {
   );
 
   // For now, all grades go to 'Unsorted'.
-  const gradesByYear: { [key: string]: GradeSummary[] } = {
+  const gradesByYear: { [key: string]: (GradeSummary & { year_level?: string | null })[] } = {
     'First Year': [],
     'Second Year': [],
     'Third Year': [],
     'Fourth Year': [],
-    'Unsorted': filteredGrades,
   };
+  filteredGrades.forEach(g => {
+    switch (g.year_level) {
+      case '1st Year':
+        gradesByYear['First Year'].push(g);
+        break;
+      case '2nd Year':
+        gradesByYear['Second Year'].push(g);
+        break;
+      case '3rd Year':
+        gradesByYear['Third Year'].push(g);
+        break;
+      case '4th Year':
+        gradesByYear['Fourth Year'].push(g);
+        break;
+    }
+  });
 
   const toggleSection = (year: string) => {
     setOpenSections(prev => ({ ...prev, [year]: !prev[year] }));
@@ -287,6 +300,7 @@ export const StudentGradeViewer: React.FC = () => {
                             <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Prelim</th>
                             <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Midterm</th>
                             <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Final</th>
+                            <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">GA</th>
                             <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
                           </tr>
                         </thead>
@@ -306,7 +320,7 @@ export const StudentGradeViewer: React.FC = () => {
                           ) : (
                             gradesByYear[year].map((grade, gradeIndex) => (
                               <motion.tr 
-                                key={`${grade.student_id}-${grade.subject_code}`}
+                                key={grade.id}
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.3, delay: gradeIndex * 0.05 }}
@@ -352,6 +366,15 @@ export const StudentGradeViewer: React.FC = () => {
                                       : 'bg-gray-100 text-gray-500'
                                   }`}>
                                     {grade.final_grade ?? 'N/A'}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-indigo-100 text-indigo-800`}>
+                                    {grade.prelim_grade !== undefined && grade.prelim_grade !== null &&
+                                     grade.midterm_grade !== undefined && grade.midterm_grade !== null &&
+                                     grade.final_grade !== undefined && grade.final_grade !== null
+                                      ? ((Number(grade.prelim_grade) + Number(grade.midterm_grade) + Number(grade.final_grade)) / 3).toFixed(2)
+                                      : 'N/A'}
                                   </span>
                                 </td>
                                 <td className="px-4 py-3 text-center">
