@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { useModal } from '../contexts/ModalContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Check, X, AlertCircle, FileEdit, Trash2 } from 'lucide-react';
 import SubjectAssignmentModal from './SubjectAssignmentModal';
@@ -19,6 +18,7 @@ interface TeacherSubject {
   subject_code?: string;  // This will store the course_code
   subject_name?: string;  // This will store the course_name
   subject_units?: number; // This will store the course_units
+  year_level: string; // Make required
 }
 
 interface Teacher {
@@ -41,39 +41,7 @@ interface Course {
   display_name: string;
 }
 
-interface DatabaseCourse {
-  id: string;
-  code: string;
-  name: string;
-  description: string;
-  units: number;
-}
-
-interface DatabaseTeacher {
-  id: string;
-  first_name: string;
-  last_name: string;
-  email: string;
-  role: string;
-  department?: string;
-  is_active: boolean;
-}
-
-interface DatabaseAssignment {
-  id: string;
-  teacher_id: string;
-  subject_id: string;
-  section: string;
-  academic_year: string;
-  semester: string;
-  is_active: boolean;
-  created_at: string;
-  teacher: DatabaseTeacher;
-  subject: DatabaseCourse;
-}
-
 const SubjectAssignment: React.FC = () => {
-  const { isModalOpen, closeModal, openModal } = useModal();
   const [assignments, setAssignments] = useState<TeacherSubject[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
@@ -86,7 +54,6 @@ const SubjectAssignment: React.FC = () => {
     type: 'success' | 'error';
   }>({ show: false, message: '', type: 'success' });
   
-  const [selectedAssignment, setSelectedAssignment] = useState<TeacherSubject | null>(null);
   const [modalState, setModalState] = useState({
     isOpen: false,
     isEditMode: false
@@ -98,11 +65,9 @@ const SubjectAssignment: React.FC = () => {
     section: '',
     academic_year: '',
     semester: '',
+    year_level: '',
     is_active: true
   });
-
-  // Add sections array
-  const sections = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
 
   useEffect(() => {
     fetchAssignments();
@@ -124,7 +89,8 @@ const SubjectAssignment: React.FC = () => {
           academic_year,
           semester,
           is_active,
-          created_at
+          created_at,
+          year_level
         `)
         .order('created_at', { ascending: false });
 
@@ -269,6 +235,7 @@ const SubjectAssignment: React.FC = () => {
             section: newAssignment.section,
             academic_year: newAssignment.academic_year,
             semester: newAssignment.semester,
+            year_level: newAssignment.year_level, // <-- add this line
             is_active: newAssignment.is_active
           })
           .eq('id', newAssignment.id);
@@ -285,6 +252,7 @@ const SubjectAssignment: React.FC = () => {
             section: newAssignment.section,
             academic_year: newAssignment.academic_year,
             semester: newAssignment.semester,
+            year_level: newAssignment.year_level, // <-- add this line
             is_active: true
           }]);
 
@@ -306,6 +274,7 @@ const SubjectAssignment: React.FC = () => {
         section: '',
         academic_year: '',
         semester: '',
+        year_level: '',
         is_active: true
       });
     } catch (error) {
@@ -345,41 +314,6 @@ const SubjectAssignment: React.FC = () => {
     }
   };
 
-  const resetForm = () => {
-    setNewAssignment({
-      teacher_id: '',
-      subject_id: '',
-      section: '',
-      academic_year: '',
-      semester: '',
-      is_active: true
-    });
-    setFormErrors({});
-    setModalState({
-      isOpen: false,
-      isEditMode: false
-    });
-    setSelectedAssignment(null);
-  };
-
-  const showNotification = (message: string, type: 'success' | 'error') => {
-    setNotification({
-      show: true,
-      message,
-      type
-    });
-
-    // Hide notification after 5 seconds
-    setTimeout(() => {
-      setNotification(prev => ({ ...prev, show: false }));
-    }, 5000);
-  };
-
-  const handleOpenModal = () => {
-    resetForm();
-    openModal('subject');
-  };
-
   const handleCloseModal = () => {
     setModalState({
       isOpen: false,
@@ -392,6 +326,7 @@ const SubjectAssignment: React.FC = () => {
       section: '',
       academic_year: '',
       semester: '',
+      year_level: '',
       is_active: true
     });
   };
@@ -412,6 +347,7 @@ const SubjectAssignment: React.FC = () => {
               section: '',
               academic_year: '',
               semester: '',
+              year_level: '',
               is_active: true
             });
           }}
@@ -471,6 +407,9 @@ const SubjectAssignment: React.FC = () => {
                   Section
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Year Level
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Academic Year
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -487,13 +426,13 @@ const SubjectAssignment: React.FC = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {isLoading ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-4 text-center text-sm text-gray-500">
+                  <td colSpan={10} className="px-6 py-4 text-center text-sm text-gray-500">
                     Loading subject assignments...
                   </td>
                 </tr>
               ) : assignments.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-4 text-center text-sm text-gray-500">
+                  <td colSpan={10} className="px-6 py-4 text-center text-sm text-gray-500">
                     No subject assignments found. Click "Assign Subject" to create one.
                   </td>
                 </tr>
@@ -514,6 +453,9 @@ const SubjectAssignment: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {assignment.section}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {assignment.year_level}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {assignment.academic_year}
