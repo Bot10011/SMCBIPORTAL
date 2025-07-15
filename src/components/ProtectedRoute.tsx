@@ -35,6 +35,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const checkedDefaultRef = useRef<string | null>(null);
+  const [isActive, setIsActive] = useState<boolean | null>(null);
 
   // Check if user is using the default password
   useEffect(() => {
@@ -86,7 +87,32 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     checkDefaultPassword();
   }, [user]);
 
-  if (authLoading || checkingDefault) {
+  // Check if user is active
+  useEffect(() => {
+    const checkActiveStatus = async () => {
+      if (!user) {
+        setIsActive(null);
+        return;
+      }
+      try {
+        const { data, error } = await supabase
+          .from('user_profiles')
+          .select('is_active')
+          .eq('id', user.id)
+          .single();
+        if (!error && data) {
+          setIsActive(data.is_active);
+        } else {
+          setIsActive(null);
+        }
+      } catch {
+        setIsActive(null);
+      }
+    };
+    checkActiveStatus();
+  }, [user]);
+
+  if (authLoading || checkingDefault || isActive === null) {
     return <div className="flex items-center justify-center h-screen">
       <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
     </div>;
@@ -199,6 +225,13 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   // Handle authentication
   if (!user) {
+    return <Navigate to="/" state={{ from: location }} replace />;
+  }
+
+  // Prevent access for deactivated users
+  if (isActive === false) {
+    toast.error('Your account has been deactivated. Please contact the administrator.');
+    supabase.auth.signOut();
     return <Navigate to="/" state={{ from: location }} replace />;
   }
 
