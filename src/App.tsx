@@ -7,6 +7,7 @@ import { DashboardAccessProvider } from './contexts/DashboardAccessContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import { motion, AnimatePresence } from 'framer-motion';
 import CreateUserModal from './components/CreateUserModal';
+import EditUserModal from './components/EditUserModal';
 import { useModal } from './contexts/ModalContext';
 
 // Import dashboard components
@@ -21,7 +22,7 @@ import SuperadminDashboard from './SuperadminDB/Dashboard';
 
 // Create a separate component for the modal to use the context
 function GlobalModal() {
-  const { showCreateUserModal, setShowCreateUserModal } = useModal();
+  const { showCreateUserModal, setShowCreateUserModal, showEditUserModal } = useModal();
 
   return (
     <AnimatePresence>
@@ -37,6 +38,17 @@ function GlobalModal() {
             isOpen={showCreateUserModal}
             onClose={() => setShowCreateUserModal(false)}
           />
+        </motion.div>
+      )}
+      {showEditUserModal && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          style={{ backdropFilter: 'blur(8px)' }}
+        >
+          <EditUserModal />
         </motion.div>
       )}
     </AnimatePresence>
