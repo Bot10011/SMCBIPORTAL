@@ -1,10 +1,11 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
-import { UserPlus, Loader2, Users } from 'lucide-react';
+import { UserPlus, Loader2, Users, Edit, Trash2, Power } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
 import { useModal } from '../contexts/ModalContext';
+import ConfirmationDialog from '../components/ConfirmationDialog';
 
 interface Program {
   id: number;
@@ -42,7 +43,13 @@ export default function UserManagement() {
   const [activeTab, setActiveTab] = useState<'all' | 'students' | 'teachers'>('all');
   
   // Add modal state
-  const { setShowCreateUserModal } = useModal();
+  const { setShowCreateUserModal, setShowEditUserModal, setSelectedUserId } = useModal();
+  
+  // Add confirmation dialog states
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showToggleConfirm, setShowToggleConfirm] = useState(false);
+  const [selectedUserForAction, setSelectedUserForAction] = useState<UserProfile | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
   
   // Add filtered users logic
   const filteredUsers = users.filter(user => {
@@ -166,6 +173,75 @@ export default function UserManagement() {
       });
     }
   }, [activeTab, users]);
+
+  // Action functions
+  const handleEditUser = (user: UserProfile) => {
+    setSelectedUserId(user.id);
+    setShowEditUserModal(true);
+  };
+
+  const handleDeleteUser = (user: UserProfile) => {
+    setSelectedUserForAction(user);
+    setShowDeleteConfirm(true);
+  };
+
+  const handleToggleUserStatus = (user: UserProfile) => {
+    setSelectedUserForAction(user);
+    setShowToggleConfirm(true);
+  };
+
+  const confirmDeleteUser = async () => {
+    if (!selectedUserForAction) return;
+
+    try {
+      setActionLoading(true);
+      const { error } = await supabase
+        .from('user_profiles')
+        .delete()
+        .eq('id', selectedUserForAction.id);
+
+      if (error) throw error;
+
+      toast.success('User deleted successfully');
+      setUsers(users.filter(u => u.id !== selectedUserForAction.id));
+      setShowDeleteConfirm(false);
+      setSelectedUserForAction(null);
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      toast.error('Failed to delete user');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const confirmToggleUserStatus = async () => {
+    if (!selectedUserForAction) return;
+
+    try {
+      setActionLoading(true);
+      const newStatus = !selectedUserForAction.is_active;
+      const { error } = await supabase
+        .from('user_profiles')
+        .update({ is_active: newStatus })
+        .eq('id', selectedUserForAction.id);
+
+      if (error) throw error;
+
+      toast.success(`User ${newStatus ? 'activated' : 'deactivated'} successfully`);
+      setUsers(users.map(u => 
+        u.id === selectedUserForAction.id 
+          ? { ...u, is_active: newStatus }
+          : u
+      ));
+      setShowToggleConfirm(false);
+      setSelectedUserForAction(null);
+    } catch (error) {
+      console.error('Error toggling user status:', error);
+      toast.error('Failed to update user status');
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen from-blue-50 via-white to-indigo-50">
@@ -471,7 +547,39 @@ export default function UserManagement() {
                           </td>
                         )}
                         <td className="px-6 py-5">
-                          {/* Empty actions column since we removed the buttons */}
+                          <div className="flex items-center gap-2">
+                            <motion.button
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => handleEditUser(user)}
+                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200"
+                              title="Edit user"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </motion.button>
+                            <motion.button
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => handleToggleUserStatus(user)}
+                              className={`p-2 rounded-lg transition-colors duration-200 ${
+                                user.is_active 
+                                  ? 'text-orange-600 hover:bg-orange-50' 
+                                  : 'text-green-600 hover:bg-green-50'
+                              }`}
+                              title={user.is_active ? 'Deactivate user' : 'Activate user'}
+                            >
+                              <Power className="w-4 h-4" />
+                            </motion.button>
+                            <motion.button
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => handleDeleteUser(user)}
+                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200"
+                              title="Delete user"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </motion.button>
+                          </div>
                         </td>
                       </motion.tr>
                     ))}
@@ -484,7 +592,38 @@ export default function UserManagement() {
         )}
       </div>
         </motion.div>
+
+        {/* Confirmation Dialogs */}
+        <ConfirmationDialog
+          isOpen={showDeleteConfirm}
+          onClose={() => {
+            setShowDeleteConfirm(false);
+            setSelectedUserForAction(null);
+          }}
+          onConfirm={confirmDeleteUser}
+          title="Delete User"
+          message={`Are you sure you want to delete ${selectedUserForAction ? [selectedUserForAction.first_name, selectedUserForAction.middle_name, selectedUserForAction.last_name].filter(Boolean).join(' ') : 'this user'}? This action cannot be undone.`}
+          confirmText="Delete"
+          cancelText="Cancel"
+          type="danger"
+          isLoading={actionLoading}
+        />
+
+        <ConfirmationDialog
+          isOpen={showToggleConfirm}
+          onClose={() => {
+            setShowToggleConfirm(false);
+            setSelectedUserForAction(null);
+          }}
+          onConfirm={confirmToggleUserStatus}
+          title={selectedUserForAction?.is_active ? "Deactivate User" : "Activate User"}
+          message={`Are you sure you want to ${selectedUserForAction?.is_active ? 'deactivate' : 'activate'} ${selectedUserForAction ? [selectedUserForAction.first_name, selectedUserForAction.middle_name, selectedUserForAction.last_name].filter(Boolean).join(' ') : 'this user'}?`}
+          confirmText={selectedUserForAction?.is_active ? "Deactivate" : "Activate"}
+          cancelText="Cancel"
+          type="warning"
+          isLoading={actionLoading}
+        />
+      </div>
     </div>
-  </div>
   );
 }
