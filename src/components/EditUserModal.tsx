@@ -5,10 +5,10 @@ import { useModal } from '../contexts/ModalContext';
 import toast from 'react-hot-toast';
 import ConfirmationDialog from './ConfirmationDialog';
 import { sanitizeTextInput } from '../utils/validation';
+import axios from 'axios';
 
 interface UserProfile {
   id: string;
-  email: string;
   role: string;
   first_name?: string;
   middle_name?: string;
@@ -28,6 +28,7 @@ interface UserProfile {
   birthdate?: string;
   phone?: string;
   address?: string;
+  email?: string; // Added email to interface
 }
 
 interface Program {
@@ -46,6 +47,11 @@ export default function EditUserModal() {
   const [showSaveConfirm, setShowSaveConfirm] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [isGeneratingId, setIsGeneratingId] = useState(false);
+  const [authEmail, setAuthEmail] = useState<string>('');
+  const [emailInput, setEmailInput] = useState<string>('');
+  const [emailSaving, setEmailSaving] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  // Removed editing state for auth email
 
   useEffect(() => {
     if (showEditUserModal && selectedUserId) {
@@ -62,14 +68,16 @@ export default function EditUserModal() {
         const typedKey = key as keyof UserProfile;
         return formData[typedKey] !== user[typedKey];
       });
-      setHasChanges(hasFormChanges);
+      setHasChanges(hasFormChanges || emailInput !== authEmail);
     }
-  }, [formData, user]);
+  }, [formData, user, emailInput, authEmail]);
 
   const fetchUserData = async () => {
     try {
       setLoading(true);
       console.log('EditUserModal: Fetching user data for ID:', selectedUserId);
+      
+      // Fetch user profile data including email
       const { data, error } = await supabase
         .from('user_profiles')
         .select('*')
@@ -80,10 +88,14 @@ export default function EditUserModal() {
       console.log('EditUserModal: User data loaded:', data);
       setUser(data);
       setFormData(data);
+      setAuthEmail(data.email || '');
+      setEmailInput(data.email || '');
     } catch (error) {
       console.error('Error fetching user:', error);
       toast.error('Failed to load user data');
       setUser(null); // Set user to null to show error state
+      setAuthEmail('');
+      setEmailInput('');
     } finally {
       setLoading(false);
     }
@@ -103,6 +115,8 @@ export default function EditUserModal() {
       toast.error('Failed to load programs');
     }
   };
+
+  // Removed updateAuthEmail, startEditingAuthEmail, and cancelEditingAuthEmail handlers
 
   // Student ID generation function (same logic as Program Head)
   const generateStudentId = async () => {
@@ -160,19 +174,59 @@ export default function EditUserModal() {
     setShowSaveConfirm(true);
   };
 
+
+
   const handleSaveConfirm = async () => {
     if (!selectedUserId) return;
 
     try {
       setSaving(true);
-      const { error } = await supabase
+      setEmailError(null);
+      
+      // Update user profile in database (excluding email field)
+      const { error: profileError } = await supabase
         .from('user_profiles')
         .update(formData)
         .eq('id', selectedUserId);
 
-      if (error) throw error;
+      if (profileError) throw profileError;
 
-      toast.success('User updated successfully');
+      // If email was changed, call the internal API route
+      if (emailInput !== authEmail) {
+        setEmailSaving(true);
+        try {
+          const response = await axios.post('https://api-topaz-one-89.vercel.app/', {
+            userId: selectedUserId,
+            newEmail: emailInput,
+          }, {
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          });
+          if (response.data.success) {
+            setAuthEmail(emailInput);
+            toast.success('Email updated successfully.');
+          } else {
+            throw new Error(response.data.error || 'Unknown error');
+          }
+        } catch (err: unknown) {
+          let errorMsg = 'Failed to update email';
+          if (axios.isAxiosError(err)) {
+            errorMsg = err.response?.data?.error || err.message || errorMsg;
+          } else if (err instanceof Error) {
+            errorMsg = err.message;
+          }
+          setEmailError(errorMsg);
+          toast.error('Failed to update email');
+          setSaving(false);
+          setEmailSaving(false);
+          return;
+        } finally {
+          setEmailSaving(false);
+        }
+      }
+
+      toast.success('User profile updated successfully.');
       setShowEditUserModal(false);
     } catch (error) {
       console.error('Error updating user:', error);
@@ -274,17 +328,6 @@ export default function EditUserModal() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Email
-                    </label>
-                    <input
-                      type="email"
-                      value={formData.email || ''}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
                       Phone
                     </label>
                     <input
@@ -293,6 +336,23 @@ export default function EditUserModal() {
                       onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                       className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
+                  </div>
+                  <div>
+                    {/* Authentication Email Info */}
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Email
+                      </label>
+                      <input
+                        type="email"
+                        value={emailInput}
+                        onChange={e => setEmailInput(e.target.value)}
+                        className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="user@email.com"
+                        disabled={emailSaving}
+                      />
+                      {emailError && <div className="text-red-500 text-xs mt-1">{emailError}</div>}
+                    </div>
                   </div>
                 </div>
 
