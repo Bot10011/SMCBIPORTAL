@@ -276,6 +276,12 @@ const sidebarItems: SidebarItem[] = [
     roles: ['student'],
   },
   {
+    label: 'Receipt & Permit',
+    path: '/student/dashboard/receipt-permit',
+    icon: <FileText className="w-5 h-5" />,
+    roles: ['student'],
+  },
+  {
     label: 'Grade Report',
     path: '/student/dashboard/grades',
     icon: <StudentAward className="w-5 h-5" />,
