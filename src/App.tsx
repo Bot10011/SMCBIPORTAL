@@ -1,31 +1,53 @@
-import React from 'react';
+import React, { Suspense, lazy, memo } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './contexts/AuthContext';
 import { ModalProvider } from './contexts/ModalContext';
 import { DashboardAccessProvider } from './contexts/DashboardAccessContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import RouteGuard from './middleware/RouteGuard';
 import { motion, AnimatePresence } from 'framer-motion';
 import CreateUserModal from './components/CreateUserModal';
 import EditUserModal from './components/EditUserModal';
 import { useModal } from './contexts/ModalContext';
+import NotFound from './middleware/404';
 
-// Import dashboard components
+// Import public components (not lazy loaded for immediate access)
 import LandingPage from './LandingPage';
 import Login from './Login';
-import AdminDashboard from './AdminDB/Dashboard';
-import RegistrarDashboard from './RegistrarDB/Dashboard';
-import ProgramHeadDashboard from './ProgramheadDB/Dashboard';
-import TeacherDashboard from './TeacherDB/Dashboard';
-import StudentDashboard from './StudentDB/Dashboard';
-import SuperadminDashboard from './SuperadminDB/Dashboard';
 
-// Create a separate component for the modal to use the context
-function GlobalModal() {
+// Lazy load dashboard components for better performance
+const AdminDashboard = lazy(() => import('./AdminDB/Dashboard'));
+const RegistrarDashboard = lazy(() => import('./RegistrarDB/Dashboard'));
+const ProgramHeadDashboard = lazy(() => import('./ProgramheadDB/Dashboard'));
+const TeacherDashboard = lazy(() => import('./TeacherDB/Dashboard'));
+const StudentDashboard = lazy(() => import('./StudentDB/Dashboard'));
+const SuperadminDashboard = lazy(() => import('./SuperadminDB/Dashboard'));
+
+// Loading component for lazy-loaded routes
+const DashboardLoading: React.FC = () => (
+  <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="text-center">
+      <div className="w-16 h-16 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mx-auto mb-4"></div>
+      <p className="text-gray-600 font-medium">Loading dashboard...</p>
+      <p className="text-sm text-gray-500 mt-2">Please wait while we prepare your workspace</p>
+    </div>
+  </div>
+);
+
+// Error boundary for lazy-loaded components
+const DashboardErrorBoundary: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <Suspense fallback={<DashboardLoading />}>
+    {children}
+  </Suspense>
+);
+
+// Memoized GlobalModal component for better performance
+const GlobalModal = memo(() => {
   const { showCreateUserModal, setShowCreateUserModal, showEditUserModal } = useModal();
 
   return (
-    <AnimatePresence>
+    <AnimatePresence mode="wait">
       {showCreateUserModal && (
         <motion.div
           initial={{ opacity: 0 }}
@@ -53,14 +75,57 @@ function GlobalModal() {
       )}
     </AnimatePresence>
   );
-}
+});
+
+GlobalModal.displayName = 'GlobalModal';
+
+// Memoized route configuration for better performance
+const routeConfig = [
+  {
+    path: "/superadmin/dashboard/*",
+    element: <SuperadminDashboard />,
+    allowedRoles: ['superadmin'],
+    requiresAuth: true
+  },
+  {
+    path: "/admin/dashboard/*",
+    element: <AdminDashboard />,
+    allowedRoles: ['admin'],
+    requiresAuth: true
+  },
+  {
+    path: "/registrar/dashboard/*",
+    element: <RegistrarDashboard />,
+    allowedRoles: ['admin', 'registrar'],
+    requiresAuth: true
+  },
+  {
+    path: "/program_head/dashboard/*",
+    element: <ProgramHeadDashboard />,
+    allowedRoles: ['admin', 'registrar', 'program_head'],
+    requiresAuth: true
+  },
+  {
+    path: "/teacher/dashboard/*",
+    element: <TeacherDashboard />,
+    allowedRoles: ['admin', 'registrar', 'program_head', 'teacher'],
+    requiresAuth: true
+  },
+  {
+    path: "/student/dashboard/*",
+    element: <StudentDashboard />,
+    allowedRoles: ['admin', 'registrar', 'program_head', 'teacher', 'student'],
+    requiresAuth: true
+  }
+];
 
 const App: React.FC = () => {
   return (
     <AuthProvider>
       <ModalProvider>
         <DashboardAccessProvider>
-          <div>
+          <div className="app-container">
+            {/* Enhanced Toaster with better performance */}
             <Toaster
               position="top-center"
               reverseOrder={false}
@@ -103,63 +168,42 @@ const App: React.FC = () => {
                     secondary: '#EF4444',
                   },
                 },
+                loading: {
+                  style: {
+                    background: '#3B82F6',
+                  },
+                  iconTheme: {
+                    primary: 'white',
+                    secondary: '#3B82F6',
+                  },
+                },
               }}
             />
+            
             <Routes>
-              {/* Public routes */}
+              {/* Public routes - no lazy loading for immediate access */}
               <Route path="/" element={<LandingPage />} />
               <Route path="/login" element={<Login />} />
 
-              {/* SuperAdmin dashboard route */}
-              <Route
-                path="/superadmin/dashboard/*"
-                element={
-                  <ProtectedRoute allowedRoles={['superadmin']}>
-                    <SuperadminDashboard />
-                  </ProtectedRoute>
-                }
-              />
+              {/* Protected dashboard routes with lazy loading and enhanced security */}
+              {routeConfig.map(({ path, element, allowedRoles, requiresAuth }) => (
+                <Route
+                  key={path}
+                  path={path}
+                  element={
+                    <RouteGuard allowedRoles={allowedRoles} requiresAuth={requiresAuth}>
+                      <ProtectedRoute allowedRoles={allowedRoles}>
+                        <DashboardErrorBoundary>
+                          {element}
+                        </DashboardErrorBoundary>
+                      </ProtectedRoute>
+                    </RouteGuard>
+                  }
+                />
+              ))}
 
-              {/* Protected dashboard routes */}
-              <Route
-                path="/admin/dashboard/*"
-                element={
-                  <ProtectedRoute allowedRoles={['admin']} requiresAccessCheck={true}>
-                    <AdminDashboard />
-                  </ProtectedRoute>
-                }
-              />              <Route
-                path="/registrar/dashboard/*"
-                element={
-                  <ProtectedRoute allowedRoles={['admin', 'registrar']} requiresAccessCheck={true}>
-                    <RegistrarDashboard />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/program_head/dashboard/*"
-                element={
-                  <ProtectedRoute allowedRoles={['admin', 'registrar', 'program_head']} requiresAccessCheck={true}>
-                    <ProgramHeadDashboard />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/teacher/dashboard/*"
-                element={
-                  <ProtectedRoute allowedRoles={['admin', 'registrar', 'program_head', 'teacher']} requiresAccessCheck={true}>
-                    <TeacherDashboard />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/student/dashboard/*"
-                element={
-                  <ProtectedRoute allowedRoles={['admin', 'registrar', 'program_head', 'teacher', 'student']} requiresAccessCheck={true}>
-                    <StudentDashboard />
-                  </ProtectedRoute>
-                }
-              />
+              {/* Catch-all route for 404 - must be last */}
+              <Route path="*" element={<NotFound reason="not_found" />} />
             </Routes>
           </div>
           <GlobalModal />
