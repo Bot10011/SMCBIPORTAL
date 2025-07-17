@@ -38,6 +38,9 @@ interface Student {
   prelim_grade?: number;
   midterm_grade?: number;
   final_grade?: number;
+  year_level?: string; // Added for new fields
+  semester?: string;   // Added for new fields
+  academic_year?: string; // Added for new fields
 }
 
 interface DatabaseTeacherClass {
@@ -330,10 +333,15 @@ const ClassManagement: React.FC = () => {
   const handleSaveAllGrades = async (student: Student) => {
     const upsertData = {
       id: student.grade_id || uuidv4(),
-      student_id: student.enrollment_id,
+      student_id: student.id, // Use the UUID from user_profiles
+      subject_id: student.subject_id || (selectedClass?.subject_id ?? selectedClass?.id) || null, // Use student's subject_id or from class context
+      graded_by: user?.id || null, // Use teacher's UUID from auth context
       prelim_grade: student.prelim_grade,
       midterm_grade: student.midterm_grade,
       final_grade: student.final_grade,
+      year_level: student.year_level || 1, // Default to 1 if missing
+      semester: student.semester || '1st', // Default to '1st' if missing
+      academic_year: student.academic_year || '2023-2024', // Default to current AY if missing
     };
     console.log('Upserting grade:', upsertData);
     const { error } = await supabase
