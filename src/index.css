@@ -35,6 +35,57 @@ body {
   .container {
     @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
   }
+  
+  /* App-specific optimizations */
+  .app-container {
+    @apply relative;
+    contain: layout style paint;
+  }
+  
+  /* Performance optimizations for animations */
+  .will-change-transform {
+    will-change: transform;
+  }
+  
+  .will-change-opacity {
+    will-change: opacity;
+  }
+  
+  .will-change-scroll {
+    will-change: scroll-position;
+  }
+  
+  /* Optimized loading states */
+  .loading-skeleton {
+    @apply animate-pulse bg-gray-200 rounded;
+  }
+  
+  .loading-spinner {
+    @apply animate-spin rounded-full border-4 border-gray-200 border-t-indigo-600;
+  }
+  
+  /* Enhanced focus states for accessibility */
+  .focus-visible-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2;
+  }
+  
+  /* Optimized backdrop blur */
+  .backdrop-blur-optimized {
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  
+  /* Reduced motion support */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }
 
 /* Parallax and Scroll Animations */
@@ -104,93 +155,97 @@ body {
   100% { transform: translateY(0px); }
 }
 
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes slideInLeft {
+  from { transform: translateX(-100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes scaleIn {
+  from { transform: scale(0.8); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+@keyframes bounceIn {
+  0% { transform: scale(0.3); opacity: 0; }
+  50% { transform: scale(1.05); }
+  70% { transform: scale(0.9); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* Animation utility classes */
 .animate-float {
   animation: float 3s ease-in-out infinite;
 }
 
-/* Parallax Background */
-.parallax-bg {
-  background-attachment: fixed;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: cover;
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-out;
 }
 
-/* Smooth Scroll Behavior */
-html {
-  scroll-behavior: smooth;
+.animate-slide-in-right {
+  animation: slideInRight 0.4s ease-out;
 }
 
-/* Card hover effects */
-.feature-card {
-  transition: transform 0.2s ease-in-out;
+.animate-slide-in-left {
+  animation: slideInLeft 0.4s ease-out;
 }
 
-.feature-card:hover {
-  transform: translateY(-5px);
+.animate-scale-in {
+  animation: scaleIn 0.3s ease-out;
 }
 
-/* Gradient Text Animation */
-.animate-gradient-text {
-  background: linear-gradient(to right, #2C3E50, #3498db, #2C3E50);
-  background-size: 200% auto;
-  color: transparent;
-  background-clip: text;
-  -webkit-background-clip: text;
-  animation: gradient 3s linear infinite;
+.animate-bounce-in {
+  animation: bounceIn 0.6s ease-out;
 }
 
-@keyframes gradient {
-  0% { background-position: 0% center; }
-  50% { background-position: 100% center; }
-  100% { background-position: 0% center; }
+/* Performance optimizations for low-end devices */
+@media (max-width: 640px) {
+  .animate-fade-in {
+    animation-duration: 0.3s;
+  }
+  
+  .animate-slide-in-right,
+  .animate-slide-in-left {
+    animation-duration: 0.3s;
+  }
+  
+  .animate-scale-in {
+    animation-duration: 0.2s;
+  }
 }
 
-/* Stagger Animation Delays */
-.stagger-animation > * {
-  opacity: 0;
-  transform: translateY(20px);
+/* High-end device optimizations */
+@media (min-width: 1024px) and (min-resolution: 2dppx) {
+  .backdrop-blur-optimized {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
 }
 
-.stagger-animation > *.active {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.stagger-animation > *:nth-child(1) { transition-delay: 0.1s; }
-.stagger-animation > *:nth-child(2) { transition-delay: 0.2s; }
-.stagger-animation > *:nth-child(3) { transition-delay: 0.3s; }
-.stagger-animation > *:nth-child(4) { transition-delay: 0.4s; }
-.stagger-animation > *:nth-child(5) { transition-delay: 0.5s; }
-
-/* Blur Effect on Scroll */
-.blur-on-scroll {
-  filter: blur(0);
-  transition: filter 0.3s ease-out;
-}
-
-.blur-on-scroll.active {
-  filter: blur(4px);
-}
-
-/* 3D Tilt Effect */
-.tilt-effect {
-  transform-style: preserve-3d;
-  transform: perspective(1000px);
-  transition: transform 0.3s ease-out;
-}
-
-.tilt-effect:hover {
-  transform: perspective(1000px) rotateX(5deg) rotateY(5deg);
-}
-
-/* Smooth Shadow */
-.hover-shadow {
-  transition: box-shadow 0.3s ease-in-out;
-}
-
-.hover-shadow:hover {
-  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.1);
+/* Print styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  .print-only {
+    display: block !important;
+  }
+  
+  * {
+    background: white !important;
+    color: black !important;
+    box-shadow: none !important;
+  }
 }
 
 /* Custom Email Validation Animations */
