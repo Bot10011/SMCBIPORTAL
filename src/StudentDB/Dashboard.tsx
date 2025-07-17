@@ -7,8 +7,9 @@ import { MyProfile } from './MyProfile';
 import { CertificateOfEnrollment } from './CertificateOfEnrollment';
 import Prospectus from './Prospectus';
 import { useAuth } from '../contexts/AuthContext';
+import { ReceiptPermit } from './ReceiptPermit';
 import { 
-  BookOpen, 
+  BookOpen,  
   Bell,
   GraduationCap
 } from 'lucide-react';
@@ -736,6 +737,7 @@ const StudentDashboard: React.FC = () => {
             <Route path="/profile" element={<MyProfile />} />
             <Route path="/coe" element={<CertificateOfEnrollment />} />
             <Route path="/prospectus" element={<Prospectus />} />
+            <Route path="/receipt-permit" element={<ReceiptPermit />} />
             <Route path="*" element={<Navigate to="/student/dashboard" replace />} />
           </Routes>
         </Suspense>
