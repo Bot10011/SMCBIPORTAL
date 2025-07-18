@@ -2,7 +2,7 @@ import React, { Suspense, useState, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import DashboardLayout from '../components/Sidebar';
 import { StudentGradeViewer } from './StudentGradeViewer';
-import { MyCourse } from './MyCourse';
+import MyCourse from './MyCourse';
 import { MyProfile } from './MyProfile';
 import { CertificateOfEnrollment } from './CertificateOfEnrollment';
 import Prospectus from './Prospectus';
