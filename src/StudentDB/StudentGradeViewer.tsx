@@ -9,7 +9,9 @@ import {
   TrendingUp,
   Award,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  CheckCircle2,
+  Clock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -21,10 +23,10 @@ const YEAR_LABELS = [
 ];
 
 const YEAR_ICONS: Record<string, JSX.Element> = {
-  'First Year': <BookOpen className="w-5 h-5 text-blue-500 mr-3" />,
-  'Second Year': <BookOpen className="w-5 h-5 text-green-500 mr-3" />,
-  'Third Year': <BookOpen className="w-5 h-5 text-yellow-500 mr-3" />,
-  'Fourth Year': <BookOpen className="w-5 h-5 text-purple-500 mr-3" />,
+  'First Year': <BookOpen className="w-5 h-5 text-blue-600" />,
+  'Second Year': <BookOpen className="w-5 h-5 text-green-600" />,
+  'Third Year': <BookOpen className="w-5 h-5 text-yellow-600" />,
+  'Fourth Year': <BookOpen className="w-5 h-5 text-purple-600" />,
 };
 
 const YEAR_COLORS: Record<string, string> = {
@@ -48,6 +50,7 @@ export const StudentGradeViewer: React.FC = () => {
   const [selectedYearLevel, setSelectedYearLevel] = useState<string | null>(null);
   const [currentYearLevel, setCurrentYearLevel] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   // Add this function near the top of the component (before useEffect):
   const normalizeYearLevel = (year: string | null | undefined) => {
@@ -211,9 +214,9 @@ export const StudentGradeViewer: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="max-w-[1400px] mx-auto space-y-8 p-4">
+      <div className="w-full space-y-8 p-4 sm:p-6">
         <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-b-transparent"></div>
         </div>
       </div>
     );
@@ -221,34 +224,54 @@ export const StudentGradeViewer: React.FC = () => {
 
   if (errorMsg) {
     return (
-      <div className="max-w-[1200px] mx-auto space-y-6 p-4">
-        <div className="mb-2 text-xs text-red-500">
-          <strong>Error:</strong> {errorMsg}
-        </div>
+      <div className="w-full space-y-8 p-4 sm:p-6">
+        <motion.div 
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="bg-white rounded-2xl shadow-inner shadow-inner-strong border border-red-100 p-6"
+        >
+          <div className="text-center">
+            <div className="p-3 rounded-full bg-red-50 mb-4 mx-auto w-fit">
+              <Award className="w-8 h-8 text-red-600" />
+            </div>
+            <h3 className="text-lg font-semibold text-red-700 mb-2">Error Loading Grades</h3>
+            <p className="text-sm text-red-600">{errorMsg}</p>
+          </div>
+        </motion.div>
       </div>
     );
   }
 
   if (currentYearLevel === null || currentYearIndex === -1) {
     return (
-      <div className="max-w-[1200px] mx-auto space-y-6 p-4">
-        <div className="mb-2 text-xs text-red-500">
-          <strong>Debug:</strong> user_profiles.year_level = N/A (Index: -1)<br />
-          <span className="text-red-600">Error: Your year level could not be determined. Please contact support or check your profile information.</span>
-        </div>
+      <div className="w-full space-y-8 p-4 sm:p-6">
+        <motion.div 
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="bg-white rounded-2xl shadow-inner shadow-inner-strong border border-red-100 p-6"
+        >
+          <div className="text-center">
+            <div className="p-3 rounded-full bg-red-50 mb-4 mx-auto w-fit">
+              <Clock className="w-8 h-8 text-red-600" />
+            </div>
+            <h3 className="text-lg font-semibold text-red-700 mb-2">Year Level Not Found</h3>
+            <p className="text-sm text-red-600">Your year level could not be determined. Please contact support or check your profile information.</p>
+          </div>
+        </motion.div>
       </div>
     );
   }
-  return (
-    <div className="max-w-[1200px] mx-auto space-y-6 p-4">
-      {/* Debug: Show current year_level and computed values */}
 
-      {/* Header Section */}
+  return (
+    <div className="w-full space-y-8 p-4 sm:p-6">
+      {/* Premium Header Section */}
       <motion.div 
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden"
+        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 via-white to-purple-50 shadow-inner shadow-inner-strong border border-blue-100"
       >
         <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -257,17 +280,24 @@ export const StudentGradeViewer: React.FC = () => {
                 <Award className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-white">Academic Grades</h1>
-                <p className="text-blue-100 text-sm">Track your academic performance</p>
+                <h1 className="text-2xl font-bold text-white tracking-tight">Academic Grades</h1>
+                <p className="text-white/80 text-sm font-medium">Track your academic performance</p>
               </div>
             </div>
             {overallGPA && (
-              <div className="bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/30">
-                <div className="text-center">
-                  <p className="text-blue-100 text-xs font-medium">Current GPA</p>
-                  <p className="text-2xl font-bold text-white">{overallGPA}</p>
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+                className="mt-4 flex justify-center sm:justify-start w-full sm:w-auto"
+              >
+                <div className="w-44 h-10 rounded-xl shadow-[inset_0_2px_4px_0_rgba(0,0,0,0.1),inset_0_1px_2px_0_rgba(0,0,0,0.06)] bg-white/95 backdrop-blur-sm flex items-center justify-center gap-2 border border-white/20">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                  <span className="text-base font-semibold text-gray-800 tracking-wide">
+                    GPA: {overallGPA}
+                  </span>
                 </div>
-              </div>
+              </motion.div>
             )}
           </div>
         </div>
@@ -275,51 +305,53 @@ export const StudentGradeViewer: React.FC = () => {
 
       {/* Search and Stats Section */}
       <motion.div 
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.1 }}
-        className="bg-white rounded-lg shadow-sm border border-gray-200 p-4"
+        transition={{ delay: 0.2 }}
+        className="bg-white rounded-2xl shadow-inner shadow-inner-strong border border-blue-100 p-6"
       >
         <div className="flex flex-col gap-3 w-full sm:flex-row sm:items-center sm:justify-between">
           {/* Search Bar */}
-          <div className="relative flex-1 max-w-sm flex-shrink-0 mb-2 sm:mb-0">
+          <div className="relative flex-1 max-w-md flex-shrink-0 mb-2 sm:mb-0">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
             <input
               type="text"
               placeholder="Search subjects..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50 text-sm font-medium text-gray-700 transition-all duration-200"
+              className="w-full pl-9 pr-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-sm font-medium text-gray-900 placeholder-gray-500 transition-all duration-200"
             />
           </div>
           {/* Stats and Year Level Dropdown in one line on mobile/tablet */}
-          <div className="flex flex-col sm:flex-row gap-4 items-center w-full">
-            <div className="flex flex-col gap-2 flex-1 w-full sm:flex-row sm:gap-4">
-              <div className="flex-1 min-w-0 flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg border border-blue-200 shadow-sm justify-center">
-                <BookOpen className="w-4 h-4 text-blue-600" />
-                <span className="text-xs sm:text-sm font-semibold text-blue-700 truncate whitespace-nowrap">{gradesByYear[selectedYearLevel || currentYearLevel || 'First Year'].length} Subjects</span>
+          <div className="flex flex-col sm:flex-row gap-4 items-center justify-end">
+            <div className="flex flex-row gap-2 w-auto sm:gap-4">
+              <div className="w-auto min-w-0 flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-xl border border-gray-200 shadow-sm justify-center">
+                <BookOpen className="w-4 h-4 text-gray-600" />
+                <span className="text-xs sm:text-sm font-semibold text-gray-700 truncate whitespace-nowrap">{gradesByYear[selectedYearLevel || currentYearLevel || 'First Year'].length} Subjects</span>
               </div>
-              <div className="flex-1 min-w-0 flex items-center gap-2 px-3 py-2 bg-green-50 rounded-lg border border-green-200 shadow-sm justify-center">
-                <TrendingUp className="w-4 h-4 text-green-600" />
-                <span className="text-xs sm:text-sm font-semibold text-green-700 truncate whitespace-nowrap">
+              <div className="w-auto min-w-0 flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-xl border border-gray-200 shadow-sm justify-center">
+                <TrendingUp className="w-4 h-4 text-gray-600" />
+                <span className="text-xs sm:text-sm font-semibold text-gray-700 truncate whitespace-nowrap">
                   {gradesByYear[selectedYearLevel || currentYearLevel || 'First Year'].filter(g => g.final_grade !== null).length} Graded
                 </span>
               </div>
             </div>
-            <div className="relative flex items-center justify-center px-3 py-2 bg-white rounded-lg border border-blue-300 w-full sm:w-auto mt-2 sm:mt-0 mx-auto">
+            <div className="relative flex items-center justify-center px-3 py-2 bg-white rounded-xl border border-gray-200 w-full sm:w-44 h-10 mt-2 sm:mt-0 shadow-sm">
               <select
                 id="year-level-select"
                 value={selectedYearLevel || ''}
                 onChange={e => setSelectedYearLevel(e.target.value)}
+                onFocus={() => setIsDropdownOpen(true)}
+                onBlur={() => setIsDropdownOpen(false)}
                 style={{ textAlign: 'center', textAlignLast: 'center' }}
-                className="w-full appearance-none pl-4 pr-6 py-2 bg-white text-blue-700 rounded-lg border border-blue-400 shadow focus:ring-2 focus:ring-blue-400 focus:outline-none hover:bg-blue-50 transition font-semibold text-xs sm:text-sm cursor-pointer whitespace-nowrap"
+                className="w-full appearance-none pl-4 pr-6 py-2 bg-white text-gray-800 rounded-lg border-0 focus:ring-2 focus:ring-blue-500 focus:outline-none hover:bg-gray-50 transition font-semibold text-xs sm:text-sm cursor-pointer whitespace-nowrap"
               >
                 {yearOptions.map(year => (
                   <option key={year} value={year}>{year}</option>
                 ))}
               </select>
-              <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-blue-500">
-                <ChevronDown className="w-6 h-6" />
+              <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-gray-500">
+                <ChevronDown className={`w-5 h-5 transition-transform duration-200 ease-in-out transform ${isDropdownOpen ? 'rotate-180' : 'rotate-0'}`} />
               </span>
             </div>
           </div>
@@ -331,30 +363,31 @@ export const StudentGradeViewer: React.FC = () => {
         {selectedYearLevel && [selectedYearLevel].map((year, index) => (
           <motion.div 
             key={year} 
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 + index * 0.1 }}
-            className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden"
+            transition={{ duration: 0.5, delay: 0.3 + index * 0.1 }}
+            className="bg-white rounded-2xl shadow-inner shadow-inner-strong border border-blue-100 overflow-hidden"
           >
             <button
-              className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset"
+              className="w-full flex items-center justify-between p-3 sm:p-4 hover:bg-blue-50 transition-colors duration-200 focus:outline-none"
               onClick={() => toggleSection(year)}
             >
-              <div className="flex items-center">
-                <div className={`w-1 h-8 rounded-full bg-gradient-to-b ${YEAR_COLORS[year]} mr-3`} />
-                <div className="flex items-center">
-                  {YEAR_ICONS[year]}
-                  <div>
-                    <h2 className="text-lg font-semibold text-gray-900">{year} Grades</h2>
-                    <p className="text-xs text-gray-500">{gradesByYear[year].length} subjects</p>
+              <div className="flex items-center min-w-0 flex-1">
+                <div className={`w-1.5 sm:w-2 h-6 sm:h-8 rounded-full bg-gradient-to-b ${YEAR_COLORS[year]} mr-2 sm:mr-4 flex-shrink-0`} />
+                <div className="flex items-center min-w-0 flex-1">
+                  <div className="p-1.5 sm:p-2 rounded-full bg-blue-50 mr-2 sm:mr-3 flex-shrink-0">
+                    {YEAR_ICONS[year]}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-800 tracking-tight truncate">{year} Grades</h2>
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0 ml-2">
                 {openSections[year] ? (
-                  <ChevronUp className="w-5 h-5 text-gray-400" />
+                  <ChevronUp className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600" />
                 ) : (
-                  <ChevronDown className="w-5 h-5 text-gray-400" />
+                  <ChevronDown className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600" />
                 )}
               </div>
             </button>
@@ -367,110 +400,129 @@ export const StudentGradeViewer: React.FC = () => {
                   transition={{ duration: 0.3, ease: "easeInOut" }}
                   className="overflow-hidden"
                 >
-                  <div className="border-t border-gray-200">
+                  <div className="border-t border-blue-100">
                     {gradesByYear[year].length === 0 ? (
-                      <tr>
-                        <td colSpan={7} className="px-4 py-8 text-center">
-                          <div className="flex flex-col items-center gap-2">
-                            <div className="p-2 rounded-full bg-gray-100">
-                              <BookOpen className="w-5 h-5 text-gray-400" />
-                            </div>
-                            <p className="text-gray-500 text-sm font-medium">No grades found</p>
-                            <p className="text-xs text-gray-400">Grades will appear here once posted</p>
+                      <div className="px-6 py-12 text-center">
+                        <div className="flex flex-col items-center gap-3">
+                          <div className="p-3 rounded-full bg-gray-100">
+                            <BookOpen className="w-6 h-6 text-gray-400" />
                           </div>
-                        </td>
-                      </tr>
+                          <p className="text-gray-500 text-base font-medium">No grades found</p>
+                          <p className="text-sm text-gray-400">Grades will appear here once posted</p>
+                        </div>
+                      </div>
                     ) : (
                       <>
                         {/* Mobile Card View */}
-                        <div className="block sm:hidden">
+                        <div className="block sm:hidden p-4 space-y-4">
                           {gradesByYear[year].map((grade) => (
-                            <div key={grade.id} className="mb-3 p-3 rounded-lg border bg-white shadow">
-                              <div className="font-semibold text-blue-700 mb-1">{grade.subject_code} - {grade.subject_name}</div>
-                              <div className="text-xs text-gray-500 mb-2">{grade.teacher_name || 'TBA'}</div>
-                              <div className="flex flex-wrap gap-2 text-xs mb-1">
-                                <span>Prelim: <b>{grade.prelim_grade ?? 'N/A'}</b></span>
-                                <span>Midterm: <b>{grade.midterm_grade ?? 'N/A'}</b></span>
-                                <span>Final: <b>{grade.final_grade ?? 'N/A'}</b></span>
-                                <span>GA: <b>{
-                                  grade.prelim_grade != null && grade.midterm_grade != null && grade.final_grade != null
-                                    ? ((Number(grade.prelim_grade) + Number(grade.midterm_grade) + Number(grade.final_grade)) / 3).toFixed(2)
-                                    : 'N/A'
-                                }</b></span>
+                            <motion.div 
+                              key={grade.id} 
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ duration: 0.3 }}
+                              className="p-4 rounded-xl border border-blue-100 bg-white shadow-inner"
+                            >
+                              <div className="font-bold text-gray-800 mb-2 text-base">{grade.subject_code} - {grade.subject_name}</div>
+                              <div className="text-sm text-gray-500 mb-3 flex items-center gap-1">
+                                <Users className="w-3 h-3" />
+                                {grade.teacher_name || 'TBA'}
                               </div>
-                              <div className="text-xs">
-                                Status: <b className={
+                              <div className="grid grid-cols-2 gap-2 text-sm mb-3">
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">Prelim:</span>
+                                  <span className="font-semibold">{grade.prelim_grade ?? 'N/A'}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">Midterm:</span>
+                                  <span className="font-semibold">{grade.midterm_grade ?? 'N/A'}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">Final:</span>
+                                  <span className="font-semibold">{grade.final_grade ?? 'N/A'}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">GA:</span>
+                                  <span className="font-semibold">
+                                    {grade.prelim_grade != null && grade.midterm_grade != null && grade.final_grade != null
+                                      ? ((Number(grade.prelim_grade) + Number(grade.midterm_grade) + Number(grade.final_grade)) / 3).toFixed(2)
+                                      : 'N/A'}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="text-sm">
+                                <span className="text-gray-600">Status: </span>
+                                <span className={`font-semibold ${
                                   grade.remarks === 'Passed' ? 'text-green-700' :
                                   grade.remarks === 'Failed' ? 'text-red-700' :
                                   grade.remarks === 'Incomplete' ? 'text-yellow-800' :
                                   'text-gray-600'
-                                }>{grade.remarks || 'Pending'}</b>
+                                }`}>{grade.remarks || 'Pending'}</span>
                               </div>
-                            </div>
+                            </motion.div>
                           ))}
                         </div>
                         {/* Desktop/Tablet Table View */}
                         <div className="hidden sm:block">
-                          <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50">
+                          <table className="min-w-full border-2 border-gray-500 rounded-lg overflow-hidden">
+                            <thead className="bg-gray-50 border-b-2 border-gray-500">
                               <tr>
-                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Subject</th>
-                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Teacher</th>
-                                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Prelim</th>
-                                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Midterm</th>
-                                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Final</th>
-                                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">GA</th>
-                                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
+                                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-r-2 border-gray-500">Subject</th>
+                                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-r-2 border-gray-500">Teacher</th>
+                                <th className="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider border-r-2 border-gray-500">Prelim</th>
+                                <th className="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider border-r-2 border-gray-500">Midterm</th>
+                                <th className="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider border-r-2 border-gray-500">Final</th>
+                                <th className="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider border-r-2 border-gray-500">GA</th>
+                                <th className="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">Status</th>
                               </tr>
                             </thead>
-                            <tbody className="bg-white divide-y divide-gray-100">
+                            <tbody className="bg-white">
                               {gradesByYear[year].map((grades, gradesIndex) => (
                                 <motion.tr 
                                   key={grades.id}
                                   initial={{ opacity: 0, y: 10 }}
                                   animate={{ opacity: 1, y: 0 }}
                                   transition={{ duration: 0.3, delay: gradesIndex * 0.05 }}
-                                  className="hover:bg-blue-50 transition-colors duration-200 group"
+                                  className="hover:bg-gray-50 transition-colors duration-200 group border-b-2 border-gray-500"
                                 >
-                          
-                                  <td className="px-4 py-3">
-                                    <span className="text-sm text-gray-700">{grades.subject_name}</span>
+                                  <td className="px-6 py-4 border-r-2 border-gray-500">
+                                    <span className="text-sm font-medium text-gray-800">{grades.subject_name}</span>
                                   </td>
-                                  <td className="px-4 py-3">
+                                  <td className="px-6 py-4 border-r-2 border-gray-500">
                                     <div className="flex items-center">
-                                      <Users className="w-3 h-3 text-gray-400 mr-1.5" />
+                                      <Users className="w-4 h-4 text-gray-400 mr-2" />
                                       <span className="text-sm text-gray-600">{grades.teacher_name || 'TBA'}</span>
                                     </div>
                                   </td>
-                                  <td className="px-4 py-3 text-center">
-                                    <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${
+                                  <td className="px-6 py-4 text-center border-r-2 border-gray-500">
+                                    <span className={`inline-flex items-center px-3 py-1 rounded-lg text-sm font-medium ${
                                       grades.prelim_grade !== null 
-                                        ? 'bg-blue-100 text-blue-800' 
-                                        : 'bg-gray-100 text-gray-500'
+                                        ? 'bg-gray-100 text-gray-800 border border-gray-200' 
+                                        : 'bg-gray-50 text-gray-500 border border-gray-200'
                                     }`}>
                                       {grades.prelim_grade ?? 'N/A'}
                                     </span>
                                   </td>
-                                  <td className="px-4 py-3 text-center">
-                                    <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${
+                                  <td className="px-6 py-4 text-center border-r-2 border-gray-500">
+                                    <span className={`inline-flex items-center px-3 py-1 rounded-lg text-sm font-medium ${
                                       grades.midterm_grade !== null 
-                                        ? 'bg-yellow-100 text-yellow-800' 
-                                        : 'bg-gray-100 text-gray-500'
+                                        ? 'bg-gray-100 text-gray-800 border border-gray-200' 
+                                        : 'bg-gray-50 text-gray-500 border border-gray-200'
                                     }`}>
                                       {grades.midterm_grade ?? 'N/A'}
                                     </span>
                                   </td>
-                                  <td className="px-4 py-3 text-center">
-                                    <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${
+                                  <td className="px-6 py-4 text-center border-r-2 border-gray-500">
+                                    <span className={`inline-flex items-center px-3 py-1 rounded-lg text-sm font-medium ${
                                       grades.final_grade !== null 
-                                        ? 'bg-green-100 text-green-800' 
-                                        : 'bg-gray-100 text-gray-500'
+                                        ? 'bg-gray-100 text-gray-800 border border-gray-200' 
+                                        : 'bg-gray-50 text-gray-500 border border-gray-200'
                                     }`}>
                                       {grades.final_grade ?? 'N/A'}
                                     </span>
                                   </td>
-                                  <td className="px-4 py-3 text-center">
-                                    <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-indigo-100 text-indigo-800`}>
+                                  <td className="px-6 py-4 text-center border-r-2 border-gray-500">
+                                    <span className="inline-flex items-center px-3 py-1 rounded-lg text-sm font-medium bg-gray-100 text-gray-800 border border-gray-200">
                                       {grades.prelim_grade !== undefined && grades.prelim_grade !== null &&
                                        grades.midterm_grade !== undefined && grades.midterm_grade !== null &&
                                        grades.final_grade !== undefined && grades.final_grade !== null
@@ -478,12 +530,12 @@ export const StudentGradeViewer: React.FC = () => {
                                         : 'N/A'}
                                     </span>
                                   </td>
-                                  <td className="px-4 py-3 text-center">
-                                    <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium
-                                      ${grades.remarks === 'Passed' ? 'bg-green-100 text-green-700 border border-green-200' :
-                                        grades.remarks === 'Failed' ? 'bg-red-100 text-red-700 border border-red-200' :
-                                        grades.remarks === 'Incomplete' ? 'bg-yellow-100 text-yellow-800 border border-yellow-200' :
-                                        'bg-gray-100 text-gray-600 border border-gray-200'}`}
+                                  <td className="px-6 py-4 text-center">
+                                    <span className={`inline-flex items-center px-3 py-1 rounded-lg text-sm font-medium border
+                                      ${grades.remarks === 'Passed' ? 'bg-gray-100 text-gray-800 border-gray-200' :
+                                        grades.remarks === 'Failed' ? 'bg-gray-100 text-gray-800 border-gray-200' :
+                                        grades.remarks === 'Incomplete' ? 'bg-gray-100 text-gray-800 border-gray-200' :
+                                        'bg-gray-50 text-gray-500 border-gray-200'}`}
                                     >
                                       {grades.remarks || 'Pending'}
                                     </span>
