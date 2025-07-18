@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import './Prospectus.css';
+import { motion } from 'framer-motion';
 
 const Prospectus: React.FC = () => {
   const [isFlipped, setIsFlipped] = useState(false);
@@ -164,27 +165,52 @@ const Prospectus: React.FC = () => {
   };
 
   return (
-    <div className="prospectus-container">
-      <div className="prospectus-header">
-        <h1>Academic Prospectus</h1>
-        <p>Bachelor of Science in Information Technology (BSIT)</p>
-        <div className="download-buttons">
-          <button 
-            onClick={downloadAsPDF}
-            disabled={isDownloading}
-            className="download-btn"
-          >
-            {isDownloading ? 'Generating PDF...' : 'Download PDF'}
-          </button>
-          <button 
-            onClick={downloadAsImage}
-            disabled={isDownloading}
-            className="download-btn secondary"
-          >
-            {isDownloading ? 'Generating Image...' : 'Download Image'}
-          </button>
+    <div className="min-h-screen bg-gradient-to-brvia-white to-blue-50">
+  
+    
+      {/* Premium Header Section */}
+  
+     <motion.div
+       initial={{ opacity: 0, y: 24 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 via-white to-purple-50  border border-blue-100"
+      >
+      <div className="mb-8 max-w-7xl mx-auto">
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 via-white to-purple-50  border border-blue-100 w-full">
+          <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 min-h-[110px] flex items-center w-full">
+            <div className="flex items-center gap-4 w-full justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 text-white"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0A9 9 0 11 3 12a9 9 0 0118 0z" /></svg>
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold text-white tracking-tight">Academic Prospectus</h1>
+                  <p className="text-white/80 text-sm font-medium">Bachelor of Science in Information Technology (BSIT)</p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button 
+                  onClick={downloadAsPDF}
+                  disabled={isDownloading}
+                  className="px-4 py-2 bg-white rounded-lg border border-gray-200 shadow-inner flex items-center gap-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  {isDownloading ? 'Generating PDF...' : 'Download PDF'}
+                </button>
+                <button 
+                  onClick={downloadAsImage}
+                  disabled={isDownloading}
+                  className="px-4 py-2 bg-white rounded-lg border border-gray-200 shadow-inner flex items-center gap-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  {isDownloading ? 'Generating Image...' : 'Download Image'}
+                </button>
+              </div>
+            </div>
+            
+          </div>
         </div>
       </div>
+      </motion.div>
       
       <div className="flip-card-container">
         <div 
