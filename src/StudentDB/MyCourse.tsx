@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   BookOpen, 
@@ -9,6 +9,7 @@ import {
   BookMarked,
   Calendar
 } from 'lucide-react';
+import ReactDOM from 'react-dom';
 
 interface Teacher {
   id: string;
@@ -38,58 +39,70 @@ interface MyCourseProps {
 }
 
 const MyCourse: React.FC<MyCourseProps> = ({ enrollments, courseImages, teacherImageUrls, loading }) => {
-  const [stats, setStats] = useState({
-    totalUnits: 0,
-    activeCourses: 0
-  });
   const [modalCourse, setModalCourse] = useState<Enrollment | null>(null);
 
-  // Debug: log modalCourse state
-  console.log('modalCourse:', modalCourse);
+  // Memoize stats calculation
+  const stats = useMemo(() => {
+    if (enrollments.length === 0) return { totalUnits: 0, activeCourses: 0 };
+    const totalUnits = enrollments.reduce((sum, enrollment) => sum + enrollment.course.units, 0);
+    return { totalUnits, activeCourses: enrollments.length };
+  }, [enrollments]);
+
+  // Memoize handler
+  const handleOpenModal = useCallback((enrollment: Enrollment) => setModalCourse(enrollment), []);
+  const handleCloseModal = useCallback(() => setModalCourse(null), []);
 
   // Calculate stats whenever enrollments change
   useEffect(() => {
     if (enrollments.length > 0) {
-      const totalUnits = enrollments.reduce((sum, enrollment) => sum + enrollment.course.units, 0);
-      setStats({
-        totalUnits,
-        activeCourses: enrollments.length
-      });
+       // setStats({ // This line is removed as per the edit hint
+       //   totalUnits,
+       //   activeCourses: enrollments.length
+       // });
     }
+    
   }, [enrollments]);
+
+  // Prevent background scroll when modal is open
+  React.useEffect(() => {
+    if (modalCourse) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [modalCourse]);
 
   return (
     <div className="max-w-[1400px] mx-auto space-y-6 p-4">
-      {/* Header - Google Classroom style */}
+      {/* Premium Header Section */}
       <motion.div 
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="bg-white rounded-lg border border-gray-200 shadow-sm"
+        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 via-white to-purple-50 shadow-inner shadow-inner-strong border border-blue-100"
       >
-        <div className="p-6">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="p-2 rounded-full bg-[#1a73e8] text-white">
-                <BookOpen className="w-6 h-6" />
+        <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
+                <BookOpen className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h2 className="text-2xl font-normal text-gray-900">My Courses</h2>
-                <p className="text-sm text-gray-600 mt-1">View and manage your enrolled courses</p>
+                <h2 className="text-2xl font-bold text-white tracking-tight">My Courses</h2>
+                <p className="text-white/80 text-sm font-medium mt-1">View and manage your enrolled courses</p>
               </div>
             </div>
-            <div className="flex gap-3">
-              <div className="px-4 py-2 bg-white rounded-lg border border-gray-200">
-                <div className="flex items-center gap-2">
-                  <BookMarked className="w-4 h-4 text-[#1a73e8]" />
-                  <span className="text-sm font-medium text-gray-700">{stats.activeCourses} Active Courses</span>
-                </div>
+            <div className="flex gap-3 mt-4 sm:mt-0 ml-0 sm:ml-auto">
+              <div className="px-4 py-2 bg-white rounded-lg border border-gray-200 shadow-inner flex items-center gap-2">
+                <BookMarked className="w-4 h-4 text-[#1a73e8]" />
+                <span className="text-sm font-medium text-gray-700">{stats.activeCourses} Active Courses</span>
               </div>
-              <div className="px-4 py-2 bg-white rounded-lg border border-gray-200">
-                <div className="flex items-center gap-2">
-                  <GraduationCap className="w-4 h-4 text-[#1a73e8]" />
-                  <span className="text-sm font-medium text-gray-700">{stats.totalUnits} Total Units</span>
-                </div>
+              <div className="px-4 py-2 bg-white rounded-lg border border-gray-200 shadow-inner flex items-center gap-2">
+                <GraduationCap className="w-4 h-4 text-[#1a73e8]" />
+                <span className="text-sm font-medium text-gray-700">{stats.totalUnits} Total Units</span>
               </div>
             </div>
           </div>
@@ -143,6 +156,9 @@ const MyCourse: React.FC<MyCourseProps> = ({ enrollments, courseImages, teacherI
                         alt={enrollment.course.name}
                         className="h-24 w-full object-cover"
                         style={{ borderTopLeftRadius: '0.5rem', borderTopRightRadius: '0.5rem' }}
+                        loading="lazy"
+                        width={400}
+                        height={96}
                       />
                     ) : (
                       <div className="h-24 w-full bg-gradient-to-r from-[#1a73e8] to-[#4285f4]" style={{ borderTopLeftRadius: '0.5rem', borderTopRightRadius: '0.5rem' }} />
@@ -151,23 +167,21 @@ const MyCourse: React.FC<MyCourseProps> = ({ enrollments, courseImages, teacherI
                     {enrollment.teacher && (
                       <div className="absolute -bottom-8 right-4 z-20">
                         <div className="w-16 h-16 rounded-full bg-white border-2 border-white shadow-md flex items-center justify-center text-2xl font-bold text-[#1a73e8] select-none" style={{ boxShadow: "rgba(60, 64, 67, 0.1) 0px 2px 8px 0px" }}>
-                          {(() => {
-                            console.log('Teacher:', enrollment.teacher);
-                            if (enrollment.teacher?.id && teacherImageUrls[enrollment.teacher.id]) {
-                              console.log('Teacher image URL:', teacherImageUrls[enrollment.teacher.id]);
-                              return (
-                                <img
-                                  src={teacherImageUrls[enrollment.teacher.id]}
-                                  alt="Teacher"
-                                  className="w-full h-full object-cover rounded-full"
-                                  onError={() => {
-                                    console.error('Failed to load teacher image:', teacherImageUrls[enrollment.teacher?.id || ''], enrollment.teacher);
-                                  }}
-                                />
-                              );
-                            }
-                            return `${enrollment.teacher?.first_name?.charAt(0) || ''}${enrollment.teacher?.last_name?.charAt(0) || ''}`.toUpperCase();
-                          })()}
+                          {enrollment.teacher?.id && teacherImageUrls[enrollment.teacher.id] ? (
+                            <img
+                              src={teacherImageUrls[enrollment.teacher.id]}
+                              alt="Teacher"
+                              className="w-full h-full object-cover rounded-full"
+                              loading="lazy"
+                              width={64}
+                              height={64}
+                              onError={(e) => {
+                                (e.currentTarget as HTMLImageElement).style.display = 'none';
+                              }}
+                            />
+                          ) : (
+                            `${enrollment.teacher?.first_name?.charAt(0) || ''}${enrollment.teacher?.last_name?.charAt(0) || ''}`.toUpperCase()
+                          )}
                         </div>
                       </div>
                     )}
@@ -214,7 +228,7 @@ const MyCourse: React.FC<MyCourseProps> = ({ enrollments, courseImages, teacherI
 
                     {/* View Details Button */}
                     <button 
-                      onClick={() => setModalCourse(enrollment)}
+                      onClick={() => handleOpenModal(enrollment)}
                       className="w-full mt-2 px-4 py-2 text-sm font-medium text-[#1a73e8] bg-[#e8f0fe] rounded-lg hover:bg-[#d2e3fc] transition-colors duration-200 flex items-center justify-center gap-2"
                     >
                       View Details
@@ -229,86 +243,91 @@ const MyCourse: React.FC<MyCourseProps> = ({ enrollments, courseImages, teacherI
       )}
 
       {/* Modal - Google Classroom style */}
-      {modalCourse && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          onClick={() => setModalCourse(null)}
-        >
+      {modalCourse && ReactDOM.createPortal(
+        (
           <motion.div
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.95, opacity: 0 }}
-            className="bg-white rounded-lg shadow-xl max-w-md w-full overflow-hidden"
-            onClick={e => e.stopPropagation()}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-lg"
           >
-            {/* Modal Header */}
-            <div className="relative h-24">
-              {courseImages[modalCourse.subject_id] ? (
-                <img
-                  src={courseImages[modalCourse.subject_id]}
-                  alt={modalCourse.course.name}
-                  className="h-24 w-full object-cover"
-                  style={{ borderTopLeftRadius: '0.5rem', borderTopRightRadius: '0.5rem' }}
-                />
-              ) : (
-                <div className="h-24 w-full bg-gradient-to-r from-[#1a73e8] to-[#4285f4]" style={{ borderTopLeftRadius: '0.5rem', borderTopRightRadius: '0.5rem' }} />
-              )}
-              <div className="absolute top-0 left-0 w-full h-full flex justify-between items-start p-6">
-                <div className="bg-white rounded px-2 py-1" style={{ boxShadow: 'inset 0 1px 4px 0 rgba(0,0,0,0.10), inset 0 -1px 4px 0 rgba(0,0,0,0.10)' }}>
-                  <h3 className="text-xl font-medium text-black drop-shadow">
-                    {modalCourse.course.code}
-                  </h3>
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-lg shadow-xl max-w-md w-full overflow-hidden relative"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div className="relative h-24">
+                {courseImages[modalCourse.subject_id] ? (
+                  <img
+                    src={courseImages[modalCourse.subject_id]}
+                    alt={modalCourse.course.name}
+                    className="h-24 w-full object-cover"
+                    style={{ borderTopLeftRadius: '0.5rem', borderTopRightRadius: '0.5rem' }}
+                    loading="lazy"
+                    width={400}
+                    height={96}
+                  />
+                ) : (
+                  <div className="h-24 w-full bg-gradient-to-r from-[#1a73e8] to-[#4285f4]" style={{ borderTopLeftRadius: '0.5rem', borderTopRightRadius: '0.5rem' }} />
+                )}
+                <div className="absolute top-0 left-0 w-full h-full flex justify-between items-start p-6 pointer-events-none">
+                  <div className="bg-white rounded px-2 py-1 pointer-events-auto" style={{ boxShadow: 'inset 0 1px 4px 0 rgba(0,0,0,0.10), inset 0 -1px 4px 0 rgba(0,0,0,0.10)' }}>
+                    <h3 className="text-xl font-medium text-black drop-shadow">
+                      {modalCourse.course.code}
+                    </h3>
+                  </div>
                 </div>
+                {/* Custom Close Button */}
                 <button
-                  onClick={() => setModalCourse(null)}
-                  className="text-white/80 hover:text-white text-2xl font-bold bg-black/60 rounded px-2 py-1"
-                  style={{ lineHeight: 1 }}
+                  onClick={handleCloseModal}
+                  className="absolute w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center text-lg sm:text-xl font-bold text-white bg-red-500 hover:bg-red-600 rounded-full shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 animate-pop-in hover:scale-110 hover:rotate-90 top-2 right-2 sm:top-3 sm:right-3"
+                  aria-label="Close announcements"
+                  style={{ backgroundColor: 'rgb(239, 68, 68)', boxShadow: 'rgba(239, 68, 68, 0.3) 0px 2px 8px', zIndex: 50 }}
                 >
                   ×
                 </button>
               </div>
-            </div>
-
-            {/* Modal Content */}
-            <div className="p-6 space-y-4">
-              <h4 className="text-lg font-medium text-gray-900">
-                {modalCourse.course.name}
-              </h4>
-              
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <GraduationCap className="w-4 h-4 text-[#1a73e8]" />
-                  <span>{modalCourse.course.units} Units</span>
-                </div>
-                {modalCourse.teacher && (
+              {/* Modal Content */}
+              <div className="p-6 space-y-4">
+                <h4 className="text-lg font-medium text-gray-900">
+                  {modalCourse.course.name}
+                </h4>
+                
+                <div className="space-y-3">
                   <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <Users className="w-4 h-4 text-[#1a73e8]" />
-                    <span>Prof. {modalCourse.teacher.first_name} {modalCourse.teacher.last_name}</span>
+                    <GraduationCap className="w-4 h-4 text-[#1a73e8]" />
+                    <span>{modalCourse.course.units} Units</span>
                   </div>
-                )}
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <Calendar className="w-4 h-4 text-[#1a73e8]" />
-                  <span>Current Semester</span>
+                  {modalCourse.teacher && (
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <Users className="w-4 h-4 text-[#1a73e8]" />
+                      <span>Prof. {modalCourse.teacher.first_name} {modalCourse.teacher.last_name}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <Calendar className="w-4 h-4 text-[#1a73e8]" />
+                    <span>Current Semester</span>
+                  </div>
+                </div>
+                <div className="pt-4 border-t border-gray-200">
+                  <button
+                    onClick={handleCloseModal}
+                    className="w-full px-4 py-2 text-sm font-medium text-white bg-[#1a73e8] rounded-lg hover:bg-[#1557b0] transition-colors duration-200"
+                  >
+                    Close
+                  </button>
                 </div>
               </div>
-
-              <div className="pt-4 border-t border-gray-200">
-                <button
-                  onClick={() => setModalCourse(null)}
-                  className="w-full px-4 py-2 text-sm font-medium text-white bg-[#1a73e8] rounded-lg hover:bg-[#1557b0] transition-colors duration-200"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
+            </motion.div>
           </motion.div>
-        </motion.div>
+        ),
+        document.body
       )}
     </div>
   );
 };
 
-export { MyCourse }; 
+export default MyCourse; 
