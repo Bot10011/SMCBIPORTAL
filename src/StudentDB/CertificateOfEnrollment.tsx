@@ -7,33 +7,8 @@ import { FileText, Download, Printer, Eye } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-interface StudentProfile {
-  student_id: string;
-  first_name: string;
-  last_name: string;
-  middle_name?: string;
-  year_level: string;
-  program: {
-    code: string;
-    name: string;
-    department: string;
-  };
-  email: string;
-}
-
-interface EnrolledCourse {
-  id: string;
-  course: {
-    code: string;
-    name: string;
-    units: number;
-  };
-  section: string;
-  schedule: string;
-}
-
 // Add html2pdf.js CDN if not present
-if (typeof window !== 'undefined' && !(window as any).html2pdf) {
+if (typeof window !== 'undefined' && !(window as unknown as { html2pdf?: unknown }).html2pdf) {
   const script = document.createElement('script');
   script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
   script.async = true;
@@ -43,12 +18,27 @@ if (typeof window !== 'undefined' && !(window as any).html2pdf) {
 // TypeScript: declare html2pdf on window
 declare global {
   interface Window {
-    html2pdf?: any;
+    html2pdf?: unknown;
   }
 }
 
+// Type for a COE record
+type COERecord = {
+  id?: string;
+  student_number?: string;
+  student_id?: string;
+  full_name?: string;
+  school_year?: string;
+  semester?: string;
+  year_level?: string;
+  department?: string;
+  email?: string;
+  date_issued?: string;
+  subjects?: { code: string; name: string; units: number }[];
+};
+
 // Modal component for displaying the COE certificate
-const COEModal = ({ coe, open, onClose }: { coe: any, open: boolean, onClose: () => void }) => {
+const COEModal = ({ coe, open, onClose }: { coe: COERecord, open: boolean, onClose: () => void }) => {
   const contentRef = useRef<HTMLDivElement>(null);
   if (!coe || !open) return null;
 
@@ -68,7 +58,7 @@ const COEModal = ({ coe, open, onClose }: { coe: any, open: boolean, onClose: ()
       doc.setFontSize(14);
       doc.text('Certificate of Enrollment', 105, 60, { align: 'center' });
       doc.setFontSize(11);
-      doc.text(`Date: ${new Date(coe.date_issued).toLocaleDateString()}`, 20, 70);
+      doc.text(`Date: ${coe.date_issued ? new Date(coe.date_issued).toLocaleDateString() : 'N/A'}`, 20, 70);
       // Student Info
       let y = 80;
       doc.text(`Student ID: ${coe.student_number || coe.student_id}`, 20, y);
@@ -86,15 +76,15 @@ const COEModal = ({ coe, open, onClose }: { coe: any, open: boolean, onClose: ()
         startY: y + 10,
         head: [['Course Code', 'Course Name', 'Units']],
         body: Array.isArray(coe.subjects) ? [
-          ...coe.subjects.map((subj: any) => [subj.code, subj.name, subj.units]),
-          ["", "Total Units", coe.subjects.reduce((sum: number, subj: any) => sum + (Number(subj.units) || 0), 0)]
+          ...coe.subjects.map((subj) => [subj.code, subj.name, subj.units]),
+          ["", "Total Units", coe.subjects.reduce((sum, subj) => sum + (Number(subj.units) || 0), 0)]
         ] : [],
         theme: 'grid',
         headStyles: { fillColor: [41, 128, 185] },
         styles: { fontSize: 10 }
       });
       // Footer
-      const finalY = (doc as any).lastAutoTable.finalY || y + 30;
+      const finalY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable?.finalY || y + 30;
       doc.setFontSize(12);
       doc.text('ENROLLED', 105, finalY + 15, { align: 'center' });
       doc.setFontSize(10);
@@ -123,7 +113,7 @@ const COEModal = ({ coe, open, onClose }: { coe: any, open: boolean, onClose: ()
       doc.setFontSize(14);
       doc.text('Certificate of Enrollment', 105, 60, { align: 'center' });
       doc.setFontSize(11);
-      doc.text(`Date: ${new Date(coe.date_issued).toLocaleDateString()}`, 20, 70);
+      doc.text(`Date: ${coe.date_issued ? new Date(coe.date_issued).toLocaleDateString() : 'N/A'}`, 20, 70);
       let y = 80;
       doc.text(`Student ID: ${coe.student_number || coe.student_id}`, 20, y);
       doc.text(`Full Name: ${coe.full_name || 'N/A'}`, 120, y);
@@ -139,14 +129,14 @@ const COEModal = ({ coe, open, onClose }: { coe: any, open: boolean, onClose: ()
         startY: y + 10,
         head: [['Course Code', 'Course Name', 'Units']],
         body: Array.isArray(coe.subjects) ? [
-          ...coe.subjects.map((subj: any) => [subj.code, subj.name, subj.units]),
-          ["", "Total Units", coe.subjects.reduce((sum: number, subj: any) => sum + (Number(subj.units) || 0), 0)]
+          ...coe.subjects.map((subj) => [subj.code, subj.name, subj.units]),
+          ["", "Total Units", coe.subjects.reduce((sum, subj) => sum + (Number(subj.units) || 0), 0)]
         ] : [],
         theme: 'grid',
         headStyles: { fillColor: [41, 128, 185] },
         styles: { fontSize: 10 }
       });
-      const finalY = (doc as any).lastAutoTable.finalY || y + 30;
+      const finalY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable?.finalY || y + 30;
       doc.setFontSize(12);
       doc.text('ENROLLED', 105, finalY + 15, { align: 'center' });
       doc.setFontSize(10);
@@ -156,13 +146,6 @@ const COEModal = ({ coe, open, onClose }: { coe: any, open: boolean, onClose: ()
       doc.autoPrint();
       doc.output('dataurlnewwindow');
     };
-  };
-
-  // Close modal on outside click
-  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
   };
 
   return (
@@ -231,7 +214,7 @@ const COEModal = ({ coe, open, onClose }: { coe: any, open: boolean, onClose: ()
                 <p className="text-gray-600 mt-1">Certificate of Enrollment</p>
               </div>
             </div>
-            <p className="text-gray-500">Date: {new Date(coe.date_issued).toLocaleDateString()}</p>
+            <p className="text-gray-500">Date: {coe.date_issued ? new Date(coe.date_issued).toLocaleDateString() : 'N/A'}</p>
           </div>
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -266,28 +249,28 @@ const COEModal = ({ coe, open, onClose }: { coe: any, open: boolean, onClose: ()
             </div>
             <div className="mt-8">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Enrolled Courses</h3>
-              <div className="border rounded-lg overflow-hidden w-full">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Course Code</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Course Name</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Units</th>
+              <div className="rounded-xl border border-gray-200 overflow-hidden w-full shadow-sm">
+                <table className="min-w-full bg-white">
+                  <thead>
+                    <tr className="bg-blue-600 rounded-t-xl">
+                      <th className="px-4 py-2 text-left text-xs font-bold text-white rounded-tl-xl">Course Code</th>
+                      <th className="px-4 py-2 text-left text-xs font-bold text-white">Course Name</th>
+                      <th className="px-4 py-2 text-left text-xs font-bold text-white rounded-tr-xl">Units</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {Array.isArray(coe.subjects) && coe.subjects.map((subject: any, idx: number) => (
+                  <tbody>
+                    {Array.isArray(coe.subjects) && coe.subjects.map((subject, idx) => (
                       <tr key={idx}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{subject.code}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{subject.name}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{subject.units}</td>
+                        <td className="px-4 py-2 text-sm text-gray-900">{subject.code}</td>
+                        <td className="px-4 py-2 text-sm text-gray-900">{subject.name}</td>
+                        <td className="px-4 py-2 text-sm text-gray-900">{subject.units}</td>
                       </tr>
                     ))}
                     {/* Total Units Row */}
                     <tr>
                       <td></td>
-                      <td className="px-6 py-4 font-bold text-right">Total Units</td>
-                      <td className="px-6 py-4 font-bold text-gray-900">{Array.isArray(coe.subjects) ? coe.subjects.reduce((sum: number, subj: any) => sum + (Number(subj.units) || 0), 0) : 0}</td>
+                      <td className="px-4 py-2 text-right text-sm text-gray-900">Total Units</td>
+                      <td className="px-4 py-2 font-bold text-gray-900">{Array.isArray(coe.subjects) ? coe.subjects.reduce((sum, subj) => sum + (Number(subj.units) || 0), 0) : 0}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -314,16 +297,11 @@ const COEModal = ({ coe, open, onClose }: { coe: any, open: boolean, onClose: ()
 
 export const CertificateOfEnrollment: React.FC = () => {
   const { user } = useAuth();
-  const [coeList, setCOEList] = useState<any[]>([]);
+  const [coeList, setCOEList] = useState<COERecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [selectedCOE, setSelectedCOE] = useState<any | null>(null);
+  const [selectedCOE, setSelectedCOE] = useState<COERecord | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
-
-  // Debug: log state changes
-  useEffect(() => {
-    console.log('selectedCOE:', selectedCOE, 'modalOpen:', modalOpen);
-  }, [selectedCOE, modalOpen]);
 
   useEffect(() => {
     const fetchCOEs = async () => {
@@ -338,8 +316,8 @@ export const CertificateOfEnrollment: React.FC = () => {
           if (error) throw error;
           setCOEList(data || []);
         }
-      } catch (error: any) {
-        setErrorMsg(error?.message || JSON.stringify(error));
+      } catch (error) {
+        setErrorMsg(error instanceof Error ? error.message : JSON.stringify(error));
         console.error('Error fetching COEs:', error);
       } finally {
         setLoading(false);
@@ -361,61 +339,76 @@ export const CertificateOfEnrollment: React.FC = () => {
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8">
-      <div className="p-4 sm:p-6">
-        <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <FileText className="w-6 h-6 text-blue-600" />
-          Certificate of Enrollment
-        </h2>
-        <p className="mt-1 text-sm text-gray-600">View and download your Certificate of Enrollment. Click "View" to see details.</p>
-      </div>
-      <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100 w-full">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">COE History</h3>
-        {coeList.length === 0 ? (
-          <div className="text-center text-gray-500">No Certificate of Enrollment records found.</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">School Year</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Semester</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date Issued</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {coeList.map((coe, idx) => (
-                  <tr key={coe.id || idx}>
-                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">{coe.school_year}</td>
-                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">{coe.semester}</td>
-                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">{new Date(coe.date_issued).toLocaleDateString()}</td>
-                    <td className="px-4 py-2 whitespace-nowrap">
-                      <button
-                        className="inline-flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                        onClick={() => { 
-                          console.log('View button clicked', coe);
-                          setSelectedCOE(coe); 
-                          setModalOpen(true); 
-                        }}
-                      >
-                        <Eye className="w-4 h-4" /> View
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+    <div className="min-h-screen bg-gradient-to-br  to-blue-100">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Premium Header Section */}
+        <motion.div 
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 via-white to-purple-50 shadow-inner shadow-inner-strong border border-blue-100 mb-12"
+        >
+          <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
+                  <FileText className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold text-white tracking-tight">Certificate of Enrollment</h1>
+                  <p className="text-white/80 text-sm font-medium">View, download, and print your official Certificate of Enrollment</p>
+                </div>
+              </div>
+            </div>
           </div>
-        )}
+        </motion.div>
+        <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 w-full">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">COE History</h3>
+          {coeList.length === 0 ? (
+            <div className="text-center text-gray-500">No Certificate of Enrollment records found.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">School Year</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Semester</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date Issued</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {coeList.map((coe, idx) => (
+                    <tr key={coe.id || idx}>
+                      <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">{coe.school_year}</td>
+                      <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">{coe.semester}</td>
+                      <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">{coe.date_issued ? new Date(coe.date_issued).toLocaleDateString() : 'N/A'}</td>
+                      <td className="px-4 py-2 whitespace-nowrap">
+                        <button
+                          className="inline-flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                          onClick={() => { 
+                            setSelectedCOE(coe); 
+                            setModalOpen(true); 
+                          }}
+                        >
+                          <Eye className="w-4 h-4" /> View
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+        {/* Only render the portal when modalOpen and selectedCOE are true */}
+        {modalOpen && selectedCOE &&
+          createPortal(
+            <COEModal coe={selectedCOE} open={modalOpen} onClose={() => setModalOpen(false)} />, 
+            document.body
+          )
+        }
       </div>
-      {/* Only render the portal when modalOpen and selectedCOE are true */}
-      {modalOpen && selectedCOE &&
-        createPortal(
-          <COEModal coe={selectedCOE} open={modalOpen} onClose={() => setModalOpen(false)} />, 
-          document.body
-        )
-      }
     </div>
   );
 }; 
