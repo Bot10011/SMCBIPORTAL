@@ -134,7 +134,8 @@ interface Row {
   enrollment_id: string;
   year_level: string | null;
   section: string | null;
-  program: string | null;
+  program: string;
+  student_id: string | undefined;
 }
 
 const GradeInputTable: React.FC = () => {
@@ -146,6 +147,7 @@ const GradeInputTable: React.FC = () => {
   const [savingGrades, setSavingGrades] = useState<{ [key: string]: boolean }>({});
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [showAllStudents, setShowAllStudents] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -160,6 +162,8 @@ const GradeInputTable: React.FC = () => {
         programsData?.forEach((program: { id: string; name: string }) => {
           programsMap[program.id] = program.name;
         });
+        
+        console.log('Programs map:', programsMap);
 
         // 1. Fetch assigned courses for the teacher
         const { data: teacherSubjects, error: teacherSubjectsError } = await supabase
@@ -183,19 +187,38 @@ const GradeInputTable: React.FC = () => {
           setRows([]);
           return;
         }
+        console.log('Fetched enrollments:', enrollments);
+        
+        // Debug: Check program_ids
+        const programIds = enrollments.map(e => {
+          const student = e.student as unknown as { id: string; first_name: string; last_name: string; year_level: string; section: string; program_id: string } | null;
+          return Array.isArray(student) ? student[0]?.program_id : student?.program_id;
+        }).filter(Boolean);
+        console.log('Program IDs found:', programIds);
+        
         // 3. For each enrollment, fetch grades
-        const enrollmentIds = enrollments.map(e => e.id);
+        const studentIds = enrollments.map(e => {
+          const student = e.student as unknown as { id: string; first_name: string; last_name: string; year_level: string; section: string; program_id: string } | null;
+          return Array.isArray(student) ? student[0]?.id : student?.id;
+        }).filter(Boolean);
         const { data: grades, error: gradesError } = await supabase
           .from('grades')
           .select('id, student_id, prelim_grade, midterm_grade, final_grade, remarks')
-          .in('student_id', enrollmentIds);
+          .in('student_id', studentIds);
         if (gradesError) throw gradesError;
+        console.log('Fetched grades:', grades);
         // 4. Build table rows
         const rows: Row[] = enrollments.map(enrollment => {
           const teacherSubject = teacherSubjects.find(ts => ts.subject_id === enrollment.subject_id);
           const course = teacherSubject?.course as unknown as { code: string; name: string } | null;
           const student = enrollment.student as unknown as { id: string; first_name: string; last_name: string; year_level: string; section: string; program_id: string } | null;
-          const grade = grades.find(g => g.student_id === enrollment.id);
+          let studentId: string | undefined = undefined;
+          if (Array.isArray(student)) {
+            studentId = (student as { id: string }[])[0]?.id;
+          } else if (student && typeof student === 'object' && typeof (student as { id?: unknown }).id === 'string') {
+            studentId = (student as { id: string }).id;
+          }
+          const grade = grades.find(g => g.student_id === studentId);
           
           // Auto-calculate remarks if grades exist but no remarks
           if (grade && (grade.prelim_grade !== null || grade.midterm_grade !== null || grade.final_grade !== null) && !grade.remarks) {
@@ -213,21 +236,30 @@ const GradeInputTable: React.FC = () => {
           return {
             course_code: course?.code || '',
             course_name: course?.name || '',
-            student_name: student ? `${student.first_name} ${student.last_name}` : '',
+            student_name: student ? (Array.isArray(student) ? `${student[0]?.first_name} ${student[0]?.last_name}` : `${student.first_name} ${student.last_name}`) : '',
             prelim_grade: grade?.prelim_grade ?? null,
             midterm_grade: grade?.midterm_grade ?? null,
             final_grade: grade?.final_grade ?? null,
             remarks: grade?.remarks ?? null,
             enrollment_id: enrollment.id,
-            year_level: student?.year_level || null,
-            section: student?.section || null,
-            program: student?.program_id ? programsMap[student.program_id] || null : null,
+            year_level: Array.isArray(student) ? student[0]?.year_level : student?.year_level || null,
+            section: Array.isArray(student) ? student[0]?.section : student?.section || null,
+            program: (() => {
+              const programId = Array.isArray(student) ? student[0]?.program_id : student?.program_id;
+              if (!programId) return 'No Program Assigned';
+              const programName = programsMap[programId];
+              return programName || `Program ID: ${programId}`;
+            })(),
+            student_id: studentId || '',
           };
         });
         setRows(rows);
+        setFetchError(null);
       } catch (error) {
         console.error('Error fetching data:', error);
         setRows([]);
+        setFetchError(error instanceof Error ? error.message : String(error));
+        toast.error('Error fetching student grades: ' + (error instanceof Error ? error.message : String(error)));
       }
     };
     fetchData();
@@ -238,19 +270,17 @@ const GradeInputTable: React.FC = () => {
     const matchesSearch = row.student_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          row.course_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          row.course_name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesFilter = !selectedCourse || row.course_code === selectedCourse;
+    const yearSection = `${row.year_level || 'Unknown'} - ${row.section || 'Unknown'}`;
+    const matchesFilter = !selectedCourse || yearSection === selectedCourse;
     return matchesSearch && matchesFilter;
   });
 
-  // Get unique courses for filter
-  const uniqueCourses = Array.from(new Set(rows.map(row => row.course_code)));
-
   // Group students by program, year level, and section
   const groupedStudents = filteredRows.reduce((groups, row) => {
-    const key = `${row.program || 'Unknown Program'} - ${row.year_level || 'Unknown Year'} - ${row.section || 'Unknown Section'}`;
+    const key = `${row.program} - ${row.year_level || 'Unknown Year'} - ${row.section || 'Unknown Section'}`;
     if (!groups[key]) {
       groups[key] = {
-        program: row.program || 'Unknown Program',
+        program: row.program,
         yearLevel: row.year_level || 'Unknown Year',
         section: row.section || 'Unknown Section',
         students: []
@@ -288,48 +318,6 @@ const GradeInputTable: React.FC = () => {
     if (grades.length === 0) return null;
     
     return Math.round((grades.reduce((sum, grade) => sum + grade, 0) / grades.length) * 100) / 100;
-  };
-
-  // Function to get remarks display value
-  const getRemarksDisplay = (row: Row): string => {
-    // If there's a stored remarks value, use it
-    if (row.remarks) return row.remarks;
-    // Otherwise calculate based on average of all grades
-    return calculateRemarks(row.prelim_grade, row.midterm_grade, row.final_grade);
-  };
-
-  // Function to update remarks in database
-  const updateRemarks = async (enrollmentId: string, remarks: string) => {
-    try {
-      const { error } = await supabase
-        .from('grades')
-        .upsert({
-          student_id: enrollmentId,
-          remarks: remarks,
-          updated_at: new Date().toISOString()
-        });
-
-      if (error) {
-        console.error('Error updating remarks:', error);
-        toast.error('Failed to update remarks');
-      } else {
-        toast.success('Remarks updated successfully');
-        // Refresh the data
-        window.location.reload();
-      }
-    } catch (error) {
-      console.error('Error updating remarks:', error);
-      toast.error('Failed to update remarks');
-    }
-  };
-
-  // Function to handle remarks edit
-  const handleRemarksEdit = async (row: Row, enrollmentId: string) => {
-    const currentRemarks = getRemarksDisplay(row);
-    const newRemarks = currentRemarks === 'PASSED' ? 'FAILED' : 
-                      currentRemarks === 'FAILED' ? 'PASSED' : 'PASSED';
-    
-    await updateRemarks(enrollmentId, newRemarks);
   };
 
   // Function to start editing grades for a student
@@ -387,11 +375,19 @@ const GradeInputTable: React.FC = () => {
       // Calculate new remarks based on average
       const calculatedRemarks = calculateRemarks(prelimGrade, midtermGrade, finalGrade);
 
+      // Find the correct student_id (user ID) for this enrollment
+      const row = rows.find(r => r.enrollment_id === enrollmentId);
+      const studentId = row?.student_id;
+      if (!studentId) {
+        toast.error('Could not find student user ID for this enrollment.');
+        setSavingGrades(prev => ({ ...prev, [enrollmentId]: false }));
+        return;
+      }
       // Update grades in database
       const { error } = await supabase
         .from('grades')
         .upsert({
-          student_id: enrollmentId,
+          student_id: studentId,
           prelim_grade: prelimGrade,
           midterm_grade: midtermGrade,
           final_grade: finalGrade,
@@ -430,6 +426,7 @@ const GradeInputTable: React.FC = () => {
     setEditingGrades(prev => {
       const newState = { ...prev };
       delete newState[enrollmentId];
+      
       return newState;
     });
   };
@@ -437,69 +434,41 @@ const GradeInputTable: React.FC = () => {
   return (
     <div className="min-h-screenfrom-slate-50 to-blue-50 p-6">
       <div className="max-w-7xl mx-auto">
+        {fetchError && (
+          <div className="mb-4 p-4 bg-red-100 text-red-700 rounded-lg border border-red-200 font-semibold">
+            Error loading student grades: {fetchError}
+          </div>
+        )}
         {/* Header Section */}
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-3">
-                <div className="p-2 bg-blue-100 rounded-xl">
-                  <BookOpen className="w-8 h-8 text-blue-600" />
+          <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 rounded-2xl shadow-lg">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
+                  <BookOpen className="w-6 h-6 text-white" />
                 </div>
-                Grade Management
-              </h1>
-              <p className="text-gray-600">Manage and input student grades for your assigned courses</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <button className="p-3 bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-all">
-                <Download className="w-5 h-5 text-gray-600" />
-              </button>
-              <button className="p-3 bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-all">
-                <RefreshCw className="w-5 h-5 text-gray-600" />
-              </button>
-            </div>
-          </div>
-
-          {/* Statistics Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-              <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Total Students</p>
-                  <p className="text-2xl font-bold text-gray-900">{totalStudents}</p>
-                </div>
-                <div className="p-3 bg-blue-100 rounded-xl">
-                  <User className="w-6 h-6 text-blue-600" />
+                  <h1 className="text-2xl font-bold text-white tracking-tight">Grade Management</h1>
+                  <p className="text-white/80 text-sm font-medium">Manage and input student grades for your assigned courses</p>
                 </div>
               </div>
-            </div>
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Completed Grades</p>
-                  <p className="text-2xl font-bold text-gray-900">{completedGrades}</p>
-                </div>
-                <div className="p-3 bg-green-100 rounded-xl">
-                  <CheckCircle2 className="w-6 h-6 text-green-600" />
-                </div>
-              </div>
-            </div>
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Completion Rate</p>
-                  <p className="text-2xl font-bold text-gray-900">{completionRate}%</p>
-                </div>
-                <div className="p-3 bg-purple-100 rounded-xl">
-                  <TrendingUp className="w-6 h-6 text-purple-600" />
-                </div>
+              <div className="flex items-center gap-3">
+                <button className="p-3 bg-white/20 backdrop-blur-sm rounded-xl hover:bg-white/30 transition-all">
+                  <Download className="w-5 h-5 text-white" />
+                </button>
+                <button className="p-3 bg-white/20 backdrop-blur-sm rounded-xl hover:bg-white/30 transition-all">
+                  <RefreshCw className="w-5 h-5 text-white" />
+                </button>
               </div>
             </div>
           </div>
+        </div>
 
-          {/* Search and Filter Section */}
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-6">
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="flex-1">
+          {/* Search and Statistics Section */}
+          <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 mb-6">
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+              {/* Search Bar */}
+              <div className="lg:col-span-1">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                   <input
@@ -511,21 +480,99 @@ const GradeInputTable: React.FC = () => {
                   />
                 </div>
               </div>
-              <div className="md:w-64">
-                <select
-                  value={selectedCourse}
-                  onChange={(e) => setSelectedCourse(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-200 focus:border-blue-500 transition-all"
-                >
-                  <option value="">All Courses</option>
-                  {uniqueCourses.map(course => (
-                    <option key={course} value={course}>{course}</option>
-                  ))}
-                </select>
+
+              {/* Total Students Card */}
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-3 shadow-md border border-blue-100 hover:shadow-lg transition-all duration-300 group">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="p-2 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg shadow-sm group-hover:scale-105 transition-transform duration-300">
+                    <User className="w-4 h-4 text-white" />
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs font-medium text-blue-600 bg-blue-100 px-2 py-1 rounded-full">
+                      Active
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-gray-600">Total Students</p>
+                  <div className="flex items-baseline gap-2">
+                    <p className="text-xl font-bold text-gray-900">{totalStudents}</p>
+                    <span className="text-sm text-green-600 font-medium">+0%</span>
+                  </div>
+                  <p className="text-xs text-gray-500">Enrolled in your courses</p>
+                </div>
+              </div>
+
+              {/* Completed Grades Card */}
+              <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-3 shadow-md border border-green-100 hover:shadow-lg transition-all duration-300 group">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="p-2 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg shadow-sm group-hover:scale-105 transition-transform duration-300">
+                    <CheckCircle2 className="w-4 h-4 text-white" />
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs font-medium text-green-600 bg-green-100 px-2 py-1 rounded-full">
+                      Updated
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-gray-600">Completed Grades</p>
+                  <div className="flex items-baseline gap-2">
+                    <p className="text-xl font-bold text-gray-900">{completedGrades}</p>
+                    <span className="text-sm text-green-600 font-medium">
+                      {totalStudents > 0 ? Math.round((completedGrades / totalStudents) * 100) : 0}%
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500">Grades submitted</p>
+                </div>
+              </div>
+
+              {/* Completion Rate Card */}
+              <div className="bg-gradient-to-br from-purple-50 to-violet-50 rounded-xl p-3 shadow-md border border-purple-100 hover:shadow-lg transition-all duration-300 group">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="p-2 bg-gradient-to-br from-purple-500 to-violet-600 rounded-lg shadow-sm group-hover:scale-105 transition-transform duration-300">
+                    <TrendingUp className="w-4 h-4 text-white" />
+                  </div>
+                  <div className="text-right">
+                    <div className={`text-xs font-medium px-2 py-1 rounded-full ${
+                      completionRate >= 80 ? 'text-green-600 bg-green-100' : 
+                      completionRate >= 60 ? 'text-yellow-600 bg-yellow-100' : 
+                      'text-red-600 bg-red-100'
+                    }`}>
+                      {completionRate >= 80 ? 'Excellent' : 
+                       completionRate >= 60 ? 'Good' : 'Needs Attention'}
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-gray-600">Completion Rate</p>
+                  <div className="flex items-baseline gap-2">
+                    <p className="text-xl font-bold text-gray-900">{completionRate}%</p>
+                    <div className="flex items-center gap-1">
+                      {completionRate >= 80 ? (
+                        <span className="text-sm text-green-600">↑</span>
+                      ) : completionRate >= 60 ? (
+                        <span className="text-sm text-yellow-600">→</span>
+                      ) : (
+                        <span className="text-sm text-red-600">↓</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-1">
+                    <div 
+                      className={`h-1 rounded-full transition-all duration-500 ${
+                        completionRate >= 80 ? 'bg-gradient-to-r from-green-500 to-emerald-500' :
+                        completionRate >= 60 ? 'bg-gradient-to-r from-yellow-500 to-orange-500' :
+                        'bg-gradient-to-r from-red-500 to-pink-500'
+                      }`}
+                      style={{ width: `${completionRate}%` }}
+                    ></div>
+                  </div>
+                  <p className="text-xs text-gray-500">Progress indicator</p>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
         {/* Table Section */}
         <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -535,12 +582,24 @@ const GradeInputTable: React.FC = () => {
               <div className="p-6">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-lg font-semibold text-gray-900">Student Groups</h3>
-                  <button
-                    onClick={() => setShowAllStudents(false)}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    View All Students
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <select
+                      value={selectedCourse}
+                      onChange={(e) => setSelectedCourse(e.target.value)}
+                      className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 transition-all"
+                    >
+                      <option value="">All Year Levels & Sections</option>
+                      {Array.from(new Set(rows.map(row => `${row.year_level || 'Unknown'} - ${row.section || 'Unknown'}`))).map(yearSection => (
+                        <option key={yearSection} value={yearSection}>{yearSection}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => setShowAllStudents(false)}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      View All Students
+                    </button>
+                  </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {sortedGroups.map(([groupKey, group]) => (
@@ -697,24 +756,20 @@ const GradeInputTable: React.FC = () => {
                           <div className="flex flex-col items-start">
                             {(() => {
                               const averageGrade = calculateAverageGrade(row.prelim_grade, row.midterm_grade, row.final_grade);
-                              const remarks = getRemarksDisplay(row);
                               return (
                                 <div className="flex flex-col space-y-1">
-                                  {averageGrade !== null && (
-                                    <span className="text-sm font-semibold text-gray-900">
+                                  {averageGrade !== null ? (
+                                    <span
+                                      className={`text-sm font-semibold px-2 py-1 rounded-full ${
+                                        averageGrade >= 75
+                                          ? 'bg-green-100 text-green-800'
+                                          : 'bg-red-100 text-red-800'
+                                      }`}
+                                    >
                                       {averageGrade}
                                     </span>
-                                  )}
-                                  {remarks && (
-                                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full cursor-pointer transition-colors ${
-                                      remarks.includes('PASSED') 
-                                        ? 'bg-green-100 text-green-800 hover:bg-green-200' 
-                                        : 'bg-red-100 text-red-800 hover:bg-red-200'
-                                    }`}
-                                    onClick={() => handleRemarksEdit(row, row.enrollment_id)}
-                                    title={`Prelim: ${row.prelim_grade || 'N/A'}, Midterm: ${row.midterm_grade || 'N/A'}, Final: ${row.final_grade || 'N/A'}`}>
-                                      {remarks}
-                                    </span>
+                                  ) : (
+                                    <span className="text-sm font-semibold px-2 py-1 rounded-full bg-gray-100 text-gray-800">N/A</span>
                                   )}
                                 </div>
                               );
