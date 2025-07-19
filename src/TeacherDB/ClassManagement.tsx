@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { GradeInputModal } from './GradeInput';
-import { Loader2, BookOpen, Users, Edit3 } from 'lucide-react';
+import { Loader2, BookOpen, Users, ChevronDown, ChevronRight, Search, Calendar, GraduationCap } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -11,6 +11,7 @@ interface Course {
   name: string;
   description: string;
   units: number;
+  year_level?: string;
 }
 
 interface TeacherClass {
@@ -22,6 +23,7 @@ interface TeacherClass {
   is_active: boolean;
   created_at: string;
   course: Course;
+  year_level?: string;
 }
 
 interface Student {
@@ -39,8 +41,10 @@ interface Student {
   midterm_grade?: number;
   final_grade?: number;
   year_level?: string; // Added for new fields
-  semester?: string;   // Added for new fields
-  academic_year?: string; // Added for new fields
+  subject_id: string; // Ensure subject_id is present for grade matching
+  semester?: string; // Added for grade operations
+  academic_year?: string; // Added for grade operations
+  student_id?: string; // Actual student ID from user_profiles table
 }
 
 interface DatabaseTeacherClass {
@@ -54,9 +58,11 @@ interface DatabaseTeacherClass {
   course: Course | Course[];
 }
 
-interface DatabaseEnrolledStudent {
+interface EnrollmentRow {
+  id: string;
   student_id: string;
   status: string;
+  subject_id: string;
   enrollment_date: string;
   student: {
     id: string;
@@ -67,6 +73,8 @@ interface DatabaseEnrolledStudent {
     last_name: string;
     middle_name?: string;
     is_active: boolean;
+    year_level?: string;
+    student_id?: string;
   } | {
     id: string;
     email: string;
@@ -76,13 +84,25 @@ interface DatabaseEnrolledStudent {
     last_name: string;
     middle_name?: string;
     is_active: boolean;
+    year_level?: string;
+    student_id?: string;
   }[];
 }
+
+interface GradeRow {
+  id: string;
+  student_id: string;
+  prelim_grade?: number;
+  midterm_grade?: number;
+  final_grade?: number;
+}
+
+
 
 // UUID v4 generator
 function uuidv4() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    var r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+    const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
     return v.toString(16);
   });
 }
@@ -95,6 +115,12 @@ const ClassManagement: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [showGradeModal, setShowGradeModal] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  
+  // New state for improved organization
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterYearLevel, setFilterYearLevel] = useState<string>('all');
+  const [filterSemester, setFilterSemester] = useState<string>('all');
 
   useEffect(() => {
     if (user?.id) {
@@ -117,7 +143,7 @@ const ClassManagement: React.FC = () => {
           semester,
           is_active,
           created_at,
-          course:courses(id, code, name, description, units)
+          course:courses(id, code, name, units, year_level)
         `)
         .eq('teacher_id', user.id)
         .order('created_at', { ascending: false });
@@ -125,16 +151,20 @@ const ClassManagement: React.FC = () => {
       if (fetchError) throw fetchError;
       
       // Transform the data to match TeacherClass type
-      const transformedData = (data as DatabaseTeacherClass[] || []).map((item) => ({
-        id: item.id,
-        subject_id: item.subject_id,
-        section: item.section,
-        academic_year: item.academic_year,
-        semester: item.semester,
-        is_active: item.is_active,
-        created_at: item.created_at,
-        course: Array.isArray(item.course) ? item.course[0] : item.course
-      })) as TeacherClass[];
+      const transformedData = (data as DatabaseTeacherClass[] || []).map((item) => {
+        const course = Array.isArray(item.course) ? item.course[0] : item.course;
+        return {
+          id: item.id,
+          subject_id: item.subject_id,
+          section: item.section,
+          academic_year: item.academic_year,
+          semester: item.semester,
+          is_active: item.is_active,
+          created_at: item.created_at,
+          course: course,
+          year_level: course?.year_level
+        };
+      }) as TeacherClass[];
       
       setClasses(transformedData);
     } catch (error) {
@@ -203,7 +233,7 @@ const ClassManagement: React.FC = () => {
           status,
           subject_id,
           enrollment_date,
-          student:user_profiles!enrollcourse_student_id_fkey(
+          student:user_profiles(
             id,
             email,
             role,
@@ -211,9 +241,10 @@ const ClassManagement: React.FC = () => {
             first_name,
             last_name,
             middle_name,
-            is_active
-          ),
-          grades:grades(id, prelim_grade, midterm_grade, final_grade)
+            is_active,
+            year_level,
+            student_id
+          )
         `)
         .eq('subject_id', subjectId)
         .eq('status', 'active');
@@ -229,13 +260,39 @@ const ClassManagement: React.FC = () => {
         throw new Error(`Failed to fetch active enrollments: ${error.message}`);
       }
 
-      // 4. Transform and validate the data
-      console.log('🔄 Starting data transformation');
-      const enrolledStudents = (data as any[] || []).map((row) => {
+      // 4. Fetch grades separately for all students
+      const studentIds = (data as EnrollmentRow[] || []).map(row => {
         const student = Array.isArray(row.student) ? row.student[0] : row.student;
-        if (!student || !student.is_active) return null;
-        const gradeRow = row.grades && Array.isArray(row.grades) && row.grades.length > 0 ? row.grades[0] : {};
-        return {
+        return student?.id;
+      }).filter(Boolean);
+
+      const { data: grades, error: gradesError } = await supabase
+        .from('grades')
+        .select('id, student_id, prelim_grade, midterm_grade, final_grade')
+        .in('student_id', studentIds);
+
+      if (gradesError) {
+        console.error('❌ Grades Error:', gradesError);
+        throw new Error(`Failed to fetch grades: ${gradesError.message}`);
+      }
+
+      console.log('📊 Fetched grades:', grades);
+
+      // 5. Transform and validate the data
+      console.log('🔄 Starting data transformation');
+      const enrolledStudents: Student[] = [];
+      (data as EnrollmentRow[] || []).forEach((row) => {
+        const student = Array.isArray(row.student) ? row.student[0] : row.student;
+        if (!student || !student.is_active) return;
+        
+        // Find the grade for this student
+        const gradeRow = grades?.find((g: GradeRow) => g.student_id === student.id) || null;
+        
+        console.log('row.subject_id:', row.subject_id);
+        console.log('student.id:', student.id);
+        console.log('gradeRow selected:', gradeRow);
+        
+        enrolledStudents.push({
           id: student.id,
           email: student.email,
           role: student.role,
@@ -245,12 +302,16 @@ const ClassManagement: React.FC = () => {
           middle_name: student.middle_name,
           is_active: student.is_active,
           enrollment_id: row.id,
-          grade_id: gradeRow.id,
-          prelim_grade: gradeRow.prelim_grade,
-          midterm_grade: gradeRow.midterm_grade,
-          final_grade: gradeRow.final_grade,
-        };
-      }).filter(Boolean);
+          grade_id: gradeRow?.id,
+          prelim_grade: gradeRow?.prelim_grade,
+          midterm_grade: gradeRow?.midterm_grade,
+          final_grade: gradeRow?.final_grade,
+          subject_id: row.subject_id,
+          year_level: student.year_level,
+          student_id: student.student_id,
+        });
+      });
+      setStudents(enrolledStudents);
 
       console.log('📋 Final Results:', {
         totalEnrollments: rawEnrollments?.length || 0,
@@ -259,7 +320,7 @@ const ClassManagement: React.FC = () => {
         students: enrolledStudents
       });
 
-      // 5. Show appropriate message based on the data
+      // 6. Show appropriate message based on the data
       if (enrolledStudents.length === 0) {
         if (!rawEnrollments?.length) {
           console.warn('⚠️ No enrollments found at all');
@@ -275,7 +336,6 @@ const ClassManagement: React.FC = () => {
         console.log('✅ Successfully loaded students');
       }
       
-      setStudents(enrolledStudents);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       console.error('❌ Fatal Error:', {
@@ -295,7 +355,7 @@ const ClassManagement: React.FC = () => {
     setShowGradeModal(true);
   };
 
-  const handleGradeSaved = (grade: number) => {
+  const handleGradeSaved = () => {
     setShowGradeModal(false);
     if (selectedClass) fetchStudents(selectedClass.subject_id || selectedClass.id);
   };
@@ -354,7 +414,75 @@ const ClassManagement: React.FC = () => {
       toast.error('Failed to save grades');
     } else {
       toast.success('Grades saved!');
+      // Refresh the students data to show updated grades
+      if (selectedClass?.subject_id) {
+        fetchStudents(selectedClass.subject_id);
+      }
     }
+  };
+
+  // Group classes by year level and semester
+  const groupedClasses = classes.reduce((acc, cls) => {
+    const yearLevel = cls.year_level || 'Unknown';
+    const semester = cls.semester || 'Unknown';
+    const key = `${yearLevel}-${semester}`;
+    
+    if (!acc[key]) {
+      acc[key] = {
+        yearLevel,
+        semester,
+        classes: []
+      };
+    }
+    acc[key].classes.push(cls);
+    return acc;
+  }, {} as Record<string, { yearLevel: string; semester: string; classes: TeacherClass[] }>);
+
+  // Filter classes based on search and filters
+  const filteredGroupedClasses = Object.entries(groupedClasses).reduce((acc, [key, group]) => {
+    const filteredClasses = group.classes.filter(cls => {
+      const matchesSearch = searchTerm === '' || 
+        cls.course?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        cls.course?.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        cls.section.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      const matchesYearLevel = filterYearLevel === 'all' || cls.year_level === filterYearLevel;
+      const matchesSemester = filterSemester === 'all' || cls.semester === filterSemester;
+      
+      return matchesSearch && matchesYearLevel && matchesSemester;
+    });
+
+    if (filteredClasses.length > 0) {
+      acc[key] = { ...group, classes: filteredClasses };
+    }
+    
+    return acc;
+  }, {} as Record<string, { yearLevel: string; semester: string; classes: TeacherClass[] }>);
+
+  // Get unique year levels and semesters for filters
+  const yearLevels = [...new Set(classes.map(cls => cls.year_level).filter(Boolean))];
+  const semesters = [...new Set(classes.map(cls => cls.semester).filter(Boolean))];
+
+  // Toggle section expansion
+  const toggleSection = (key: string) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
+  // Expand all sections
+  const expandAll = () => {
+    const allExpanded = Object.keys(filteredGroupedClasses).reduce((acc, key) => {
+      acc[key] = true;
+      return acc;
+    }, {} as Record<string, boolean>);
+    setExpandedSections(allExpanded);
+  };
+
+  // Collapse all sections
+  const collapseAll = () => {
+    setExpandedSections({});
   };
 
   return (
@@ -362,27 +490,27 @@ const ClassManagement: React.FC = () => {
       <div className="p-8 max-w-full mx-auto">
         {/* Header Section */}
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h1 className="text-4xl font-bold text-gray-900 mb-2 flex items-center gap-3">
-                <div className="p-3 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl shadow-lg">
-                  <BookOpen className="w-8 h-8 text-white" />
+          <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 rounded-2xl shadow-lg">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
+                  <BookOpen className="w-6 h-6 text-white" />
                 </div>
-                Class Management
-              </h1>
-              <p className="text-lg text-gray-600">Manage your assigned classes and student grades</p>
-            </div>
-            <div className="hidden md:flex items-center gap-4 text-sm text-gray-500">
+                <div>
+                  <h1 className="text-2xl font-bold text-white tracking-tight">Class Management</h1>
+                  <p className="text-white/80 text-sm font-medium">Manage your assigned classes and student grades</p>
+                </div>
+              </div>
               <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-lg shadow-sm">
                 <Users className="w-4 h-4 text-blue-500" />
-                <span>{classes.length} Classes Assigned</span>
+                <span className="text-gray-700 font-medium">{classes.length} Classes Assigned</span>
               </div>
             </div>
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-          {/* Classes Panel */}
+          {/* Classes Panel - Improved Layout */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
               <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-3">
@@ -403,50 +531,151 @@ const ClassManagement: React.FC = () => {
                     <p className="text-gray-400 text-xs mt-1">Contact your administrator</p>
                   </div>
                 ) : (
-                  <div className="space-y-2">
-                    {classes.map((cls) => (
-                      <button
-                        key={cls.id}
-                        className={`w-full text-left p-2 rounded-lg border transition-all duration-200 hover:shadow-md ${
-                          selectedClass?.id === cls.id 
-                            ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-300 shadow-md' 
-                            : 'bg-gray-50 border-gray-200 hover:border-blue-200 hover:bg-blue-50/50'
-                        }`}
-                        onClick={() => {
-                          setSelectedClass(cls);
-                          if (cls.subject_id) fetchStudents(cls.subject_id);
-                        }}
-                      >
-                        <div className="flex items-start justify-between mb-0.5">
-                          <div className="flex-1">
-                            <h3 className="font-semibold text-gray-900 text-xs leading-tight">
-                              {cls.course?.name}
-                            </h3>
-                            <span className="inline-block mt-0.5 px-1 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
-                              {cls.course?.code}
-                            </span>
-                          </div>
-                          <div className={`w-2 h-2 rounded-full ${
-                            selectedClass?.id === cls.id ? 'bg-blue-500' : 'bg-gray-300'
-                          }`} />
-                        </div>
+                  <div className="space-y-4">
+                    {/* Search and Filter Controls */}
+                    <div className="space-y-3">
+                      {/* Search */}
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input
+                          type="text"
+                          placeholder="Search classes..."
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                        />
+                      </div>
+                      
+                      {/* Filters */}
+                      <div className="space-y-2">
+                        <select
+                          value={filterYearLevel}
+                          onChange={(e) => setFilterYearLevel(e.target.value)}
+                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                        >
+                          <option value="all">All Year Levels</option>
+                          {yearLevels.map(level => (
+                            <option key={level} value={level}>{level}</option>
+                          ))}
+                        </select>
                         
-                        <div className="grid grid-cols-1 gap-0.5 text-xs text-gray-600">
-                          <div className="flex items-center gap-1">
-                            <span className="font-medium">Sec:</span>
-                            <span className="bg-gray-100 px-1 py-0.5 rounded text-xs">{cls.section}</span>
+                        <select
+                          value={filterSemester}
+                          onChange={(e) => setFilterSemester(e.target.value)}
+                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                        >
+                          <option value="all">All Semesters</option>
+                          {semesters.map(sem => (
+                            <option key={sem} value={sem}>{sem}</option>
+                          ))}
+                        </select>
+                      </div>
+                      
+                      {/* Expand/Collapse Controls */}
+                      <div className="flex gap-2">
+                        <button
+                          onClick={expandAll}
+                          className="flex-1 px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded border border-blue-200 hover:bg-blue-100 transition-colors"
+                        >
+                          Expand All
+                        </button>
+                        <button
+                          onClick={collapseAll}
+                          className="flex-1 px-2 py-1 text-xs bg-gray-50 text-gray-700 rounded border border-gray-200 hover:bg-gray-100 transition-colors"
+                        >
+                          Collapse All
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Class Groups */}
+                    {Object.keys(filteredGroupedClasses).length === 0 ? (
+                      <div className="text-center py-4">
+                        <p className="text-gray-500 text-sm">No classes match your filters</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {Object.entries(filteredGroupedClasses).map(([key, group]) => (
+                          <div key={key} className="border border-gray-200 rounded-lg overflow-hidden">
+                            {/* Section Header */}
+                            <button
+                              onClick={() => toggleSection(key)}
+                              className="w-full px-3 py-2 bg-gray-50 hover:bg-gray-100 transition-colors flex items-center justify-between text-left"
+                            >
+                              <div className="flex items-center gap-2">
+                                {expandedSections[key] ? (
+                                  <ChevronDown className="w-4 h-4 text-gray-500" />
+                                ) : (
+                                  <ChevronRight className="w-4 h-4 text-gray-500" />
+                                )}
+                                <div>
+                                  <div className="font-medium text-sm text-gray-900">{group.yearLevel}</div>
+                                  <div className="text-xs text-gray-500">{group.semester} Semester</div>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                                  {group.classes.length} class{group.classes.length !== 1 ? 'es' : ''}
+                                </span>
+                              </div>
+                            </button>
+                            
+                            {/* Section Content */}
+                            {expandedSections[key] && (
+                              <div className="p-3 space-y-2 bg-white">
+                                {group.classes.map((cls) => (
+                                  <button
+                                    key={cls.id}
+                                    className={`w-full text-left p-3 rounded-lg border transition-all duration-200 hover:shadow-md ${
+                                      selectedClass?.id === cls.id 
+                                        ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-300 shadow-md' 
+                                        : 'bg-gray-50 border-gray-200 hover:border-blue-200 hover:bg-blue-50/50'
+                                    }`}
+                                    onClick={() => {
+                                      setSelectedClass(cls);
+                                      if (cls.subject_id) fetchStudents(cls.subject_id);
+                                    }}
+                                  >
+                                    {/* Class Header */}
+                                    <div className="flex items-start justify-between mb-2">
+                                      <div className="flex-1">
+                                        <h3 className="font-semibold text-gray-900 text-sm leading-tight mb-1">
+                                          {cls.course?.name}
+                                        </h3>
+                                        <div className="flex items-center gap-2">
+                                          <span className="inline-block px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
+                                            {cls.course?.code}
+                                          </span>
+                                          <span className="text-xs text-gray-500">•</span>
+                                          <span className="text-xs text-gray-600">{cls.course?.units} units</span>
+                                        </div>
+                                      </div>
+                                      <div className={`w-3 h-3 rounded-full ${
+                                        selectedClass?.id === cls.id ? 'bg-blue-500' : 'bg-gray-300'
+                                      }`} />
+                                    </div>
+                                    
+                                    {/* Class Details */}
+                                    <div className="space-y-1.5">
+                                      <div className="flex items-center gap-2 text-xs text-gray-600">
+                                        <GraduationCap className="w-3 h-3" />
+                                        <span className="font-medium">Section:</span>
+                                        <span className="bg-white px-2 py-0.5 rounded text-xs font-medium">{cls.section}</span>
+                                      </div>
+                                      <div className="flex items-center gap-2 text-xs text-gray-600">
+                                        <Calendar className="w-3 h-3" />
+                                        <span className="font-medium">Academic Year:</span>
+                                        <span className="bg-white px-2 py-0.5 rounded text-xs">{cls.academic_year}</span>
+                                      </div>
+                                    </div>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
                           </div>
-                          <div className="flex items-center gap-1">
-                            <span className="font-medium">Year:</span>
-                            <span className="bg-gray-100 px-1 py-0.5 rounded text-xs">{cls.academic_year}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <span className="font-medium">Sem:</span>
-                            <span className="bg-gray-100 px-1 py-0.5 rounded text-xs">{cls.semester}</span>
-                          </div>
-                        </div>
-                      </button>
-                    ))}
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -482,6 +711,10 @@ const ClassManagement: React.FC = () => {
                           <div className="flex items-center gap-2">
                             <span className="font-medium">Section:</span>
                             <span className="bg-white px-3 py-1 rounded-lg shadow-sm">{selectedClass.section}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">Year Level:</span>
+                            <span className="bg-white px-3 py-1 rounded-lg shadow-sm">{selectedClass.year_level || 'N/A'}</span>
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="font-medium">Academic Year:</span>
@@ -523,7 +756,7 @@ const ClassManagement: React.FC = () => {
                                 Student
                               </th>
                               <th className="px-2 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider hidden sm:table-cell">
-                                Contact
+                                Email
                               </th>
                               <th className="px-2 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
                                 Prelim
@@ -554,7 +787,7 @@ const ClassManagement: React.FC = () => {
                                         {student.first_name} {student.last_name}
                                       </div>
                                       <div className="text-xs text-gray-500 hidden sm:block">
-                                        ID: {student.id.slice(0, 8)}...
+                                        ID: {student.student_id || student.id.slice(0, 8)}...
                                       </div>
                                       <div className="text-xs text-gray-500 sm:hidden">
                                         {student.email}
@@ -601,13 +834,12 @@ const ClassManagement: React.FC = () => {
                                     onChange={e => handleGradeChange(student.id, 'final_grade', e.target.value)}
                                   />
                                 </td>
-                                <td className="px-3 py-4 whitespace-nowrap text-center">
+                                <td className="px-2 py-4 whitespace-nowrap text-center">
                                   <button
-                                    className="inline-flex items-center gap-1 px-3 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs font-medium rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-sm hover:shadow-md"
-                                    onClick={() => handleSaveAllGrades(student)}
+                                    onClick={() => handleOpenGradeModal(student)}
+                                    className="text-blue-600 hover:text-blue-800 text-sm font-medium transition-colors"
                                   >
-                                    <Edit3 className="w-3 h-3" />
-                                    <span>Save</span>
+                                    View Details
                                   </button>
                                 </td>
                               </tr>
@@ -619,14 +851,14 @@ const ClassManagement: React.FC = () => {
                   </div>
                 </>
               ) : (
-                <div className="p-12 text-center">
-                  <div className="w-24 h-24 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <BookOpen className="w-12 h-12 text-blue-500" />
+                <div className="flex items-center justify-center h-64">
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <BookOpen className="w-8 h-8 text-gray-400" />
+                    </div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">Select a Class</h3>
+                    <p className="text-gray-500">Choose a class from the left panel to view enrolled students</p>
                   </div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">Select a Class</h3>
-                  <p className="text-gray-600 max-w-md mx-auto">
-                    Choose a class from the left panel to view and manage student grades.
-                  </p>
                 </div>
               )}
             </div>
