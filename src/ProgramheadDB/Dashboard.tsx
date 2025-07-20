@@ -4,6 +4,9 @@ import DashboardLayout from '../components/Sidebar';
 import ProgramHeadEnrollment from './ProgramHeadEnrollment';
 import CoursesOffered from './CoursesOffered';
 import SubjectAssignment from './SubjectAssignment';
+import EnrollmentValidation from './EnrollmentValidation';
+import Settings from './Settings';
+
 import { motion } from 'framer-motion';
 import {
   Users,
@@ -91,14 +94,39 @@ const DashboardOverview: React.FC = () => {
           <strong>Error:</strong> {error}
         </div>
       )}
+      {/* Header */}
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="mb-6"
+        className="mb-6 bg-gradient-to-r from-blue-600 to-purple-600 px-8 py-6 shadow-lg"
+        style={{ marginLeft: '-2rem', marginRight: '-2rem' }}
       >
-        <h1 className="text-3xl font-bold text-gray-800">Program Head Dashboard</h1>
-        <p className="text-gray-600">Monitor program performance and student progress</p>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
+              <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                width="24" 
+                height="24" 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round"
+                className="w-6 h-6 text-white"
+              >
+                <path d="M5 12h14"></path>
+                <path d="M12 5v14"></path>
+              </svg>
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-white tracking-tight">Program Head Dashboard</h1>
+              <p className="text-white/80 text-sm font-medium">Monitor program performance and student progress</p>
+            </div>
+          </div>
+        </div>
       </motion.div>
 
       {/* Stats Cards */}
@@ -310,10 +338,14 @@ const ProgramHeadDashboard: React.FC = () => {
       <ErrorBoundary>
         <Routes>
           <Route path="/" element={<DashboardOverview />} />
+          <Route path="/dashboard" element={<DashboardOverview />} />
           <Route path="/requests" element={<ProgramHeadEnrollment />} />
           <Route path="/enroll-student" element={<ProgramHeadEnrollment />} />
           <Route path="/assign-subjects" element={<SubjectAssignment />} />
           <Route path="/academic-history" element={<CoursesOffered />} />
+          <Route path="/enrollment-validation" element={<EnrollmentValidation />} />
+          <Route path="/settings" element={<Settings />} />
+
           <Route path="*" element={<DashboardOverview />} />
         </Routes>
       </ErrorBoundary>
