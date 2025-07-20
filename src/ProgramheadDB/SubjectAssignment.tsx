@@ -36,8 +36,8 @@ interface Course {
   id: string;
   code: string;
   name: string;
-  description: string;
   units: number;
+  year_level: string; // Make required to match Subject interface
   display_name: string;
 }
 
@@ -68,6 +68,14 @@ const SubjectAssignment: React.FC = () => {
     year_level: '',
     is_active: true
   });
+
+  // State for collapsible sections - all collapsed by default
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
+  
+  // State for year level filter
+  const [selectedYearLevel, setSelectedYearLevel] = useState<string>('all');
+
+
 
   useEffect(() => {
     fetchAssignments();
@@ -119,7 +127,7 @@ const SubjectAssignment: React.FC = () => {
               // Get course data
               const { data: courseData, error: courseError } = await supabase
                 .from('courses')
-                .select('id, code, name, description, units')
+                .select('id, code, name, units')
                 .eq('id', assignment.subject_id)
                 .single();
 
@@ -179,16 +187,19 @@ const SubjectAssignment: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('courses')
-        .select('id, code, name, description, units')
+        .select('id, code, name, units, year_level')
         .order('code', { ascending: true });
 
       if (error) throw error;
 
       if (data) {
-        const formattedCourses = data.map(course => ({
-          ...course,
-          display_name: `${course.code} - ${course.name} (${course.units} units)`
-        }));
+        const formattedCourses = data
+          .filter(course => course.year_level) // Only include courses with year_level
+          .map(course => ({
+            ...course,
+            year_level: course.year_level || '1st Year', // Provide default if null
+            display_name: `${course.code} - ${course.name} (${course.units} units)`
+          }));
         setCourses(formattedCourses);
       }
     } catch (error) {
@@ -205,8 +216,7 @@ const SubjectAssignment: React.FC = () => {
     }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (assignments: TeacherSubject[]): Promise<{ success: boolean; message: string }> => {
     setFormSubmitting(true);
     setFormErrors({});
 
@@ -214,19 +224,19 @@ const SubjectAssignment: React.FC = () => {
       // Validate form
       const errors: Record<string, string> = {};
       if (!newAssignment.teacher_id) errors.teacher_id = 'Please select a teacher';
-      if (!newAssignment.subject_id) errors.subject_id = 'Please select a subject';
       if (!newAssignment.section) errors.section = 'Please enter a section';
       if (!newAssignment.academic_year) errors.academic_year = 'Please enter an academic year';
       if (!newAssignment.semester) errors.semester = 'Please select a semester';
+      if (!newAssignment.year_level) errors.year_level = 'Please select a year level';
 
       if (Object.keys(errors).length > 0) {
         setFormErrors(errors);
         setFormSubmitting(false);
-        return;
+        return { success: false, message: 'Please fill in all required fields' };
       }
 
       if (modalState.isEditMode && newAssignment.id) {
-        // Update existing assignment
+        // Update existing assignment (single assignment for edit mode)
         const { error } = await supabase
           .from('teacher_subjects')
           .update({
@@ -235,29 +245,55 @@ const SubjectAssignment: React.FC = () => {
             section: newAssignment.section,
             academic_year: newAssignment.academic_year,
             semester: newAssignment.semester,
-            year_level: newAssignment.year_level, // <-- add this line
+            year_level: newAssignment.year_level,
             is_active: newAssignment.is_active
           })
           .eq('id', newAssignment.id);
 
         if (error) throw error;
-        toast.success('Assignment updated successfully');
+        return { success: true, message: 'Assignment updated successfully' };
       } else {
-        // Create new assignment
+        // Check for existing assignments first
+        const existingAssignments = await Promise.all(
+          assignments.map(async (assignment) => {
+            const { data } = await supabase
+              .from('teacher_subjects')
+              .select('id')
+              .eq('teacher_id', assignment.teacher_id)
+              .eq('subject_id', assignment.subject_id)
+              .eq('section', assignment.section)
+              .eq('academic_year', assignment.academic_year)
+              .eq('semester', assignment.semester)
+              .eq('year_level', assignment.year_level)
+              .single();
+            return { assignment, exists: !!data };
+          })
+        );
+
+        const newAssignments = existingAssignments
+          .filter(item => !item.exists)
+          .map(item => item.assignment);
+
+        const existingCount = existingAssignments.filter(item => item.exists).length;
+
+        if (newAssignments.length === 0) {
+          return { success: false, message: 'All assignments already exist for this teacher, subject, and section combination' };
+        }
+
+        // Insert only new assignments
         const { error } = await supabase
           .from('teacher_subjects')
-          .insert([{
-            teacher_id: newAssignment.teacher_id,
-            subject_id: newAssignment.subject_id,
-            section: newAssignment.section,
-            academic_year: newAssignment.academic_year,
-            semester: newAssignment.semester,
-            year_level: newAssignment.year_level, // <-- add this line
-            is_active: true
-          }]);
+          .insert(newAssignments);
 
-        if (error) throw error;
-        toast.success('Subject assigned successfully');
+        if (error) {
+          return { success: false, message: `Failed to save assignments: ${error.message}` };
+        }
+
+        if (existingCount > 0) {
+          return { success: true, message: `${newAssignments.length} new assignment${newAssignments.length !== 1 ? 's' : ''} created. ${existingCount} assignment${existingCount !== 1 ? 's' : ''} already existed.` };
+        } else {
+          return { success: true, message: `${newAssignments.length} subject${newAssignments.length !== 1 ? 's' : ''} assigned successfully` };
+        }
       }
 
       // Refresh assignments list
@@ -279,7 +315,7 @@ const SubjectAssignment: React.FC = () => {
       });
     } catch (error) {
       console.error('Error saving assignment:', error);
-      toast.error('Failed to save assignment');
+      return { success: false, message: 'Failed to save assignment' };
     } finally {
       setFormSubmitting(false);
     }
@@ -331,31 +367,86 @@ const SubjectAssignment: React.FC = () => {
     });
   };
 
+  // Toggle section expansion
+  const toggleSection = (yearLevel: string) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [yearLevel]: !prev[yearLevel]
+    }));
+  };
+
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Subject Assignments</h1>
-        <button
-          onClick={() => {
-            setModalState({
-              isOpen: true,
-              isEditMode: false
-            });
-            setNewAssignment({
-              teacher_id: '',
-              subject_id: '',
-              section: '',
-              academic_year: '',
-              semester: '',
-              year_level: '',
-              is_active: true
-            });
-          }}
-          className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-        >
-          <Plus className="h-5 w-5 mr-2" />
-          Assign Subject
-        </button>
+      <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 rounded-2xl shadow-lg mb-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-plus w-6 h-6 text-white">
+                <path d="M5 12h14"></path>
+                <path d="M12 5v14"></path>
+              </svg>
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-white tracking-tight">Subject Assignments</h1>
+              <p className="text-white/80 text-sm font-medium">Manage subject assignments for teachers</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => {
+                setModalState({
+                  isOpen: true,
+                  isEditMode: false
+                });
+                setNewAssignment({
+                  teacher_id: '',
+                  subject_id: '',
+                  section: '',
+                  academic_year: '',
+                  semester: '',
+                  year_level: '',
+                  is_active: true
+                });
+              }}
+              className="p-3 bg-white/20 backdrop-blur-sm rounded-xl hover:bg-white/30 transition-all flex items-center gap-2 text-white font-semibold"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-plus w-5 h-5">
+                <path d="M5 12h14"></path>
+                <path d="M12 5v14"></path>
+              </svg>
+              <span>Assign Multiple Subjects</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Year Level Filter */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <label htmlFor="yearLevelFilter" className="text-sm font-medium text-gray-700">
+              Filter by Year Level:
+            </label>
+            <select
+              id="yearLevelFilter"
+              value={selectedYearLevel}
+              onChange={(e) => setSelectedYearLevel(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="all">All Year Levels</option>
+              <option value="1st Year">1st Year</option>
+              <option value="2nd Year">2nd Year</option>
+              <option value="3rd Year">3rd Year</option>
+              <option value="4th Year">4th Year</option>
+            </select>
+          </div>
+          <div className="text-sm text-gray-500">
+            {selectedYearLevel === 'all' 
+              ? `${assignments.length} total assignments`
+              : `${assignments.filter(a => a.year_level === selectedYearLevel).length} assignments in ${selectedYearLevel}`
+            }
+          </div>
+        </div>
       </div>
 
       {/* Notification */}
@@ -385,110 +476,303 @@ const SubjectAssignment: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Assignments Table */}
-      <div className="bg-white rounded-xl shadow-md overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Teacher
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Course Code
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Course  Name
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Units
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Section
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Year Level
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Academic Year
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Semester
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Date Assigned
-                </th>
-                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {isLoading ? (
-                <tr>
-                  <td colSpan={10} className="px-6 py-4 text-center text-sm text-gray-500">
-                    Loading subject assignments...
-                  </td>
-                </tr>
-              ) : assignments.length === 0 ? (
-                <tr>
-                  <td colSpan={10} className="px-6 py-4 text-center text-sm text-gray-500">
-                    No subject assignments found. Click "Assign Subject" to create one.
-                  </td>
-                </tr>
-              ) : (
-                assignments.map((assignment) => (
-                  <tr key={assignment.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {assignment.teacher_name}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {assignment.subject_code}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
-                      {assignment.subject_name}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {assignment.subject_units}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {assignment.section}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {assignment.year_level}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {assignment.academic_year}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {assignment.semester}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(assignment.created_at || '').toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex justify-end space-x-2">
-                        <button
-                          onClick={() => handleEdit(assignment)}
-                          className="text-indigo-600 hover:text-indigo-900 p-1"
-                        >
-                          <FileEdit size={18} />
-                        </button>
-                        <button
-                          onClick={() => assignment.id && handleDelete(assignment.id)}
-                          className="text-red-600 hover:text-red-900 p-1"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+      {/* Assignments Display */}
+      {isLoading ? (
+        <div className="bg-white rounded-xl shadow-md p-8 text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading subject assignments...</p>
         </div>
-      </div>
+      ) : assignments.length === 0 ? (
+        <div className="bg-white rounded-xl shadow-md p-8 text-center">
+          <div className="text-gray-400 mb-4">
+            <svg className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No Subject Assignments</h3>
+          <p className="text-gray-500 mb-4">Get started by assigning subjects to teachers.</p>
+          <button
+            onClick={() => {
+              setModalState({
+                isOpen: true,
+                isEditMode: false
+              });
+              setNewAssignment({
+                teacher_id: '',
+                subject_id: '',
+                section: '',
+                academic_year: '',
+                semester: '',
+                year_level: '',
+                is_active: true
+              });
+            }}
+            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            <Plus className="h-5 w-5 mr-2" />
+            Assign Subjects
+          </button>
+        </div>
+      ) : selectedYearLevel === 'all' ? (
+        // Show collapsible sections for "All Year Levels"
+        <div className="space-y-6">
+          {(() => {
+            const groupedAssignments = assignments.reduce((groups, assignment) => {
+              const yearLevel = assignment.year_level || 'Unknown';
+              if (!groups[yearLevel]) {
+                groups[yearLevel] = [];
+              }
+              groups[yearLevel].push(assignment);
+              return groups;
+            }, {} as Record<string, TeacherSubject[]>);
+
+            const yearLevelOrder = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
+            const sortedYearLevels = Object.keys(groupedAssignments).sort((a, b) => {
+              return yearLevelOrder.indexOf(a) - yearLevelOrder.indexOf(b);
+            });
+
+            return sortedYearLevels.map(yearLevel => (
+              <motion.div
+                key={yearLevel}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                className="bg-white rounded-xl shadow-md overflow-hidden"
+              >
+                {/* Year Level Header */}
+                <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
+                        <span className="text-white font-bold text-sm">
+                          {yearLevel.split(' ')[0]}
+                        </span>
+                      </div>
+                      <h2 className="text-xl font-bold text-white">{yearLevel}</h2>
+                      <span className="bg-white/20 text-white px-3 py-1 rounded-full text-sm font-medium">
+                        {groupedAssignments[yearLevel].length} {groupedAssignments[yearLevel].length === 1 ? 'Assignment' : 'Assignments'}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => toggleSection(yearLevel)}
+                      className="flex items-center space-x-2 text-white hover:text-blue-100 transition-colors focus:outline-none focus:ring-2 focus:ring-white/50 rounded-lg px-3 py-1"
+                    >
+                      <span className="text-sm font-medium">
+                        {expandedSections[yearLevel] ? 'Hide' : 'Show'}
+                      </span>
+                      <svg
+                        className={`w-5 h-5 transition-transform duration-200 ${
+                          expandedSections[yearLevel] ? 'rotate-180' : ''
+                        }`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Assignments Grid - Collapsible */}
+                <AnimatePresence>
+                  {expandedSections[yearLevel] && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.3, ease: 'easeInOut' }}
+                      className="overflow-hidden"
+                    >
+                      <div className="p-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {groupedAssignments[yearLevel].map((assignment) => (
+                            <motion.div
+                              key={assignment.id}
+                              initial={{ opacity: 0, scale: 0.95 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              transition={{ duration: 0.2 }}
+                              className="bg-gray-50 rounded-lg p-4 border border-gray-200 hover:shadow-md transition-all duration-200"
+                            >
+                              {/* Teacher Info */}
+                              <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center space-x-2">
+                                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                                    <span className="text-blue-600 font-semibold text-sm">
+                                      {assignment.teacher_name?.split(' ').map(n => n[0]).join('')}
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <p className="font-medium text-gray-900 text-sm">{assignment.teacher_name}</p>
+                                    <p className="text-gray-500 text-xs">Teacher</p>
+                                  </div>
+                                </div>
+                                <div className="flex space-x-1">
+                                  <button
+                                    onClick={() => handleEdit(assignment)}
+                                    className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
+                                    title="Edit assignment"
+                                  >
+                                    <FileEdit size={16} />
+                                  </button>
+                                  <button
+                                    onClick={() => assignment.id && handleDelete(assignment.id)}
+                                    className="p-1 text-gray-400 hover:text-red-600 transition-colors"
+                                    title="Delete assignment"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Course Info */}
+                              <div className="space-y-2 mb-3">
+                                <div className="bg-white rounded-md p-3 border border-gray-200">
+                                  <div className="flex items-center justify-between mb-1">
+                                    <span className="font-semibold text-gray-900 text-sm">{assignment.subject_code}</span>
+                                    <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full font-medium">
+                                      {assignment.subject_units} {assignment.subject_units === 1 ? 'Unit' : 'Units'}
+                                    </span>
+                                  </div>
+                                  <p className="text-gray-600 text-sm line-clamp-2">{assignment.subject_name}</p>
+                                </div>
+                              </div>
+
+                              {/* Assignment Details */}
+                              <div className="grid grid-cols-2 gap-2 text-xs">
+                                <div className="bg-white rounded-md p-2 border border-gray-200">
+                                  <p className="text-gray-500 mb-1">Section</p>
+                                  <p className="font-medium text-gray-900">Section {assignment.section}</p>
+                                </div>
+                                <div className="bg-white rounded-md p-2 border border-gray-200">
+                                  <p className="text-gray-500 mb-1">Semester</p>
+                                  <p className="font-medium text-gray-900">{assignment.semester}</p>
+                                </div>
+                                <div className="bg-white rounded-md p-2 border border-gray-200 col-span-2">
+                                  <p className="text-gray-500 mb-1">Academic Year</p>
+                                  <p className="font-medium text-gray-900">{assignment.academic_year}</p>
+                                </div>
+                              </div>
+
+                              {/* Date Assigned */}
+                              <div className="mt-3 pt-3 border-t border-gray-200">
+                                <p className="text-gray-500 text-xs">
+                                  Assigned: {new Date(assignment.created_at || '').toLocaleDateString()}
+                                </p>
+                              </div>
+                            </motion.div>
+                          ))}
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            ));
+          })()}
+        </div>
+      ) : (
+        // Show filtered table for specific year level
+        <div className="bg-white rounded-xl shadow-md overflow-hidden">
+          <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4">
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
+                <span className="text-white font-bold text-sm">
+                  {selectedYearLevel.split(' ')[0]}
+                </span>
+              </div>
+              <h2 className="text-xl font-bold text-white">{selectedYearLevel} Assignments</h2>
+              <span className="bg-white/20 text-white px-3 py-1 rounded-full text-sm font-medium">
+                {assignments.filter(a => a.year_level === selectedYearLevel).length} {assignments.filter(a => a.year_level === selectedYearLevel).length === 1 ? 'Assignment' : 'Assignments'}
+              </span>
+            </div>
+          </div>
+          
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Teacher
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Course Code
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Course Name
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Units
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Section
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Academic Year
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Semester
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Date Assigned
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {assignments
+                  .filter(assignment => assignment.year_level === selectedYearLevel)
+                  .map((assignment) => (
+                    <tr key={assignment.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {assignment.teacher_name}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {assignment.subject_code}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
+                        {assignment.subject_name}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {assignment.subject_units}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {assignment.section}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {assignment.academic_year}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {assignment.semester}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {new Date(assignment.created_at || '').toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div className="flex justify-end space-x-2">
+                          <button
+                            onClick={() => handleEdit(assignment)}
+                            className="text-indigo-600 hover:text-indigo-900 p-1"
+                          >
+                            <FileEdit size={18} />
+                          </button>
+                          <button
+                            onClick={() => assignment.id && handleDelete(assignment.id)}
+                            className="text-red-600 hover:text-red-900 p-1"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Modal for adding/editing assignments */}
       <SubjectAssignmentModal
