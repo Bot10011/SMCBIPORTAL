@@ -20,7 +20,6 @@ import {
   TableHead,
   TableRow,
   Typography,
-  Chip,
   Alert,
   CircularProgress,
   TextField,
@@ -28,7 +27,6 @@ import {
   FormGroup,
   FormControlLabel,
   Switch,
-  Paper,
 } from '@mui/material';
 import { toast } from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
@@ -62,7 +60,13 @@ const ProgramHeadEnrollment: React.FC = () => {
   const [selectedCourses, setSelectedCourses] = useState<string[]>([]);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [courses, setCourses] = useState<Record<string, unknown>[]>([]);
+  const [courses, setCourses] = useState<Array<{
+    id: string;
+    code: string;
+    name: string;
+    units: number;
+    year_level?: number;
+  }>>([]);
   const [allowMixedCourses, setAllowMixedCourses] = useState(false);
   const [filterSearch, setFilterSearch] = useState('');
   const [filterYear, setFilterYear] = useState('');
@@ -134,7 +138,7 @@ const ProgramHeadEnrollment: React.FC = () => {
         }
         const yearPrefix = match[1].slice(-2);
         // Query how many students are already enrolled in this school year
-        const { data, count, error } = await supabase
+        const { count, error } = await supabase
           .from('user_profiles')
           .select('id', { count: 'exact', head: true })
           .ilike('student_id', `C-${yearPrefix}%`);
@@ -158,7 +162,7 @@ const ProgramHeadEnrollment: React.FC = () => {
     const fetchCourses = async () => {
       const { data, error } = await supabase
         .from('courses')
-        .select('id, code, name, description, units')
+        .select('id, code, name, units, year_level')
         .order('code', { ascending: true });
       if (!error && data) setCourses(data);
     };
@@ -281,7 +285,7 @@ const ProgramHeadEnrollment: React.FC = () => {
       
       // 3. Create user profile with the auth user ID
       const { error: profileError } = await supabase.from('user_profiles').insert({
-        id: authData.user.id, // Use the auth user ID
+        id: authData.user!.id, // Use the auth user ID
         email: fullEmail,
         first_name: createForm.firstName,
         last_name: createForm.lastName,
@@ -302,7 +306,7 @@ const ProgramHeadEnrollment: React.FC = () => {
       // Insert enrollments for selected courses
       if (selectedCourses.length > 0) {
         const enrollments = selectedCourses.map(courseId => ({
-          student_id: authData.user.id, // Use the auth user ID directly
+          student_id: authData.user!.id, // Use the auth user ID directly
           subject_id: courseId,
           status: 'active',
           enrollment_date: new Date().toISOString(),
@@ -335,9 +339,21 @@ const ProgramHeadEnrollment: React.FC = () => {
   };
 
   // Helper to categorize courses
-  const categorizeCourses = (courses: Record<string, unknown>[]) => {
-    const categories: Record<string, Record<string, unknown[]>> = {};
-    courses.forEach((course: { id: string; code: string; name: string; units: number; yearLevel?: number; status?: string }) => {
+  const categorizeCourses = (courses: Array<{
+    id: string;
+    code: string;
+    name: string;
+    units: number;
+    year_level?: number;
+  }>) => {
+    const categories: Record<string, Record<string, Array<{
+      id: string;
+      code: string;
+      name: string;
+      units: number;
+      year_level?: number;
+    }>>> = {};
+    courses.forEach((course) => {
       if (course.code.startsWith('IT')) {
         // Major
         const yearDigit = course.code.replace('IT', '').trim()[0];
@@ -384,13 +400,19 @@ const ProgramHeadEnrollment: React.FC = () => {
       '3': '3rd Year',
       '4': '4th Year',
     };
-    const yearLabel = (yearMap as any)[String(createForm.yearLevel)] || '1st Year';
-    const filtered: any = {};
-    if ((categorized as any)['Major'] && (categorized as any)['Major'][yearLabel]) {
-      filtered['Major'] = { [yearLabel]: (categorized as any)['Major'][yearLabel] };
+    const yearLabel = yearMap[String(createForm.yearLevel)] || '1st Year';
+    const filtered: Record<string, Record<string, Array<{
+      id: string;
+      code: string;
+      name: string;
+      units: number;
+      year_level?: number;
+    }>>> = {};
+    if (categorized['Major'] && categorized['Major'][yearLabel]) {
+      filtered['Major'] = { [yearLabel]: categorized['Major'][yearLabel] };
     }
-    if ((categorized as any)['Minor']) {
-      filtered['Minor'] = (categorized as any)['Minor'];
+    if (categorized['Minor']) {
+      filtered['Minor'] = categorized['Minor'];
     }
     return filtered;
   };
@@ -429,8 +451,9 @@ const ProgramHeadEnrollment: React.FC = () => {
       toast.success('Student info updated!');
       setEditForm(null);
       loadEnrollments();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to update student');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update student';
+      toast.error(errorMessage);
     } finally {
       setSavingEdit(false);
     }
@@ -490,8 +513,9 @@ const ProgramHeadEnrollment: React.FC = () => {
       setEndSemesterConfirmation('');
       setEndSemesterConfirmationError(false);
       loadEnrollments();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to end semester');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to end semester';
+      toast.error(errorMessage);
     } finally {
       setEndSemesterLoading(false);
     }
@@ -550,45 +574,67 @@ const ProgramHeadEnrollment: React.FC = () => {
     <Box sx={{ 
       minHeight: '100vh',
       p: { xs: 2, sm: 4 },
-      position: 'relative',
-      '&::before': {
-        content: '""',
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        height: 4,
-        background: 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)'
-      }
+      position: 'relative'
     }}>
       {/* Header Section */}
-      <Box sx={{ mb: 4, position: 'relative' }}>
-        <Typography variant="h3" sx={{ 
-          fontWeight: 800, 
-          color: '#1f2937',
-          mb: 1,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 2
-        }}>
+      <Box sx={{ 
+        mb: 4, 
+        background: 'linear-gradient(to right, #2563eb, #9333ea)',
+        px: 3,
+        py: 2,
+        borderRadius: 4,
+        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+        display: 'flex',
+        flexDirection: { xs: 'column', sm: 'row' },
+        alignItems: { xs: 'flex-start', sm: 'center' },
+        justifyContent: 'space-between',
+        gap: 1.5
+      }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <Box sx={{ 
-            width: 48, 
-            height: 48, 
-            borderRadius: '50%', 
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            p: 1, 
+            borderRadius: 2, 
+            backgroundColor: 'rgba(255, 255, 255, 0.2)',
+            backdropFilter: 'blur(8px)',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '1.5rem',
-            color: 'white'
+            justifyContent: 'center'
           }}>
-            📚
+            <svg 
+              xmlns="http://www.w3.org/2000/svg" 
+              width="24" 
+              height="24" 
+              viewBox="0 0 24 24" 
+              fill="none" 
+              stroke="currentColor" 
+              strokeWidth="2" 
+              strokeLinecap="round" 
+              strokeLinejoin="round"
+              style={{ color: 'white' }}
+            >
+              <path d="M5 12h14"></path>
+              <path d="M12 5v14"></path>
+            </svg>
           </Box>
-          Enrollment Management
-        </Typography>
-        <Typography variant="body1" sx={{ color: '#6b7280', fontSize: '1.1rem' }}>
-          Manage student enrollments, course assignments, and academic status
-        </Typography>
+          <Box>
+            <Typography variant="h4" sx={{ 
+              fontWeight: 700, 
+              color: 'white',
+              letterSpacing: '-0.025em',
+              fontSize: '1.5rem'
+            }}>
+              Enrollment Management
+            </Typography>
+            <Typography variant="body2" sx={{ 
+              color: 'rgba(255, 255, 255, 0.8)', 
+              fontSize: '0.875rem',
+              fontWeight: 500
+            }}>
+              Manage student enrollments, course assignments, and academic status
+            </Typography>
+          </Box>
+        </Box>
+       
       </Box>
 
       {/* Action Cards Section */}
@@ -1362,10 +1408,10 @@ const ProgramHeadEnrollment: React.FC = () => {
                             }
                           }}
                         >
-                          <MenuItem value={1}>1st Year</MenuItem>
-                          <MenuItem value={2}>2nd Year</MenuItem>
-                          <MenuItem value={3}>3rd Year</MenuItem>
-                          <MenuItem value={4}>4th Year</MenuItem>
+                          <MenuItem value="1st Year">1st Year</MenuItem>
+                          <MenuItem value="2nd Year">2nd Year</MenuItem>
+                          <MenuItem value="3rd Year">3rd Year</MenuItem>
+                          <MenuItem value="4th Year">4th Year</MenuItem>
                         </Select>
                       </FormControl>
                     </Grid>
@@ -1872,10 +1918,10 @@ const ProgramHeadEnrollment: React.FC = () => {
                             }
                           }}
                         >
-                          <MenuItem value={1}>1st Year</MenuItem>
-                          <MenuItem value={2}>2nd Year</MenuItem>
-                          <MenuItem value={3}>3rd Year</MenuItem>
-                          <MenuItem value={4}>4th Year</MenuItem>
+                          <MenuItem value="1st Year">1st Year</MenuItem>
+                          <MenuItem value="2nd Year">2nd Year</MenuItem>
+                          <MenuItem value="3rd Year">3rd Year</MenuItem>
+                          <MenuItem value="4th Year">4th Year</MenuItem>
                         </Select>
                       </FormControl>
                     </Grid>
@@ -2245,10 +2291,10 @@ const ProgramHeadEnrollment: React.FC = () => {
           {editForm && (
             <Grid container spacing={3} alignItems="flex-start">
               <Grid item xs={12} sm={6}>
-                <TextField label="First Name" value={editForm.name.split(' ')[1] || ''} onChange={e => setEditForm((f: any) => ({ ...f, name: `${f.name.split(' ')[0]} ${e.target.value}` }))} fullWidth required />
+                <TextField label="First Name" value={editForm.name.split(' ')[1] || ''} onChange={e => setEditForm((f: Student | null) => f ? { ...f, name: `${f.name.split(' ')[0]} ${e.target.value}` } : null)} fullWidth required />
               </Grid>
               <Grid item xs={12} sm={6}>
-                <TextField label="Last Name" value={editForm.name.split(' ')[0] || ''} onChange={e => setEditForm((f: any) => ({ ...f, name: `${e.target.value} ${f.name.split(' ')[1]}` }))} fullWidth required />
+                <TextField label="Last Name" value={editForm.name.split(' ')[0] || ''} onChange={e => setEditForm((f: Student | null) => f ? { ...f, name: `${e.target.value} ${f.name.split(' ')[1]}` } : null)} fullWidth required />
               </Grid>
               <Grid item xs={12} sm={6}>
                 <FormControl fullWidth>
@@ -2256,7 +2302,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                   <Select
                     value={editForm.studentType}
                     label="Student Type"
-                    onChange={e => setEditForm((f: any) => ({ ...f, studentType: e.target.value }))}
+                    onChange={e => setEditForm((f: Student | null) => f ? { ...f, studentType: e.target.value as Student['studentType'] } : null)}
                     required
                   >
                     <MenuItem value="Freshman">Freshman</MenuItem>
@@ -2272,18 +2318,18 @@ const ProgramHeadEnrollment: React.FC = () => {
                   <Select
                     value={editForm.yearLevel}
                     label="Year Level"
-                    onChange={e => setEditForm((f: any) => ({ ...f, yearLevel: e.target.value }))}
+                    onChange={e => setEditForm((f: Student | null) => f ? { ...f, yearLevel: e.target.value as Student['yearLevel'] } : null)}
                     required
                   >
-                    <MenuItem value={1}>1st Year</MenuItem>
-                    <MenuItem value={2}>2nd Year</MenuItem>
-                    <MenuItem value={3}>3rd Year</MenuItem>
-                    <MenuItem value={4}>4th Year</MenuItem>
+                    <MenuItem value="1st Year">1st Year</MenuItem>
+                    <MenuItem value="2nd Year">2nd Year</MenuItem>
+                    <MenuItem value="3rd Year">3rd Year</MenuItem>
+                    <MenuItem value="4th Year">4th Year</MenuItem>
                   </Select>
                 </FormControl>
               </Grid>
               <Grid item xs={12} sm={6}>
-                <TextField label="School Year" value={editForm.schoolYear} onChange={e => setEditForm((f: any) => ({ ...f, schoolYear: e.target.value }))} fullWidth required />
+                <TextField label="School Year" value={editForm.schoolYear} onChange={e => setEditForm((f: Student | null) => f ? { ...f, schoolYear: e.target.value as Student['schoolYear'] } : null)} fullWidth required />
               </Grid>
               <Grid item xs={12} sm={6}>
                 <FormControl fullWidth>
@@ -2291,7 +2337,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                   <Select
                     value={editForm.semester}
                     label="Semester"
-                    onChange={e => setEditForm((f: any) => ({ ...f, semester: e.target.value }))}
+                    onChange={e => setEditForm((f: Student | null) => f ? { ...f, semester: e.target.value as Student['semester'] } : null)}
                     required
                   >
                     <MenuItem value="1st Semester">1st Semester</MenuItem>
@@ -2308,7 +2354,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                 <Select
                     value={editForm.department}
                     label="Department"
-                    onChange={e => setEditForm((f: any) => ({ ...f, department: e.target.value }))}
+                    onChange={e => setEditForm((f: Student | null) => f ? { ...f, department: e.target.value as Student['department'] } : null)}
                     required
                   >
                     <MenuItem value="BSIT">BSIT</MenuItem>
@@ -2322,7 +2368,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                   <Select
                     value={editForm.status}
                     label="Status"
-                    onChange={e => setEditForm((f: any) => ({ ...f, status: e.target.value }))}
+                    onChange={e => setEditForm((f: Student | null) => f ? { ...f, status: e.target.value as Student['status'] } : null)}
                     required
                   >
                     <MenuItem value="pending">Pending</MenuItem>
