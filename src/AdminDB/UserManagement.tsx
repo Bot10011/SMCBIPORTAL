@@ -3,9 +3,10 @@ import { supabase } from '../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UserPlus, Loader2, Users, Edit, Trash2, Power } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { useAuth } from '../contexts/AuthContext';
-import { useModal } from '../contexts/ModalContext';
+// import { useAuth } from '../contexts/AuthContext';
+// import { useModal } from '../contexts/ModalContext';
 import ConfirmationDialog from '../components/ConfirmationDialog';
+import CreateUserModal from '../components/CreateUserModal';
 
 interface Program {
   id: number;
@@ -33,7 +34,6 @@ interface UserProfile {
 }
 
 export default function UserManagement() {
-  const { user } = useAuth();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,7 +43,7 @@ export default function UserManagement() {
   const [activeTab, setActiveTab] = useState<'all' | 'students' | 'teachers'>('all');
   
   // Add modal state
-  const { setShowCreateUserModal, setShowEditUserModal, setSelectedUserId } = useModal();
+  const [showCreateUserModal, setShowCreateUserModal] = useState(false);
   
   // Add confirmation dialog states
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -75,7 +75,6 @@ export default function UserManagement() {
         .from('user_profiles')
         .select('*')
         .neq('role', 'superadmin') // Exclude superadmin users
-        .neq('id', user?.id) // Exclude current admin's own account
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -86,7 +85,7 @@ export default function UserManagement() {
     } finally {
       setLoading(false);
     }
-  }, [user?.id]);
+  }, []);
 
   useEffect(() => {
     fetchUsers();
@@ -175,10 +174,6 @@ export default function UserManagement() {
   }, [activeTab, users]);
 
   // Action functions
-  const handleEditUser = (user: UserProfile) => {
-    setSelectedUserId(user.id);
-    setShowEditUserModal(true);
-  };
 
   const handleDeleteUser = (user: UserProfile) => {
     setSelectedUserForAction(user);
@@ -241,6 +236,11 @@ export default function UserManagement() {
     } finally {
       setActionLoading(false);
     }
+  };
+
+  const handleUserCreated = () => {
+    fetchUsers();
+    setShowCreateUserModal(false);
   };
 
   return (
@@ -551,7 +551,6 @@ export default function UserManagement() {
                             <motion.button
                               whileHover={{ scale: 1.05 }}
                               whileTap={{ scale: 0.95 }}
-                              onClick={() => handleEditUser(user)}
                               className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200"
                               title="Edit user"
                             >
@@ -622,6 +621,12 @@ export default function UserManagement() {
           cancelText="Cancel"
           type="warning"
           isLoading={actionLoading}
+        />
+
+        <CreateUserModal
+          isOpen={showCreateUserModal}
+          onClose={() => setShowCreateUserModal(false)}
+          onUserCreated={handleUserCreated}
         />
       </div>
     </div>
