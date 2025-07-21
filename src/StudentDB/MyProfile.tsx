@@ -5,7 +5,6 @@ import { Database } from '../types/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   UserCircle, 
-  Camera, 
   Hash,
   BookOpen,
   Calendar,
@@ -49,7 +48,8 @@ const CropModal: React.FC<{
   image: string;
   onCancel: () => void;
   onCrop: (croppedBlob: Blob) => void;
-}> = ({ image, onCancel, onCrop }) => {
+  isUploading?: boolean;
+}> = ({ image, onCancel, onCrop, isUploading }) => {
   const imgRef = useRef<HTMLImageElement>(null);
   const [imgDims, setImgDims] = useState({ width: 0, height: 0 });
   // Crop rect: {x, y, w, h} in image coordinates
@@ -237,8 +237,15 @@ const CropModal: React.FC<{
 
   return (
     <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-sm user-select-none touch-none">
-      <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-xs w-full flex flex-col items-center">
-        <div className="relative w-64 h-64 bg-gray-100 rounded-xl overflow-hidden flex items-center justify-center select-none touch-none"
+      <div className="bg-white rounded-2xl shadow-2xl p-4 w-full max-w-xs sm:max-w-sm flex flex-col items-center relative" style={{ maxHeight: '90vh' }}>
+        {/* Uploading overlay */}
+        {isUploading && (
+          <div className="absolute inset-0 bg-white/70 flex flex-col items-center justify-center z-20 rounded-2xl">
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-b-transparent mb-2" />
+            <span className="text-base font-semibold text-blue-700">Uploading...</span>
+          </div>
+        )}
+        <div className="relative w-full h-64 max-h-[60vw] sm:h-64 sm:max-h-[80vh] bg-gray-100 rounded-xl overflow-hidden flex items-center justify-center select-none touch-none"
           onMouseDown={handlePointerDown}
           onTouchStart={handlePointerDown}
           style={{ WebkitUserSelect: 'none', userSelect: 'none', touchAction: 'none' }}
@@ -334,7 +341,18 @@ export const MyProfile: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const overlayTimeout = useRef<NodeJS.Timeout | null>(null);
   const [cropModalImage, setCropModalImage] = useState<string | null>(null);
-  const [touchActive, setTouchActive] = useState(false);
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   const handleProfileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -488,7 +506,49 @@ export const MyProfile: React.FC = () => {
   }, [user?.id]);
 
   if (loading) {
-    return <div className="flex justify-center items-center h-64">Loading profile...</div>;
+    if (isOffline) {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-white via-blue-50 to-purple-50">
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-16 h-16 text-blue-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657A8 8 0 1 0 7.05 7.05m10.607 9.607A8 8 0 0 1 7.05 7.05m9.9 9.9L7.05 7.05" />
+          </svg>
+          <div className="text-2xl font-bold text-gray-500 mb-2">You are offline</div>
+          <div className="text-gray-400 mb-8">Please check your internet connection.</div>
+        </div>
+      );
+    }
+    return (
+      <div className="min-h-screen via-white to-purple-50 py-10 px-2 sm:px-0">
+        <div className="max-w-3xl mx-auto space-y-10">
+          <div className="relative overflow-visible rounded-3xl bg-gradient-to-br from-white via-blue-50 to-purple-50 shadow-xl border border-blue-100 p-0">
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-100/20 to-purple-100/20 pointer-events-none rounded-3xl" />
+            <div className="relative flex flex-col sm:flex-row items-center gap-8 px-8 sm:px-14 pt-10 sm:pt-14 pb-2">
+              {/* Profile Picture Skeleton */}
+              <div className="w-36 h-36 sm:w-44 sm:h-44 rounded-full bg-gray-200 animate-pulse" />
+              {/* Info Skeleton */}
+              <div className="flex-1 text-center sm:text-left space-y-2">
+                <div className="h-8 w-48 bg-gray-200 rounded mb-2 animate-pulse mx-auto sm:mx-0" />
+                <div className="h-5 w-64 bg-gray-200 rounded mb-2 animate-pulse mx-auto sm:mx-0" />
+                <div className="mt-4 flex justify-center sm:justify-start">
+                  <div className="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-gray-200 animate-pulse w-32 h-8" />
+                </div>
+              </div>
+            </div>
+            {/* Info Boxes Skeleton */}
+            <div className="
+              w-full
+              grid grid-cols-2 gap-5 items-stretch
+              sm:flex sm:flex-row sm:items-center sm:justify-center sm:gap-6
+              px-8 py-4 min-h-[80px] z-10 mb-3
+            ">
+              {[1,2,3,4].map(i => (
+                <div key={i} className="flex flex-col sm:flex-row sm:items-center sm:justify-center items-center justify-center min-w-[130px] min-h-[48px] bg-gray-200 rounded-xl px-4 py-2 animate-pulse" />
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (!profile) {
@@ -496,247 +556,207 @@ export const MyProfile: React.FC = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 px-4 sm:px-8 py-8">
-      {/* Premium Header Section */}
-      <motion.div 
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 via-white to-purple-50 shadow-inner shadow-inner-strong border border-blue-100"
-      >
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-100/30 to-purple-100/30 pointer-events-none" />
-        <div className="relative p-8 sm:p-12 flex flex-col sm:flex-row items-center gap-8">
-          {/* Profile Picture Section */}
-          <motion.div 
-            whileHover={{ scale: 1.04 }}
-            className="relative group shadow-inner rounded-2xl"
-          >
-            {/* Crop modal */}
-            {cropModalImage && (
-              <CropModal
-                image={cropModalImage}
-                onCancel={() => {
-                  setCropModalImage(null);
-                  setIsUploading(false);
+    <div className="min-h-screen  via-white to-purple-50 py-10 px-2 sm:px-0">
+      <div className="max-w-3xl mx-auto space-y-10">
+        {/* Profile Card */}
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="relative overflow-visible rounded-3xl bg-gradient-to-br from-white via-blue-50 to-purple-50 shadow-xl border border-blue-100 p-0"
+        >
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-100/20 to-purple-100/20 pointer-events-none rounded-3xl" />
+          <div className="relative flex flex-col sm:flex-row items-center gap-8 px-8 sm:px-14 pt-10 sm:pt-14 pb-2">
+            {/* Profile Picture Section */}
+            <motion.div
+              whileHover={{ scale: 1.04 }}
+              className="relative group flex flex-col items-center"
+            >
+              {/* Crop modal */}
+              {cropModalImage && (
+                <CropModal
+                  image={cropModalImage}
+                  onCancel={() => {
+                    setCropModalImage(null);
+                    setIsUploading(false);
+                  }}
+                  onCrop={handleCropAndUpload}
+                  isUploading={isUploading}
+                />
+              )}
+              <div
+                className="relative w-36 h-36 sm:w-44 sm:h-44 rounded-full bg-gradient-to-br from-purple-200 to-blue-200 shadow-lg flex items-center justify-center cursor-pointer transition-all duration-300 group outline-none border-4 border-white ring-4 ring-blue-200 hover:ring-blue-400 focus:ring-blue-400"
+                aria-label="Upload profile photo"
+                tabIndex={0}
+                onMouseEnter={() => {
+                  if (!isTouchDevice()) setShowOverlay(true);
                 }}
-                onCrop={handleCropAndUpload}
-              />
-            )}
-            <div
-              className="relative w-36 h-36 sm:w-44 sm:h-44 rounded-2xl bg-gradient-to-br from-purple-200 to-blue-200 shadow-inner flex items-center justify-center cursor-pointer transition-all duration-300 group outline-none"
-              aria-label="Upload profile photo"
-              tabIndex={0}
-              onMouseEnter={() => {
-                if (!isTouchDevice()) setShowOverlay(true);
-              }}
-              onMouseLeave={() => {
-                if (!isTouchDevice()) setShowOverlay(false);
-              }}
-              onFocus={() => {
-                if (!isTouchDevice()) setShowOverlay(true);
-              }}
-              onBlur={() => {
-                if (!isTouchDevice()) setShowOverlay(false);
-              }}
-              onClick={() => {
-                if (touchActive) {
-                  setTouchActive(false);
-                  return;
-                }
-                if (!isUploading) fileInputRef.current?.click();
-                if (isTouchDevice()) {
+                onMouseLeave={() => {
+                  if (!isTouchDevice()) setShowOverlay(false);
+                }}
+                onFocus={() => {
+                  if (!isTouchDevice()) setShowOverlay(true);
+                }}
+                onBlur={() => {
+                  if (!isTouchDevice()) setShowOverlay(false);
+                }}
+                onClick={() => {
+                  if (!isUploading) fileInputRef.current?.click();
+                  if (isTouchDevice()) {
+                    setShowOverlay(true);
+                    if (overlayTimeout.current) clearTimeout(overlayTimeout.current);
+                    overlayTimeout.current = setTimeout(() => setShowOverlay(false), 1800);
+                  }
+                }}
+                onTouchStart={() => {
+                  if (!isUploading) fileInputRef.current?.click();
                   setShowOverlay(true);
                   if (overlayTimeout.current) clearTimeout(overlayTimeout.current);
                   overlayTimeout.current = setTimeout(() => setShowOverlay(false), 1800);
-                }
-              }}
-              onTouchStart={() => {
-                setTouchActive(true);
-                if (!isUploading) fileInputRef.current?.click();
-                setShowOverlay(true);
-                if (overlayTimeout.current) clearTimeout(overlayTimeout.current);
-                overlayTimeout.current = setTimeout(() => setShowOverlay(false), 1800);
-              }}
-              style={{ outline: 'none' }}
-            >
-              {/* Animated colored ring on hover/focus/tap */}
-              <motion.div
-                initial={false}
-                animate={(showOverlay || isUploading) ? { scale: 1.08, boxShadow: '0 0 0 4px #6366f1, 0 8px 32px 0 rgba(99,102,241,0.15)' } : { scale: 1, boxShadow: '0 2px 12px 0 rgba(0,0,0,0.06)' }}
-                transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-                className="absolute inset-0 w-full h-full rounded-2xl pointer-events-none z-20"
-                style={{ border: '2px solid transparent' }}
-              />
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleProfileUpload}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                disabled={isUploading}
-                tabIndex={-1}
-                onClick={e => e.stopPropagation()}
-                aria-label="Choose profile photo"
-              />
-              {/* Profile image or placeholder */}
-              {profilePictureUrl ? (
-                <img
-                  src={profilePictureUrl}
-                  alt="Profile"
-                  className="absolute inset-0 w-full h-full object-cover rounded-2xl"
-                  style={{ zIndex: 0, objectFit: 'cover', objectPosition: 'center', aspectRatio: '1/1', background: '#f3f4f6' }}
-                  onError={(e) => {
-                    const imgElement = e.target as HTMLImageElement;
-                    console.error('Error loading profile image:', {
-                      url: imgElement.src,
-                      error: e,
-                      currentSrc: imgElement.currentSrc,
-                      complete: imgElement.complete,
-                      naturalWidth: imgElement.naturalWidth,
-                      naturalHeight: imgElement.naturalHeight
-                    });
-                    setProfilePictureUrl(null);
-                  }}
-                />
-              ) : (
-                <UserCircle className="absolute inset-0 w-full h-full text-purple-300" style={{ zIndex: 0 }} />
-              )}
-              {/* Overlay always covers the entire area */}
-              <AnimatePresence>
-                {(showOverlay || isUploading) && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    className="absolute inset-0 w-full h-full bg-gradient-to-br from-blue-600/80 to-purple-600/80 backdrop-blur-[6px] flex flex-col items-center justify-center gap-2 z-30 rounded-2xl"
-                    style={{ cursor: isUploading ? 'not-allowed' : 'pointer', boxShadow: '0 8px 32px 0 rgba(99,102,241,0.15)' }}
-                  >
-                    {isUploading ? (
-                      <>
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <div className="animate-spin rounded-full h-12 w-12 border-4 border-white border-b-transparent mb-2 shadow-lg" />
-                          <span className="text-base font-semibold text-white drop-shadow">Uploading...</span>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <motion.div
-                          initial={{ scale: 0.8, opacity: 0 }}
-                          animate={{ scale: 1, opacity: 1 }}
-                          exit={{ scale: 0.8, opacity: 0 }}
-                          transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-                          className="flex items-center justify-center mb-2"
-                        >
-                          <div className="bg-white/30 backdrop-blur-lg rounded-full p-3 shadow-lg flex items-center justify-center border border-white/30">
-                            <Camera className="w-8 h-8 text-white drop-shadow" />
-                          </div>
-                        </motion.div>
-                        <span className="text-sm text-white font-medium px-4 py-2 rounded-xl bg-white/20 backdrop-blur-sm shadow">
-                          {profilePictureUrl ? 'Change Photo' : 'Upload Photo'}
-                        </span>
-                      </>
-                    )}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-              {/* Hide overlay after file selection */}
-              {showOverlay && (
-                <div
-                  tabIndex={-1}
-                  style={{ position: 'fixed', inset: 0, zIndex: 10, background: 'transparent' }}
-                  onClick={() => setShowOverlay(false)}
-                />
-              )}
-            </div>
-          </motion.div>
-
-          {/* Profile Info Section */}
-          <div className="flex-1 text-center sm:text-left space-y-2">
-            <motion.h1 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="text-3xl sm:text-4xl font-extrabold bg-gradient-to-r from-blue-700 to-purple-600 bg-clip-text text-transparent drop-shadow-sm"
-            >
-              {profile?.last_name} {profile?.middle_name ? profile.middle_name + ' ' : ''}{profile?.first_name}
-            </motion.h1>
-            <motion.p 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="text-base text-gray-600 font-medium"
-            >
-              {profile?.email}
-            </motion.p>
-            {/* Status Box */}
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
-              className="mt-4 flex justify-center sm:justify-start"
-            >
-              <div className="w-44 h-10 rounded-xl shadow-inner bg-white flex items-center justify-center gap-2 border border-blue-100">
-                {profile?.enrollment_status === 'enrolled' ? (
-                  <>
-                    <CheckCircle2 className="w-5 h-5 text-green-600" />
-                    <span className="text-base font-semibold text-green-600">
-                      Enrolled
-                    </span>
-                  </>
+                }}
+                style={{ outline: 'none' }}
+              >
+                {/* Profile image or placeholder */}
+                {profilePictureUrl ? (
+                  <img
+                    src={profilePictureUrl}
+                    alt="Profile"
+                    className="absolute inset-0 w-full h-full object-cover rounded-full"
+                    style={{ zIndex: 0, objectFit: 'cover', objectPosition: 'center', aspectRatio: '1/1', background: '#f3f4f6' }}
+                    onError={() => {
+                      setProfilePictureUrl(null);
+                    }}
+                  />
                 ) : (
-                  <>
-                    <XCircle className="w-5 h-5 text-red-600" />
-                    <span className="text-base font-semibold text-red-600">
-                      Not Enrolled
-                    </span>
-                  </>
+                  <UserCircle className="absolute inset-0 w-full h-full text-purple-200" style={{ zIndex: 0 }} />
                 )}
+                {/* Edit icon overlay */}
+               
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleProfileUpload}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                  disabled={isUploading}
+                  tabIndex={-1}
+                  onClick={e => e.stopPropagation()}
+                  aria-label="Choose profile photo"
+                />
+                {/* Overlay always covers the entire area */}
+                <AnimatePresence>
+                  {(showOverlay || isUploading) && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      className="absolute inset-0 w-full h-full bg-gradient-to-br from-blue-600/80 to-purple-600/80 backdrop-blur-[6px] flex flex-col items-center justify-center gap-2 z-30 rounded-full"
+                      style={{ cursor: isUploading ? 'not-allowed' : 'pointer', boxShadow: '0 8px 32px 0 rgba(99,102,241,0.15)' }}
+                    >
+                      {isUploading ? (
+                        <>
+                          <div className="flex flex-col items-center justify-center gap-2">
+                            <div className="animate-spin rounded-full h-12 w-12 border-4 border-white border-b-transparent mb-2 shadow-lg" />
+                            <span className="text-base font-semibold text-white drop-shadow">Uploading...</span>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-sm text-white font-medium px-4 py-2 rounded-xl bg-white/20 backdrop-blur-sm shadow">
+                            {profilePictureUrl ? 'Change Photo' : 'Upload Photo'}
+                          </span>
+                        </>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             </motion.div>
-          </div>
-        </div>
-      </motion.div>
 
-      {/* Student Information Grid - Premium Card Style */}
-      <motion.div 
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-       className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6"
-      >
-        {/* Student ID */}
-        <div className="flex flex-col items-center bg-white rounded-2xl shadow-inner shadow-inner-strong border border-blue-100 p-4 sm:p-6 gap-1 sm:gap-2 transition-all">
-          <div className="p-2 sm:p-3 rounded-full bg-blue-50 mb-1 sm:mb-2">
-            <Hash className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
+            {/* Profile Info Section */}
+            <div className="flex-1 text-center sm:text-left space-y-2">
+              <motion.h1
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-1"
+              >
+                {profile?.last_name} {profile?.middle_name ? profile.middle_name + ' ' : ''}{profile?.first_name}
+              </motion.h1>
+              <motion.p
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="text-base text-gray-500 font-medium mb-2"
+              >
+                {profile?.email}
+              </motion.p>
+              {/* Status Pill */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+                className="mt-4 flex justify-center sm:justify-start"
+              >
+                <div className={`inline-flex items-center gap-2 px-4 py-1 rounded-full shadow bg-white border ${profile?.enrollment_status === 'enrolled' ? 'border-green-200' : 'border-red-200'}`}
+                >
+                  {profile?.enrollment_status === 'enrolled' ? (
+                    <>
+                      <CheckCircle2 className="w-5 h-5 text-green-600" />
+                      <span className="text-base font-semibold text-green-600">Enrolled</span>
+                    </>
+                  ) : (
+                    <>
+                      <XCircle className="w-5 h-5 text-red-600" />
+                      <span className="text-base font-semibold text-red-600">Not Enrolled</span>
+                    </>
+                  )}
+                </div>
+              </motion.div>
+            </div>
           </div>
-          <div className="text-xs text-gray-500">Student ID</div>
-          <div className="text-base sm:text-lg font-bold text-gray-900">{profile?.student_id ?? 'N/A'}</div>
-        </div>
-        {/* Program */}
-        <div className="flex flex-col items-center bg-white rounded-2xl shadow-inner shadow-inner-strong border border-blue-100 p-4 sm:p-6 gap-1 sm:gap-2 transition-all">
-          <div className="p-2 sm:p-3 rounded-full bg-purple-50 mb-1 sm:mb-2">
-            <BookOpen className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600" />
+          {/* Student Info Row as card footer, Neumorphism style, fully visible */}
+          <div className="
+            w-full
+            grid grid-cols-2 gap-5 items-stretch
+            sm:flex sm:flex-row sm:items-center sm:justify-center sm:gap-6
+            px-8 py-4 min-h-[80px] z-10 mb-3
+          ">
+            {/* Student ID */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-center items-center justify-center min-w-[130px] min-h-[48px] bg-[#f5f6fa] rounded-xl px-4 py-2 shadow-md shadow-inner" style={{boxShadow: 'inset 0 2px 8px #e0e7ef, 0 1.5px 4px #fff'}}>
+              <span className="flex items-center gap-1 text-[11px] sm:text-xs text-gray-500 mb-0.5 sm:mb-0 sm:mr-1">
+                <Hash className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
+                Student ID:
+              </span>
+              <span className="text-sm sm:text-base font-bold text-gray-900 truncate">{profile?.student_id ?? 'N/A'}</span>
+            </div>
+            {/* Program */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-center items-center justify-center min-w-[130px] min-h-[48px] bg-[#f5f6fa] rounded-xl px-4 py-2 shadow-md shadow-inner" style={{boxShadow: 'inset 0 2px 8px #e0e7ef, 0 1.5px 4px #fff'}}>
+              <span className="flex items-center gap-1 text-[11px] sm:text-xs text-gray-500 mb-0.5 sm:mb-0 sm:mr-1">
+                <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600" />
+                Program:
+              </span>
+              <span className="text-sm sm:text-base font-bold text-gray-900 truncate">{profile?.department ?? 'N/A'}</span>
+            </div>
+            {/* Year Level */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-center items-center justify-center min-w-[130px] min-h-[48px] bg-[#f5f6fa] rounded-xl px-4 py-2 shadow-md shadow-inner" style={{boxShadow: 'inset 0 2px 8px #e0e7ef, 0 1.5px 4px #fff'}}>
+              <span className="flex items-center gap-1 text-[11px] sm:text-xs text-gray-500 mb-0.5 sm:mb-0 sm:mr-1">
+                <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-green-600" />
+                Year Level:
+              </span>
+              <span className="text-sm sm:text-base font-bold text-gray-900 truncate">{profile?.year_level ?? 'N/A'}</span>
+            </div>
+            {/* Section */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-center items-center justify-center min-w-[130px] min-h-[48px] bg-[#f5f6fa] rounded-xl px-4 py-2 shadow-md shadow-inner" style={{boxShadow: 'inset 0 2px 8px #e0e7ef, 0 1.5px 4px #fff'}}>
+              <span className="flex items-center gap-1 text-[11px] sm:text-xs text-gray-500 mb-0.5 sm:mb-0 sm:mr-1">
+                <Users className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-600" />
+                Section:
+              </span>
+              <span className="text-sm sm:text-base font-bold text-gray-900 truncate">{profile?.section ?? 'N/A'}</span>
+            </div>
           </div>
-          <div className="text-xs text-gray-500">Program</div>
-          <div className="text-base sm:text-lg font-bold text-gray-900">{profile?.department ?? 'N/A'}</div>
-        </div>
-        {/* Year Level */}
-        <div className="flex flex-col items-center bg-white rounded-2xl shadow-inner shadow-inner-strong border border-blue-100 p-4 sm:p-6 gap-1 sm:gap-2 transition-all">
-          <div className="p-2 sm:p-3 rounded-full bg-green-50 mb-1 sm:mb-2">
-            <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
-          </div>
-          <div className="text-xs text-gray-500">Year Level</div>
-          <div className="text-base sm:text-lg font-bold text-gray-900">{profile?.year_level ?? 'N/A'}</div>
-        </div>
-        {/* Section */}
-        <div className="flex flex-col items-center bg-white rounded-2xl shadow-inner shadow-inner-strong border border-blue-100 p-4 sm:p-6 gap-1 sm:gap-2 transition-all">
-          <div className="p-2 sm:p-3 rounded-full bg-yellow-50 mb-1 sm:mb-2">
-            <Users className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-600" />
-          </div>
-          <div className="text-xs text-gray-500">Section</div>
-          <div className="text-base sm:text-lg font-bold text-gray-900">{profile?.section ?? 'N/A'}</div>
-        </div>
-      </motion.div>
+        </motion.div>
+      </div>
     </div>
   );
 }; 
