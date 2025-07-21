@@ -47,6 +47,7 @@ interface CreateUserForm {
 interface CreateUserModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onUserCreated?: () => void;
 }
 
 interface RoleRequirements {
@@ -118,7 +119,7 @@ interface UserProfile {
   updated_at: string;
 }
 
-const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose }) => {
+const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUserCreated }) => {
   // Form state
   const [form, setForm] = useState<CreateUserForm>({
     email: '',
@@ -540,8 +541,9 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose }) =>
 
       if (profileError) throw profileError;
 
-      toast.success('User created successfully. Please check email for verification.');
-      onClose();
+      toast.success('User created successfully.');
+      if (onUserCreated) onUserCreated();
+      else onClose();
     } catch (error: unknown) {
       console.error('Error creating user:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to create user';
