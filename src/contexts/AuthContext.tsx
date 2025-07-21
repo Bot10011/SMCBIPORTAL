@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { User, UserRole, ROLE_PERMISSIONS } from '../types/auth';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
@@ -19,7 +18,6 @@ const AuthContext = createContext<AuthContextType & { loading: boolean } | undef
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
 
   useEffect(() => {
     const checkSession = async () => {
@@ -108,7 +106,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(null);
       localStorage.removeItem('user');
       toast.success('Successfully logged out');
-      navigate('/', { replace: true, state: { from: { pathname: '/dashboard' } } });
+      window.location.href = '/'; // Force full reload to clear all state
     } catch (error) {
       console.error('Logout error:', error);
       toast.error('Failed to logout. Please try again.');
