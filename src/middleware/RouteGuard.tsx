@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import NotFound from './404';
 import SecurityLogger from './securityLogger';
@@ -37,12 +37,12 @@ const RouteGuard: React.FC<RouteGuardProps> = ({
 
   // Memoize role path patterns for better performance
   const rolePathPatterns = useMemo(() => ({
-    student: ['/student/dashboard'],
-    teacher: ['/teacher/dashboard'],
-    program_head: ['/program_head/dashboard'],
-    registrar: ['/registrar/dashboard'],
-    admin: ['/admin/dashboard'],
-    superadmin: ['/superadmin/dashboard']
+    student: ['/dashboard'],
+    teacher: ['/dashboard'],
+    program_head: ['/dashboard'],
+    registrar: ['/dashboard'],
+    admin: ['/dashboard'],
+    superadmin: ['/dashboard']
   }), []);
 
   // Initialize logger once
@@ -149,10 +149,7 @@ const RouteGuard: React.FC<RouteGuardProps> = ({
         details: 'User not authenticated',
         severity: 'medium'
       });
-      setDeniedReason('unauthorized');
-      setAccessDenied(true);
-      setIsAuthorized(false);
-      return;
+      return <Navigate to="/" replace />;
     }
 
     // If user is logged in but doesn't have required role
