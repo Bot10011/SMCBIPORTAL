@@ -329,7 +329,7 @@ const LandingPage = () => {
               />
 
               <motion.img
-                src="/img/logo1.png"
+                src="/img/logo3.png"
                 alt="SMCBI Logo"
                 className="w-32 h-auto mb-6 relative z-10 drop-shadow-2xl"
                 style={{
