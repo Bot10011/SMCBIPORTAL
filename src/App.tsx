@@ -1,28 +1,23 @@
 import React, { Suspense, lazy, memo } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './contexts/AuthContext';
 import { ModalProvider } from './contexts/ModalContext';
 import { DashboardAccessProvider } from './contexts/DashboardAccessContext';
-import ProtectedRoute from './components/ProtectedRoute';
-import RouteGuard from './middleware/RouteGuard';
+import ProtectedRoute from './middleware/ProtectedRoute';
 import { motion, AnimatePresence } from 'framer-motion';
 import CreateUserModal from './components/CreateUserModal';
 import EditUserModal from './components/EditUserModal';
 import { useModal } from './contexts/ModalContext';
-import NotFound from './middleware/404';
+import NotFoundOrHome from './middleware/NotFoundOrHome';
 
 // Import public components (not lazy loaded for immediate access)
 import LandingPage from './LandingPage';
 import Login from './Login';
 
 // Lazy load dashboard components for better performance
-const AdminDashboard = lazy(() => import('./AdminDB/Dashboard'));
-const RegistrarDashboard = lazy(() => import('./RegistrarDB/Dashboard'));
-const ProgramHeadDashboard = lazy(() => import('./ProgramheadDB/Dashboard'));
-const TeacherDashboard = lazy(() => import('./TeacherDB/Dashboard'));
-const StudentDashboard = lazy(() => import('./StudentDB/Dashboard'));
-const SuperadminDashboard = lazy(() => import('./SuperadminDB/Dashboard'));
+// NEW: Import DashboardRouter
+const DashboardRouter = lazy(() => import('./components/DashboardRouter'));
 
 // Loading component for lazy-loaded routes
 const DashboardLoading: React.FC = () => (
@@ -78,46 +73,6 @@ const GlobalModal = memo(() => {
 });
 
 GlobalModal.displayName = 'GlobalModal';
-
-// Memoized route configuration for better performance
-const routeConfig = [
-  {
-    path: "/superadmin/dashboard/*",
-    element: <SuperadminDashboard />,
-    allowedRoles: ['superadmin'],
-    requiresAuth: true
-  },
-  {
-    path: "/admin/dashboard/*",
-    element: <AdminDashboard />,
-    allowedRoles: ['admin'],
-    requiresAuth: true
-  },
-  {
-    path: "/registrar/dashboard/*",
-    element: <RegistrarDashboard />,
-    allowedRoles: ['admin', 'registrar'],
-    requiresAuth: true
-  },
-  {
-    path: "/program_head/dashboard/*",
-    element: <ProgramHeadDashboard />,
-    allowedRoles: ['admin', 'registrar', 'program_head'],
-    requiresAuth: true
-  },
-  {
-    path: "/teacher/dashboard/*",
-    element: <TeacherDashboard />,
-    allowedRoles: ['admin', 'registrar', 'program_head', 'teacher'],
-    requiresAuth: true
-  },
-  {
-    path: "/student/dashboard/*",
-    element: <StudentDashboard />,
-    allowedRoles: ['admin', 'registrar', 'program_head', 'teacher', 'student'],
-    requiresAuth: true
-  }
-];
 
 const App: React.FC = () => {
   return (
@@ -184,26 +139,41 @@ const App: React.FC = () => {
               {/* Public routes - no lazy loading for immediate access */}
               <Route path="/" element={<LandingPage />} />
               <Route path="/login" element={<Login />} />
+              <Route path="/test-redirect" element={<Navigate to="/" replace />} />
 
-              {/* Protected dashboard routes with lazy loading and enhanced security */}
-              {routeConfig.map(({ path, element, allowedRoles, requiresAuth }) => (
+              {/* Redirect old dashboard URLs to /dashboard for security */}
+              <Route path="/admin/dashboard/*" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/student/dashboard/*" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/superadmin/dashboard/*" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/teacher/dashboard/*" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/program_head/dashboard/*" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/registrar/dashboard/*" element={<Navigate to="/dashboard" replace />} />
+
+              {/* NEW: Single dashboard route for all roles */}
+              <Route
+                path="/dashboard/*"
+                element={
+                  <ProtectedRoute>
+                    <DashboardErrorBoundary>
+                      <DashboardRouter />
+                    </DashboardErrorBoundary>
+                  </ProtectedRoute>
+                }
+              >
                 <Route
-                  key={path}
-                  path={path}
+                  index
                   element={
-                    <RouteGuard allowedRoles={allowedRoles} requiresAuth={requiresAuth}>
-                      <ProtectedRoute allowedRoles={allowedRoles}>
-                        <DashboardErrorBoundary>
-                          {element}
-                        </DashboardErrorBoundary>
-                      </ProtectedRoute>
-                    </RouteGuard>
+                    <ProtectedRoute>
+                      <DashboardErrorBoundary>
+                        <DashboardRouter />
+                      </DashboardErrorBoundary>
+                    </ProtectedRoute>
                   }
                 />
-              ))}
+              </Route>
 
               {/* Catch-all route for 404 - must be last */}
-              <Route path="*" element={<NotFound reason="not_found" />} />
+              <Route path="*" element={<NotFoundOrHome />} />
             </Routes>
           </div>
           <GlobalModal />
