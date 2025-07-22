@@ -17,7 +17,7 @@ import Login from './Login';
 
 // Lazy load dashboard components for better performance
 // NEW: Import DashboardRouter
-const DashboardRouter = lazy(() => import('./components/DashboardRouter'));
+const DashboardRouter = lazy(() => import('./middleware/DashboardRouter'));
 
 // Loading component for lazy-loaded routes
 const DashboardLoading: React.FC = () => (
