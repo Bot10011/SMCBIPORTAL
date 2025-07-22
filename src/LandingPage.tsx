@@ -475,20 +475,7 @@ const LandingPage = () => {
       {showLogin && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="w-full max-w-md p-6 relative animate-fade-in">
-            <button
-              className="absolute w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center text-lg sm:text-xl font-bold text-white bg-red-500 hover:bg-red-600 rounded-full shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 animate-pop-in hover:scale-110 hover:rotate-90
-                top-2 right-2 sm:top-3 sm:right-3"
-              onClick={() => setShowLogin(false)}
-              aria-label="Close Login"
-              style={{
-                backgroundColor: '#ef4444',
-                boxShadow: '0 2px 8px rgba(239, 68, 68, 0.3)',
-                zIndex: 50
-              }}
-            >
-              ×
-            </button>
-            <Login />
+            <Login onClose={() => setShowLogin(false)} />
           </div>
         </div>
       )}
