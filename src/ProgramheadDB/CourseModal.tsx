@@ -9,6 +9,7 @@ interface Course {
   name: string;
   units: number;
   year_level?: string;
+  summer?: boolean;
 }
 
 interface CourseModalProps {
@@ -30,7 +31,8 @@ const CourseModal = ({
     code: '',
     name: '',
     units: 0,
-    year_level: ''
+    year_level: '',
+    summer: false
   });
   const [formErrors, setFormErrors] = useState<{ code?: string; name?: string; units?: string; year_level?: string }>({});
   const [formSubmitting, setFormSubmitting] = useState(false);
@@ -43,14 +45,16 @@ const CourseModal = ({
         code: courseToEdit.code,
         name: courseToEdit.name,
         units: courseToEdit.units,
-        year_level: courseToEdit.year_level || ''
+        year_level: courseToEdit.year_level || '',
+        summer: courseToEdit.summer || false
       });
     } else {
       setNewCourse({
         code: '',
         name: '',
         units: 0,
-        year_level: ''
+        year_level: '',
+        summer: false
       });
     }
     setFormErrors({});
@@ -97,6 +101,7 @@ const CourseModal = ({
             name: newCourse.name, 
             units: newCourse.units, 
             year_level: newCourse.year_level,
+            summer: newCourse.summer,
             updated_at: new Date().toISOString()
           })
           .eq('id', courseToEdit.id);
@@ -111,7 +116,8 @@ const CourseModal = ({
             code: newCourse.code, 
             name: newCourse.name, 
             units: newCourse.units, 
-            year_level: newCourse.year_level
+            year_level: newCourse.year_level,
+            summer: newCourse.summer
           }]);
         
         if (insertError) throw insertError;
@@ -121,7 +127,7 @@ const CourseModal = ({
       setTimeout(() => {
         setNotification({ show: false, message: '', type: 'success' });
         onClose();
-        setNewCourse({ code: '', name: '', units: 0, year_level: '' });
+        setNewCourse({ code: '', name: '', units: 0, year_level: '', summer: false });
         setFormErrors({});
         setFormSubmitting(false);
         if (onCourseUpdated) {
@@ -328,6 +334,22 @@ const CourseModal = ({
                 {formErrors.year_level && (
                   <p className="mt-1 text-sm text-red-600">{formErrors.year_level}</p>
                 )}
+              </div>
+
+              {/* Summer Checkbox */}
+              <div className="relative">
+                <label htmlFor="summer" className="block text-sm font-medium text-gray-700 mb-1">
+                  Summer
+                </label>
+                <input
+                  type="checkbox"
+                  id="summer"
+                  name="summer"
+                  checked={newCourse.summer}
+                  onChange={e => setNewCourse(prev => ({ ...prev, summer: e.target.checked }))}
+                  className="mr-2"
+                />
+                <span className="text-gray-700">Is this a summer course?</span>
               </div>
 
               {/* Submit Button */}
