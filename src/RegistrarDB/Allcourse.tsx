@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 // import { Database } from '../types/supabase';
 import { BookOpen, Search, GraduationCap } from 'lucide-react';
+//import { Modal } from '../components/MessageModal'; 
+import { createPortal } from 'react-dom';
 
 interface Course {
   id?: string;
@@ -20,6 +22,13 @@ export const RegistrarGradeViewer: React.FC = () => {
   const [search, setSearch] = useState('');
   const [courseImages, setCourseImages] = useState<{ [id: string]: string }>({});
   const [imageLoading, setImageLoading] = useState<{ [id: string]: boolean }>({});
+  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [subjectDetails, setSubjectDetails] = useState<{
+    teachers: string[];
+    students: string[];
+  } | null>(null);
 
   useEffect(() => {
     const fetchCourses = async () => {
@@ -65,6 +74,41 @@ export const RegistrarGradeViewer: React.FC = () => {
     if (courses.length > 0) fetchImages();
   }, [courses]);
 
+  // Function to fetch subject details (teacher, sections, students)
+  const fetchSubjectDetails = async (courseId: string) => {
+    setDetailsLoading(true);
+    // 1. Get teacher(s) for this subject
+    const { data: teacherLinks } = await supabase
+      .from('teacher_subjects')
+      .select('teacher_id')
+      .eq('subject_id', courseId);
+    const teacherIds = teacherLinks?.map(link => link.teacher_id) || [];
+    let teachers: string[] = [];
+    if (teacherIds.length > 0) {
+      const { data: teacherRows } = await supabase
+        .from('user_profiles')
+        .select('first_name, last_name')
+        .in('id', teacherIds);
+      teachers = teacherRows ? teacherRows.map(t => `${t.first_name} ${t.last_name}`) : [];
+    }
+    // 2. Get students enrolled in this subject
+    const { data: enrollments } = await supabase
+      .from('enrollcourse')
+      .select('student_id')
+      .eq('subject_id', courseId);
+    const studentIds = enrollments?.map(e => e.student_id) || [];
+    let students: string[] = [];
+    if (studentIds.length > 0) {
+      const { data: studentRows } = await supabase
+        .from('user_profiles')
+        .select('first_name, last_name')
+        .in('id', studentIds);
+      students = studentRows ? studentRows.map(s => `${s.first_name} ${s.last_name}`) : [];
+    }
+    setSubjectDetails({ teachers, students });
+    setDetailsLoading(false);
+  };
+
   const filteredCourses = courses.filter(
     (course) =>
       course.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -95,14 +139,23 @@ export const RegistrarGradeViewer: React.FC = () => {
     <div className="min-h-screen from-blue-50 via-white to-indigo-50">
       <div className="max-w-7xl mx-auto px-6 py-8">
         {/* Header Section */}
-        <div className="mb-8">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-            <div>
-              <h1 className="text-4xl font-bold text-gray-900 mb-2 flex items-center gap-3">
-                <BookOpen className="w-8 h-8 text-blue-600" />
-                Subjects Overview
-              </h1>
-              <p className="text-gray-600 text-lg">Review and manage all subjects offered in the institution</p>
+        <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 rounded-2xl">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-file-text w-6 h-6 text-white">
+                  <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path>
+                  <path d="M14 2v4a2 2 0 0 0 2 2h4"></path>
+                  <path d="M10 9H8"></path>
+                  <path d="M16 13H8"></path>
+                  <path d="M16 17H8"></path>
+                </svg>
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white tracking-tight">Subjects Overview</h1>
+                <p className="text-white/80 text-sm font-medium">Review and manage all subjects offered in the institution</p>
+                <div className="flex items-center gap-4 mt-2 text-xs text-white/80"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -216,12 +269,59 @@ export const RegistrarGradeViewer: React.FC = () => {
                       <span>Created {course.created_at ? new Date(course.created_at).toLocaleDateString() : '-'}</span>
                     </div>
                   </div>
+                  <button
+                    className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                    onClick={async () => {
+                      setSelectedCourse(course);
+                      setDetailsOpen(true);
+                      await fetchSubjectDetails(course.id!);
+                    }}
+                  >
+                    View Details
+                  </button>
                 </div>
               </div>
             ))}
           </div>
         )}
       </div>
+      {detailsOpen && selectedCourse && createPortal(
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-xl shadow-xl max-w-lg w-full relative">
+            <button onClick={() => setDetailsOpen(false)} className="absolute top-2 right-2 text-gray-500 text-2xl">&times;</button>
+            <h2 className="text-2xl font-bold mb-4 text-blue-700">Subject Details</h2>
+            <div className="mb-4">
+              <span className="font-semibold text-gray-700">Subject:</span>
+              <span className="ml-2 text-gray-900">{selectedCourse.name}</span>
+            </div>
+            {detailsLoading ? (
+              <div className="text-center py-8 text-blue-600 font-semibold">Loading...</div>
+            ) : subjectDetails ? (
+              <>
+                <div className="mb-4">
+                  <span className="font-semibold text-gray-700">Teacher(s):</span>
+                  <span className="ml-2 text-gray-900">{subjectDetails.teachers.length > 0 ? subjectDetails.teachers.join(', ') : 'N/A'}</span>
+                </div>
+                <div className="mb-2 font-semibold text-gray-700">Enrolled Students:</div>
+                <div className="max-h-64 overflow-y-auto border rounded-lg bg-gray-50 p-2">
+                  <ul className="list-decimal ml-6">
+                    {subjectDetails.students.length === 0 ? (
+                      <li className="text-gray-500">No students enrolled</li>
+                    ) : (
+                      subjectDetails.students.map((student, idx) => (
+                        <li key={idx} className="text-gray-800 py-1 border-b last:border-b-0">{student}</li>
+                      ))
+                    )}
+                  </ul>
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-8 text-gray-500">No details found.</div>
+            )}
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }; 
