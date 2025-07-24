@@ -10,6 +10,8 @@ interface TeacherSubject {
   semester: string;
   year_level: string; // Added year_level
   is_active: boolean;
+  day?: string;
+  time?: string;
 }
 
 interface Teacher {
@@ -76,6 +78,9 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
     { value: '4th Year', label: '4th Year' }
   ];
 
+  // Add days array
+  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
   // Multi-select state for subjects
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>(assignment.subject_id ? [assignment.subject_id] : []);
 
@@ -109,6 +114,7 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
       assignment.academic_year &&
       assignment.semester &&
       assignment.year_level
+      && assignment.day && assignment.time
     );
   };
 
@@ -339,6 +345,59 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
                   </p>
                 )}
               </div>
+              {/* Day and Time Selection (one line) */}
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <label htmlFor="day" className="block text-sm font-medium text-gray-700 mb-1">
+                    Day <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    id="day"
+                    name="day"
+                    value={assignment.day || ''}
+                    onChange={handleInputChange}
+                    className={`w-full px-4 py-3 rounded-xl border ${
+                      formErrors.day || (!assignment.day && !isFormValid())
+                        ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
+                        : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
+                    } focus:ring-2 focus:ring-opacity-50 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm`}
+                    required
+                  >
+                    <option value="">Select Day</option>
+                    {days.map(day => (
+                      <option key={day} value={day}>{day}</option>
+                    ))}
+                  </select>
+                  {(formErrors.day || (!assignment.day && !isFormValid())) && (
+                    <p className="mt-1 text-sm text-red-600">
+                      {formErrors.day || 'Please select a day'}
+                    </p>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <label htmlFor="time" className="block text-sm font-medium text-gray-700 mb-1">
+                    Time <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="time"
+                    id="time"
+                    name="time"
+                    value={assignment.time || ''}
+                    onChange={handleInputChange}
+                    className={`w-full px-4 py-3 rounded-xl border ${
+                      formErrors.time || (!assignment.time && !isFormValid())
+                        ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
+                        : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
+                    } focus:ring-2 focus:ring-opacity-50 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm`}
+                    required
+                  />
+                  {(formErrors.time || (!assignment.time && !isFormValid())) && (
+                    <p className="mt-1 text-sm text-red-600">
+                      {formErrors.time || 'Please select a time'}
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
             {/* Right column: Year Level, Subject, Subject List */}
             <div className="flex flex-col gap-6">
@@ -550,6 +609,14 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
                 <div className="flex justify-between">
                   <span className="font-medium text-gray-700">Semester:</span>
                   <span className="text-gray-900">{assignment.semester}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium text-gray-700">Day:</span>
+                  <span className="text-gray-900">{assignment.day}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium text-gray-700">Time:</span>
+                  <span className="text-gray-900">{assignment.time}</span>
                 </div>
                 <div className="border-t pt-3 mt-3">
                   <div className="flex justify-between items-start">
