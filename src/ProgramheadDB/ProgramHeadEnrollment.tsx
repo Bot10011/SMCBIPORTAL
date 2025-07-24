@@ -2362,24 +2362,6 @@ const ProgramHeadEnrollment: React.FC = () => {
                 </Select>
               </FormControl>
               </Grid>
-              <Grid item xs={12} sm={6}>
-                <FormControl fullWidth>
-                  <InputLabel>Status</InputLabel>
-                  <Select
-                    value={editForm.status}
-                    label="Status"
-                    onChange={e => setEditForm((f: Student | null) => f ? { ...f, status: e.target.value as Student['status'] } : null)}
-                    required
-                  >
-                    <MenuItem value="pending">Pending</MenuItem>
-                    <MenuItem value="enrolled">Enrolled</MenuItem>
-                    <MenuItem value="active">Active</MenuItem>
-                    <MenuItem value="approved">Approved</MenuItem>
-                    <MenuItem value="returned">Returned</MenuItem>
-                    <MenuItem value="dropped">Dropped</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
             </Grid>
           )}
         </DialogContent>
