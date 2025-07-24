@@ -4,7 +4,7 @@ import DashboardLayout from '../components/Sidebar';
 import ProgramHeadEnrollment from './ProgramHeadEnrollment';
 import CoursesOffered from './CoursesOffered';
 import SubjectAssignment from './SubjectAssignment';
-import EnrollmentValidation from './EnrollmentValidation';
+import UserManagement from './UserManagement';
 import Settings from './Settings';
 
 import { motion } from 'framer-motion';
@@ -343,7 +343,7 @@ const ProgramHeadDashboard: React.FC = () => {
           <Route path="/enroll-student" element={<ProgramHeadEnrollment />} />
           <Route path="/assign-subjects" element={<SubjectAssignment />} />
           <Route path="/academic-history" element={<CoursesOffered />} />
-          <Route path="/enrollment-validation" element={<EnrollmentValidation />} />
+          <Route path="/user-management" element={<UserManagement />} />
           <Route path="/settings" element={<Settings />} />
 
           <Route path="*" element={<DashboardOverview />} />
