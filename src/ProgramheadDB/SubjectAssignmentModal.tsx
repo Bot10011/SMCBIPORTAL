@@ -8,6 +8,7 @@ interface TeacherSubject {
   section: string;
   academic_year: string;
   year_level: string; // Added year_level
+  semester: string;
   is_active: boolean;
   day?: string; // Now a string (e.g., 'M' or 'M,W,Th')
   time?: string;
@@ -186,6 +187,7 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
     
     // Create multiple assignments for selected subjects
     const assignments: TeacherSubject[] = selectedSubjects.map(subjectId => {
+      const subject = courses.find(c => c.id === subjectId);
       const abbr = selectedDay.map(d => dayAbbr[d] || d);
       return {
         teacher_id: assignment.teacher_id,
@@ -193,6 +195,7 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
         section: assignment.section,
         academic_year: assignment.academic_year,
         year_level: assignment.year_level,
+        semester: subject?.semester || '',
         day: abbr.length === 1 ? abbr[0] : abbr.join(','),
         time: assignment.time,
         is_active: true
