@@ -20,6 +20,7 @@ import {
   AlertTriangle,
   MessageSquare,
   GraduationCap,
+  UserPlus,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -160,9 +161,9 @@ const sidebarItems: SidebarItem[] = [
     roles: ['program_head'],
   },
   {
-    label: 'Enrollment Validation',
-    path: '/dashboard/enrollment-validation',
-    icon: <CheckSquare className="w-5 h-5" />,
+    label: 'User Management',
+    path: '/dashboard/user-management',
+    icon: <UserPlus className="w-5 h-5" />,
     roles: ['program_head'],
   },
   {
