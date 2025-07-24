@@ -68,22 +68,12 @@ export default function CourseManagement() {
         if (imagePath && imagePath.trim() !== '' && course.id !== undefined && course.id !== null) {
           newLoading[String(course.id)] = true;
           try {
-            // First check if the file exists
-            const { data: fileList, error: listError } = await supabase.storage
+            // Use Supabase signed URL for secure image access
+            const { data: signedUrlData, error: signedUrlError } = await supabase.storage
               .from('course')
-              .list('', {
-                search: imagePath
-              });
-            
-            if (!listError && fileList && fileList.length > 0) {
-              // File exists, try to download it
-              const { data: fileData, error: fileError } = await supabase.storage
-                .from('course')
-                .download(imagePath);
-              if (!fileError && fileData) {
-                const blobUrl = URL.createObjectURL(fileData);
-                newImages[String(course.id)] = blobUrl;
-              }
+              .createSignedUrl(imagePath, 60 * 60); // 1 hour expiry
+            if (!signedUrlError && signedUrlData?.signedUrl) {
+              newImages[String(course.id)] = signedUrlData.signedUrl;
             } else {
               // File doesn't exist, clear the image_url from database
               console.warn('Image not found for course:', course.id, imagePath);
@@ -475,16 +465,7 @@ export default function CourseManagement() {
                     onChange={async e => {
                       const file = e.target.files?.[0] || null;
                       if (file) {
-                        const img = new window.Image();
-                        img.onload = () => {
-                          if (img.width > img.height) {
-                            setImageFile(file);
-                          } else {
-                            setImageFile(null);
-                            toast.error('Please select a landscape image (width must be greater than height).');
-                          }
-                        };
-                        img.src = URL.createObjectURL(file);
+                        setImageFile(file);
                       } else {
                         setImageFile(null);
                       }
@@ -881,14 +862,20 @@ export default function CourseManagement() {
                   <div className="p-6">
                     <div className="flex items-center gap-2 mb-2">
                       <span className="font-bold text-lg text-gray-900">{course.name}</span>
-                      {course.summer ? (
-                        <span className="inline-flex items-center gap-1 bg-yellow-100 text-yellow-800 text-xs font-bold px-2 py-0.5 rounded-full">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="inline-block w-3 h-3"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-                          Summer
-                        </span>
-                      ) : (
+                      {/* Semester Badge */}
+                      {course.semester === 'First Semester' && (
                         <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-xs font-bold px-2 py-0.5 rounded-full">
-                          Regular
+                          1st Sem
+                        </span>
+                      )}
+                      {course.semester === 'Second Semester' && (
+                        <span className="inline-flex items-center gap-1 bg-green-100 text-green-800 text-xs font-bold px-2 py-0.5 rounded-full">
+                          2nd Sem
+                        </span>
+                      )}
+                      {course.semester === 'Summer' && (
+                        <span className="inline-flex items-center gap-1 bg-yellow-100 text-yellow-800 text-xs font-bold px-2 py-0.5 rounded-full">
+                          Summer
                         </span>
                       )}
                     </div>
@@ -921,6 +908,7 @@ export default function CourseManagement() {
                       <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">Code</th>
                       <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">Year</th>
                       <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">Units</th>
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">Semester</th>
                       <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">Type</th>
                       <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
                     </tr>
@@ -967,6 +955,24 @@ export default function CourseManagement() {
                           <span className="bg-green-100 text-green-800 text-sm font-semibold px-3 py-1 rounded-full">
                             {course.units} Unit{course.units !== 1 ? 's' : ''}
                           </span>
+                        </td>
+                        {/* Semester Badge Column */}
+                        <td className="px-6 py-4">
+                          {course.semester === 'First Semester' && (
+                            <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full">
+                              1st Sem
+                            </span>
+                          )}
+                          {course.semester === 'Second Semester' && (
+                            <span className="inline-flex items-center gap-1 bg-green-100 text-green-800 text-xs font-bold px-3 py-1 rounded-full">
+                              2nd Sem
+                            </span>
+                          )}
+                          {course.semester === 'Summer' && (
+                            <span className="inline-flex items-center gap-1 bg-yellow-100 text-yellow-800 text-xs font-bold px-3 py-1 rounded-full">
+                              Summer
+                            </span>
+                          )}
                         </td>
                         <td className="px-6 py-4">
                           {course.summer ? (
