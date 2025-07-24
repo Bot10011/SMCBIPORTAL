@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
-import { Download, Printer, Eye, Users, BookOpen, CheckCircle2, X, Loader2, UserCheck, UserPlus, UserX } from 'lucide-react';
+import { Download, Printer, Eye, Users, BookOpen, CheckCircle2, Loader2, UserCheck, UserPlus } from 'lucide-react';
 
 interface Student {
   id: string;
@@ -29,8 +29,21 @@ interface Course {
   updated_at: string;
 }
 
+interface COEData {
+  date_issued: string;
+  student_number?: string;
+  student_id?: string;
+  full_name?: string;
+  school_year: string;
+  semester: string;
+  year_level?: string;
+  department?: string;
+  email?: string;
+  subjects?: { code: string; name: string; units: number }[];
+}
+
 // COEModal for viewing Certificate of Enrollment
-const COEModal = ({ coe, open, onClose }: { coe: any, open: boolean, onClose: () => void }) => {
+const COEModal = ({ coe, open, onClose }: { coe: COEData, open: boolean, onClose: () => void }) => {
   if (!coe || !open) return null;
   // Download as PDF using jsPDF + autoTable function
   const handleDownload = () => {
@@ -68,8 +81,8 @@ const COEModal = ({ coe, open, onClose }: { coe: any, open: boolean, onClose: ()
             startY: y + 10,
             head: [['Course Code', 'Course Name', 'Units']],
             body: Array.isArray(coe.subjects) ? [
-              ...coe.subjects.map((subj: any) => [subj.code, subj.name, subj.units]),
-              ["", "Total Units", coe.subjects.reduce((sum: number, subj: any) => sum + (Number(subj.units) || 0), 0)]
+              ...coe.subjects.map((subj: { code: string; name: string; units: number }) => [subj.code, subj.name, subj.units]),
+              ["", "Total Units", coe.subjects.reduce((sum: number, subj: { units: number }) => sum + (Number(subj.units) || 0), 0)]
             ] : [],
             theme: 'grid',
             headStyles: { fillColor: [41, 128, 185] },
@@ -121,8 +134,8 @@ const COEModal = ({ coe, open, onClose }: { coe: any, open: boolean, onClose: ()
             startY: y + 10,
             head: [['Course Code', 'Course Name', 'Units']],
             body: Array.isArray(coe.subjects) ? [
-              ...coe.subjects.map((subj: any) => [subj.code, subj.name, subj.units]),
-              ["", "Total Units", coe.subjects.reduce((sum: number, subj: any) => sum + (Number(subj.units) || 0), 0)]
+              ...coe.subjects.map((subj: { code: string; name: string; units: number }) => [subj.code, subj.name, subj.units]),
+              ["", "Total Units", coe.subjects.reduce((sum: number, subj: { units: number }) => sum + (Number(subj.units) || 0), 0)]
             ] : [],
             theme: 'grid',
             headStyles: { fillColor: [41, 128, 185] },
@@ -280,7 +293,7 @@ const COEModal = ({ coe, open, onClose }: { coe: any, open: boolean, onClose: ()
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-100">
-                    {Array.isArray(coe.subjects) && coe.subjects.map((subject: any, idx: number) => (
+                    {Array.isArray(coe.subjects) && coe.subjects.map((subject: { code: string; name: string; units: number }, idx: number) => (
                       <tr key={idx} className="hover:bg-gray-50 transition-colors">
                         <td className="px-4 py-2 whitespace-nowrap text-sm font-semibold text-blue-600">{subject.code}</td>
                         <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">{subject.name}</td>
@@ -291,7 +304,7 @@ const COEModal = ({ coe, open, onClose }: { coe: any, open: boolean, onClose: ()
                     <tr className="bg-gradient-to-r from-blue-50 to-indigo-50">
                       <td className="px-4 py-2"></td>
                       <td className="px-4 py-2 text-right font-bold text-base text-gray-900">Total Units</td>
-                      <td className="px-4 py-2 font-bold text-base text-blue-600">{Array.isArray(coe.subjects) ? coe.subjects.reduce((sum: number, subj: any) => sum + (Number(subj.units) || 0), 0) : 0}</td>
+                      <td className="px-4 py-2 font-bold text-base text-blue-600">{Array.isArray(coe.subjects) ? coe.subjects.reduce((sum: number, subj: { units: number }) => sum + (Number(subj.units) || 0), 0) : 0}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -341,10 +354,8 @@ const RegistrarEnrollment: React.FC = () => {
   const [coeModalOpen, setCOEModalOpen] = useState(false);
   const [coeLoading, setCOELoading] = useState(false);
   const [coeError, setCOEError] = useState<string | null>(null);
-  const [coeData, setCOEData] = useState<any | null>(null);
-  const [selectedYearLevel, setSelectedYearLevel] = useState<string>('');
-  const [selectedCourseId, setSelectedCourseId] = useState<string>('');
-  const [coeMap, setCOEMap] = useState<Record<string, any>>({});
+  const [coeData, setCOEData] = useState<COEData | null>(null);
+  const [coeMap, setCOEMap] = useState<Record<string, COEData>>({});
 
   // Stats
   const totalStudents = students.length;
@@ -361,7 +372,7 @@ const RegistrarEnrollment: React.FC = () => {
   useEffect(() => {
     const fetchAllCOEs = async () => {
       if (students.length === 0) return;
-      const coeMapTemp: Record<string, any> = {};
+      const coeMapTemp: Record<string, COEData> = {};
       for (const student of students) {
         const { data, error } = await supabase
           .from('coe')
@@ -370,7 +381,7 @@ const RegistrarEnrollment: React.FC = () => {
           .order('date_issued', { ascending: false })
           .limit(1);
         if (!error && data && data.length > 0) {
-          coeMapTemp[student.id] = data[0];
+          coeMapTemp[student.id] = data[0] as COEData;
         }
       }
       setCOEMap(coeMapTemp);
@@ -421,70 +432,9 @@ const RegistrarEnrollment: React.FC = () => {
       if (coursesError) throw coursesError;
       console.log('First course data:', coursesData?.[0]);  // Log first course to see structure
       setCourses(coursesData || []);
-    } catch (error) {
-      console.error('Error fetching courses:', error);
+    } catch (err: unknown) {
+      console.error('Error fetching courses:', err);
       toast.error('Failed to load courses');
-    }
-  };
-
-  const handleEnrollStudent = async (studentId: string, subjectIds: string[]) => {
-    try {
-      // First, get current enrollments
-      const { data: currentEnrollments, error: fetchError } = await supabase
-        .from('enrollcourse')
-        .select('subject_id')
-        .eq('student_id', studentId);
-
-      if (fetchError) throw fetchError;
-
-      const currentSubjectIds = currentEnrollments?.map(e => e.subject_id) || [];
-
-      // Prepare arrays for new enrollments and removals
-      const subjectsToAdd = subjectIds.filter(id => !currentSubjectIds.includes(id));
-      const subjectsToRemove = currentSubjectIds.filter(id => !subjectIds.includes(id));
-
-      // Handle new enrollments
-      if (subjectsToAdd.length > 0) {
-        const { error: insertError } = await supabase
-          .from('enrollcourse')
-          .insert(
-            subjectsToAdd.map(subjectId => ({
-              student_id: studentId,
-              subject_id: subjectId,
-              status: 'active',
-              enrollment_date: new Date().toISOString(),
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            }))
-          );
-
-        if (insertError) throw insertError;
-      }
-
-      // Handle course removals
-      if (subjectsToRemove.length > 0) {
-        const { error: deleteError } = await supabase
-          .from('enrollcourse')
-          .delete()
-          .eq('student_id', studentId)
-          .in('subject_id', subjectsToRemove);
-
-        if (deleteError) throw deleteError;
-      }
-
-      // Update local state
-      setStudents(students.map(student => 
-        student.id === studentId 
-          ? { ...student, enrolled_courses: subjectIds }
-          : student
-      ));
-
-      toast.success('Student enrollment updated successfully');
-      setSelectedStudent(null);
-      setSelectedCourses([]);
-    } catch (error) {
-      console.error('Error updating enrollments:', error);
-      toast.error('Failed to update enrollments');
     }
   };
 
@@ -499,8 +449,8 @@ const RegistrarEnrollment: React.FC = () => {
 
       if (error) throw error;
       return data?.map(e => e.subject_id) || [];
-    } catch (error) {
-      console.error('Error fetching enrollments:', error);
+    } catch (err: unknown) {
+      console.error('Error fetching enrollments:', err);
       return [];
     }
   };
@@ -510,8 +460,6 @@ const RegistrarEnrollment: React.FC = () => {
     const currentEnrollments = await fetchStudentEnrollments(student.id);
     setSelectedStudent(student);
     setSelectedCourses(currentEnrollments);
-    setSelectedYearLevel(student.year_level || '');
-    setSelectedCourseId(student.course_id || '');
     setShowConfirmModal(true);
   };
 
@@ -520,12 +468,26 @@ const RegistrarEnrollment: React.FC = () => {
     if (!selectedStudent) return;
     try {
       // Update the student's status to 'enrolled' and set course_id and year_level
-      const mainCourseId = selectedCourseId || (selectedCourses.length > 0 ? selectedCourses[0] : null);
+      const mainCourseId = selectedCourses.length > 0 ? selectedCourses[0] : null;
+      // Debug log to check payload values
+      console.log({
+        enrollment_status: 'enrolled',
+        course_id: mainCourseId,
+        year_level: selectedStudent.year_level,
+        id: selectedStudent.id
+      });
+      // Build update payload with only existing fields
+      const updatePayload: any = { enrollment_status: 'enrolled' };
+      // Do NOT include course_id or year_level since they do not exist
       const { error } = await supabase
         .from('user_profiles')
-        .update({ enrollment_status: 'enrolled', course_id: mainCourseId, year_level: selectedYearLevel })
+        .update(updatePayload)
         .eq('id', selectedStudent.id);
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase update error:', error);
+        toast.error(`Failed to update student: ${error.message || 'Unknown error'}`);
+        return;
+      }
 
       // Prepare COE data
       const studentProfile = selectedStudent;
@@ -600,8 +562,8 @@ const RegistrarEnrollment: React.FC = () => {
       } else {
         setCOEError('No Certificate of Enrollment found for this student.');
       }
-    } catch (err: any) {
-      setCOEError(err.message || 'Failed to fetch COE.');
+    } catch (err: unknown) {
+      setCOEError(err instanceof Error ? err.message : 'Failed to fetch COE.');
     } finally {
       setCOELoading(false);
     }
@@ -716,7 +678,7 @@ const RegistrarEnrollment: React.FC = () => {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className={`overflow-x-auto transition-all duration-300 ${showConfirmModal && selectedStudent ? 'filter blur-sm pointer-events-none select-none' : ''}`}>
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50 sticky top-0 z-10">
                 <tr>
@@ -789,93 +751,92 @@ const RegistrarEnrollment: React.FC = () => {
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="bg-white rounded-xl shadow-xl p-6 max-w-2xl w-full"
+              className="bg-white rounded-xl shadow-xl p-8 max-w-4xl w-full"
             >
               <h2 className="text-xl font-bold text-gray-800 mb-4">
                 Confirm Enrollment
               </h2>
               <div className="mb-4">
                 <h3 className="text-lg font-semibold text-gray-700 mb-2">Student Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2">
-                  <div><span className="font-medium">Student ID:</span> {selectedStudent.student_id}</div>
-                  <div><span className="font-medium">Name:</span> {selectedStudent.last_name}, {selectedStudent.first_name}</div>
-                  <div><span className="font-medium">Email:</span> {selectedStudent.email}</div>
-                  <div>
-                    <span className="font-medium">Year Level:</span>
-                    <select
-                      className="ml-2 border rounded px-2 py-1"
-                      value={selectedYearLevel}
-                      onChange={e => setSelectedYearLevel(e.target.value)}
-                    >
-                      <option value="">Select Year Level</option>
-                      <option value="1st Year">1st Year</option>
-                      <option value="2nd Year">2nd Year</option>
-                      <option value="3rd Year">3rd Year</option>
-                      <option value="4th Year">4th Year</option>
-                    </select>
-                  </div>
-                  <div>
-                    <span className="font-medium">Current Course:</span>
-                    <select
-                      className="ml-2 border rounded px-2 py-1"
-                      value={selectedCourseId}
-                      onChange={e => setSelectedCourseId(e.target.value)}
-                    >
-                      <option value="">Select Course</option>
-                      {courses.map(course => (
-                        <option key={course.id} value={course.id}>{course.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div><span className="font-medium">Status:</span> {selectedStudent.enrollment_status}</div>
+                <div className="overflow-x-auto mb-2">
+                  <table className="min-w-full divide-y divide-gray-200 border rounded-lg">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student ID</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      <tr>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{selectedStudent.student_id}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{selectedStudent.last_name}, {selectedStudent.first_name}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{selectedStudent.email}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                            ${selectedStudent.enrollment_status === 'enrolled' ? 'bg-green-100 text-green-800' : 
+                              selectedStudent.enrollment_status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 
+                              'bg-red-100 text-red-800'}`}>
+                            {selectedStudent.enrollment_status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          <span className="text-blue-600 font-semibold">Pending Approval</span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
-              </div>
-              <div className="mb-4">
-                <h3 className="text-lg font-semibold text-gray-700 mb-2">Courses for Enrollment</h3>
-                  <div className="space-y-2">
-                  {selectedCourses.length === 0 ? (
-                    <div className="text-sm text-gray-500">No courses selected.</div>
-                  ) : (
-                    selectedCourses.map(courseId => {
-                      const course = courses.find(c => c.id === courseId);
-                      return course ? (
-                        <div key={courseId} className="text-sm text-gray-600">
-                          <span className="font-medium">{course.name}</span> ({course.code})
-                        </div>
-                      ) : null;
-                    })
-                  )}
+                <div className="mb-4">
+                  <h3 className="text-lg font-semibold text-gray-700 mb-2">Courses for Enrollment</h3>
+                    <div className="space-y-2">
+                    {selectedCourses.length === 0 ? (
+                      <div className="text-sm text-gray-500">No courses selected.</div>
+                    ) : (
+                      selectedCourses.map(courseId => {
+                        const course = courses.find(c => c.id === courseId);
+                        return course ? (
+                          <div key={courseId} className="text-sm text-gray-600">
+                            <span className="font-medium">{course.name}</span> ({course.code})
+                          </div>
+                        ) : null;
+                      })
+                    )}
+                  </div>
                 </div>
-              </div>
-              <div className="flex justify-end gap-4">
-                <button
-                  onClick={() => {
-                    setShowConfirmModal(false);
-                    setSelectedStudent(null);
-                    setSelectedCourses([]);
-                  }}
-                  className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleConfirmEnroll}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  Confirm Enrollment
-                </button>
+                <div className="flex justify-end gap-4">
+                  <button
+                    onClick={() => {
+                      setShowConfirmModal(false);
+                      setSelectedStudent(null);
+                      setSelectedCourses([]);
+                    }}
+                    className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleConfirmEnroll}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    Confirm Enrollment
+                  </button>
+                </div>
               </div>
             </motion.div>
           </div>
-        )}
+            
+          )}
 
         {/* COE Modal */}
-        {coeModalOpen && createPortal(
+        {coeModalOpen && coeData && createPortal(
           <COEModal
             coe={coeData}
             open={coeModalOpen}
             onClose={() => setCOEModalOpen(false)}
-          />,
+          />, 
           document.body
         )}
         {coeModalOpen && coeLoading && (
