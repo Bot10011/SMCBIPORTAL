@@ -5,8 +5,11 @@ import { UserPlus, Loader2, Users, Edit, Trash2, Power } from 'lucide-react';
 import toast from 'react-hot-toast';
 // import { useAuth } from '../contexts/AuthContext';
 // import { useModal } from '../contexts/ModalContext';
+import { useModal } from '../contexts/ModalContext';
 import ConfirmationDialog from '../components/ConfirmationDialog';
 import CreateUserModal from '../components/CreateUserModal';
+
+import { createPortal } from 'react-dom';
 
 interface Program {
   id: number;
@@ -50,6 +53,8 @@ export default function UserManagement() {
   const [showToggleConfirm, setShowToggleConfirm] = useState(false);
   const [selectedUserForAction, setSelectedUserForAction] = useState<UserProfile | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+
+  const { setShowEditUserModal, setSelectedUserId } = useModal();
   
   // Add filtered users logic
   const filteredUsers = users.filter(user => {
@@ -553,6 +558,10 @@ export default function UserManagement() {
                               whileTap={{ scale: 0.95 }}
                               className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200"
                               title="Edit user"
+                              onClick={() => {
+                                setSelectedUserId(user.id);
+                                setShowEditUserModal(true);
+                              }}
                             >
                               <Edit className="w-4 h-4" />
                             </motion.button>
@@ -592,36 +601,42 @@ export default function UserManagement() {
       </div>
         </motion.div>
 
-        {/* Confirmation Dialogs */}
-        <ConfirmationDialog
-          isOpen={showDeleteConfirm}
-          onClose={() => {
-            setShowDeleteConfirm(false);
-            setSelectedUserForAction(null);
-          }}
-          onConfirm={confirmDeleteUser}
-          title="Delete User"
-          message={`Are you sure you want to delete ${selectedUserForAction ? [selectedUserForAction.first_name, selectedUserForAction.middle_name, selectedUserForAction.last_name].filter(Boolean).join(' ') : 'this user'}? This action cannot be undone.`}
-          confirmText="Delete"
-          cancelText="Cancel"
-          type="danger"
-          isLoading={actionLoading}
-        />
 
-        <ConfirmationDialog
-          isOpen={showToggleConfirm}
-          onClose={() => {
-            setShowToggleConfirm(false);
-            setSelectedUserForAction(null);
-          }}
-          onConfirm={confirmToggleUserStatus}
-          title={selectedUserForAction?.is_active ? "Deactivate User" : "Activate User"}
-          message={`Are you sure you want to ${selectedUserForAction?.is_active ? 'deactivate' : 'activate'} ${selectedUserForAction ? [selectedUserForAction.first_name, selectedUserForAction.middle_name, selectedUserForAction.last_name].filter(Boolean).join(' ') : 'this user'}?`}
-          confirmText={selectedUserForAction?.is_active ? "Deactivate" : "Activate"}
-          cancelText="Cancel"
-          type="warning"
-          isLoading={actionLoading}
-        />
+        {showDeleteConfirm && createPortal(
+          <ConfirmationDialog
+            isOpen={showDeleteConfirm}
+            onClose={() => {
+              setShowDeleteConfirm(false);
+              setSelectedUserForAction(null);
+            }}
+            onConfirm={confirmDeleteUser}
+            title="Delete User"
+            message={`Are you sure you want to delete ${selectedUserForAction ? [selectedUserForAction.first_name, selectedUserForAction.middle_name, selectedUserForAction.last_name].filter(Boolean).join(' ') : 'this user'}? This action cannot be undone.`}
+            confirmText="Delete"
+            cancelText="Cancel"
+            type="danger"
+            isLoading={actionLoading}
+          />,
+          document.body
+        )}
+
+        {showToggleConfirm && createPortal(
+          <ConfirmationDialog
+            isOpen={showToggleConfirm}
+            onClose={() => {
+              setShowToggleConfirm(false);
+              setSelectedUserForAction(null);
+            }}
+            onConfirm={confirmToggleUserStatus}
+            title={selectedUserForAction?.is_active ? "Deactivate User" : "Activate User"}
+            message={`Are you sure you want to ${selectedUserForAction?.is_active ? 'deactivate' : 'activate'} ${selectedUserForAction ? [selectedUserForAction.first_name, selectedUserForAction.middle_name, selectedUserForAction.last_name].filter(Boolean).join(' ') : 'this user'}?`}
+            confirmText={selectedUserForAction?.is_active ? "Deactivate" : "Activate"}
+            cancelText="Cancel"
+            type="warning"
+            isLoading={actionLoading}
+          />,
+          document.body
+        )}
 
         <CreateUserModal
           isOpen={showCreateUserModal}
