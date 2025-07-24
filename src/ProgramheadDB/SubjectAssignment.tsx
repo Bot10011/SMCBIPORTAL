@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Check, X, AlertCircle, FileEdit, Trash2 } from 'lucide-react';
+import { Plus, Check, X, AlertCircle, FileEdit, Trash2, Users } from 'lucide-react';
 import SubjectAssignmentModal from './SubjectAssignmentModal';
 import { toast } from 'react-hot-toast';
 
@@ -19,8 +19,8 @@ interface TeacherSubject {
   subject_name?: string;  // This will store the course_name
   subject_units?: number; // This will store the course_units
   year_level: string; // Make required
-  day?: string[]; // Added for day(s)
-  time?: string; // Added for time
+  day?: string; // Now a string (e.g., 'M' or 'M,W,Th')
+  time?: string;
 }
 
 interface Teacher {
@@ -69,7 +69,9 @@ const SubjectAssignment: React.FC = () => {
     academic_year: '',
     semester: '',
     year_level: '',
-    is_active: true
+    is_active: true,
+    day: '',
+    time: ''
   });
 
   // State for collapsible sections - all collapsed by default
@@ -89,12 +91,59 @@ const SubjectAssignment: React.FC = () => {
     'Sunday': 'Su',
   };
 
+  // Modal state for student list
+  const [studentListModal, setStudentListModal] = useState<{ open: boolean; assignment: TeacherSubject | null }>({ open: false, assignment: null });
+  // State for students in the selected subject/section
+  const [enrolledStudents, setEnrolledStudents] = useState<{ id: string; name: string; email: string }[]>([]);
+  const [loadingStudents, setLoadingStudents] = useState(false);
+
 
   useEffect(() => {
     fetchAssignments();
     fetchTeachers();
     fetchCourses();
   }, []);
+
+  useEffect(() => {
+    const fetchEnrolledStudents = async () => {
+      if (!studentListModal.open || !studentListModal.assignment) return;
+      setLoadingStudents(true);
+      setEnrolledStudents([]);
+      try {
+        // Fetch enrollments for this subject and section
+        const { data: enrollments, error } = await supabase
+          .from('enrollcourse')
+          .select('student_id, subject_id')
+          .eq('subject_id', studentListModal.assignment.subject_id)
+          .eq('section', studentListModal.assignment.section);
+        if (error) throw error;
+        if (!enrollments || enrollments.length === 0) {
+          setEnrolledStudents([]);
+          setLoadingStudents(false);
+          return;
+        }
+        // Get student profiles
+        const studentIds = enrollments.map((e: any) => e.student_id);
+        const { data: students, error: studentError } = await supabase
+          .from('user_profiles')
+          .select('id, first_name, last_name, email')
+          .in('id', studentIds);
+        if (studentError) throw studentError;
+        setEnrolledStudents(
+          (students || []).map((s: any) => ({
+            id: s.id,
+            name: `${s.first_name} ${s.last_name}`,
+            email: s.email
+          }))
+        );
+      } catch (err) {
+        setEnrolledStudents([]);
+      } finally {
+        setLoadingStudents(false);
+      }
+    };
+    fetchEnrolledStudents();
+  }, [studentListModal]);
 
   const fetchAssignments = async () => {
     setIsLoading(true);
@@ -333,7 +382,9 @@ const SubjectAssignment: React.FC = () => {
         academic_year: '',
         semester: '',
         year_level: '',
-        is_active: true
+        is_active: true,
+        day: '',
+        time: ''
       });
     } catch (error) {
       console.error('Error saving assignment:', error);
@@ -344,7 +395,11 @@ const SubjectAssignment: React.FC = () => {
   };
 
   const handleEdit = (assignment: TeacherSubject) => {
-    setNewAssignment(assignment);
+    setNewAssignment({
+      ...assignment,
+      day: typeof assignment.day === 'string' ? assignment.day : Array.isArray(assignment.day) ? assignment.day.join(',') : '',
+      semester: assignment.semester || '',
+    });
     setModalState({
       isOpen: true,
       isEditMode: true
@@ -385,7 +440,9 @@ const SubjectAssignment: React.FC = () => {
       academic_year: '',
       semester: '',
       year_level: '',
-      is_active: true
+      is_active: true,
+      day: '',
+      time: ''
     });
   };
 
@@ -439,7 +496,9 @@ const SubjectAssignment: React.FC = () => {
                   academic_year: '',
                   semester: '',
                   year_level: '',
-                  is_active: true
+                  is_active: true,
+                  day: '',
+                  time: ''
                 });
               }}
               className="p-3 bg-white/20 backdrop-blur-sm rounded-xl hover:bg-white/30 transition-all flex items-center gap-2 text-white font-semibold"
@@ -549,7 +608,9 @@ const SubjectAssignment: React.FC = () => {
                 academic_year: '',
                 semester: '',
                 year_level: '',
-                is_active: true
+                is_active: true,
+                day: '',
+                time: ''
               });
             }}
             className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
@@ -653,6 +714,14 @@ const SubjectAssignment: React.FC = () => {
                                   </div>
                                 </div>
                                 <div className="flex space-x-1">
+                                  {/* Show Students Icon */}
+                                  <button
+                                    onClick={() => setStudentListModal({ open: true, assignment })}
+                                    className="p-1 text-gray-400 hover:text-blue-500 transition-colors"
+                                    title="View assigned students"
+                                  >
+                                    <Users size={16} />
+                                  </button>
                                   <button
                                     onClick={() => handleEdit(assignment)}
                                     className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
@@ -696,10 +765,8 @@ const SubjectAssignment: React.FC = () => {
                                 <div className="bg-white rounded-md p-2 border border-gray-200">
                                   <p className="text-gray-500 mb-1">Day(s)</p>
                                   <p className="font-medium text-gray-900">{
-                                    assignment.day
-                                      ? Array.isArray(assignment.day)
-                                        ? assignment.day.map(d => dayAbbr[d] || d).join(', ')
-                                        : (dayAbbr[assignment.day] || assignment.day)
+                                    typeof assignment.day === 'string' && assignment.day
+                                      ? assignment.day.split(',').map((d: string) => dayAbbr[d] || d).join(', ')
                                       : ''
                                   }</p>
                                 </div>
@@ -804,10 +871,8 @@ const SubjectAssignment: React.FC = () => {
                         {assignment.semester}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        {assignment.day
-                          ? Array.isArray(assignment.day)
-                            ? assignment.day.map(d => dayAbbr[d] || d).join(', ')
-                            : (dayAbbr[assignment.day] || assignment.day)
+                        {typeof assignment.day === 'string' && assignment.day
+                          ? assignment.day.split(',').map((d: string) => dayAbbr[d] || d).join(', ')
                           : ''}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
@@ -862,6 +927,40 @@ const SubjectAssignment: React.FC = () => {
         teachers={teachers}
         courses={courses}
       />
+
+      {/* Student List Modal */}
+      {studentListModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-lg w-full relative">
+            <button
+              onClick={() => setStudentListModal({ open: false, assignment: null })}
+              className="absolute top-3 right-3 text-gray-400 hover:text-red-500 text-xl font-bold"
+              aria-label="Close"
+            >
+              ×
+            </button>
+            <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+              <Users size={20} /> List of Students
+            </h2>
+            <div className="text-gray-600 text-sm min-h-[80px]">
+              {loadingStudents ? (
+                <div className="py-4 text-center text-blue-500">Loading students...</div>
+              ) : enrolledStudents.length === 0 ? (
+                <div className="py-4 text-center">No students enrolled in <span className="font-semibold">{studentListModal.assignment?.subject_name}</span> (Section {studentListModal.assignment?.section}).</div>
+              ) : (
+                <ul className="divide-y divide-gray-200">
+                  {enrolledStudents.map((student) => (
+                    <li key={student.id} className="py-2 flex flex-col">
+                      <span className="font-medium text-gray-900">{student.name}</span>
+                      <span className="text-xs text-gray-500">{student.email}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
