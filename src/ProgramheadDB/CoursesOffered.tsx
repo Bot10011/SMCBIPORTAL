@@ -17,6 +17,7 @@ interface Course {
   updated_at?: string;
   summer?: boolean;
   year_level?: string;
+  semester?: string;
 }
 
 export default function CourseManagement() {
@@ -36,8 +37,8 @@ export default function CourseManagement() {
     name: '',
     units: 3,
     image_url: '',
-    summer: false,
-    year_level: ''
+    year_level: '',
+    semester: ''
   });
 
   const [sectionForm, setSectionForm] = useState({
@@ -182,8 +183,8 @@ export default function CourseManagement() {
             name: courseForm.name,
             units: courseForm.units,
             image_url: imagePath,
-            summer: courseForm.summer,
-            year_level: courseForm.year_level
+            year_level: courseForm.year_level,
+            semester: courseForm.semester
           })
           .eq('id', selectedCourse.id)
           .select()
@@ -204,7 +205,7 @@ export default function CourseManagement() {
         // Insert new course
         ({ error } = await supabase
           .from('courses')
-          .insert([{ ...courseForm, image_url: imagePath, summer: courseForm.summer, year_level: courseForm.year_level }])
+          .insert([{ ...courseForm, image_url: imagePath, year_level: courseForm.year_level, semester: courseForm.semester }])
           .select()
           .single());
       }
@@ -212,7 +213,7 @@ export default function CourseManagement() {
       if (error) throw error;
       toast.success(selectedCourse ? 'Course updated successfully' : 'Course added successfully');
       setShowAddModal(false);
-      setCourseForm({ code: '', name: '', units: 3, image_url: '', summer: false, year_level: '' });
+      setCourseForm({ code: '', name: '', units: 3, image_url: '', year_level: '', semester: '' });
       setImageFile(null);
       setSelectedCourse(null);
       fetchCourses();
@@ -438,6 +439,19 @@ export default function CourseManagement() {
                   <option value="3rd Year">3rd Year</option>
                   <option value="4th Year">4th Year</option>
                 </select>
+                {/* Semester Dropdown */}
+                <label className="block text-sm font-semibold text-gray-700 mb-2 mt-4">Semester</label>
+                <select
+                  value={courseForm.semester}
+                  onChange={e => setCourseForm({ ...courseForm, semester: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  required
+                >
+                  <option value="">Select semester</option>
+                  <option value="First Semester">First Semester</option>
+                  <option value="Second Semester">Second Semester</option>
+                  <option value="Summer">Summer</option>
+                </select>
               </div>
               
               <div>
@@ -499,17 +513,6 @@ export default function CourseManagement() {
                     </div>
                   )}
                 </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Summer</label>
-                <input
-                  type="checkbox"
-                  checked={courseForm.summer}
-                  onChange={e => setCourseForm({ ...courseForm, summer: e.target.checked })}
-                  className="mr-2"
-                />
-                <span className="text-gray-700">Is this a summer course?</span>
               </div>
               
               <div className="flex justify-end gap-4 pt-4">
@@ -867,8 +870,8 @@ export default function CourseManagement() {
                             name: course.name,
                             units: course.units,
                             image_url: course.image_url || '',
-                            summer: course.summer || false,
-                            year_level: course.year_level || ''
+                            year_level: course.year_level || '',
+                            semester: course.semester || ''
                           });
                         }}
                         onDelete={() => handleDeleteCourse(String(course.id))}
@@ -988,8 +991,8 @@ export default function CourseManagement() {
                                 name: course.name,
                                 units: course.units,
                                 image_url: course.image_url || '',
-                                summer: course.summer || false,
-                                year_level: course.year_level || ''
+                                year_level: course.year_level || '',
+                                semester: course.semester || ''
                               });
                             }}
                             onDelete={() => handleDeleteCourse(String(course.id))}
