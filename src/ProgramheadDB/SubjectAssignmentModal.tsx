@@ -9,7 +9,7 @@ interface TeacherSubject {
   academic_year: string;
   year_level: string; // Added year_level
   is_active: boolean;
-  day?: string[];
+  day?: string; // Now a string (e.g., 'M' or 'M,W,Th')
   time?: string;
 }
 
@@ -80,11 +80,21 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
 
   // Add days array
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  // Map for day abbreviations
+  const dayAbbr: Record<string, string> = {
+    'Monday': 'M',
+    'Tuesday': 'T',
+    'Wednesday': 'W',
+    'Thursday': 'Th',
+    'Friday': 'F',
+    'Saturday': 'S',
+    'Sunday': 'Su',
+  };
 
   // Multi-select state for subjects
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>(assignment.subject_id ? [assignment.subject_id] : []);
   // Multi-select state for day
-  const [selectedDay, setSelectedDay] = useState<string[]>(assignment.day || []);
+  const [selectedDay, setSelectedDay] = useState<string[]>(assignment.day ? assignment.day.split(',') : []);
 
   // Filter courses by selected year level - both use the same format now
   const filteredCourses = assignment.year_level
@@ -101,8 +111,8 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
   // Update assignment.day when selectedDay changes
   React.useEffect(() => {
     handleInputChange({
-      target: { name: 'day', value: selectedDay }
-    } as any);
+      target: { name: 'day', value: selectedDay.join(',') }
+    } as React.ChangeEvent<HTMLInputElement>);
   }, [selectedDay]);
 
   // Handle subject checkbox change
@@ -176,14 +186,14 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
     
     // Create multiple assignments for selected subjects
     const assignments: TeacherSubject[] = selectedSubjects.map(subjectId => {
-      const subject = courses.find(c => c.id === subjectId);
+      const abbr = selectedDay.map(d => dayAbbr[d] || d);
       return {
         teacher_id: assignment.teacher_id,
         subject_id: subjectId,
         section: assignment.section,
         academic_year: assignment.academic_year,
         year_level: assignment.year_level,
-        day: selectedDay,
+        day: abbr.length === 1 ? abbr[0] : abbr.join(','),
         time: assignment.time,
         is_active: true
       };
@@ -372,9 +382,10 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
                     Time <span className="text-red-500">*</span>
                   </label>
                   <input
-                    type="time"
+                    type="text"
                     id="time"
                     name="time"
+                    placeholder="e.g. 8:00-10:00 AM"
                     value={assignment.time || ''}
                     onChange={handleInputChange}
                     className={`w-full px-4 py-3 rounded-xl border ${
