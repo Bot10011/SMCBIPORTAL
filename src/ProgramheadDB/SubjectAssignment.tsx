@@ -39,6 +39,7 @@ interface Course {
   units: number;
   year_level: string; // Make required to match Subject interface
   display_name: string;
+  semester: string;
 }
 
 const SubjectAssignment: React.FC = () => {
@@ -127,7 +128,7 @@ const SubjectAssignment: React.FC = () => {
               // Get course data
               const { data: courseData, error: courseError } = await supabase
                 .from('courses')
-                .select('id, code, name, units')
+                .select('id, code, name, units, semester')
                 .eq('id', assignment.subject_id)
                 .single();
 
@@ -141,7 +142,8 @@ const SubjectAssignment: React.FC = () => {
                 teacher_name: `${teacherData.first_name} ${teacherData.last_name}`,
                 subject_code: courseData.code,
                 subject_name: courseData.name,
-                subject_units: courseData.units
+                subject_units: courseData.units,
+                semester: courseData.semester
               };
             } catch (err) {
               console.error('Error formatting assignment:', assignment, err);
@@ -187,7 +189,7 @@ const SubjectAssignment: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('courses')
-        .select('id, code, name, units, year_level')
+        .select('id, code, name, units, year_level, semester')
         .order('code', { ascending: true });
 
       if (error) throw error;
@@ -198,6 +200,7 @@ const SubjectAssignment: React.FC = () => {
           .map(course => ({
             ...course,
             year_level: course.year_level || '1st Year', // Provide default if null
+            semester: course.semester || '', // Ensure semester is always present
             display_name: `${course.code} - ${course.name} (${course.units} units)`
           }));
         setCourses(formattedCourses);
@@ -377,11 +380,23 @@ const SubjectAssignment: React.FC = () => {
 
   return (
     <div className="container mx-auto px-4 py-8">
+      {/* Header */}
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 rounded-2xl shadow-lg mb-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-plus w-6 h-6 text-white">
+              <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                width="24" 
+                height="24" 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round"
+                className="w-6 h-6 text-white"
+              >
                 <path d="M5 12h14"></path>
                 <path d="M12 5v14"></path>
               </svg>
@@ -410,7 +425,18 @@ const SubjectAssignment: React.FC = () => {
               }}
               className="p-3 bg-white/20 backdrop-blur-sm rounded-xl hover:bg-white/30 transition-all flex items-center gap-2 text-white font-semibold"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-plus w-5 h-5">
+              <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                width="24" 
+                height="24" 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round"
+                className="w-5 h-5"
+              >
                 <path d="M5 12h14"></path>
                 <path d="M12 5v14"></path>
               </svg>
@@ -630,6 +656,12 @@ const SubjectAssignment: React.FC = () => {
                                 <div className="bg-white rounded-md p-3 border border-gray-200">
                                   <div className="flex items-center justify-between mb-1">
                                     <span className="font-semibold text-gray-900 text-sm">{assignment.subject_code}</span>
+                                    {/* Semester Badge */}
+                                    {assignment.semester && (
+                                      <span className={`ml-2 inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full ${assignment.semester === 'First Semester' ? 'bg-blue-100 text-blue-800' : assignment.semester === 'Second Semester' ? 'bg-green-100 text-green-800' : assignment.semester === 'Summer' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-700'}`}>
+                                        {assignment.semester === 'First Semester' ? '1st Sem' : assignment.semester === 'Second Semester' ? '2nd Sem' : assignment.semester}
+                                      </span>
+                                    )}
                                     <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full font-medium">
                                       {assignment.subject_units} {assignment.subject_units === 1 ? 'Unit' : 'Units'}
                                     </span>
@@ -702,6 +734,9 @@ const SubjectAssignment: React.FC = () => {
                     Course Name
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Semester
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Units
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -709,9 +744,6 @@ const SubjectAssignment: React.FC = () => {
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Academic Year
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Semester
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Date Assigned
@@ -735,6 +767,13 @@ const SubjectAssignment: React.FC = () => {
                       <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
                         {assignment.subject_name}
                       </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        {assignment.semester && (
+                          <span className={`inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full ${assignment.semester === 'First Semester' ? 'bg-blue-100 text-blue-800' : assignment.semester === 'Second Semester' ? 'bg-green-100 text-green-800' : assignment.semester === 'Summer' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-700'}`}>
+                            {assignment.semester === 'First Semester' ? '1st Sem' : assignment.semester === 'Second Semester' ? '2nd Sem' : assignment.semester}
+                          </span>
+                        )}
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {assignment.subject_units}
                       </td>
@@ -743,9 +782,6 @@ const SubjectAssignment: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {assignment.academic_year}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {assignment.semester}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {new Date(assignment.created_at || '').toLocaleDateString()}
