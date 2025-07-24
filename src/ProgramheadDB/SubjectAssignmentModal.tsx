@@ -7,10 +7,9 @@ interface TeacherSubject {
   subject_id: string;
   section: string;
   academic_year: string;
-  semester: string;
   year_level: string; // Added year_level
   is_active: boolean;
-  day?: string;
+  day?: string[];
   time?: string;
 }
 
@@ -84,6 +83,8 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
 
   // Multi-select state for subjects
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>(assignment.subject_id ? [assignment.subject_id] : []);
+  // Multi-select state for day
+  const [selectedDay, setSelectedDay] = useState<string[]>(assignment.day || []);
 
   // Filter courses by selected year level - both use the same format now
   const filteredCourses = assignment.year_level
@@ -97,6 +98,13 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
     }
   }, [assignment.year_level]);
 
+  // Update assignment.day when selectedDay changes
+  React.useEffect(() => {
+    handleInputChange({
+      target: { name: 'day', value: selectedDay }
+    } as any);
+  }, [selectedDay]);
+
   // Handle subject checkbox change
   const handleSubjectCheckbox = (subjectId: string) => {
     setSelectedSubjects(prev =>
@@ -106,15 +114,25 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
     );
   };
 
+  // Handle day checkbox change
+  const handleDayCheckbox = (day: string) => {
+    setSelectedDay(prev =>
+      prev.includes(day)
+        ? prev.filter(d => d !== day)
+        : [...prev, day]
+    );
+  };
+
   // Check if all required fields are filled
   const isFormValid = () => {
     return (
       assignment.teacher_id &&
-      assignment.subject_id &&
+      selectedSubjects.length > 0 &&
       assignment.section &&
       assignment.academic_year &&
-      assignment.year_level
-      && assignment.day && assignment.time
+      assignment.year_level &&
+      selectedDay.length > 0 &&
+      assignment.time
     );
   };
 
@@ -157,15 +175,21 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
     setModalSuccess('');
     
     // Create multiple assignments for selected subjects
-    const assignments: TeacherSubject[] = selectedSubjects.map(subjectId => ({
-      teacher_id: assignment.teacher_id,
-      subject_id: subjectId,
-      section: assignment.section,
-      academic_year: assignment.academic_year,
-      semester: assignment.semester,
-      year_level: assignment.year_level,
-      is_active: true
-    }));
+    const assignments: TeacherSubject[] = selectedSubjects.map(subjectId => {
+      const subject = courses.find(c => c.id === subjectId);
+      return {
+        teacher_id: assignment.teacher_id,
+        subject_id: subjectId,
+        section: assignment.section,
+        academic_year: assignment.academic_year,
+        year_level: assignment.year_level,
+        day: selectedDay,
+        time: assignment.time,
+        is_active: true
+      };
+    });
+    // Debug log
+    console.log('DEBUG assignments sent to parent:', assignments);
 
     try {
       // Call the parent's onSubmit with the assignments array
@@ -321,29 +345,25 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
               {/* Day and Time Selection (one line) */}
               <div className="flex gap-4">
                 <div className="flex-1">
-                  <label htmlFor="day" className="block text-sm font-medium text-gray-700 mb-1">
-                    Day <span className="text-red-500">*</span>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Day(s) <span className="text-red-500">*</span>
                   </label>
-                  <select
-                    id="day"
-                    name="day"
-                    value={assignment.day || ''}
-                    onChange={handleInputChange}
-                    className={`w-full px-4 py-3 rounded-xl border ${
-                      formErrors.day || (!assignment.day && !isFormValid())
-                        ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
-                        : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
-                    } focus:ring-2 focus:ring-opacity-50 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm`}
-                    required
-                  >
-                    <option value="">Select Day</option>
+                  <div className="flex flex-wrap gap-2">
                     {days.map(day => (
-                      <option key={day} value={day}>{day}</option>
+                      <label key={day} className="inline-flex items-center gap-1 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={selectedDay.includes(day)}
+                          onChange={() => handleDayCheckbox(day)}
+                          className="accent-blue-600 w-4 h-4"
+                        />
+                        {day}
+                      </label>
                     ))}
-                  </select>
-                  {(formErrors.day || (!assignment.day && !isFormValid())) && (
+                  </div>
+                   {(formErrors.day || (!selectedDay || selectedDay.length === 0) && !isFormValid()) && (
                     <p className="mt-1 text-sm text-red-600">
-                      {formErrors.day || 'Please select a day'}
+                      {formErrors.day || 'Please select at least one day'}
                     </p>
                   )}
                 </div>
@@ -449,8 +469,8 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
                 </div>
               )}
               {/* Subject validation message */}
-              {(!assignment.subject_id && !isFormValid()) && (
-                <p className="mt-1 text-sm text-red-600">Please select at least one subject</p>
+              {(formErrors.subject_id || selectedSubjects.length === 0) && (
+                <p className="mt-1 text-sm text-red-600">{formErrors.subject_id || 'Please select at least one subject'}</p>
               )}
               
 
@@ -590,8 +610,8 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
                   <span className="text-gray-900">{assignment.academic_year}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="font-medium text-gray-700">Day:</span>
-                  <span className="text-gray-900">{assignment.day}</span>
+                  <span className="font-medium text-gray-700">Day(s):</span>
+                  <span className="text-gray-900">{selectedDay && selectedDay.length > 0 ? selectedDay.join(', ') : ''}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="font-medium text-gray-700">Time:</span>
@@ -608,6 +628,11 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
                       return (
                         <div key={subjectId} className="text-xs text-gray-700 bg-white rounded px-2 py-1 border">
                           • {subject?.display_name || subjectId}
+                          {subject?.semester && (
+                            <span className={`ml-2 inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full ${subject.semester === 'First Semester' ? 'bg-blue-100 text-blue-800' : subject.semester === 'Second Semester' ? 'bg-green-100 text-green-800' : subject.semester === 'Summer' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-700'}`}>
+                              {subject.semester === 'First Semester' ? '1st Sem' : subject.semester === 'Second Semester' ? '2nd Sem' : subject.semester}
+                            </span>
+                          )}
                         </div>
                       );
                     })}
