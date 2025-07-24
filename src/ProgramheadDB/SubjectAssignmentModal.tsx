@@ -32,6 +32,7 @@ interface Subject {
   units: number;
   display_name: string;
   year_level: string; // Added year_level
+  semester: string; // Added semester
 }
 
 interface SubjectAssignmentModalProps {
@@ -112,7 +113,6 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
       assignment.subject_id &&
       assignment.section &&
       assignment.academic_year &&
-      assignment.semester &&
       assignment.year_level
       && assignment.day && assignment.time
     );
@@ -318,33 +318,6 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
                   </p>
                 )}
               </div>
-              {/* Semester */}
-              <div>
-                <label htmlFor="semester" className="block text-sm font-medium text-gray-700 mb-1">
-                  Semester <span className="text-red-500">*</span>
-                </label>
-                <select
-                  id="semester"
-                  name="semester"
-                  value={assignment.semester}
-                  onChange={handleInputChange}
-                  className={`w-full px-4 py-3 rounded-xl border ${
-                    formErrors.semester || (!assignment.semester && !isFormValid())
-                      ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
-                      : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
-                  } focus:ring-2 focus:ring-opacity-50 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm`}
-                >
-                  <option value="">Select semester</option>
-                  <option value="1st">First Semester</option>
-                  <option value="2nd">Second Semester</option>
-                  <option value="Summer">Summer</option>
-                </select>
-                {(formErrors.semester || (!assignment.semester && !isFormValid())) && (
-                  <p className="mt-1 text-sm text-red-600">
-                    {formErrors.semester || 'Please select a semester'}
-                  </p>
-                )}
-              </div>
               {/* Day and Time Selection (one line) */}
               <div className="flex gap-4">
                 <div className="flex-1">
@@ -453,8 +426,18 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
                               className="accent-blue-600 w-4 h-4"
                               id={`subject-checkbox-${subject.id}`}
                             />
-                            <label htmlFor={`subject-checkbox-${subject.id}`} className="cursor-pointer select-none w-full">
+                            <label htmlFor={`subject-checkbox-${subject.id}`} className="cursor-pointer select-none w-full flex items-center gap-2">
                               {subject.display_name}
+                              {/* Semester Badge */}
+                              {subject.semester === 'First Semester' && (
+                                <span className="ml-2 inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-xs font-bold px-2 py-0.5 rounded-full">1st Sem</span>
+                              )}
+                              {subject.semester === 'Second Semester' && (
+                                <span className="ml-2 inline-flex items-center gap-1 bg-green-100 text-green-800 text-xs font-bold px-2 py-0.5 rounded-full">2nd Sem</span>
+                              )}
+                              {subject.semester === 'Summer' && (
+                                <span className="ml-2 inline-flex items-center gap-1 bg-yellow-100 text-yellow-800 text-xs font-bold px-2 py-0.5 rounded-full">Summer</span>
+                              )}
                             </label>
                           </li>
                         ))}
@@ -605,10 +588,6 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
                 <div className="flex justify-between">
                   <span className="font-medium text-gray-700">Academic Year:</span>
                   <span className="text-gray-900">{assignment.academic_year}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium text-gray-700">Semester:</span>
-                  <span className="text-gray-900">{assignment.semester}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="font-medium text-gray-700">Day:</span>
