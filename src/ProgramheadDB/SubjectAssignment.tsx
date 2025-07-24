@@ -19,6 +19,8 @@ interface TeacherSubject {
   subject_name?: string;  // This will store the course_name
   subject_units?: number; // This will store the course_units
   year_level: string; // Make required
+  day?: string[]; // Added for day(s)
+  time?: string; // Added for time
 }
 
 interface Teacher {
@@ -99,7 +101,9 @@ const SubjectAssignment: React.FC = () => {
           semester,
           is_active,
           created_at,
-          year_level
+          year_level,
+          day,
+          time
         `)
         .order('created_at', { ascending: false });
 
@@ -229,8 +233,11 @@ const SubjectAssignment: React.FC = () => {
       if (!newAssignment.teacher_id) errors.teacher_id = 'Please select a teacher';
       if (!newAssignment.section) errors.section = 'Please enter a section';
       if (!newAssignment.academic_year) errors.academic_year = 'Please enter an academic year';
-      if (!newAssignment.semester) errors.semester = 'Please select a semester';
       if (!newAssignment.year_level) errors.year_level = 'Please select a year level';
+      // Validate at least one subject, at least one day, and time for all assignments
+      if (!assignments || assignments.length === 0) errors.subject_id = 'Please select at least one subject';
+      if (!assignments[0]?.day || assignments[0].day.length === 0) errors.day = 'Please select at least one day';
+      if (!assignments[0]?.time) errors.time = 'Please select a time';
 
       if (Object.keys(errors).length > 0) {
         setFormErrors(errors);
@@ -249,7 +256,9 @@ const SubjectAssignment: React.FC = () => {
             academic_year: newAssignment.academic_year,
             semester: newAssignment.semester,
             year_level: newAssignment.year_level,
-            is_active: newAssignment.is_active
+            is_active: newAssignment.is_active,
+            day: newAssignment.day,
+            time: newAssignment.time
           })
           .eq('id', newAssignment.id);
 
@@ -656,17 +665,20 @@ const SubjectAssignment: React.FC = () => {
                                 <div className="bg-white rounded-md p-3 border border-gray-200">
                                   <div className="flex items-center justify-between mb-1">
                                     <span className="font-semibold text-gray-900 text-sm">{assignment.subject_code}</span>
-                                    {/* Semester Badge */}
-                                    {assignment.semester && (
-                                      <span className={`ml-2 inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full ${assignment.semester === 'First Semester' ? 'bg-blue-100 text-blue-800' : assignment.semester === 'Second Semester' ? 'bg-green-100 text-green-800' : assignment.semester === 'Summer' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-700'}`}>
-                                        {assignment.semester === 'First Semester' ? '1st Sem' : assignment.semester === 'Second Semester' ? '2nd Sem' : assignment.semester}
-                                      </span>
-                                    )}
                                     <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full font-medium">
                                       {assignment.subject_units} {assignment.subject_units === 1 ? 'Unit' : 'Units'}
                                     </span>
                                   </div>
                                   <p className="text-gray-600 text-sm line-clamp-2">{assignment.subject_name}</p>
+                                  {/* Day(s) and Time Display */}
+                                  {assignment.day && (
+                                    <div className="mt-1 text-xs text-gray-700">
+                                      <span className="font-semibold">Day(s):</span> {Array.isArray(assignment.day) ? assignment.day.join(', ') : assignment.day}
+                                      {assignment.time && (
+                                        <span className="ml-2"><span className="font-semibold">Time:</span> {assignment.time}</span>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
                               </div>
 
@@ -679,6 +691,14 @@ const SubjectAssignment: React.FC = () => {
                                 <div className="bg-white rounded-md p-2 border border-gray-200">
                                   <p className="text-gray-500 mb-1">Semester</p>
                                   <p className="font-medium text-gray-900">{assignment.semester}</p>
+                                </div>
+                                <div className="bg-white rounded-md p-2 border border-gray-200">
+                                  <p className="text-gray-500 mb-1">Day(s)</p>
+                                  <p className="font-medium text-gray-900">{assignment.day ? (Array.isArray(assignment.day) ? assignment.day.join(', ') : assignment.day) : ''}</p>
+                                </div>
+                                <div className="bg-white rounded-md p-2 border border-gray-200">
+                                  <p className="text-gray-500 mb-1">Time</p>
+                                  <p className="font-medium text-gray-900">{assignment.time || ''}</p>
                                 </div>
                                 <div className="bg-white rounded-md p-2 border border-gray-200 col-span-2">
                                   <p className="text-gray-500 mb-1">Academic Year</p>
@@ -737,6 +757,12 @@ const SubjectAssignment: React.FC = () => {
                     Semester
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Day(s)
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Time
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Units
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -768,11 +794,17 @@ const SubjectAssignment: React.FC = () => {
                         {assignment.subject_name}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        {assignment.semester && (
-                          <span className={`inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full ${assignment.semester === 'First Semester' ? 'bg-blue-100 text-blue-800' : assignment.semester === 'Second Semester' ? 'bg-green-100 text-green-800' : assignment.semester === 'Summer' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-700'}`}>
-                            {assignment.semester === 'First Semester' ? '1st Sem' : assignment.semester === 'Second Semester' ? '2nd Sem' : assignment.semester}
-                          </span>
-                        )}
+                        {assignment.semester}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        {assignment.day
+                          ? Array.isArray(assignment.day)
+                            ? assignment.day.join(', ')
+                            : assignment.day
+                          : ''}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        {assignment.time || ''}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {assignment.subject_units}
