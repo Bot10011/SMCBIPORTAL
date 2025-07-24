@@ -78,6 +78,16 @@ const SubjectAssignment: React.FC = () => {
   // State for year level filter
   const [selectedYearLevel, setSelectedYearLevel] = useState<string>('all');
 
+  // Add a mapping for day abbreviations
+  const dayAbbr: Record<string, string> = {
+    'Monday': 'M',
+    'Tuesday': 'T',
+    'Wednesday': 'W',
+    'Thursday': 'Th',
+    'Friday': 'F',
+    'Saturday': 'S',
+    'Sunday': 'Su',
+  };
 
 
   useEffect(() => {
@@ -670,15 +680,6 @@ const SubjectAssignment: React.FC = () => {
                                     </span>
                                   </div>
                                   <p className="text-gray-600 text-sm line-clamp-2">{assignment.subject_name}</p>
-                                  {/* Day(s) and Time Display */}
-                                  {assignment.day && (
-                                    <div className="mt-1 text-xs text-gray-700">
-                                      <span className="font-semibold">Day(s):</span> {Array.isArray(assignment.day) ? assignment.day.join(', ') : assignment.day}
-                                      {assignment.time && (
-                                        <span className="ml-2"><span className="font-semibold">Time:</span> {assignment.time}</span>
-                                      )}
-                                    </div>
-                                  )}
                                 </div>
                               </div>
 
@@ -694,7 +695,13 @@ const SubjectAssignment: React.FC = () => {
                                 </div>
                                 <div className="bg-white rounded-md p-2 border border-gray-200">
                                   <p className="text-gray-500 mb-1">Day(s)</p>
-                                  <p className="font-medium text-gray-900">{assignment.day ? (Array.isArray(assignment.day) ? assignment.day.join(', ') : assignment.day) : ''}</p>
+                                  <p className="font-medium text-gray-900">{
+                                    assignment.day
+                                      ? Array.isArray(assignment.day)
+                                        ? assignment.day.map(d => dayAbbr[d] || d).join(', ')
+                                        : (dayAbbr[assignment.day] || assignment.day)
+                                      : ''
+                                  }</p>
                                 </div>
                                 <div className="bg-white rounded-md p-2 border border-gray-200">
                                   <p className="text-gray-500 mb-1">Time</p>
@@ -799,8 +806,8 @@ const SubjectAssignment: React.FC = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         {assignment.day
                           ? Array.isArray(assignment.day)
-                            ? assignment.day.join(', ')
-                            : assignment.day
+                            ? assignment.day.map(d => dayAbbr[d] || d).join(', ')
+                            : (dayAbbr[assignment.day] || assignment.day)
                           : ''}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
