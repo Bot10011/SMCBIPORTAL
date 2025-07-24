@@ -98,14 +98,14 @@ const COEModal = ({ coe, open, onClose }: { coe: any, open: boolean, onClose: ()
         const logo = new Image();
         logo.src = '/img/logo.png';
         logo.onload = () => {
-          doc.addImage(logo, 'PNG', 85, 15, 25, 25);
+          doc.addImage(logo, 'PNG', 85, 15, 25, 25);                                                                                                                                                                                                                              
           
           doc.setFontSize(18);
           doc.text('SMCBI', 105, 50, { align: 'center' });
           doc.setFontSize(14);
           doc.text('Certificate of Enrollment', 105, 60, { align: 'center' });
           doc.setFontSize(11);
-          doc.text(`Date: ${new Date(coe.date_issued).toLocaleDateString()}`, 20, 70);
+          doc.text(`Date: ${new Date(coe.date_issued).toLocaleDateString()}`, 20, 70);                                                                                                                                                                                                                                                                                                                                                                    
           let y = 80;
           doc.text(`Student ID: ${coe.student_number || coe.student_id}`, 20, y);
           doc.text(`Full Name: ${coe.full_name || 'N/A'}`, 120, y);
@@ -150,7 +150,7 @@ const COEModal = ({ coe, open, onClose }: { coe: any, open: boolean, onClose: ()
     <>
       {/* Full screen overlay to completely block all interactions */}
       <div 
-        className="fixed inset-0 z-[99999] bg-black bg-opacity-50"
+        className="fixed inset-0 z-[99999] bg-black bg-opacity-60 backdrop-blur-sm"
         onClick={handleBackdropClick}
         style={{ 
           pointerEvents: 'auto',
@@ -161,123 +161,164 @@ const COEModal = ({ coe, open, onClose }: { coe: any, open: boolean, onClose: ()
       
       {/* Modal container */}
       <div
-        className="fixed inset-0 z-[100000] flex items-center justify-center"
+        className="fixed inset-0 z-[100000] flex items-center justify-center p-4"
         style={{ 
           minHeight: '100vh',
           pointerEvents: 'none'
         }}
       >
-        <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100 w-full max-w-xl relative mx-4 flex flex-col"
+        <div className="bg-white rounded-3xl shadow-2xl w-full max-w-5xl relative mx-4 flex flex-col overflow-y-auto"
           style={{ 
-            maxHeight: '90vh', 
-            overflowY: 'auto', 
+            maxHeight: '98vh', 
             boxSizing: 'border-box',
             pointerEvents: 'auto'
           }}>
+          
+          {/* Enhanced Close Button */}
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 text-2xl font-bold"
+            className="absolute w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center text-lg sm:text-xl font-bold text-white bg-red-500 hover:bg-red-600 rounded-full shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 animate-pop-in hover:scale-110 hover:rotate-90 -top-2 -right-2 sm:-top-3 sm:-right-3 z-50"
             aria-label="Close"
+            style={{backgroundColor: 'rgb(239, 68, 68)', boxShadow: 'rgba(239, 68, 68, 0.3) 0px 2px 8px'}}
           >
-            &times;
+            ×
           </button>
-          <div className="flex justify-end gap-2 mb-4">
+          {/* Action Buttons */}
+          <div className="flex justify-end gap-3 p-4">
             <button
               onClick={handleDownload}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-300 shadow-lg hover:shadow-xl font-semibold text-sm"
             >
-              <Download className="w-4 h-4" /> Download
+              <Download className="w-4 h-4" /> Download PDF
             </button>
             <button
               onClick={handlePrint}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-lg hover:from-gray-700 hover:to-gray-800 transition-all duration-300 shadow-lg hover:shadow-xl font-semibold text-sm"
             >
               <Printer className="w-4 h-4" /> Print
             </button>
           </div>
-          <div className="text-center mb-8">
-            <div className="flex flex-col items-center gap-3 mb-4">
-              <img 
-                src="/img/logo.png" 
-                alt="SMCBI Logo" 
-                className="w-20 h-20 object-contain"
-              />
+
+          {/* Header Section */}
+          <div className="text-center py-4 px-6 border-b border-gray-100">
+            <div className="flex flex-col items-center gap-2 mb-3">
+              <div className="w-16 h-16 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl flex items-center justify-center shadow-lg">
+                <img 
+                  src="/img/logo.png" 
+                  alt="SMCBI Logo" 
+                  className="w-12 h-12 object-contain"
+                />
+              </div>
               <div>
-                <h1 className="text-3xl font-bold text-gray-900">SMCBI</h1>
-                <p className="text-gray-600 mt-1">Certificate of Enrollment</p>
+                <h1 className="text-2xl font-bold text-gray-900 mb-1">SMCBI</h1>
+                <p className="text-lg text-gray-600 font-medium">Certificate of Enrollment</p>
               </div>
             </div>
-            <p className="text-gray-500">Date: {new Date(coe.date_issued).toLocaleDateString()}</p>
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
+              <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
+              Date: {new Date(coe.date_issued).toLocaleDateString()}
+            </div>
           </div>
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <p className="text-sm text-gray-500">Student ID</p>
-                <p className="font-medium">{coe.student_number || coe.student_id}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Full Name</p>
-                <p className="font-medium">{coe.full_name || 'N/A'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">School Year</p>
-                <p className="font-medium">{coe.school_year}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Semester</p>
-                <p className="font-medium">{coe.semester}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Year Level</p>
-                <p className="font-medium">{coe.year_level || 'N/A'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Department</p>
-                <p className="font-medium">{coe.department || 'N/A'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">School Portal Email</p>
-                <p className="font-medium">{coe.email || 'N/A'}</p>
+
+          {/* Student Information Section */}
+          <div className="p-4">
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 mb-4">
+              <h2 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
+                <div className="w-6 h-6 bg-blue-600 rounded-lg flex items-center justify-center">
+                  <UserCheck className="w-4 h-4 text-white" />
+                </div>
+                Student Information
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Student ID</p>
+                  <p className="text-sm font-bold text-gray-900 bg-white px-3 py-1.5 rounded-lg shadow-sm">{coe.student_number || coe.student_id}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Full Name</p>
+                  <p className="text-sm font-bold text-gray-900 bg-white px-3 py-1.5 rounded-lg shadow-sm">{coe.full_name || 'N/A'}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">School Year</p>
+                  <p className="text-sm font-bold text-gray-900 bg-white px-3 py-1.5 rounded-lg shadow-sm">{coe.school_year}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Semester</p>
+                  <p className="text-sm font-bold text-gray-900 bg-white px-3 py-1.5 rounded-lg shadow-sm">{coe.semester}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Year Level</p>
+                  <p className="text-sm font-bold text-gray-900 bg-white px-3 py-1.5 rounded-lg shadow-sm">{coe.year_level || 'N/A'}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Department</p>
+                  <p className="text-sm font-bold text-gray-900 bg-white px-3 py-1.5 rounded-lg shadow-sm">{coe.department || 'N/A'}</p>
+                </div>
+                <div className="space-y-1 md:col-span-2 lg:col-span-3">
+                  <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">School Portal Email</p>
+                  <p className="text-sm font-bold text-gray-900 bg-white px-3 py-1.5 rounded-lg shadow-sm">{coe.email || 'N/A'}</p>
+                </div>
               </div>
             </div>
-            <div className="mt-8">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Enrolled Courses</h3>
-              <div className="border rounded-lg overflow-hidden w-full">
+            {/* Enrolled Courses Section */}
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 px-4 py-2 border-b border-gray-200">
+                <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                  <div className="w-6 h-6 bg-green-600 rounded-lg flex items-center justify-center">
+                    <BookOpen className="w-4 h-4 text-white" />
+                  </div>
+                  Enrolled Courses
+                </h3>
+              </div>
+              <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Course Code</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Course Name</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Units</th>
+                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Course Code</th>
+                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Course Name</th>
+                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Units</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className="bg-white divide-y divide-gray-100">
                     {Array.isArray(coe.subjects) && coe.subjects.map((subject: any, idx: number) => (
-                      <tr key={idx}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{subject.code}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{subject.name}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{subject.units}</td>
+                      <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-4 py-2 whitespace-nowrap text-sm font-semibold text-blue-600">{subject.code}</td>
+                        <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">{subject.name}</td>
+                        <td className="px-4 py-2 whitespace-nowrap text-sm font-semibold text-gray-900">{subject.units}</td>
                       </tr>
                     ))}
                     {/* Total Units Row */}
-                    <tr>
-                      <td></td>
-                      <td className="px-6 py-4 font-bold text-right">Total Units</td>
-                      <td className="px-6 py-4 font-bold text-gray-900">{Array.isArray(coe.subjects) ? coe.subjects.reduce((sum: number, subj: any) => sum + (Number(subj.units) || 0), 0) : 0}</td>
+                    <tr className="bg-gradient-to-r from-blue-50 to-indigo-50">
+                      <td className="px-4 py-2"></td>
+                      <td className="px-4 py-2 text-right font-bold text-base text-gray-900">Total Units</td>
+                      <td className="px-4 py-2 font-bold text-base text-blue-600">{Array.isArray(coe.subjects) ? coe.subjects.reduce((sum: number, subj: any) => sum + (Number(subj.units) || 0), 0) : 0}</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
             </div>
-            <div className="mt-8 text-center">
-              <p className="text-2xl font-bold text-green-600">ENROLLED</p>
-              <p className="text-sm text-gray-500 mt-2">This is to certify that the above-named student is officially enrolled in the above-mentioned program for the current academic year.</p>
+
+            {/* Status and Certification Section */}
+            <div className="text-center py-4">
+              <div className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl shadow-lg mb-3">
+                <CheckCircle2 className="w-6 h-6" />
+                <span className="text-lg font-bold">ENROLLED</span>
+              </div>
+              <p className="text-gray-600 text-sm max-w-2xl mx-auto leading-relaxed">
+                This is to certify that the above-named student is officially enrolled in the above-mentioned program for the current academic year.
+              </p>
             </div>
-            <div className="mt-12 flex justify-between">
-              <div className="text-center">
-                <p className="font-medium">Registrar</p>
-                <div className="mt-8 border-t border-gray-300 pt-2">
-                  <p className="text-sm text-gray-600">Signature over printed name</p>
+
+            {/* Registrar Signature Section */}
+            <div className="border-t border-gray-200 pt-4">
+              <div className="flex justify-between items-end">
+                <div className="text-center">
+                  <div className="w-24 h-12 border-b-2 border-gray-400 mb-1"></div>
+                  <p className="font-semibold text-gray-900 text-base">Registrar</p>
+                  <p className="text-xs text-gray-600">Signature over printed name</p>
+                </div>
+                <div className="text-right text-xs text-gray-500">
+                  <p>Date: {new Date(coe.date_issued).toLocaleDateString()}</p>
                 </div>
               </div>
             </div>
@@ -301,6 +342,9 @@ const RegistrarEnrollment: React.FC = () => {
   const [coeLoading, setCOELoading] = useState(false);
   const [coeError, setCOEError] = useState<string | null>(null);
   const [coeData, setCOEData] = useState<any | null>(null);
+  const [selectedYearLevel, setSelectedYearLevel] = useState<string>('');
+  const [selectedCourseId, setSelectedCourseId] = useState<string>('');
+  const [coeMap, setCOEMap] = useState<Record<string, any>>({});
 
   // Stats
   const totalStudents = students.length;
@@ -312,6 +356,27 @@ const RegistrarEnrollment: React.FC = () => {
     fetchStudents();
     fetchCourses();
   }, []);
+
+  // Fetch latest COE for all students after students are loaded
+  useEffect(() => {
+    const fetchAllCOEs = async () => {
+      if (students.length === 0) return;
+      const coeMapTemp: Record<string, any> = {};
+      for (const student of students) {
+        const { data, error } = await supabase
+          .from('coe')
+          .select('*')
+          .eq('student_id', student.id)
+          .order('date_issued', { ascending: false })
+          .limit(1);
+        if (!error && data && data.length > 0) {
+          coeMapTemp[student.id] = data[0];
+        }
+      }
+      setCOEMap(coeMapTemp);
+    };
+    fetchAllCOEs();
+  }, [students]);
 
   const fetchStudents = async () => {
     try {
@@ -445,6 +510,8 @@ const RegistrarEnrollment: React.FC = () => {
     const currentEnrollments = await fetchStudentEnrollments(student.id);
     setSelectedStudent(student);
     setSelectedCourses(currentEnrollments);
+    setSelectedYearLevel(student.year_level || '');
+    setSelectedCourseId(student.course_id || '');
     setShowConfirmModal(true);
   };
 
@@ -452,10 +519,11 @@ const RegistrarEnrollment: React.FC = () => {
   const handleConfirmEnroll = async () => {
     if (!selectedStudent) return;
     try {
-      // Update the student's status to 'enrolled'
+      // Update the student's status to 'enrolled' and set course_id and year_level
+      const mainCourseId = selectedCourseId || (selectedCourses.length > 0 ? selectedCourses[0] : null);
       const { error } = await supabase
         .from('user_profiles')
-        .update({ enrollment_status: 'enrolled' })
+        .update({ enrollment_status: 'enrolled', course_id: mainCourseId, year_level: selectedYearLevel })
         .eq('id', selectedStudent.id);
       if (error) throw error;
 
@@ -554,21 +622,26 @@ const RegistrarEnrollment: React.FC = () => {
     <div className="min-h-screen  from-blue-50 via-white to-indigo-50 py-8">
       <div className="max-w-7xl mx-auto px-4">
         {/* Header */}
-        <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-          <div>
-            <h1 className="text-4xl font-bold text-gray-900 mb-2 flex items-center gap-3">
-              <UserCheck className="w-8 h-8 text-blue-600" />
-              Enrollment Approvals
-            </h1>
-            <p className="text-gray-600 text-lg">Approve, enroll, and manage student registrations</p>
+        <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 rounded-2xl mb-8">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
+                <UserCheck className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white tracking-tight">Enrollment Approvals</h1>
+                <p className="text-white/80 text-sm font-medium">Approve, enroll, and manage student registrations</p>
+                <div className="flex items-center gap-4 mt-2 text-xs text-white/80"></div>
+              </div>
+            </div>
+            <button
+              onClick={fetchStudents}
+              className="bg-white/20 backdrop-blur-sm text-white px-6 py-2 rounded-lg shadow-sm hover:bg-white/30 transition-all duration-300 font-semibold flex items-center gap-2"
+            >
+              <Loader2 className="w-4 h-4" />
+              Refresh List
+            </button>
           </div>
-          <button
-            onClick={fetchStudents}
-            className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-3 rounded-xl shadow-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 font-semibold flex items-center gap-3"
-          >
-            <Loader2 className="w-5 h-5 animate-spin mr-2 hidden" />
-            Refresh List
-          </button>
         </div>
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -664,10 +737,8 @@ const RegistrarEnrollment: React.FC = () => {
                       {student.last_name}, {student.first_name}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{student.email}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{student.year_level}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {courses.find(c => c.id === student.course_id)?.name || 'Not Enrolled'}
-                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{coeMap[student.id]?.year_level || ''}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{coeMap[student.id]?.department || 'Not Enrolled'}</td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
                         ${student.enrollment_status === 'enrolled' ? 'bg-green-100 text-green-800' : 
@@ -729,8 +800,33 @@ const RegistrarEnrollment: React.FC = () => {
                   <div><span className="font-medium">Student ID:</span> {selectedStudent.student_id}</div>
                   <div><span className="font-medium">Name:</span> {selectedStudent.last_name}, {selectedStudent.first_name}</div>
                   <div><span className="font-medium">Email:</span> {selectedStudent.email}</div>
-                  <div><span className="font-medium">Year Level:</span> {selectedStudent.year_level}</div>
-                  <div><span className="font-medium">Current Course:</span> {courses.find(c => c.id === selectedStudent.course_id)?.name || 'Not Enrolled'}</div>
+                  <div>
+                    <span className="font-medium">Year Level:</span>
+                    <select
+                      className="ml-2 border rounded px-2 py-1"
+                      value={selectedYearLevel}
+                      onChange={e => setSelectedYearLevel(e.target.value)}
+                    >
+                      <option value="">Select Year Level</option>
+                      <option value="1st Year">1st Year</option>
+                      <option value="2nd Year">2nd Year</option>
+                      <option value="3rd Year">3rd Year</option>
+                      <option value="4th Year">4th Year</option>
+                    </select>
+                  </div>
+                  <div>
+                    <span className="font-medium">Current Course:</span>
+                    <select
+                      className="ml-2 border rounded px-2 py-1"
+                      value={selectedCourseId}
+                      onChange={e => setSelectedCourseId(e.target.value)}
+                    >
+                      <option value="">Select Course</option>
+                      {courses.map(course => (
+                        <option key={course.id} value={course.id}>{course.name}</option>
+                      ))}
+                    </select>
+                  </div>
                   <div><span className="font-medium">Status:</span> {selectedStudent.enrollment_status}</div>
                 </div>
               </div>
