@@ -49,6 +49,9 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
       case 'userLocation':
         setShowUserLocationModal(true);
         break;
+      case 'course':
+        // Course modal is handled separately, just set isModalOpen to true
+        break;
     }
   };
 
