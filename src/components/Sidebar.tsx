@@ -203,12 +203,6 @@ const sidebarItems: SidebarItem[] = [
     roles: ['registrar'],
   },
   {
-    label: 'Enrollment Status Log',
-    path: '/dashboard/status-log',
-    icon: <ClipboardList className="w-5 h-5" />,
-    roles: ['registrar'],
-  },
-  {
     label: 'Class List Viewer',
     path: '/dashboard/class-list',
     icon: <Users2 className="w-5 h-5" />,
