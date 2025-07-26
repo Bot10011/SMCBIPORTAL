@@ -48,6 +48,23 @@ const MyCourse: React.FC<MyCourseProps> = ({ enrollments, courseImages, teacherI
     return { totalUnits, activeCourses: enrollments.length };
   }, [enrollments]);
 
+  // Memoize processed enrollments for better performance
+  const processedEnrollments = useMemo(() => {
+    return enrollments.map(enrollment => ({
+      ...enrollment,
+      courseImage: courseImages[enrollment.subject_id],
+      teacherImage: enrollment.teacher?.id ? teacherImageUrls[enrollment.teacher.id] : null,
+      teacherInitials: enrollment.teacher 
+        ? `${enrollment.teacher.first_name?.charAt(0) || ''}${enrollment.teacher.last_name?.charAt(0) || ''}`.toUpperCase()
+        : '',
+      statusColor: enrollment.status === 'active' 
+        ? 'bg-green-100 text-green-800' 
+        : enrollment.status === 'completed'
+        ? 'bg-blue-100 text-blue-800'
+        : 'bg-gray-100 text-gray-800'
+    }));
+  }, [enrollments, courseImages, teacherImageUrls]);
+
   // Memoize handler
   const handleOpenModal = useCallback((enrollment: Enrollment) => setModalCourse(enrollment), []);
   const handleCloseModal = useCallback(() => setModalCourse(null), []);
@@ -91,14 +108,14 @@ const MyCourse: React.FC<MyCourseProps> = ({ enrollments, courseImages, teacherI
                 <BookOpen className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h2 className="text-2xl font-bold text-white tracking-tight">My Courses</h2>
+                <h2 className="text-2xl font-bold text-white tracking-tight">My Subjects</h2>
                 <p className="text-white/80 text-sm font-medium mt-1">View and manage your enrolled courses</p>
               </div>
             </div>
             <div className="flex gap-3 mt-4 sm:mt-0 ml-0 sm:ml-auto">
               <div className="px-4 py-2 bg-white rounded-lg border border-gray-200 shadow-inner flex items-center gap-2">
                 <BookMarked className="w-4 h-4 text-[#1a73e8]" />
-                <span className="text-sm font-medium text-gray-700">{stats.activeCourses} Active Courses</span>
+                <span className="text-sm font-medium text-gray-700">{stats.activeCourses} Active Subjects</span>
               </div>
               <div className="px-4 py-2 bg-white rounded-lg border border-gray-200 shadow-inner flex items-center gap-2">
                 <GraduationCap className="w-4 h-4 text-[#1a73e8]" />
@@ -113,8 +130,50 @@ const MyCourse: React.FC<MyCourseProps> = ({ enrollments, courseImages, teacherI
       {loading ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {[1,2,3,4,5,6].map(i => (
-            <div key={i} className="animate-pulse">
-              <div className="h-48 bg-gray-100 rounded-lg" />
+            <div key={i} className="course-skeleton-item bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+              {/* Course Header Skeleton */}
+              <div className="relative h-24">
+                <div className="h-24 w-full bg-gradient-to-r from-gray-200 to-gray-300 animate-pulse relative overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" 
+                       style={{ animation: 'shimmer 2s infinite' }} />
+                </div>
+                {/* Teacher avatar skeleton */}
+                <div className="absolute -bottom-8 right-4 z-20">
+                  <div className="w-16 h-16 rounded-full bg-gray-200 border-2 border-white shadow-md animate-pulse">
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" 
+                         style={{ animation: 'shimmer 2s infinite' }} />
+                  </div>
+                </div>
+                {/* Course code skeleton */}
+                <div className="absolute top-4 left-4">
+                  <div className="bg-gray-200 rounded px-3 py-2 animate-pulse w-16 h-8"></div>
+                </div>
+                {/* Status skeleton */}
+                <div className="absolute top-4 right-4">
+                  <div className="bg-gray-200 rounded-full px-3 py-1 animate-pulse w-16 h-6"></div>
+                </div>
+              </div>
+              
+              {/* Course Content Skeleton */}
+              <div className="p-4">
+                <div className="h-5 bg-gray-200 rounded mb-3 animate-pulse w-3/4"></div>
+                <div className="space-y-2 mb-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-gray-200 rounded animate-pulse"></div>
+                    <div className="h-4 bg-gray-200 rounded animate-pulse w-20"></div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-gray-200 rounded animate-pulse"></div>
+                    <div className="h-4 bg-gray-200 rounded animate-pulse w-32"></div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-gray-200 rounded animate-pulse"></div>
+                    <div className="h-4 bg-gray-200 rounded animate-pulse w-28"></div>
+                  </div>
+                </div>
+                {/* Button skeleton */}
+                <div className="w-full h-10 bg-gray-200 rounded-lg animate-pulse"></div>
+              </div>
             </div>
           ))}
         </div>
@@ -137,24 +196,24 @@ const MyCourse: React.FC<MyCourseProps> = ({ enrollments, courseImages, teacherI
             </motion.div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {enrollments.map((enrollment) => (
+              {processedEnrollments.map((enrollment) => (
                 <motion.div
                   key={enrollment.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
                   whileHover={{ y: -4 }}
-                  className={`group relative bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden ${
+                  className={`course-card group relative bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden ${
                     modalCourse?.id === enrollment.id ? "ring-2 ring-[#1a73e8]" : ""
                   }`}
                 >
                   {/* Course Header */}
                   <div className="relative h-24">
-                    {courseImages[enrollment.subject_id] ? (
+                    {enrollment.courseImage ? (
                       <img
-                        src={courseImages[enrollment.subject_id]}
+                        src={enrollment.courseImage}
                         alt={enrollment.course.name}
-                        className="h-24 w-full object-cover"
+                        className="course-image h-24 w-full object-cover"
                         style={{ borderTopLeftRadius: '0.5rem', borderTopRightRadius: '0.5rem' }}
                         loading="lazy"
                         width={400}
@@ -166,10 +225,10 @@ const MyCourse: React.FC<MyCourseProps> = ({ enrollments, courseImages, teacherI
                     {/* Teacher avatar absolutely positioned in the bottom right, overlapping the image and card */}
                     {enrollment.teacher && (
                       <div className="absolute -bottom-8 right-4 z-20">
-                        <div className="w-16 h-16 rounded-full bg-white border-2 border-white shadow-md flex items-center justify-center text-2xl font-bold text-[#1a73e8] select-none" style={{ boxShadow: "rgba(60, 64, 67, 0.1) 0px 2px 8px 0px" }}>
-                          {enrollment.teacher?.id && teacherImageUrls[enrollment.teacher.id] ? (
+                        <div className="teacher-avatar w-16 h-16 rounded-full bg-white border-2 border-white shadow-md flex items-center justify-center text-2xl font-bold text-[#1a73e8] select-none" style={{ boxShadow: "rgba(60, 64, 67, 0.1) 0px 2px 8px 0px" }}>
+                          {enrollment.teacherImage ? (
                             <img
-                              src={teacherImageUrls[enrollment.teacher.id]}
+                              src={enrollment.teacherImage}
                               alt="Teacher"
                               className="w-full h-full object-cover rounded-full"
                               loading="lazy"
@@ -180,7 +239,7 @@ const MyCourse: React.FC<MyCourseProps> = ({ enrollments, courseImages, teacherI
                               }}
                             />
                           ) : (
-                            `${enrollment.teacher?.first_name?.charAt(0) || ''}${enrollment.teacher?.last_name?.charAt(0) || ''}`.toUpperCase()
+                            enrollment.teacherInitials
                           )}
                         </div>
                       </div>
@@ -191,13 +250,7 @@ const MyCourse: React.FC<MyCourseProps> = ({ enrollments, courseImages, teacherI
                           {enrollment.course.code}
                         </h3>
                       </div>
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full drop-shadow bg-black/60 ${
-                        enrollment.status === 'active' 
-                          ? 'bg-green-100 text-green-800' 
-                          : enrollment.status === 'completed'
-                          ? 'bg-blue-100 text-blue-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full drop-shadow bg-black/60 ${enrollment.statusColor}`}>
                         {enrollment.status.charAt(0).toUpperCase() + enrollment.status.slice(1)}
                       </span>
                     </div>
@@ -229,7 +282,7 @@ const MyCourse: React.FC<MyCourseProps> = ({ enrollments, courseImages, teacherI
                     {/* View Details Button */}
                     <button 
                       onClick={() => handleOpenModal(enrollment)}
-                      className="w-full mt-2 px-4 py-2 text-sm font-medium text-[#1a73e8] bg-[#e8f0fe] rounded-lg hover:bg-[#d2e3fc] transition-colors duration-200 flex items-center justify-center gap-2"
+                      className="course-button w-full mt-2 px-4 py-2 text-sm font-medium text-[#1a73e8] bg-[#e8f0fe] rounded-lg hover:bg-[#d2e3fc] transition-colors duration-200 flex items-center justify-center gap-2"
                     >
                       View Details
                       <ChevronRight className="w-4 h-4" />
@@ -249,13 +302,13 @@ const MyCourse: React.FC<MyCourseProps> = ({ enrollments, courseImages, teacherI
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-lg"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm"
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-lg shadow-xl max-w-md w-full overflow-hidden relative"
+              className="course-modal bg-white rounded-lg shadow-xl max-w-md w-full overflow-hidden relative"
               onClick={e => e.stopPropagation()}
             >
               {/* Modal Header */}
@@ -301,21 +354,65 @@ const MyCourse: React.FC<MyCourseProps> = ({ enrollments, courseImages, teacherI
                     <GraduationCap className="w-4 h-4 text-[#1a73e8]" />
                     <span>{modalCourse.course.units} Units</span>
                   </div>
-                  {modalCourse.teacher && (
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <Users className="w-4 h-4 text-[#1a73e8]" />
-                      <span>Prof. {modalCourse.teacher.first_name} {modalCourse.teacher.last_name}</span>
-                    </div>
-                  )}
                   <div className="flex items-center gap-2 text-sm text-gray-600">
                     <Calendar className="w-4 h-4 text-[#1a73e8]" />
                     <span>Current Semester</span>
                   </div>
                 </div>
+
+                {/* Teacher Profile Section */}
+                {modalCourse.teacher && (
+                  <div className="pt-4 border-t border-gray-200">
+                    <h5 className="text-md font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                      <Users className="w-4 h-4 text-[#1a73e8]" />
+                      Subject Instructor
+                    </h5>
+                    <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
+                      {/* Teacher Avatar */}
+                      <div className="flex-shrink-0">
+                        <div className="w-16 h-16 rounded-full bg-white border-2 border-gray-200 shadow-sm flex items-center justify-center text-xl font-bold text-[#1a73e8]">
+                          {modalCourse.teacher?.id && teacherImageUrls[modalCourse.teacher.id] ? (
+                            <img
+                              src={teacherImageUrls[modalCourse.teacher.id]}
+                              alt={`${modalCourse.teacher.first_name} ${modalCourse.teacher.last_name}`}
+                              className="w-full h-full object-cover rounded-full"
+                              loading="lazy"
+                              width={64}
+                              height={64}
+                              onError={(e) => {
+                                (e.currentTarget as HTMLImageElement).style.display = 'none';
+                              }}
+                            />
+                          ) : (
+                            `${modalCourse.teacher?.first_name?.charAt(0) || ''}${modalCourse.teacher?.last_name?.charAt(0) || ''}`.toUpperCase()
+                          )}
+                        </div>
+                      </div>
+                      
+                      {/* Teacher Info */}
+                      <div className="flex-1 min-w-0">
+                        <h6 className="text-lg font-semibold text-gray-900">
+                          Prof. {modalCourse.teacher.first_name} {modalCourse.teacher.last_name}
+                        </h6>
+                        <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                          <span className="flex items-center gap-1">
+                            <BookOpen className="w-3 h-3" />
+                            <span>Instructor</span>
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <GraduationCap className="w-3 h-3" />
+                            <span>Faculty</span>
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <div className="pt-4 border-t border-gray-200">
+                  
                   <button
                     onClick={handleCloseModal}
-                    className="w-full px-4 py-2 text-sm font-medium text-white bg-[#1a73e8] rounded-lg hover:bg-[#1557b0] transition-colors duration-200"
+                    className="course-button w-full px-4 py-2 text-sm font-medium text-white bg-[#1a73e8] rounded-lg hover:bg-[#1557b0] transition-colors duration-200"
                   >
                     Close
                   </button>
