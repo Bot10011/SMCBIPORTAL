@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
 import { motion } from 'framer-motion';
@@ -125,7 +125,8 @@ export default function CourseManagement() {
     };
   }, [showAddModal]);
 
-  const fetchCourses = async () => {
+  // Memoized database operations
+  const fetchCourses = useCallback(async () => {
     try {
       setLoading(true);
       const { data: coursesData, error: coursesError } = await supabase
@@ -141,7 +142,100 @@ export default function CourseManagement() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  const handleDeleteCourse = useCallback(async (courseId: string) => {
+    if (!confirm('Are you sure you want to delete this course? This will also delete all associated sections.')) return;
+
+    try {
+      // Get the course to find its image path before deletion
+      const { data: courseData, error: fetchError } = await supabase
+        .from('courses')
+        .select('image_url')
+        .eq('id', courseId)
+        .single();
+
+      if (fetchError) {
+        console.error('Error fetching course for cleanup:', fetchError);
+      }
+
+      // Delete the course
+      const { error } = await supabase
+        .from('courses')
+        .delete()
+        .eq('id', courseId);
+
+      if (error) throw error;
+
+      // Clean up the associated image if it exists
+      if (courseData?.image_url) {
+        try {
+          await supabase.storage
+            .from('course')
+            .remove([courseData.image_url]);
+          console.log('Course image cleaned up:', courseData.image_url);
+        } catch (cleanupError) {
+          console.error('Error cleaning up course image:', cleanupError);
+        }
+      }
+
+      toast.success('Course deleted successfully');
+      fetchCourses();
+    } catch (error) {
+      console.error('Error deleting course:', error);
+      toast.error('Failed to delete course');
+    }
+  }, [fetchCourses]);
+
+  const cleanupUnusedImages = useCallback(async () => {
+    try {
+      // Get all course image paths from the database
+      const { data: coursesData, error: coursesError } = await supabase
+        .from('courses')
+        .select('image_url')
+        .not('image_url', 'is', null);
+
+      if (coursesError) {
+        console.error('Error fetching course images:', coursesError);
+        return;
+      }
+
+      const usedImagePaths = coursesData
+        .map(course => course.image_url)
+        .filter(path => path && path.trim() !== '');
+
+      // List all files in the course-images directory
+      const { data: storageFiles, error: storageError } = await supabase.storage
+        .from('course')
+        .list('course-images', { limit: 1000 });
+
+      if (storageError) {
+        console.error('Error listing storage files:', storageError);
+        return;
+      }
+
+      // Find unused files
+      const unusedFiles = storageFiles
+        ?.filter(file => !usedImagePaths.includes(`course-images/${file.name}`))
+        .map(file => `course-images/${file.name}`) || [];
+
+      // Remove unused files
+      if (unusedFiles.length > 0) {
+        const { error: removeError } = await supabase.storage
+          .from('course')
+          .remove(unusedFiles);
+
+        if (removeError) {
+          console.error('Error removing unused files:', removeError);
+        } else {
+          console.log(`Cleaned up ${unusedFiles.length} unused images`);
+          toast.success(`Cleaned up ${unusedFiles.length} unused images`);
+        }
+      }
+    } catch (error) {
+      console.error('Error during cleanup:', error);
+    }
+  }, []);
 
   const handleAddCourse = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -254,115 +348,105 @@ export default function CourseManagement() {
     }
   };
 
-  const handleDeleteCourse = async (courseId: string) => {
-    if (!confirm('Are you sure you want to delete this course? This will also delete all associated sections.')) return;
 
-    try {
-      // Get the course to find its image path before deletion
-      const { data: courseData, error: fetchError } = await supabase
-        .from('courses')
-        .select('image_url')
-        .eq('id', courseId)
-        .single();
 
-      if (fetchError) {
-        console.error('Error fetching course for cleanup:', fetchError);
-      }
+  // Memoized filtered courses
+  const filteredCourses = useMemo(() => {
+    return courses.filter(course => {
+      const matchesSearch = course.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           course.code.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesUnits = filterUnits === 'all' || course.units.toString() === filterUnits;
+      const matchesYear = filterYearLevel === 'all' || course.year_level === filterYearLevel;
+      return matchesSearch && matchesUnits && matchesYear;
+    });
+  }, [courses, searchTerm, filterUnits, filterYearLevel]);
 
-      // Delete the course
-      const { error } = await supabase
-        .from('courses')
-        .delete()
-        .eq('id', courseId);
-
-      if (error) throw error;
-
-      // Clean up the associated image if it exists
-      if (courseData?.image_url) {
-        try {
-          await supabase.storage
-            .from('course')
-            .remove([courseData.image_url]);
-          console.log('Course image cleaned up:', courseData.image_url);
-        } catch (cleanupError) {
-          console.error('Error cleaning up course image:', cleanupError);
-        }
-      }
-
-      toast.success('Course deleted successfully');
-      fetchCourses();
-    } catch (error) {
-      console.error('Error deleting course:', error);
-      toast.error('Failed to delete course');
-    }
-  };
-
-  // Utility function to clean up unused images
-  const cleanupUnusedImages = async () => {
-    try {
-      // Get all course image paths from the database
-      const { data: coursesData, error: coursesError } = await supabase
-        .from('courses')
-        .select('image_url')
-        .not('image_url', 'is', null);
-
-      if (coursesError) {
-        console.error('Error fetching course images:', coursesError);
-        return;
-      }
-
-      const usedImagePaths = coursesData
-        .map(course => course.image_url)
-        .filter(path => path && path.trim() !== '');
-
-      // List all files in the course-images directory
-      const { data: storageFiles, error: storageError } = await supabase.storage
-        .from('course')
-        .list('course-images', { limit: 1000 });
-
-      if (storageError) {
-        console.error('Error listing storage files:', storageError);
-        return;
-      }
-
-      // Find unused files
-      const unusedFiles = storageFiles
-        ?.filter(file => !usedImagePaths.includes(`course-images/${file.name}`))
-        .map(file => `course-images/${file.name}`) || [];
-
-      // Remove unused files
-      if (unusedFiles.length > 0) {
-        const { error: removeError } = await supabase.storage
-          .from('course')
-          .remove(unusedFiles);
-
-        if (removeError) {
-          console.error('Error removing unused files:', removeError);
-        } else {
-          console.log(`Cleaned up ${unusedFiles.length} unused images`);
-          toast.success(`Cleaned up ${unusedFiles.length} unused images`);
-        }
-      }
-    } catch (error) {
-      console.error('Error during cleanup:', error);
-    }
-  };
-
-  // Filter and search courses
-  const filteredCourses = courses.filter(course => {
-    const matchesSearch = course.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         course.code.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesUnits = filterUnits === 'all' || course.units.toString() === filterUnits;
-    const matchesYear = filterYearLevel === 'all' || course.year_level === filterYearLevel;
-    return matchesSearch && matchesUnits && matchesYear;
-  });
+  // Memoized course statistics
+  const courseStats = useMemo(() => {
+    const total = courses.length;
+    const averageUnits = total > 0 ? (courses.reduce((sum, course) => sum + course.units, 0) / total).toFixed(1) : '0';
+    const active = filteredCourses.length;
+    const summerCourses = courses.filter(c => c.summer).length;
+    const regularCourses = total - summerCourses;
+    
+    return {
+      total,
+      averageUnits,
+      active,
+      summerCourses,
+      regularCourses
+    };
+  }, [courses, filteredCourses]);
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-gray-600 font-medium">Loading courses...</p>
+      <div className="coursemanagement-skeleton min-h-screen from-blue-50 via-white to-indigo-50">
+        <div className="max-w-7xl mx-auto px-6 py-8">
+          {/* Header Skeleton */}
+          <div className="mb-8 animate-pulse">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+              <div>
+                <div className="h-10 bg-gray-200 rounded w-80 mb-2"></div>
+                <div className="h-4 bg-gray-200 rounded w-96"></div>
+              </div>
+              <div className="flex gap-3">
+                <div className="h-12 w-40 bg-gray-200 rounded-xl"></div>
+                <div className="h-12 w-48 bg-gray-200 rounded-xl"></div>
+              </div>
+            </div>
+          </div>
+
+          {/* Stats Cards Skeleton */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 animate-pulse">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="h-4 bg-gray-200 rounded w-24 mb-2"></div>
+                    <div className="h-8 bg-gray-200 rounded w-16"></div>
+                  </div>
+                  <div className="w-12 h-12 bg-gray-200 rounded-xl"></div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Search and Filter Skeleton */}
+          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 mb-8 animate-pulse">
+            <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
+              <div className="flex-1 max-w-md">
+                <div className="h-12 bg-gray-200 rounded-xl"></div>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="h-12 w-32 bg-gray-200 rounded-xl"></div>
+                <div className="h-10 w-20 bg-gray-200 rounded-xl"></div>
+                <div className="h-12 w-32 bg-gray-200 rounded-xl"></div>
+              </div>
+            </div>
+          </div>
+
+          {/* Courses Grid Skeleton */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[1, 2, 3, 4, 5, 6].map(i => (
+              <div key={i} className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden animate-pulse">
+                <div className="h-48 bg-gray-200"></div>
+                <div className="p-6">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="h-6 bg-gray-200 rounded-full w-16"></div>
+                    <div className="h-6 bg-gray-200 rounded-full w-20"></div>
+                  </div>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="h-6 bg-gray-200 rounded-full w-20"></div>
+                    <div className="h-6 bg-gray-200 rounded-full w-16"></div>
+                  </div>
+                  <div className="h-5 bg-gray-200 rounded w-full mb-2"></div>
+                  <div className="flex items-center justify-between">
+                    <div className="h-4 bg-gray-200 rounded w-32"></div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -650,33 +734,41 @@ export default function CourseManagement() {
           animate={{ opacity: 1, y: 0 }}
           className="mb-8"
         >
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-            <div>
-              <h1 className="text-4xl font-bold text-gray-900 mb-2 flex items-center gap-3">
-                <BookOpen className="w-8 h-8 text-blue-600" />
-                Subject Management
-              </h1>
-              <p className="text-gray-600 text-lg">Manage and organize your academic subjects efficiently</p>
-            </div>
-            <div className="flex gap-3">
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={cleanupUnusedImages}
-                className="bg-gradient-to-r from-orange-500 to-red-500 text-white px-6 py-3 rounded-xl shadow-lg hover:from-orange-600 hover:to-red-600 transition-all duration-300 font-semibold flex items-center gap-3"
-              >
-                <Trash2 className="w-5 h-5" />
-                Cleanup Storage
-              </motion.button>
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setShowAddModal(true)}
-                className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-3 rounded-xl shadow-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 font-semibold flex items-center gap-3"
-              >
-                <Plus className="w-5 h-5" />
-                Add New Course
-              </motion.button>
+          <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 rounded-lg">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-book-open w-6 h-6 text-white">
+                    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                  </svg>
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold text-white tracking-tight">Subject Management</h1>
+                  <p className="text-white/80 text-sm font-medium">Manage and organize your academic subjects efficiently</p>
+                  <div className="flex items-center gap-4 mt-2 text-xs text-white/80"></div>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={cleanupUnusedImages}
+                  className="coursemanagement-cleanup-button bg-white/20 backdrop-blur-sm text-white px-4 py-2 rounded-lg hover:bg-white/30 transition-all duration-300 font-semibold flex items-center gap-2 border border-white/30"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Cleanup
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setShowAddModal(true)}
+                  className="coursemanagement-add-button bg-white/20 backdrop-blur-sm text-white px-6 py-2 rounded-lg hover:bg-white/30 transition-all duration-300 font-semibold flex items-center gap-2 border border-white/30"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add New Course
+                </motion.button>
+              </div>
             </div>
           </div>
         </motion.div>
@@ -688,35 +780,33 @@ export default function CourseManagement() {
           transition={{ delay: 0.1 }}
           className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8"
         >
-          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+          <div className="coursemanagement-stats-card bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-600 text-sm font-medium">Total Courses</p>
-                <p className="text-3xl font-bold text-gray-900">{courses.length}</p>
+                <p className="text-3xl font-bold text-gray-900">{courseStats.total}</p>
               </div>
               <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
                 <BookOpen className="w-6 h-6 text-blue-600" />
               </div>
             </div>
           </div>
-          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+          <div className="coursemanagement-stats-card bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-600 text-sm font-medium">Average Units</p>
-                <p className="text-3xl font-bold text-gray-900">
-                  {courses.length > 0 ? (courses.reduce((sum, course) => sum + course.units, 0) / courses.length).toFixed(1) : '0'}
-                </p>
+                <p className="text-3xl font-bold text-gray-900">{courseStats.averageUnits}</p>
               </div>
               <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
                 <GraduationCap className="w-6 h-6 text-green-600" />
               </div>
             </div>
           </div>
-          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+          <div className="coursemanagement-stats-card bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-600 text-sm font-medium">Active Courses</p>
-                <p className="text-3xl font-bold text-gray-900">{filteredCourses.length}</p>
+                <p className="text-3xl font-bold text-gray-900">{courseStats.active}</p>
               </div>
               <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
                 <Users className="w-6 h-6 text-purple-600" />
@@ -730,7 +820,7 @@ export default function CourseManagement() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 mb-8"
+          className="coursemanagement-controls bg-white rounded-2xl p-6 shadow-lg border border-gray-100 mb-8"
         >
           <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
             <div className="flex-1 max-w-md">
@@ -827,14 +917,14 @@ export default function CourseManagement() {
               )}
             </div>
           ) : viewMode === 'grid' ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="coursemanagement-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredCourses.map((course, idx) => (
                 <motion.div
                   key={course.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: idx * 0.1 }}
-                  className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden hover:shadow-xl transition-all duration-300 group"
+                  className="coursemanagement-card bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden hover:shadow-xl transition-all duration-300 group"
                 >
                   <div className="relative h-48 bg-gradient-to-br from-blue-50 to-indigo-50">
                     {imageLoading[String(course.id)] ? (
