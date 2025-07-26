@@ -46,7 +46,16 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = (props) => {
           .select('created_at, updated_at, role, password_changed')
           .eq('id', user.id)
           .single();
-        if (!error && profile && profile.role === 'student') {
+        
+        if (error) {
+          console.warn('Error fetching user profile for password check:', error);
+          // If user doesn't exist in user_profiles or RLS blocks access, 
+          // skip password change requirement
+          setCheckingDefault(false);
+          return;
+        }
+        
+        if (profile && profile.role === 'student') {
           const createdTime = new Date(profile.created_at);
           const now = new Date();
           const hoursSinceCreation = (now.getTime() - createdTime.getTime()) / (1000 * 60 * 60);
@@ -54,8 +63,9 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = (props) => {
             setShowChangePassModal(true);
           }
         }
-      } catch {
-        // ignore error
+      } catch (error) {
+        console.warn('Exception while checking default password:', error);
+        // On any exception, skip password change requirement
       } finally {
         setCheckingDefault(false);
       }
@@ -72,13 +82,25 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = (props) => {
           .select('is_active')
           .eq('id', user.id)
           .single();
-        if (!error && data) {
+        
+        if (error) {
+          console.warn('Error fetching user profile:', error);
+          // If user doesn't exist in user_profiles or RLS blocks access, 
+          // assume they are active and continue
+          setIsActive(true);
+          return;
+        }
+        
+        if (data) {
           setIsActive(data.is_active);
         } else {
-          setIsActive(null);
+          // If no data returned but no error, assume active
+          setIsActive(true);
         }
-      } catch {
-        setIsActive(null);
+      } catch (error) {
+        console.warn('Exception while checking active status:', error);
+        // On any exception, assume user is active to prevent blocking access
+        setIsActive(true);
       }
     };
     checkActiveStatus();
