@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -40,6 +40,7 @@ type COERecord = {
 // Modal component for displaying the COE certificate
 const COEModal = ({ coe, open, onClose }: { coe: COERecord, open: boolean, onClose: () => void }) => {
   const contentRef = useRef<HTMLDivElement>(null);
+
   if (!coe || !open) return null;
 
   // Download as PDF using jsPDF + autoTable function
@@ -172,7 +173,7 @@ const COEModal = ({ coe, open, onClose }: { coe: COERecord, open: boolean, onClo
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
-          className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100 w-full max-w-xl relative mx-4 flex flex-col"
+          className="coe-modal bg-white rounded-2xl shadow-xl p-8 border border-gray-100 w-full max-w-xl relative mx-4 flex flex-col"
           style={{ 
             maxHeight: '90vh', 
             overflowY: 'auto', 
@@ -250,7 +251,7 @@ const COEModal = ({ coe, open, onClose }: { coe: COERecord, open: boolean, onClo
             <div className="mt-8">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Enrolled Courses</h3>
               <div className="rounded-xl border border-gray-200 overflow-hidden w-full shadow-sm">
-                <table className="min-w-full bg-white">
+                <table className="coe-certificate-table min-w-full bg-white">
                   <thead>
                     <tr className="bg-blue-600 rounded-t-xl">
                       <th className="px-4 py-2 text-left text-xs font-bold text-white rounded-tl-xl">Course Code</th>
@@ -326,10 +327,69 @@ export const CertificateOfEnrollment: React.FC = () => {
     fetchCOEs();
   }, [user?.id]);
 
+  // Memoized data processing
+  const processedCOEList = useMemo(() => {
+    return coeList.map(coe => ({
+      ...coe,
+      formattedDate: coe.date_issued ? new Date(coe.date_issued).toLocaleDateString() : 'N/A',
+      totalUnits: Array.isArray(coe.subjects) ? coe.subjects.reduce((sum, subj) => sum + (Number(subj.units) || 0), 0) : 0
+    }));
+  }, [coeList]);
+
+  // Memoized handlers
+  const handleViewCOE = useCallback((coe: COERecord) => {
+    setSelectedCOE(coe);
+    setModalOpen(true);
+  }, []);
+
+  const handleCloseModal = useCallback(() => {
+    setModalOpen(false);
+    setSelectedCOE(null);
+  }, []);
+
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+      <div className="min-h-screen bg-gradient-to-br to-blue-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {/* Enhanced Header Skeleton */}
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 via-white to-purple-50 shadow-inner shadow-inner-strong border border-blue-100 mb-12">
+            <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
+                    <div className="w-6 h-6 bg-white/30 rounded animate-pulse"></div>
+                  </div>
+                  <div>
+                    <div className="h-8 w-48 bg-white/20 rounded animate-pulse mb-2"></div>
+                    <div className="h-4 w-64 bg-white/20 rounded animate-pulse"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Enhanced Content Skeleton */}
+          <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 w-full">
+            <div className="h-6 w-32 bg-gray-200 rounded animate-pulse mb-6"></div>
+            <div className="space-y-4">
+              {/* Table Header Skeleton */}
+              <div className="grid grid-cols-4 gap-4 mb-4">
+                {[1, 2, 3, 4].map(i => (
+                  <div key={i} className="h-4 bg-gray-200 rounded animate-pulse"></div>
+                ))}
+              </div>
+              {/* Table Rows Skeleton */}
+              {[1, 2, 3].map(i => (
+                <div key={i} className="grid grid-cols-4 gap-4 py-3 border-b border-gray-100">
+                  <div className="h-4 bg-gray-100 rounded animate-pulse"></div>
+                  <div className="h-4 bg-gray-100 rounded animate-pulse"></div>
+                  <div className="h-4 bg-gray-100 rounded animate-pulse"></div>
+                  <div className="h-8 w-16 bg-blue-200 rounded animate-pulse"></div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -378,18 +438,15 @@ export const CertificateOfEnrollment: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {coeList.map((coe, idx) => (
-                    <tr key={coe.id || idx}>
+                  {processedCOEList.map((coe, idx) => (
+                    <tr key={coe.id || idx} className="coe-table-row hover:bg-gray-50 transition-colors duration-200">
                       <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">{coe.school_year}</td>
                       <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">{coe.semester}</td>
-                      <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">{coe.date_issued ? new Date(coe.date_issued).toLocaleDateString() : 'N/A'}</td>
+                      <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">{coe.formattedDate}</td>
                       <td className="px-4 py-2 whitespace-nowrap">
                         <button
-                          className="inline-flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                          onClick={() => { 
-                            setSelectedCOE(coe); 
-                            setModalOpen(true); 
-                          }}
+                          className="coe-view-button inline-flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                          onClick={() => handleViewCOE(coe)}
                         >
                           <Eye className="w-4 h-4" /> View
                         </button>
@@ -404,7 +461,7 @@ export const CertificateOfEnrollment: React.FC = () => {
         {/* Only render the portal when modalOpen and selectedCOE are true */}
         {modalOpen && selectedCOE &&
           createPortal(
-            <COEModal coe={selectedCOE} open={modalOpen} onClose={() => setModalOpen(false)} />, 
+            <COEModal coe={selectedCOE} open={modalOpen} onClose={handleCloseModal} />, 
             document.body
           )
         }
