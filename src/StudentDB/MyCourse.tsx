@@ -409,7 +409,7 @@ const MyCourse: React.FC<MyCourseProps> = ({ enrollments, courseImages, teacherI
                   </div>
                 )}
                 <div className="pt-4 border-t border-gray-200">
-                  
+
                   <button
                     onClick={handleCloseModal}
                     className="course-button w-full px-4 py-2 text-sm font-medium text-white bg-[#1a73e8] rounded-lg hover:bg-[#1557b0] transition-colors duration-200"
