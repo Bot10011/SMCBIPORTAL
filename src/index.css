@@ -85,6 +85,106 @@ body {
   border-right-color: #3b82f6 !important;
 }
 
+/* Shimmer animation for skeleton loading */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite;
+}
+
+/* Performance optimizations for profile components */
+.profile-card {
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+.profile-picture {
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.profile-picture:hover {
+  transform: scale(1.05) translateZ(0);
+}
+
+/* Smooth transitions for all interactive elements */
+.profile-interactive {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform, opacity;
+}
+
+/* Optimized skeleton animations */
+.skeleton-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Performance optimizations for ReceiptPermit component */
+.receipt-permit-header {
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+.receipt-file-item,
+.permit-file-item {
+  will-change: transform, opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.receipt-file-item:hover,
+.permit-file-item:hover {
+  transform: translateY(-1px) translateZ(0);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Upload animation optimizations */
+.upload-animation {
+  will-change: transform, opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* Modal performance optimizations */
+.modal-content {
+  will-change: transform, opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* File preview optimizations */
+.file-preview-image {
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.file-preview-image:hover {
+  transform: scale(1.05) translateZ(0);
+}
+
 @layer base {
   body {
     @apply antialiased text-gray-900 bg-gray-50;
