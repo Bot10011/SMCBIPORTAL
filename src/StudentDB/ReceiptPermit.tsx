@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { 
@@ -58,7 +58,7 @@ const ReceiptPermit: React.FC = () => {
   } | null>(null);
 
   // Download handler for image preview modal
-  const downloadImage = (e?: React.MouseEvent) => {
+  const downloadImage = useCallback((e?: React.MouseEvent) => {
     if (e) e.preventDefault();
     if (!modalImage) return;
     const link = document.createElement('a');
@@ -67,7 +67,7 @@ const ReceiptPermit: React.FC = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  };
+  }, [modalImage]);
 
   // Fetch files from both folders and get signed URLs
   useEffect(() => {
@@ -178,7 +178,7 @@ const ReceiptPermit: React.FC = () => {
 
 
   // Enhanced file validation
-  const validateFile = (file: File): { valid: boolean; message: string } => {
+  const validateFile = useCallback((file: File): { valid: boolean; message: string } => {
     // Check file size (5MB limit)
     if (file.size > 5 * 1024 * 1024) {
       return { valid: false, message: 'File size must be less than 5MB' };
@@ -192,10 +192,10 @@ const ReceiptPermit: React.FC = () => {
     }
 
     return { valid: true, message: 'File is valid' };
-  };
+  }, []);
 
   // Upload to correct folder
-  const handleUpload = async (file: File, type: 'receipt' | 'permit') => {
+  const handleUpload = useCallback(async (file: File, type: 'receipt' | 'permit') => {
     setError(null);
     setSuccess(null);
     if (!user) return;
@@ -275,14 +275,14 @@ const ReceiptPermit: React.FC = () => {
         setSuccess(null);
       }, 5000);
     }
-  };
+  }, [user?.id, refresh]);
 
 
 
 
 
   // Delete from correct folder
-  const handleDelete = async (fileName: string, folder: string) => {
+  const handleDelete = useCallback(async (fileName: string, folder: string) => {
     if (!user) return;
     setError(null);
     setUploading(true);
@@ -324,7 +324,7 @@ const ReceiptPermit: React.FC = () => {
     } finally {
       setUploading(false);
     }
-  };
+  }, [user?.id, refresh]);
 
   // Handle delete confirmation
   const handleDeleteClick = (fileName: string, folder: string) => {
@@ -338,24 +338,142 @@ const ReceiptPermit: React.FC = () => {
     }
   };
 
-  const handleDeleteCancel = () => {
+  const handleDeleteCancel = useCallback(() => {
     setDeleteConfirm(null);
-  };
+  }, []);
+
+  // Memoized data processing
+  const processedFiles = useMemo(() => {
+    return {
+      receiptFiles: receiptFiles.map(file => ({
+        ...file,
+        isImage: /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name),
+        fileKey: file.name + file.folder,
+        url: signedUrls[file.name + file.folder],
+        isLoading: imageLoading[file.name + file.folder],
+        hasError: imageErrors[file.name + file.folder]
+      })),
+      permitFiles: permitFiles.map(file => ({
+        ...file,
+        isImage: /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name),
+        fileKey: file.name + file.folder,
+        url: signedUrls[file.name + file.folder],
+        isLoading: imageLoading[file.name + file.folder],
+        hasError: imageErrors[file.name + file.folder]
+      }))
+    };
+  }, [receiptFiles, permitFiles, signedUrls, imageLoading, imageErrors]);
 
   // Modal for image preview
 
 
 
 
+  // Loading state with enhanced skeleton
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br via-white to-blue-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {/* Enhanced Header Skeleton */}
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 via-white to-purple-50 shadow-inner shadow-inner-strong border border-blue-100 mb-12">
+            <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
+                    <div className="w-6 h-6 bg-white/30 rounded animate-pulse"></div>
+                  </div>
+                  <div>
+                    <div className="h-8 w-48 bg-white/20 rounded animate-pulse mb-2"></div>
+                    <div className="h-4 w-64 bg-white/20 rounded animate-pulse"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Enhanced Content Skeleton */}
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 mb-12">
+            {/* Receipt Section Skeleton */}
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+              <div className="px-6 py-4 bg-gradient-to-r from-blue-50 to-blue-100 border-b border-gray-200">
+                <div className="h-6 w-32 bg-blue-200 rounded animate-pulse"></div>
+              </div>
+              <div className="p-6">
+                <div className="space-y-3">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="bg-gray-50 rounded-lg border border-gray-200 p-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-gray-200 rounded-lg animate-pulse"></div>
+                        <div className="flex-1">
+                          <div className="h-4 w-32 bg-gray-200 rounded animate-pulse mb-2"></div>
+                          <div className="h-3 w-24 bg-gray-200 rounded animate-pulse"></div>
+                        </div>
+                        <div className="flex gap-2">
+                          <div className="w-6 h-6 bg-gray-200 rounded animate-pulse"></div>
+                          <div className="w-6 h-6 bg-gray-200 rounded animate-pulse"></div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Upload Section Skeleton */}
+            <div className="bg-white rounded-2xl border-2 border-dashed border-gray-300 p-6 text-center">
+              <div className="mb-4">
+                <div className="inline-block p-3 bg-gray-50 rounded-xl border border-gray-200">
+                  <div className="flex gap-2">
+                    <div className="w-20 h-8 bg-gray-200 rounded-lg animate-pulse"></div>
+                    <div className="w-20 h-8 bg-gray-200 rounded-lg animate-pulse"></div>
+                  </div>
+                </div>
+              </div>
+              <div className="h-4 w-48 bg-gray-200 rounded animate-pulse mx-auto mb-3"></div>
+              <div className="w-32 h-10 bg-gray-200 rounded-lg animate-pulse mx-auto mb-2"></div>
+              <div className="h-3 w-24 bg-gray-200 rounded animate-pulse mx-auto"></div>
+            </div>
+
+            {/* Permit Section Skeleton */}
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+              <div className="px-6 py-4 bg-gradient-to-r from-green-50 to-green-100 border-b border-gray-200">
+                <div className="h-6 w-32 bg-green-200 rounded animate-pulse"></div>
+              </div>
+              <div className="p-6">
+                <div className="space-y-3">
+                  {[1, 2].map(i => (
+                    <div key={i} className="bg-gray-50 rounded-lg border border-gray-200 p-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-gray-200 rounded-lg animate-pulse"></div>
+                        <div className="flex-1">
+                          <div className="h-4 w-32 bg-gray-200 rounded animate-pulse mb-2"></div>
+                          <div className="h-3 w-24 bg-gray-200 rounded animate-pulse"></div>
+                        </div>
+                        <div className="flex gap-2">
+                          <div className="w-6 h-6 bg-gray-200 rounded animate-pulse"></div>
+                          <div className="w-6 h-6 bg-gray-200 rounded animate-pulse"></div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-brvia-white to-blue-50">
+    <div className="min-h-screen bg-gradient-to-br via-white to-blue-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Premium Header Section */}
         <motion.div 
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 via-white to-purple-50 shadow-inner shadow-inner-strong border border-blue-100 mb-12"
+          className="receipt-permit-header relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 via-white to-purple-50 shadow-inner shadow-inner-strong border border-blue-100 mb-12"
         >
           <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -440,77 +558,72 @@ const ReceiptPermit: React.FC = () => {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {receiptFiles.map((file, index) => {
+                  {processedFiles.receiptFiles.map((file, index) => {
                     if (!file || !file.name) return null;
-                    const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name);
-                    const fileKey = file.name + file.folder;
-                    const url = signedUrls[fileKey];
-                    const isLoading = imageLoading[fileKey];
-                    const hasError = imageErrors[fileKey];
                     return (
-                      <div key={`receipt-${file.name}-${file.folder}-${index}`} className="bg-gray-50 rounded-lg border border-gray-200 p-2">
-                        <div className="flex items-center gap-2">
-                          {isImage && !hasError ? (
-                            <button
-                              onClick={() => setModalImage({ url, name: file.name })}
-                              className="relative block focus:outline-none group flex-shrink-0"
-                            >
-                              {isLoading && (
-                                <div className="absolute inset-0 bg-gray-200 rounded-lg flex items-center justify-center z-10">
-                                  <Loader2 className="w-3 h-3 animate-spin text-gray-600" />
-                                </div>
-                              )}
-                              <img
-                                src={url}
-                                alt={file.name}
-                                className="w-8 h-8 object-cover rounded-lg border shadow-sm transition-all duration-200 group-hover:scale-105"
-                                onLoad={() => {
-                                  setImageLoading(prev => ({ ...prev, [fileKey]: false }));
-                                  console.log('Receipt image loaded successfully:', url);
-                                }}
-                                onError={() => {
-                                  setImageErrors(prev => ({ ...prev, [fileKey]: true }));
-                                  setImageLoading(prev => ({ ...prev, [fileKey]: false }));
-                                  console.error('Receipt image failed to load:', url);
-                                }}
-                                loading="lazy"
-                              />
-                            </button>
-                          ) : (
-                            <div className="flex items-center justify-center w-8 h-8 bg-gray-100 rounded-lg flex-shrink-0">
-                              <File className="text-gray-400 w-4 h-4" />
-                            </div>
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-medium text-gray-900 truncate">{file.name}</p>
-                            <div className="flex items-center gap-1 text-xs text-gray-500">
-                              <Calendar className="w-3 h-3" />
-                              {file.created_at ? new Date(file.created_at).toLocaleDateString() : '—'}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-1 flex-shrink-0">
-                            {isImage && !hasError && (
+                                              <div key={`receipt-${file.name}-${file.folder}-${index}`} className="receipt-file-item bg-gray-50 rounded-lg border border-gray-200 p-2">
+                          <div className="flex items-center gap-2">
+                            {file.isImage && !file.hasError ? (
                               <button
-                                onClick={() => setModalImage({ url, name: file.name })}
-                                className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
-                                title="Preview"
+                                onClick={() => setModalImage({ url: file.url, name: file.name })}
+                                className="relative block focus:outline-none group flex-shrink-0"
                               >
-                                <Eye className="w-3 h-3" />
+                                {file.isLoading && (
+                                  <div className="absolute inset-0 bg-gray-200 rounded-lg flex items-center justify-center z-10">
+                                    <Loader2 className="w-3 h-3 animate-spin text-gray-600" />
+                                  </div>
+                                )}
+                                <img
+                                  src={file.url}
+                                  alt={file.name}
+                                  className="w-8 h-8 object-cover rounded-lg border shadow-sm transition-all duration-200 group-hover:scale-105"
+                                  onLoad={() => {
+                                    setImageLoading(prev => ({ ...prev, [file.fileKey]: false }));
+                                    console.log('Receipt image loaded successfully:', file.url);
+                                  }}
+                                  onError={() => {
+                                    setImageErrors(prev => ({ ...prev, [file.fileKey]: true }));
+                                    setImageLoading(prev => ({ ...prev, [file.fileKey]: false }));
+                                    console.error('Receipt image failed to load:', file.url);
+                                  }}
+                                  loading="lazy"
+                                />
                               </button>
+                            ) : (
+                              <div className="flex items-center justify-center w-8 h-8 bg-gray-100 rounded-lg flex-shrink-0">
+                                <File className="text-gray-400 w-4 h-4" />
+                              </div>
                             )}
-                            <button
-                              onClick={() => handleDeleteClick(file.name, file.folder)}
-                              disabled={uploading}
-                              className="p-1 text-gray-400 hover:text-red-600 transition-colors disabled:opacity-50"
-                              title="Delete"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-medium text-gray-900 truncate">{file.name}</p>
+                              <div className="flex items-center gap-1 text-xs text-gray-500">
+                                <Calendar className="w-3 h-3" />
+                                {file.created_at ? new Date(file.created_at).toLocaleDateString() : '—'}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              {file.isImage && !file.hasError && (
+                                <button
+                                  onClick={() => setModalImage({ url: file.url, name: file.name })}
+                                  className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
+                                  title="Preview"
+                                >
+                                  <Eye className="w-3 h-3" />
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleDeleteClick(file.name, file.folder)}
+                                disabled={uploading}
+                                className="p-1 text-gray-400 hover:text-red-600 transition-colors disabled:opacity-50"
+                                title="Delete"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  }).filter(Boolean)}
+                      );
+                    }).filter(Boolean)}
                 </div>
               )}
             </div>
@@ -628,38 +741,32 @@ const ReceiptPermit: React.FC = () => {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {permitFiles.map((file, index) => {
+                  {processedFiles.permitFiles.map((file, index) => {
                     if (!file || !file.name) return null;
                     
-                    const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name);
-                    const fileKey = file.name + file.folder;
-                    const url = signedUrls[fileKey];
-                    const isLoading = imageLoading[fileKey];
-                    const hasError = imageErrors[fileKey];
-                    
                     return (
-                      <div key={`permit-${file.name}-${file.folder}-${index}`} className="bg-gray-50 rounded-lg border border-gray-200 p-2">
+                      <div key={`permit-${file.name}-${file.folder}-${index}`} className="permit-file-item bg-gray-50 rounded-lg border border-gray-200 p-2">
                         <div className="flex items-center gap-2">
-                          {isImage && !hasError ? (
+                          {file.isImage && !file.hasError ? (
                             <button
-                              onClick={() => setModalImage({ url, name: file.name })}
+                              onClick={() => setModalImage({ url: file.url, name: file.name })}
                               className="relative block focus:outline-none group flex-shrink-0"
                             >
-                              {isLoading && (
+                              {file.isLoading && (
                                 <div className="absolute inset-0 bg-gray-200 rounded-lg flex items-center justify-center z-10">
                                   <Loader2 className="w-3 h-3 animate-spin text-gray-600" />
                                 </div>
                               )}
                               <img
-                                src={url}
+                                src={file.url}
                                 alt={file.name}
                                 className="w-8 h-8 object-cover rounded-lg border shadow-sm transition-all duration-200 group-hover:scale-105"
                                 onLoad={() => {
-                                  setImageLoading(prev => ({ ...prev, [fileKey]: false }));
+                                  setImageLoading(prev => ({ ...prev, [file.fileKey]: false }));
                                 }}
                                 onError={() => {
-                                  setImageErrors(prev => ({ ...prev, [fileKey]: true }));
-                                  setImageLoading(prev => ({ ...prev, [fileKey]: false }));
+                                  setImageErrors(prev => ({ ...prev, [file.fileKey]: true }));
+                                  setImageLoading(prev => ({ ...prev, [file.fileKey]: false }));
                                 }}
                                 loading="lazy"
                               />
@@ -677,9 +784,9 @@ const ReceiptPermit: React.FC = () => {
                             </div>
                           </div>
                           <div className="flex items-center gap-1 flex-shrink-0">
-                            {isImage && !hasError && (
+                            {file.isImage && !file.hasError && (
                               <button
-                                onClick={() => setModalImage({ url, name: file.name })}
+                                onClick={() => setModalImage({ url: file.url, name: file.name })}
                                 className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
                                 title="Preview"
                               >
