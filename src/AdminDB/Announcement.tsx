@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Plus, 
@@ -75,21 +75,44 @@ const Announcement: React.FC = () => {
   // COMPUTED VALUES
   // ============================================================================
   
-  const filteredAnnouncements = announcements.filter(announcement => {
-    const matchesSearch = announcement.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         announcement.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         announcement.author.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesPriority = filterPriority === 'all' || announcement.priority === filterPriority;
-    const matchesCategory = filterCategory === 'all' || announcement.category === filterCategory;
+  // Memoized filtered announcements
+  const filteredAnnouncements = useMemo(() => {
+    return announcements.filter(announcement => {
+      const matchesSearch = announcement.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           announcement.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           announcement.author.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesPriority = filterPriority === 'all' || announcement.priority === filterPriority;
+      const matchesCategory = filterCategory === 'all' || announcement.category === filterCategory;
+      
+      return matchesSearch && matchesPriority && matchesCategory;
+    });
+  }, [announcements, searchTerm, filterPriority, filterCategory]);
+
+  // Memoized announcement statistics
+  const announcementStats = useMemo(() => {
+    const total = announcements.length;
+    const active = announcements.filter(a => a.is_active).length;
+    const inactive = total - active;
+    const highPriority = announcements.filter(a => a.priority === 'high').length;
+    const mediumPriority = announcements.filter(a => a.priority === 'medium').length;
+    const lowPriority = announcements.filter(a => a.priority === 'low').length;
     
-    return matchesSearch && matchesPriority && matchesCategory;
-  });
+    return {
+      total,
+      active,
+      inactive,
+      highPriority,
+      mediumPriority,
+      lowPriority
+    };
+  }, [announcements]);
 
   // ============================================================================
   // DATABASE OPERATIONS
   // ============================================================================
   
-  const fetchAnnouncements = async (): Promise<void> => {
+  // Memoized database operations
+  const fetchAnnouncements = useCallback(async (): Promise<void> => {
     try {
       setLoading(true);
       const { data, error } = await supabase
@@ -105,11 +128,9 @@ const Announcement: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-
-
-  const deleteAnnouncement = async (id: string): Promise<void> => {
+  const deleteAnnouncement = useCallback(async (id: string): Promise<void> => {
     try {
       // First get the announcement to check if it has an image
       const { data: announcement, error: fetchError } = await supabase
@@ -160,9 +181,9 @@ const Announcement: React.FC = () => {
       console.error('Error deleting announcement:', error);
       toast.error('Failed to delete announcement');
     }
-  };
+  }, [fetchAnnouncements]);
 
-  const toggleAnnouncementStatus = async (id: string, currentStatus: boolean): Promise<void> => {
+  const toggleAnnouncementStatus = useCallback(async (id: string, currentStatus: boolean): Promise<void> => {
     try {
       const { error } = await supabase
         .from('announcements')
@@ -180,7 +201,11 @@ const Announcement: React.FC = () => {
       console.error('Error toggling announcement status:', error);
       toast.error('Failed to update announcement status');
     }
-  };
+  }, [fetchAnnouncements]);
+
+
+
+
 
   // ============================================================================
   // EVENT HANDLERS
@@ -239,12 +264,47 @@ const Announcement: React.FC = () => {
     <div className="p-6 bg-gray-50 min-h-screen">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Announcement Management</h1>
-        <p className="text-gray-600">Manage and create announcements for the school portal</p>
+        <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 rounded-lg">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-megaphone w-6 h-6 text-white">
+                  <path d="m3 11 19-5-19-5v10Z"></path>
+                  <path d="M21.12 11.22A6 6 0 0 1 22 17v5h-2v-5a4 4 0 0 0-.88-2.78"></path>
+                </svg>
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white tracking-tight">Announcement Management</h1>
+                <p className="text-white/80 text-sm font-medium">Manage and create announcements for the school portal</p>
+                <div className="flex items-center gap-4 mt-2 text-xs text-white/80"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Stats Section */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+          <div className="text-sm text-gray-600 mb-1">Total</div>
+          <div className="text-2xl font-bold text-gray-900">{announcementStats.total}</div>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+          <div className="text-sm text-gray-600 mb-1">Active</div>
+          <div className="text-2xl font-bold text-green-600">{announcementStats.active}</div>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+          <div className="text-sm text-gray-600 mb-1">High Priority</div>
+          <div className="text-2xl font-bold text-red-600">{announcementStats.highPriority}</div>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+          <div className="text-sm text-gray-600 mb-1">Inactive</div>
+          <div className="text-2xl font-bold text-gray-500">{announcementStats.inactive}</div>
+        </div>
       </div>
 
       {/* Controls */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+      <div className="announcement-controls bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
         <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
           {/* Search and Filters */}
           <div className="flex flex-col sm:flex-row gap-4 flex-1">
@@ -285,7 +345,7 @@ const Announcement: React.FC = () => {
           {/* Create Button */}
           <button
             onClick={() => setShowModal(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg flex items-center gap-2 transition-colors duration-200"
+            className="announcement-create-button bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg flex items-center gap-2 transition-colors duration-200"
           >
             <Plus className="w-4 h-4" />
             Create Announcement
@@ -295,17 +355,79 @@ const Announcement: React.FC = () => {
 
       {/* Announcements Grid */}
       {loading ? (
-        <div className="flex justify-center items-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="announcement-skeleton">
+          {/* Header Skeleton */}
+          <div className="mb-8 animate-pulse">
+            <div className="h-8 bg-gray-200 rounded w-80 mb-2"></div>
+            <div className="h-4 bg-gray-200 rounded w-96"></div>
+          </div>
+
+          {/* Controls Skeleton */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6 animate-pulse">
+            <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
+              <div className="flex flex-col sm:flex-row gap-4 flex-1">
+                <div className="h-10 bg-gray-200 rounded-lg flex-1 max-w-md"></div>
+                <div className="h-10 bg-gray-200 rounded-lg w-32"></div>
+                <div className="h-10 bg-gray-200 rounded-lg w-32"></div>
+              </div>
+              <div className="h-10 w-48 bg-gray-200 rounded-lg"></div>
+            </div>
+          </div>
+
+          {/* Stats Skeleton */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 animate-pulse">
+                <div className="h-4 bg-gray-200 rounded w-20 mb-2"></div>
+                <div className="h-6 bg-gray-200 rounded w-12"></div>
+              </div>
+            ))}
+          </div>
+
+          {/* Announcements Grid Skeleton */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[1, 2, 3, 4, 5, 6].map(i => (
+              <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-pulse">
+                <div className="h-48 bg-gray-200"></div>
+                <div className="p-6">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="h-6 bg-gray-200 rounded-full w-16"></div>
+                        <div className="h-6 bg-gray-200 rounded-full w-20"></div>
+                      </div>
+                      <div className="h-5 bg-gray-200 rounded w-full mb-2"></div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="h-4 bg-gray-200 rounded w-24"></div>
+                    <div className="h-4 bg-gray-200 rounded w-20"></div>
+                  </div>
+                  <div className="space-y-2 mb-4">
+                    <div className="h-3 bg-gray-200 rounded w-full"></div>
+                    <div className="h-3 bg-gray-200 rounded w-3/4"></div>
+                    <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                  </div>
+                  <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 bg-gray-200 rounded"></div>
+                      <div className="w-8 h-8 bg-gray-200 rounded"></div>
+                      <div className="w-8 h-8 bg-gray-200 rounded"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="announcement-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredAnnouncements.map((announcement) => (
             <motion.div
               key={announcement.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow duration-200"
+              className="announcement-card bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow duration-200"
             >
               {/* Banner Image */}
               {announcement.image && (
@@ -382,14 +504,14 @@ const Announcement: React.FC = () => {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => handleEdit(announcement)}
-                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200"
+                      className="announcement-action-button p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200"
                       title="Edit"
                     >
                       <Edit className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => toggleAnnouncementStatus(announcement.id, announcement.is_active)}
-                      className={`p-2 rounded-lg transition-colors duration-200 ${
+                      className={`announcement-action-button p-2 rounded-lg transition-colors duration-200 ${
                         announcement.is_active 
                           ? 'text-green-600 hover:bg-green-50' 
                           : 'text-yellow-600 hover:bg-yellow-50'
@@ -400,7 +522,7 @@ const Announcement: React.FC = () => {
                     </button>
                     <button
                       onClick={() => handleDelete(announcement.id)}
-                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200"
+                      className="announcement-action-button p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200"
                       title="Delete"
                     >
                       <Trash2 className="w-4 h-4" />
