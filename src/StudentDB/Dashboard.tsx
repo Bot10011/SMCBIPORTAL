@@ -1,4 +1,4 @@
-import React, { Suspense, useState, useEffect } from 'react';
+import React, { Suspense, useState, useEffect, useMemo, useCallback } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import DashboardLayout from '../components/Sidebar';
 import { StudentGradeViewer } from './StudentGradeViewer';
@@ -17,10 +17,69 @@ import { supabase } from '../lib/supabase';
 import { motion } from 'framer-motion';
 import { toast } from 'react-hot-toast';
 
-// Loading component
+// Enhanced Loading component with skeleton
 const LoadingSpinner = () => (
-  <div className="flex justify-center items-center h-64">
-    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+  <div className="min-h-screen bg-gradient-to-br to-blue-100">
+    <div className="max-w-[1400px] mx-auto space-y-8 sm:space-y-10 p-4">
+      {/* Welcome Section Skeleton */}
+      <div className="relative">
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-50/50 via-transparent to-purple-50/50 rounded-2xl -z-10"></div>
+        <div className="p-6 sm:p-8 md:p-10">
+          <div className="flex flex-col sm:flex-row items-center gap-6 sm:gap-8">
+            {/* Profile Circle Skeleton */}
+            <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-gray-200 animate-pulse"></div>
+            {/* Welcome Text Skeleton */}
+            <div className="flex-1 flex flex-col items-center text-center sm:items-start sm:text-left sm:block">
+              <div className="h-8 w-32 bg-gray-200 rounded animate-pulse mb-2"></div>
+              <div className="h-6 w-48 bg-gray-200 rounded animate-pulse mb-3"></div>
+              <div className="h-4 w-64 bg-gray-200 rounded animate-pulse"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Stats Grid Skeleton */}
+      <div className="grid grid-cols-2 gap-3 sm:gap-6 lg:gap-8">
+        {[1, 2].map(i => (
+          <div key={i} className="bg-gray-100/80 backdrop-blur-sm rounded-xl p-3 sm:p-6 md:p-8 border border-gray-200/50">
+            <div className="flex items-center justify-between">
+              <div className="space-y-2">
+                <div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div>
+                <div className="h-8 w-16 bg-gray-200 rounded animate-pulse"></div>
+                <div className="h-3 w-20 bg-gray-200 rounded animate-pulse"></div>
+              </div>
+              <div className="w-12 h-12 bg-gray-200 rounded-xl animate-pulse"></div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Announcements Skeleton */}
+      <div className="bg-gray-100/80 backdrop-blur-sm rounded-xl border border-gray-200/50 overflow-hidden">
+        <div className="p-5 sm:p-6 md:p-8 border-b border-gray-200/50">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gray-200 rounded-xl animate-pulse"></div>
+            <div className="h-6 w-32 bg-gray-200 rounded animate-pulse"></div>
+          </div>
+        </div>
+        <div className="p-6">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="flex flex-col sm:flex-row items-stretch gap-6 p-6 bg-white rounded-xl shadow-lg border border-gray-200 my-4">
+              <div className="w-full sm:w-40 h-40 bg-gray-200 rounded-lg animate-pulse"></div>
+              <div className="flex-1 space-y-3">
+                <div className="h-6 w-48 bg-gray-200 rounded animate-pulse"></div>
+                <div className="h-4 w-full bg-gray-200 rounded animate-pulse"></div>
+                <div className="h-4 w-3/4 bg-gray-200 rounded animate-pulse"></div>
+                <div className="flex justify-between items-center">
+                  <div className="h-3 w-32 bg-gray-200 rounded animate-pulse"></div>
+                  <div className="h-6 w-20 bg-gray-200 rounded-full animate-pulse"></div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   </div>
 );
 
@@ -67,6 +126,29 @@ const DashboardOverview = () => {
     enrolledCourses: 0,
     gpa: 0
   });
+
+  // Memoized data processing
+  const processedProfile = useMemo(() => {
+    return {
+      fullName: studentName || user?.email?.split('@')[0] || 'Student',
+      initials: studentName ? studentName.split(' ').map(n => n[0]).join('').toUpperCase() : user?.email?.[0].toUpperCase() || '?',
+      hasProfilePicture: !!profilePictureUrl
+    };
+  }, [studentName, user?.email, profilePictureUrl]);
+
+  // Memoized handlers
+  const handleProfileImageError = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
+    const imgElement = e.target as HTMLImageElement;
+    console.error('Error loading profile image:', {
+      url: imgElement.src,
+      error: e,
+      currentSrc: imgElement.currentSrc,
+      complete: imgElement.complete,
+      naturalWidth: imgElement.naturalWidth,
+      naturalHeight: imgElement.naturalHeight
+    });
+    setProfilePictureUrl(null);
+  }, []);
 
   useEffect(() => {
     const fetchStudentProfile = async () => {
@@ -237,29 +319,14 @@ const DashboardOverview = () => {
                       <img 
                         src={profilePictureUrl} 
                         alt="Profile" 
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          const imgElement = e.target as HTMLImageElement;
-                          console.error('Error loading profile image:', {
-                            url: imgElement.src,
-                            error: e,
-                            currentSrc: imgElement.currentSrc,
-                            complete: imgElement.complete,
-                            naturalWidth: imgElement.naturalWidth,
-                            naturalHeight: imgElement.naturalHeight
-                          });
-                          setProfilePictureUrl(null);
-                        }}
+                        className="dashboard-profile-picture w-full h-full object-cover"
+                        onError={handleProfileImageError}
                       />
                       <div className="absolute inset-0 bg-gradient-to-br from-blue-50/20 to-purple-50/20"></div>
                     </>
-                  ) : studentName ? (
-                    <span className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                      {studentName.split(' ').map(n => n[0]).join('').toUpperCase()}
-                    </span>
                   ) : (
                     <span className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                      {user?.email?.[0].toUpperCase() || '?'}
+                      {processedProfile.initials}
                     </span>
                   )}
                 </div>
@@ -272,7 +339,7 @@ const DashboardOverview = () => {
                   <div className="mt-2 sm:mt-0 sm:inline-block">
                     <span className="inline-block px-3 py-1.5 sm:px-0 sm:py-0 sm:ml-2 bg-blue-50 rounded-lg sm:bg-transparent sm:rounded-none">
                       <span className="text-sm sm:text-2xl md:text-3xl font-bold tracking-wide bg-gradient-to-r from-blue-600 to-blue-700 bg-clip-text text-transparent">
-                        {studentName || user?.email?.split('@')[0]}
+                        {processedProfile.fullName}
                       </span>
                     </span>
                   </div>
@@ -291,7 +358,7 @@ const DashboardOverview = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.1 }}
-              className="group relative bg-gray-100/80 backdrop-blur-sm rounded-xl p-3 sm:p-6 md:p-8 border border-gray-200/50 transition-all duration-300 shadow-[inset_4px_4px_8px_rgba(0,0,0,0.1),inset_-4px_-4px_8px_rgba(255,255,255,0.8)] hover:shadow-[inset_6px_6px_12px_rgba(0,0,0,0.12),inset_-6px_-6px_12px_rgba(255,255,255,0.9)]"
+              className="dashboard-stat-card group relative bg-gray-100/80 backdrop-blur-sm rounded-xl p-3 sm:p-6 md:p-8 border border-gray-200/50 transition-all duration-300 shadow-[inset_4px_4px_8px_rgba(0,0,0,0.1),inset_-4px_-4px_8px_rgba(255,255,255,0.8)] hover:shadow-[inset_6px_6px_12px_rgba(0,0,0,0.12),inset_-6px_-6px_12px_rgba(255,255,255,0.9)]"
             >
               <div className="absolute inset-0 bg-gradient-to-br from-blue-50/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-xl"></div>
               <div className="relative flex items-center justify-between">
@@ -313,7 +380,7 @@ const DashboardOverview = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.2 }}
-              className="group relative bg-gray-100/80 backdrop-blur-sm rounded-xl p-3 sm:p-6 md:p-8 border border-gray-200/50 transition-all duration-300 shadow-[inset_4px_4px_8px_rgba(0,0,0,0.1),inset_-4px_-4px_8px_rgba(255,255,255,0.8)] hover:shadow-[inset_6px_6px_12px_rgba(0,0,0,0.12),inset_-6px_-6px_12px_rgba(255,255,255,0.9)]"
+              className="dashboard-stat-card group relative bg-gray-100/80 backdrop-blur-sm rounded-xl p-3 sm:p-6 md:p-8 border border-gray-200/50 transition-all duration-300 shadow-[inset_4px_4px_8px_rgba(0,0,0,0.1),inset_-4px_-4px_8px_rgba(255,255,255,0.8)] hover:shadow-[inset_6px_6px_12px_rgba(0,0,0,0.12),inset_-6px_-6px_12px_rgba(255,255,255,0.9)]"
             >
               <div className="absolute inset-0 bg-gradient-to-br from-green-50/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-xl"></div>
               <div className="relative flex items-center justify-between">
@@ -336,7 +403,7 @@ const DashboardOverview = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.3 }}
-            className="bg-gray-100/80 backdrop-blur-sm rounded-xl border border-gray-200/50 overflow-hidden shadow-[inset_4px_4px_8px_rgba(0,0,0,0.1),inset_-4px_-4px_8px_rgba(255,255,255,0.8)]"
+            className="dashboard-announcements bg-gray-100/80 backdrop-blur-sm rounded-xl border border-gray-200/50 overflow-hidden shadow-[inset_4px_4px_8px_rgba(0,0,0,0.1),inset_-4px_-4px_8px_rgba(255,255,255,0.8)]"
           >
             <div className="p-5 sm:p-6 md:p-8 border-b border-gray-200/50 bg-gradient-to-r from-gray-50/50 to-transparent shadow-[inset_0_2px_4px_rgba(0,0,0,0.05)]">
               <h2 className="text-lg sm:text-xl md:text-2xl font-semibold text-gray-900 flex items-center gap-3">
@@ -360,7 +427,7 @@ const DashboardOverview = () => {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.3, delay: 0.4 + index * 0.1 }}
-                    className="group flex flex-col sm:flex-row items-stretch gap-6 p-6 md:p-8 bg-white rounded-xl shadow-lg border border-gray-200 my-4 mx-2 sm:mx-4 hover:shadow-xl transition-all duration-200"
+                    className="dashboard-announcement-item group flex flex-col sm:flex-row items-stretch gap-6 p-6 md:p-8 bg-white rounded-xl shadow-lg border border-gray-200 my-4 mx-2 sm:mx-4 hover:shadow-xl transition-all duration-200"
                   >
                     {/* Image section */}
                     {announcement.image && (
@@ -423,6 +490,54 @@ const StudentDashboard: React.FC = () => {
   const [courseImages, setCourseImages] = useState<{ [subjectId: string]: string }>({});
   const [teacherImageUrls, setTeacherImageUrls] = useState<{ [teacherId: string]: string }>({});
   const [loadingMyCourse, setLoadingMyCourse] = useState(true);
+
+  // Memoized data processing
+  const processedEnrollments = useMemo(() => {
+    return enrollmentsWithTeacher.map(enrollment => ({
+      ...enrollment,
+      hasCourseImage: !!courseImages[enrollment.subject_id],
+      hasTeacherImage: enrollment.teacher?.id && !!teacherImageUrls[enrollment.teacher.id]
+    }));
+  }, [enrollmentsWithTeacher, courseImages, teacherImageUrls]);
+
+  // Memoized handlers
+  const handlePasswordChange = useCallback(async () => {
+    if (newPassword !== confirmPassword) {
+      toast.error('Passwords do not match');
+      return;
+    }
+    if (newPassword === 'TempPass@123') {
+      toast.error('Please choose a password different from the default.');
+      return;
+    }
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      
+      // Update the user profile to mark password as changed
+      if (user) {
+        const { error: profileError } = await supabase
+          .from('user_profiles')
+          .update({ 
+            password_changed: true,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', user.id);
+        
+        if (profileError) {
+          console.error('Failed to update profile:', profileError);
+        }
+      }
+      
+      toast.success('Password updated! Please log in again.');
+      setShowChangePassModal(false);
+      await supabase.auth.signOut();
+      window.location.reload();
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update password';
+      toast.error(errorMessage);
+    }
+  }, [newPassword, confirmPassword, user]);
 
   // Types for centralized data fetching
   interface Teacher {
@@ -674,43 +789,7 @@ const StudentDashboard: React.FC = () => {
               newPassword !== confirmPassword ||
               newPassword === 'TempPass@123'
             }
-            onClick={async () => {
-              if (newPassword !== confirmPassword) {
-                toast.error('Passwords do not match');
-                return;
-              }
-              if (newPassword === 'TempPass@123') {
-                toast.error('Please choose a password different from the default.');
-                return;
-              }
-              try {
-                const { error } = await supabase.auth.updateUser({ password: newPassword });
-                if (error) throw error;
-                
-                // Update the user profile to mark password as changed
-                if (user) {
-                  const { error: profileError } = await supabase
-                    .from('user_profiles')
-                    .update({ 
-                      password_changed: true,
-                      updated_at: new Date().toISOString()
-                    })
-                    .eq('id', user.id);
-                  
-                  if (profileError) {
-                    console.error('Failed to update profile:', profileError);
-                  }
-                }
-                
-                toast.success('Password updated! Please log in again.');
-                setShowChangePassModal(false);
-                await supabase.auth.signOut();
-                window.location.reload();
-              } catch (err: unknown) {
-                const errorMessage = err instanceof Error ? err.message : 'Failed to update password';
-                toast.error(errorMessage);
-              }
-            }}
+            onClick={handlePasswordChange}
           >
             Change Password
           </button>
@@ -727,7 +806,7 @@ const StudentDashboard: React.FC = () => {
             <Route path="/" element={<DashboardOverview />} />
             <Route path="/course" element={
               <MyCourse
-                enrollments={enrollmentsWithTeacher}
+                enrollments={processedEnrollments}
                 courseImages={courseImages}
                 teacherImageUrls={teacherImageUrls}
                 loading={loadingMyCourse}
@@ -738,7 +817,7 @@ const StudentDashboard: React.FC = () => {
             <Route path="/coe" element={<CertificateOfEnrollment />} />
             <Route path="/prospectus" element={<Prospectus />} />
             <Route path="/receipt-permit" element={<ReceiptPermit />} />
-            <Route path="*" element={<Navigate to="/student/dashboard" replace />} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </Suspense>
       </ErrorBoundary>
