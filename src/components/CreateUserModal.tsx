@@ -4,6 +4,7 @@ import { X, UserPlus, Loader2, ChevronLeft, ChevronRight, CheckCircle2, Check, A
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
 import { sanitizeTextInput } from '../utils/validation';
+import { createPortal } from 'react-dom';
 
 interface Program {
   id: number;
@@ -199,6 +200,57 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
   // Add state for confirmation dialog
   const [showConfirmation, setShowConfirmation] = useState(false);
 
+  // Reset form function
+  const resetForm = () => {
+    setForm({
+      email: '',
+      role: 'student',
+      first_name: '',
+      middle_name: '',
+      last_name: '',
+      suffix: '',
+      is_active: true,
+      department: '',
+      program_id: '',
+      student_id: '',
+      year_level: '',
+      student_type: '',
+      enrollment_status: '',
+      section: '',
+      school_year: '',
+      semester: '',
+      gender: '',
+      birthdate: '',
+      phone: '',
+      address: '',
+      emergency_contact_name: '',
+      emergency_contact_relationship: '',
+      emergency_contact_phone: '',
+      password: 'TempPass@123',
+    });
+    setStep(0);
+    setEmailStatus('idle');
+    setPhoneError('');
+    setEmergencyPhoneError('');
+    setPhoneTouched(false);
+    setShowConfirmation(false);
+  };
+
+  // Manage body scroll when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.classList.add('modal-open');
+    } else {
+      document.body.classList.remove('modal-open');
+      // Reset form when modal is closed
+      resetForm();
+    }
+
+    return () => {
+      document.body.classList.remove('modal-open');
+    };
+  }, [isOpen]);
+
   // Fetch programs and departments on mount
   useEffect(() => {
     fetchPrograms();
@@ -278,7 +330,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
 
   // Update the email input field to show validation status
   const getEmailInputClasses = () => {
-    const baseClasses = "w-full border rounded-lg px-3 py-2 mt-1 pr-24";
+    const baseClasses = "w-full border-2 rounded-lg px-3 py-2 mt-1 pr-24 bg-white shadow-sm";
     switch (emailStatus) {
       case 'invalid':
         return `${baseClasses} border-red-500 bg-red-50`;
@@ -287,7 +339,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
       case 'checking':
         return `${baseClasses} border-blue-500 bg-blue-50`;
       default:
-        return `${baseClasses} border-gray-300`;
+        return `${baseClasses} border-gray-500`;
     }
   };
 
@@ -454,13 +506,17 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
           .eq('student_id', form.student_id);
 
         if (idError) {
-          console.error('Error checking student ID:', idError);
-          throw idError;
+                  toast.error('Error checking student ID.');
+        setCreating(false);
+        resetForm();
+        if (onUserCreated) onUserCreated(); else onClose();
+        return;
         }
 
         if (idCount && idCount > 0) {
           toast.error('Student ID already exists. Please try again.');
           await generateStudentId();
+          setCreating(false);
           return;
         }
 
@@ -471,12 +527,16 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
           .ilike('email', `${form.email.toLowerCase()}@smcbi.edu.ph`);
 
         if (emailError) {
-          console.error('Error checking email:', emailError);
-          throw emailError;
+                  toast.error('Error checking email.');
+        setCreating(false);
+        resetForm();
+        if (onUserCreated) onUserCreated(); else onClose();
+        return;
         }
 
         if (emailCount && emailCount > 0) {
           toast.error('Email already exists. Please choose a different email.');
+          setCreating(false);
           return;
         }
       }
@@ -495,7 +555,13 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
         }
       });
 
-      if (authError) throw authError;
+      if (authError) {
+              toast.error(authError.message || 'Error creating auth user.');
+      setCreating(false);
+      resetForm();
+      if (onUserCreated) onUserCreated(); else onClose();
+      return;
+      }
 
       // Prepare the user profile object with proper typing
       const userProfile: UserProfile = {
@@ -539,15 +605,24 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
         .from('user_profiles')
         .insert([userProfile]);
 
-      if (profileError) throw profileError;
+      if (profileError) {
+        toast.error(profileError.message || 'Error saving user profile.');
+        setCreating(false);
+        resetForm();
+        if (onUserCreated) onUserCreated(); else onClose();
+        return;
+      }
 
       toast.success('User created successfully.');
+      resetForm();
       if (onUserCreated) onUserCreated();
       else onClose();
     } catch (error: unknown) {
       console.error('Error creating user:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to create user';
       toast.error(errorMessage);
+      resetForm();
+      if (onUserCreated) onUserCreated(); else onClose();
     } finally {
       setCreating(false);
     }
@@ -608,19 +683,18 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
 
   // Get max step based on role
   const getMaxStep = () => {
-    return form.role === 'student' ? 4 : 1;
+    return form.role === 'student' ? 4 : 2;
   };
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <AnimatePresence>
       <motion.div 
         initial={{ opacity: 0 }} 
         animate={{ opacity: 1 }} 
         exit={{ opacity: 0 }} 
-        className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/5"
-        style={{ backdropFilter: 'blur(8px)' }}
+        className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-md"
       >
         <motion.div 
           initial={{ scale: 0.95, opacity: 0 }} 
@@ -640,25 +714,113 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
           </div>
 
           {/* Progress Steps */}
-          <div className="px-6 pt-4 pb-2 border-b border-gray-200">
-            <div className="flex items-center gap-2 overflow-x-auto pb-2">
+          <div className="px-6 pt-3 pb-2 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+            <div className="flex items-center justify-between overflow-x-auto pb-2 gap-2">
               {steps.map((label, i) => (
                 <React.Fragment key={label}>
-                  <div className={`flex items-center gap-2 min-w-fit ${i === step ? 'text-blue-600' : 'text-gray-400'}`}>
-                    {i < step ? (
-                      <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center">
-                        <CheckCircle2 className="w-4 h-4 text-blue-600" />
-                      </div>
-                    ) : (
-                      <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs
-                        ${i === step ? 'border-blue-600 text-blue-600' : 'border-gray-300'}`}>
-                        {i + 1}
-                      </div>
-                    )}
-                    <span className="text-sm font-medium">{label}</span>
-                  </div>
+                  <motion.div 
+                    className={`flex flex-col items-center gap-1 min-w-fit cursor-pointer transition-all duration-300 ${
+                      i === step ? 'text-blue-600 scale-102' : 
+                      i < step ? 'text-green-600' : 'text-gray-400'
+                    }`}
+                    onClick={() => i <= step && setStep(i)}
+                    whileHover={{ scale: i <= step ? 1.01 : 1 }}
+                    whileTap={{ scale: i <= step ? 0.99 : 1 }}
+                  >
+                    <motion.div 
+                      className={`relative w-6 h-6 rounded-full flex items-center justify-center shadow-sm transition-all duration-300 ${
+                        i < step 
+                          ? 'bg-gradient-to-br from-green-500 to-green-600 shadow-green-500/20' 
+                          : i === step 
+                            ? 'bg-gradient-to-br from-blue-500 to-blue-600 shadow-blue-500/20 border border-white' 
+                            : 'bg-white border border-gray-300 shadow-gray-100'
+                      }`}
+                      initial={{ scale: 0.8, opacity: 0 }}
+                      animate={{ 
+                        scale: i === step ? 1.02 : 1, 
+                        opacity: 1,
+                        y: i === step ? -0.5 : 0
+                      }}
+                      transition={{ 
+                        type: "spring", 
+                        stiffness: 300, 
+                        damping: 20,
+                        delay: i * 0.1 
+                      }}
+                    >
+                      {i < step ? (
+                        <motion.div
+                          initial={{ scale: 0, rotate: -180 }}
+                          animate={{ scale: 1, rotate: 0 }}
+                          transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                        >
+                          <CheckCircle2 className="w-3 h-3 text-white" />
+                        </motion.div>
+                      ) : (
+                        <span className={`text-[10px] font-bold ${
+                          i === step ? 'text-white' : 'text-gray-500'
+                        }`}>
+                          {i + 1}
+                        </span>
+                      )}
+                      
+                      {/* Active step indicator */}
+                      {i === step && (
+                        <motion.div
+                          className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-blue-600 rounded-full border border-white"
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          transition={{ type: "spring", stiffness: 400, damping: 20 }}
+                        />
+                      )}
+                    </motion.div>
+                    
+                    <motion.div 
+                      className="text-center"
+                      initial={{ opacity: 0, y: 3 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.1 + 0.2 }}
+                    >
+                      <span className={`text-[8px] font-semibold block ${
+                        i === step ? 'text-blue-700' : 
+                        i < step ? 'text-green-700' : 'text-gray-500'
+                      }`}>
+                        Step {i + 1}
+                      </span>
+                      <span className={`text-[8px] font-medium mt-0.5 block max-w-12 leading-tight ${
+                        i === step ? 'text-blue-600' : 
+                        i < step ? 'text-green-600' : 'text-gray-400'
+                      }`}>
+                        {label}
+                      </span>
+                    </motion.div>
+                  </motion.div>
+                  
+                  {/* Progress line */}
                   {i < steps.length - 1 && (
-                    <div className="w-8 h-0.5 bg-gray-200" />
+                    <motion.div 
+                      className="flex-1 h-0.5 bg-gray-200 rounded-full relative overflow-hidden"
+                      initial={{ scaleX: 0 }}
+                      animate={{ scaleX: 1 }}
+                      transition={{ delay: i * 0.1 + 0.3, duration: 0.5 }}
+                    >
+                      <motion.div 
+                        className={`absolute top-0 left-0 h-full rounded-full transition-all duration-500 ${
+                          i < step 
+                            ? 'bg-gradient-to-r from-green-500 to-green-600 w-full' 
+                            : 'bg-gradient-to-r from-blue-500 to-blue-600'
+                        }`}
+                        initial={{ width: 0 }}
+                        animate={{ 
+                          width: i < step ? '100%' : i === step ? '50%' : '0%' 
+                        }}
+                        transition={{ 
+                          duration: 0.8, 
+                          delay: i * 0.1 + 0.4,
+                          ease: "easeInOut"
+                        }}
+                      />
+                    </motion.div>
                   )}
                 </React.Fragment>
               ))}
@@ -682,7 +844,8 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
                     <div className="text-center">
                       <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
                       <select
-                        className="w-full max-w-xs mx-auto border rounded-lg px-3 py-2 text-center appearance-none bg-white"
+                        className="w-full max-w-xs mx-auto border-2 border-gray-500 rounded-lg px-3 py-2 text-center appearance-none bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200 shadow-sm"
+                        style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
                         value={form.role}
                         onChange={e => setForm(prev => ({ ...prev, role: e.target.value as CreateUserForm['role'] }))}
                         required
@@ -710,9 +873,10 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
                           Department <span className="text-red-500">*</span>
                         </label>
                         <select
-                          className={`w-full max-w-xs mx-auto border rounded-lg px-3 py-2 text-center appearance-none bg-white ${
-                            form.department ? 'border-green-500 bg-green-50' : 'border-gray-300'
+                          className={`w-full max-w-xs mx-auto border-2 rounded-lg px-3 py-2 text-center appearance-none bg-white shadow-sm ${
+                            form.department ? 'border-green-500 bg-green-50' : 'border-gray-500'
                           } ${isLoadingDepartments ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: form.department ? '#10b981' : '#6b7280 !important' }}
                           value={form.department}
                           onChange={e => setForm(prev => ({ ...prev, department: e.target.value }))}
                           required
@@ -736,7 +900,8 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
                       <div className="relative">
                         <input
                           type="text"
-                          className={getEmailInputClasses()}
+                          className={`${getEmailInputClasses()} border-2 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200`}
+                          style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: emailStatus === 'valid' ? '#10b981' : emailStatus === 'invalid' ? '#ef4444' : emailStatus === 'checking' ? '#3b82f6' : '#6b7280 !important' }}
                           value={form.email}
                           onChange={e => {
                             const value = e.target.value.replace(/@.*$/, '');
@@ -781,7 +946,8 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
                         <label className="block text-sm font-medium text-gray-700">First Name</label>
                         <input
                           type="text"
-                          className="w-full border rounded-lg px-3 py-2 mt-1"
+                          className="w-full border-2 border-gray-500 rounded-lg px-3 py-2 mt-1 bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200 shadow-sm text-gray-500"
+                          style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
                           value={form.first_name}
                           onChange={e => setForm(prev => ({ ...prev, first_name: sanitizeTextInput(e.target.value) }))}
                           required
@@ -791,7 +957,8 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
                         <label className="block text-sm font-medium text-gray-700">Last Name</label>
                         <input
                           type="text"
-                          className="w-full border rounded-lg px-3 py-2 mt-1"
+                          className="w-full border-2 border-gray-500 rounded-lg px-3 py-2 mt-1 bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200 shadow-sm text-gray-500"
+                          style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
                           value={form.last_name}
                           onChange={e => setForm(prev => ({ ...prev, last_name: sanitizeTextInput(e.target.value) }))}
                           required
@@ -801,7 +968,8 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
                         <label className="block text-sm font-medium text-gray-700">Middle Name</label>
                         <input
                           type="text"
-                          className="w-full border rounded-lg px-3 py-2 mt-1"
+                          className="w-full border-2 border-gray-500 rounded-lg px-3 py-2 mt-1 bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200 shadow-sm text-gray-500"
+                          style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
                           value={form.middle_name}
                           onChange={e => setForm(prev => ({ ...prev, middle_name: sanitizeTextInput(e.target.value) }))}
                         />
@@ -810,7 +978,8 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
                         <label className="block text-sm font-medium text-gray-700">Suffix</label>
                         <input
                           type="text"
-                          className="w-full border rounded-lg px-3 py-2 mt-1"
+                          className="w-full border-2 border-gray-500 rounded-lg px-3 py-2 mt-1 bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200 shadow-sm text-gray-500"
+                          style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
                           value={form.suffix}
                           onChange={e => setForm(prev => ({ ...prev, suffix: e.target.value }))}
                           placeholder="e.g., Jr., Sr., III"
@@ -823,7 +992,8 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
                       <label className="block text-sm font-medium text-gray-700">Password</label>
                       <input
                         type="text"
-                        className="w-full border rounded-lg px-3 py-2 mt-1 bg-gray-100 text-gray-500 cursor-not-allowed"
+                        className="w-full border-2 border-gray-500 rounded-lg px-3 py-2 mt-1 bg-gray-100 text-gray-500 cursor-not-allowed focus:border-gray-600 focus:ring-2 focus:ring-gray-600/20 transition-all duration-200 shadow-sm"
+                        style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
                         value={form.password}
                         readOnly
                         disabled
@@ -852,7 +1022,8 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
                           <div className="relative">
                             <input
                               type="text"
-                              className="w-full border rounded-lg px-3 py-2 bg-white font-mono text-center text-sm"
+                              className="w-full border-2 border-gray-500 rounded-lg px-3 py-2 bg-white font-mono text-center text-sm shadow-sm"
+                              style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
                               value={form.student_id || ''}
                               readOnly
                               placeholder={isGeneratingId ? "Generating..." : "Loading..."}
@@ -869,7 +1040,8 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
                         <select
-                          className="w-full border rounded-lg px-3 py-2 text-sm"
+                          className="w-full border-2 border-gray-500 rounded-lg px-3 py-2 text-sm bg-white shadow-sm text-gray-500"
+                          style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
                           value={form.gender}
                           onChange={e => setForm(prev => ({ ...prev, gender: e.target.value }))}
                           required
@@ -887,7 +1059,8 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
                         <label className="block text-sm font-medium text-gray-700 mb-1">Birthdate</label>
                         <input
                           type="date"
-                          className="w-full border rounded-lg px-3 py-2 text-sm"
+                          className="w-full border-2 border-gray-500 rounded-lg px-3 py-2 text-sm bg-white shadow-sm text-gray-500"
+                          style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
                           value={form.birthdate}
                           onChange={e => setForm(prev => ({ ...prev, birthdate: e.target.value }))}
                           required
@@ -898,9 +1071,10 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
                         <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
                         <input
                           type="tel"
-                          className={`w-full border rounded-lg px-3 py-2 text-sm ${
-                            phoneTouched && phoneError ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                          className={`w-full border-2 rounded-lg px-3 py-2 text-sm bg-white shadow-sm text-gray-500 ${
+                            phoneTouched && phoneError ? 'border-red-500 bg-red-50' : 'border-gray-500'
                           }`}
+                          style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: phoneTouched && phoneError ? '#ef4444' : '#6b7280 !important' }}
                           value={form.phone}
                           onChange={handlePhoneChange}
                           onBlur={handlePhoneBlur}
@@ -915,7 +1089,8 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
                       <div className="col-span-2">
                         <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
                         <textarea
-                          className="w-full border rounded-lg px-3 py-2 text-sm"
+                          className="w-full border-2 border-gray-500 rounded-lg px-3 py-2 text-sm bg-white shadow-sm text-gray-500"
+                          style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
                           value={form.address}
                           onChange={e => setForm(prev => ({ ...prev, address: e.target.value }))}
                           rows={2}
@@ -942,9 +1117,10 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
                           Program <span className="text-red-500">*</span>
                         </label>
                         <select
-                          className={`w-full border rounded-lg px-3 py-2 text-sm ${
-                            form.program_id ? 'border-green-500 bg-green-50' : 'border-gray-300'
+                          className={`w-full border-2 rounded-lg px-3 py-2 text-sm bg-white shadow-sm text-gray-500 ${
+                            form.program_id ? 'border-green-500 bg-green-50' : 'border-gray-500'
                           }`}
+                          style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: form.program_id ? '#10b981' : '#6b7280 !important' }}
                           value={form.program_id}
                           onChange={e => setForm(prev => ({ ...prev, program_id: e.target.value }))}
                           required
@@ -963,9 +1139,10 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
                           Year Level <span className="text-red-500">*</span>
                         </label>
                         <select
-                          className={`w-full border rounded-lg px-3 py-2 text-sm ${
-                            form.year_level ? 'border-green-500 bg-green-50' : 'border-gray-300'
+                          className={`w-full border-2 rounded-lg px-3 py-2 text-sm bg-white shadow-sm text-gray-500 ${
+                            form.year_level ? 'border-green-500 bg-green-50' : 'border-gray-500'
                           }`}
+                          style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: form.year_level ? '#10b981' : '#6b7280 !important' }}
                           value={form.year_level}
                           onChange={e => setForm(prev => ({ ...prev, year_level: e.target.value }))}
                           required
@@ -984,9 +1161,10 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
                           Student Type <span className="text-red-500">*</span>
                         </label>
                         <select
-                          className={`w-full border rounded-lg px-3 py-2 text-sm ${
-                            form.student_type ? 'border-green-500 bg-green-50' : 'border-gray-300'
+                          className={`w-full border-2 rounded-lg px-3 py-2 text-sm bg-white shadow-sm text-gray-500 ${
+                            form.student_type ? 'border-green-500 bg-green-50' : 'border-gray-500'
                           }`}
+                          style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: form.student_type ? '#10b981' : '#6b7280 !important' }}
                           value={form.student_type}
                           onChange={e => setForm(prev => ({ ...prev, student_type: e.target.value }))}
                           required
@@ -1005,9 +1183,10 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
                           Enrollment Status <span className="text-red-500">*</span>
                         </label>
                         <select
-                          className={`w-full border rounded-lg px-3 py-2 text-sm ${
-                            form.enrollment_status ? 'border-green-500 bg-green-50' : 'border-gray-300'
+                          className={`w-full border-2 rounded-lg px-3 py-2 text-sm bg-white shadow-sm text-gray-500 ${
+                            form.enrollment_status ? 'border-green-500 bg-green-50' : 'border-gray-500'
                           }`}
+                          style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: form.enrollment_status ? '#10b981' : '#6b7280 !important' }}
                           value={form.enrollment_status}
                           onChange={e => setForm(prev => ({ ...prev, enrollment_status: e.target.value }))}
                           required
@@ -1026,9 +1205,10 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
                           Section <span className="text-red-500">*</span>
                         </label>
                         <select
-                          className={`w-full border rounded-lg px-3 py-2 text-sm ${
-                            form.section ? 'border-green-500 bg-green-50' : 'border-gray-300'
+                          className={`w-full border-2 rounded-lg px-3 py-2 text-sm bg-white shadow-sm text-gray-500 ${
+                            form.section ? 'border-green-500 bg-green-50' : 'border-gray-500'
                           }`}
+                          style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: form.section ? '#10b981' : '#6b7280 !important' }}
                           value={form.section}
                           onChange={e => setForm(prev => ({ ...prev, section: e.target.value }))}
                           required
@@ -1047,9 +1227,10 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
                           Semester <span className="text-red-500">*</span>
                         </label>
                         <select
-                          className={`w-full border rounded-lg px-3 py-2 text-sm ${
-                            form.semester ? 'border-green-500 bg-green-50' : 'border-gray-300'
+                          className={`w-full border-2 rounded-lg px-3 py-2 text-sm bg-white shadow-sm text-gray-500 ${
+                            form.semester ? 'border-green-500 bg-green-50' : 'border-gray-500'
                           }`}
+                          style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: form.semester ? '#10b981' : '#6b7280 !important' }}
                           value={form.semester}
                           onChange={e => setForm(prev => ({ ...prev, semester: e.target.value }))}
                           required
@@ -1068,9 +1249,10 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
                           School Year <span className="text-red-500">*</span>
                         </label>
                         <select
-                          className={`w-full border rounded-lg px-3 py-2 text-sm ${
-                            form.school_year ? 'border-green-500 bg-green-50' : 'border-gray-300'
+                          className={`w-full border-2 rounded-lg px-3 py-2 text-sm bg-white shadow-sm text-gray-500 ${
+                            form.school_year ? 'border-green-500 bg-green-50' : 'border-gray-500'
                           }`}
+                          style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: form.school_year ? '#10b981' : '#6b7280 !important' }}
                           value={form.school_year}
                           onChange={e => setForm(prev => ({ ...prev, school_year: e.target.value }))}
                           required
@@ -1103,9 +1285,10 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
                       </label>
                       <input
                         type="text"
-                        className={`w-full border rounded-lg px-3 py-2 mt-1 ${
-                          form.emergency_contact_name ? 'border-green-500 bg-green-50' : 'border-gray-300'
+                        className={`w-full border-2 rounded-lg px-3 py-2 mt-1 bg-white shadow-sm text-gray-500 ${
+                          form.emergency_contact_name ? 'border-green-500 bg-green-50' : 'border-gray-500'
                         }`}
+                        style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: form.emergency_contact_name ? '#10b981' : '#6b7280 !important' }}
                         value={form.emergency_contact_name}
                         onChange={e => setForm(prev => ({ ...prev, emergency_contact_name: e.target.value }))}
                         required
@@ -1118,9 +1301,10 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
                       </label>
                       <input
                         type="text"
-                        className={`w-full border rounded-lg px-3 py-2 mt-1 ${
-                          form.emergency_contact_relationship ? 'border-green-500 bg-green-50' : 'border-gray-300'
+                        className={`w-full border-2 rounded-lg px-3 py-2 mt-1 bg-white shadow-sm text-gray-500 ${
+                          form.emergency_contact_relationship ? 'border-green-500 bg-green-50' : 'border-gray-500'
                         }`}
+                        style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: form.emergency_contact_relationship ? '#10b981' : '#6b7280 !important' }}
                         value={form.emergency_contact_relationship}
                         onChange={e => setForm(prev => ({ ...prev, emergency_contact_relationship: e.target.value }))}
                         placeholder="e.g., Parent, Sibling, Guardian"
@@ -1134,13 +1318,14 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
                       </label>
                       <input
                         type="tel"
-                        className={`w-full border rounded-lg px-3 py-2 mt-1 ${
+                        className={`w-full border-2 rounded-lg px-3 py-2 mt-1 bg-white shadow-sm text-gray-500 ${
                           form.emergency_contact_phone && !emergencyPhoneError 
                             ? 'border-green-500 bg-green-50' 
                             : emergencyPhoneError 
                               ? 'border-red-500 bg-red-50' 
-                              : 'border-gray-300'
+                              : 'border-gray-500'
                         }`}
+                        style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: form.emergency_contact_phone && !emergencyPhoneError ? '#10b981' : emergencyPhoneError ? '#ef4444' : '#6b7280 !important' }}
                         value={form.emergency_contact_phone}
                         onChange={handleEmergencyPhoneChange}
                         
@@ -1154,8 +1339,8 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
                   </motion.div>
                 )}
 
-                {/* Step 5: Review (for students) or Step 2: Review (for others) */}
-                {((form.role === 'student' && step === 4) || (form.role !== 'student' && step === 1)) && (
+                {/* Step 5: Review (for students) or Step 3: Review (for others) */}
+                {((form.role === 'student' && step === 4) || (form.role !== 'student' && step === 2)) && (
                   <motion.div
                     key="review"
                     initial={{ opacity: 0, scale: 0.95 }}
@@ -1293,12 +1478,11 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
               </AnimatePresence>
 
               {/* Confirmation Dialog */}
-              {showConfirmation && (
+              {showConfirmation && createPortal(
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="fixed inset-0 bg-black/50 flex items-center justify-center z-[10001]"
-                  style={{ backdropFilter: 'blur(4px)' }}
+                  className="fixed inset-0 bg-black/50 backdrop-blur-md flex items-center justify-center z-[10001]"
                 >
                   <motion.div
                     initial={{ scale: 0.95, opacity: 0 }}
@@ -1337,7 +1521,8 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
                       </button>
                     </div>
                   </motion.div>
-                </motion.div>
+                </motion.div>,
+                document.body
               )}
 
               {/* Navigation Buttons */}
@@ -1398,7 +1583,8 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
           </div>
         </motion.div>
       </motion.div>
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 };
 
