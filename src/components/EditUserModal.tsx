@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { X, Loader2, RefreshCw } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useModal } from '../contexts/ModalContext';
 import toast from 'react-hot-toast';
 import ConfirmationDialog from './ConfirmationDialog';
 import { sanitizeTextInput } from '../utils/validation';
-import axios from 'axios';
+
 import { AnimatePresence, motion } from 'framer-motion';
 
 interface UserProfile {
@@ -29,7 +29,16 @@ interface UserProfile {
   birthdate?: string;
   phone?: string;
   address?: string;
-  email?: string; // Added email to interface
+  email?: string;
+  emergency_contact_name?: string;
+  emergency_contact_relationship?: string;
+  emergency_contact_phone?: string;
+  student_status?: string;
+  profile_picture_url?: string;
+  created_by?: string;
+  created_at?: string;
+  updated_at?: string;
+  password_changed?: boolean;
 }
 
 interface Program {
@@ -50,8 +59,6 @@ export default function EditUserModal() {
   const [isGeneratingId, setIsGeneratingId] = useState(false);
   const [authEmail, setAuthEmail] = useState<string>('');
   const [emailInput, setEmailInput] = useState<string>('');
-  const [emailSaving, setEmailSaving] = useState(false);
-  const [emailError, setEmailError] = useState<string | null>(null);
   // Removed editing state for auth email
 
   useEffect(() => {
@@ -182,7 +189,7 @@ export default function EditUserModal() {
 
     try {
       setSaving(true);
-      setEmailError(null);
+  
       
       // Update user profile in database (excluding email field)
       const { error: profileError } = await supabase
@@ -192,40 +199,7 @@ export default function EditUserModal() {
 
       if (profileError) throw profileError;
 
-      // If email was changed, call the internal API route
-      if (emailInput !== authEmail) {
-        setEmailSaving(true);
-        try {
-          const response = await axios.post('https://api-topaz-one-89.vercel.app/', {
-            userId: selectedUserId,
-            newEmail: emailInput,
-          }, {
-            headers: {
-              'Content-Type': 'application/json',
-            },
-          });
-          if (response.data.success) {
-            setAuthEmail(emailInput);
-            toast.success('Email updated successfully.');
-          } else {
-            throw new Error(response.data.error || 'Unknown error');
-          }
-        } catch (err: unknown) {
-          let errorMsg = 'Failed to update email';
-          if (axios.isAxiosError(err)) {
-            errorMsg = err.response?.data?.error || err.message || errorMsg;
-          } else if (err instanceof Error) {
-            errorMsg = err.message;
-          }
-          setEmailError(errorMsg);
-          toast.error('Failed to update email');
-          setSaving(false);
-          setEmailSaving(false);
-          return;
-        } finally {
-          setEmailSaving(false);
-        }
-      }
+
 
       toast.success('User profile updated successfully.');
       setShowEditUserModal(false);
@@ -273,13 +247,22 @@ export default function EditUserModal() {
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b">
-              <h2 className="text-xl font-semibold text-gray-800">Edit User</h2>
+            <div className="relative p-6 border-b">
+              <div className="flex flex-col items-center justify-center">
+                <h2 className="text-xl font-semibold text-gray-800">Edit User</h2>
+                {user && (
+                  <p className="text-sm text-gray-500 mt-1">
+                    Role: <span className="font-medium text-blue-600 capitalize">{user.role}</span>
+                  </p>
+                )}
+              </div>
               <button
                 onClick={() => setShowEditUserModal(false)}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                className="absolute w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center text-lg sm:text-xl font-bold text-white bg-red-500 hover:bg-red-600 rounded-full shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 animate-pop-in hover:scale-110 hover:rotate-90 top-2 right-2 sm:top-3 sm:right-3"
+                aria-label="Close modal"
+                style={{ backgroundColor: 'rgb(239, 68, 68)', boxShadow: 'rgba(239, 68, 68, 0.3) 0px 2px 8px', zIndex: 50 }}
               >
-                <X className="w-5 h-5 text-gray-500" />
+                ×
               </button>
             </div>
 
@@ -291,174 +274,419 @@ export default function EditUserModal() {
                 </div>
               ) : user ? (
                 <form onSubmit={handleSubmit} className="space-y-6">
-                  {/* Basic Information */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        First Name
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.first_name || ''}
-                        onChange={(e) => setFormData({ ...formData, first_name: sanitizeTextInput(e.target.value) })}
-                        className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Middle Name
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.middle_name || ''}
-                        onChange={(e) => setFormData({ ...formData, middle_name: sanitizeTextInput(e.target.value) })}
-                        className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Last Name
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.last_name || ''}
-                        onChange={(e) => setFormData({ ...formData, last_name: sanitizeTextInput(e.target.value) })}
-                        className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Suffix
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.suffix || ''}
-                        onChange={(e) => setFormData({ ...formData, suffix: e.target.value })}
-                        className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Contact Information */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Phone
-                      </label>
-                      <input
-                        type="tel"
-                        value={formData.phone || ''}
-                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                        className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </div>
-                    <div>
-                      {/* Authentication Email Info */}
-                      <div className="mb-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Email
-                        </label>
-                        <input
-                          type="email"
-                          value={emailInput}
-                          onChange={e => setEmailInput(e.target.value)}
-                          className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          placeholder="user@email.com"
-                          disabled={emailSaving}
-                        />
-                        {emailError && <div className="text-red-500 text-xs mt-1">{emailError}</div>}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Role-specific fields */}
-                  {user.role === 'student' && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Student ID
-                        </label>
-                        <div className="flex gap-2">
+                  {/* Personal Information */}
+                  <div className="space-y-6">
+                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-200">
+                      <h3 className="text-lg font-semibold text-blue-800 mb-4 flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-user">
+                          <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+                          <circle cx="12" cy="7" r="4"></circle>
+                        </svg>
+                        Personal Information
+                      </h3>
+                    
+                      {/* Name Fields in Single Line */}
+                      <div className="grid grid-cols-4 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-600 mb-1">
+                            First Name
+                          </label>
                           <input
                             type="text"
-                            value={formData.student_id || ''}
-                            onChange={(e) => setFormData({ ...formData, student_id: e.target.value })}
-                            className="flex-1 px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            placeholder="C-YY####"
+                            value={formData.first_name || ''}
+                            onChange={(e) => setFormData({ ...formData, first_name: sanitizeTextInput(e.target.value) })}
+                            className="w-full px-4 py-2 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
+                            style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
                           />
-                          <button
-                            type="button"
-                            onClick={generateStudentId}
-                            disabled={isGeneratingId}
-                            className="px-3 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-                          >
-                            {isGeneratingId ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                              <RefreshCw className="w-4 h-4" />
-                            )}
-                          </button>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-600 mb-1">
+                            Middle Name
+                          </label>
+                          <input
+                            type="text"
+                            value={formData.middle_name || ''}
+                            onChange={(e) => setFormData({ ...formData, middle_name: sanitizeTextInput(e.target.value) })}
+                            className="w-full px-4 py-2 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
+                            style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-600 mb-1">
+                            Last Name
+                          </label>
+                          <input
+                            type="text"
+                            value={formData.last_name || ''}
+                            onChange={(e) => setFormData({ ...formData, last_name: sanitizeTextInput(e.target.value) })}
+                            className="w-full px-4 py-2 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
+                            style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-600 mb-1">
+                            Suffix
+                          </label>
+                          <input
+                            type="text"
+                            value={formData.suffix || ''}
+                            onChange={(e) => setFormData({ ...formData, suffix: e.target.value })}
+                            className="w-full px-4 py-2 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
+                            style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
+                            placeholder="e.g., Jr., Sr., III"
+                          />
                         </div>
                       </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          School Year
+
+                      {/* Gender and Birthdate Fields */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-600 mb-1">
+                            Gender
+                          </label>
+                          <select
+                            value={formData.gender || ''}
+                            onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                            className="w-full px-4 py-2 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
+                            style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
+                          >
+                            <option value="">Select Gender</option>
+                            <option value="male">Male</option>
+                            <option value="female">Female</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-600 mb-1">
+                            Birthdate
+                          </label>
+                          <input
+                            type="date"
+                            value={formData.birthdate || ''}
+                            onChange={(e) => setFormData({ ...formData, birthdate: e.target.value })}
+                            className="w-full px-4 py-2 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
+                            style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Contact Information */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-600 mb-1">
+                            Phone Number
+                          </label>
+                          <input
+                            type="tel"
+                            value={formData.phone || ''}
+                            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                            className="w-full px-4 py-2 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
+                            style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
+                            maxLength={11}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-600 mb-1">
+                            Email Address
+                          </label>
+                          <input
+                            type="email"
+                            value={emailInput}
+                            onChange={(e) => setEmailInput(e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
+                            placeholder="user@email.com"
+                            style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Address */}
+                      <div className="mt-6">
+                        <label className="block text-sm font-medium text-gray-600 mb-1">
+                          Address
                         </label>
-                        <input
-                          type="text"
-                          value={formData.school_year || ''}
-                          onChange={(e) => setFormData({ ...formData, school_year: e.target.value })}
-                          className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          placeholder="2024-2025"
+                        <textarea
+                          value={formData.address || ''}
+                          onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                          rows={3}
+                          className="w-full px-4 py-2 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500 resize-none"
+                          style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
+                          placeholder="Enter complete address"
                         />
                       </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Program
-                        </label>
-                        <select
-                          value={formData.program_id || ''}
-                          onChange={(e) => setFormData({ ...formData, program_id: e.target.value })}
-                          className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        >
-                          <option value="">Select Program</option>
-                          {programs.map((program) => (
-                            <option key={program.id} value={program.id}>
-                              {program.name}
-                            </option>
-                          ))}
-                        </select>
+                    </div>
+                  </div>
+
+
+
+                  {/* Student Information */}
+                  {user.role === 'student' && (
+                    <div className="space-y-6">
+                      {/* Academic Information */}
+                      <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-lg border border-green-200">
+                        <h3 className="text-lg font-semibold text-green-800 mb-4 flex items-center gap-2">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-graduation-cap">
+                            <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
+                            <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
+                          </svg>
+                          Academic Information
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-600 mb-1">
+                              Student ID
+                            </label>
+                            <input
+                              type="text"
+                              value={formData.student_id || ''}
+                              readOnly
+                              className="w-full px-4 py-2 rounded-lg border-2 border-gray-500 bg-gray-100 text-gray-500 cursor-not-allowed focus:border-gray-600 focus:ring-2 focus:ring-gray-600/20 transition-all duration-200 shadow-sm"
+                              placeholder={isGeneratingId ? "Generating..." : "Loading..."}
+                              style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-600 mb-1">
+                              School Year
+                            </label>
+                            <input
+                              type="text"
+                              value={formData.school_year || ''}
+                              readOnly
+                              className="w-full px-4 py-2 rounded-lg border-2 border-gray-500 bg-gray-100 text-gray-500 cursor-not-allowed focus:border-gray-600 focus:ring-2 focus:ring-gray-600/20 transition-all duration-200 shadow-sm"
+                              placeholder="2024-2025"
+                              style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-600 mb-1">
+                              Program
+                            </label>
+                            <select
+                              value={formData.program_id || ''}
+                              onChange={(e) => setFormData({ ...formData, program_id: e.target.value })}
+                              className="w-full px-4 py-2 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
+                              style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
+                            >
+                              <option value="">Select Program</option>
+                              {programs.map((program) => (
+                                <option key={program.id} value={program.id}>
+                                  {program.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-600 mb-1">
+                              Year Level
+                            </label>
+                            <select
+                              value={formData.year_level || ''}
+                              onChange={(e) => setFormData({ ...formData, year_level: e.target.value })}
+                              className="w-full px-4 py-2 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
+                              style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
+                            >
+                              <option value="">Select Year Level</option>
+                              <option value="1st Year">1st Year</option>
+                              <option value="2nd Year">2nd Year</option>
+                              <option value="3rd Year">3rd Year</option>
+                              <option value="4th Year">4th Year</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-600 mb-1">
+                              Student Type
+                            </label>
+                            <select
+                              value={formData.student_type || ''}
+                              onChange={(e) => setFormData({ ...formData, student_type: e.target.value })}
+                              className="w-full px-4 py-2 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
+                              style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
+                            >
+                              <option value="">Select Type</option>
+                              <option value="Regular">Regular</option>
+                              <option value="Irregular">Irregular</option>
+                              <option value="Transferee">Transferee</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-600 mb-1">
+                              Enrollment Status
+                            </label>
+                            <select
+                              value={formData.enrollment_status || ''}
+                              onChange={(e) => setFormData({ ...formData, enrollment_status: e.target.value })}
+                              className="w-full px-4 py-2 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
+                              style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
+                            >
+                              <option value="">Select Status</option>
+                              <option value="enrolled">Enrolled</option>
+                              <option value="not_enrolled">Not Enrolled</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-600 mb-1">
+                              Section
+                            </label>
+                            <select
+                              value={formData.section || ''}
+                              onChange={(e) => setFormData({ ...formData, section: e.target.value })}
+                              className="w-full px-4 py-2 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
+                              style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
+                            >
+                              <option value="">Select Section</option>
+                              <option value="A">Section A</option>
+                              <option value="B">Section B</option>
+                              <option value="C">Section C</option>
+                              <option value="D">Section D</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-600 mb-1">
+                              Semester
+                            </label>
+                            <select
+                              value={formData.semester || ''}
+                              onChange={(e) => setFormData({ ...formData, semester: e.target.value })}
+                              className="w-full px-4 py-2 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
+                              style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
+                            >
+                              <option value="">Select Semester</option>
+                              <option value="1st Semester">1st Semester</option>
+                              <option value="2nd Semester">2nd Semester</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-600 mb-1">
+                              Student Status
+                            </label>
+                            <select
+                               value={formData.student_status || ''}
+                              onChange={(e) => setFormData({ ...formData, student_status: e.target.value })}
+                              className="w-full px-4 py-2 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
+                              style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
+                            >
+                              <option value="">Select Status</option>
+                              <option value="active">Active</option>
+                              <option value="inactive">Inactive</option>
+                              <option value="graduated">Graduated</option>
+                              <option value="transferred">Transferred</option>
+                              <option value="dropped">Dropped</option>
+                            </select>
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Year Level
-                        </label>
-                        <select
-                          value={formData.year_level || ''}
-                          onChange={(e) => setFormData({ ...formData, year_level: e.target.value })}
-                          className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        >
-                          <option value="">Select Year Level</option>
-                          <option value="1st Year">1st Year</option>
-                          <option value="2nd Year">2nd Year</option>
-                          <option value="3rd Year">3rd Year</option>
-                          <option value="4th Year">4th Year</option>
-                        </select>
+
+   {/* Emergency Contact Information */}
+                      <div className="bg-gradient-to-r from-red-50 to-orange-50 p-4 rounded-lg border border-red-200 mt-6">
+                        <h3 className="text-lg font-semibold text-red-800 mb-4 flex items-center gap-2">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-phone">
+                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                          </svg>
+                          Emergency Contact Information
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-600 mb-1">
+                              Emergency Contact Name
+                            </label>
+                            <input
+                              type="text"
+                              value={formData.emergency_contact_name || ''}
+                              onChange={(e) => setFormData({ ...formData, emergency_contact_name: e.target.value })}
+                              className="w-full px-4 py-2 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
+                              style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-600 mb-1">
+                              Relationship
+                            </label>
+                            <input
+                              type="text"
+                              value={formData.emergency_contact_relationship || ''}
+                              onChange={(e) => setFormData({ ...formData, emergency_contact_relationship: e.target.value })}
+                              className="w-full px-4 py-2 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
+                              style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
+                              placeholder="e.g., Parent, Sibling, Guardian"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-600 mb-1">
+                              Emergency Contact Phone
+                            </label>
+                            <input
+                              type="tel"
+                              value={formData.emergency_contact_phone || ''}
+                              onChange={(e) => setFormData({ ...formData, emergency_contact_phone: e.target.value })}
+                              className="w-full px-4 py-2 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
+                              style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
+                              maxLength={11}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      </div>
+               
+                
+                  )}
+
+                  {/* Staff Information */}
+                  {(user.role === 'teacher' || user.role === 'program_head') && (
+                    <div className="bg-gradient-to-r from-indigo-50 to-blue-50 p-4 rounded-lg border border-indigo-200">
+                      <h3 className="text-lg font-semibold text-indigo-800 mb-4 flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-briefcase">
+                          <rect width="20" height="14" x="2" y="7" rx="2" ry="2"></rect>
+                          <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+                        </svg>
+                        Staff Information
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-600 mb-1">
+                            Department
+                          </label>
+                          <input
+                            type="text"
+                            value={formData.department || ''}
+                            onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                            className="w-full px-4 py-2 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
+                            style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
+                          />
+                        </div>
                       </div>
                     </div>
                   )}
 
-                  {(user.role === 'teacher' || user.role === 'program_head') && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Department
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.department || ''}
-                        onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                        className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      />
+                  {/* Registrar Information */}
+                  {user.role === 'registrar' && (
+                    <div className="bg-gradient-to-r from-teal-50 to-cyan-50 p-4 rounded-lg border border-teal-200">
+                      <h3 className="text-lg font-semibold text-teal-800 mb-4 flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-clipboard-list">
+                          <rect width="8" height="4" x="8" y="2" rx="1" ry="1"></rect>
+                          <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+                          <path d="M9 14h6"></path>
+                          <path d="M9 18h6"></path>
+                          <path d="M9 10h6"></path>
+                        </svg>
+                        Registrar Information
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-600 mb-1">
+                            Gender
+                          </label>
+                          <select
+                            value={formData.gender || ''}
+                            onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                            className="w-full px-4 py-2 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
+                            style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
+                          >
+                            <option value="">Select Gender</option>
+                            <option value="male">Male</option>
+                            <option value="female">Female</option>
+                          </select>
+                        </div>
+                      </div>
                     </div>
                   )}
 
@@ -471,7 +699,7 @@ export default function EditUserModal() {
                         onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
                         className="rounded border-gray-300 text-blue-500 focus:ring-blue-500"
                       />
-                      <span className="text-sm font-medium text-gray-700">Active Account</span>
+                      <span className="text-sm font-medium text-gray-500">Active Account</span>
                     </label>
                   </div>
 
