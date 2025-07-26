@@ -1,7 +1,7 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
-import { UserPlus, Loader2, Users, Edit, Trash2, Power } from 'lucide-react';
+import { UserPlus, Users, Edit, Trash2, Power } from 'lucide-react';
 import toast from 'react-hot-toast';
 // import { useAuth } from '../contexts/AuthContext';
 // import { useModal } from '../contexts/ModalContext';
@@ -56,22 +56,42 @@ export default function UserManagement() {
 
   const { setShowEditUserModal, setSelectedUserId } = useModal();
   
-  // Add filtered users logic
-  const filteredUsers = users.filter(user => {
-    const matchesTab = 
-      activeTab === 'all' ? true :
-      activeTab === 'students' ? user.role === 'student' :
-      activeTab === 'teachers' ? user.role === 'teacher' : true;
+  // Memoized filtered users logic
+  const filteredUsers = useMemo(() => {
+    return users.filter(user => {
+      const matchesTab = 
+        activeTab === 'all' ? true :
+        activeTab === 'students' ? user.role === 'student' :
+        activeTab === 'teachers' ? user.role === 'teacher' : true;
+      
+      const matchesSearch = searchTerm === '' || 
+        [user.first_name, user.middle_name, user.last_name, user.suffix]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
+          .includes(searchTerm.toLowerCase());
+      
+      return matchesTab && matchesSearch;
+    });
+  }, [users, activeTab, searchTerm]);
+
+  // Memoized user statistics
+  const userStats = useMemo(() => {
+    const students = users.filter(u => u.role === 'student');
+    const teachers = users.filter(u => u.role === 'teacher');
+    const admins = users.filter(u => u.role === 'admin');
+    const registrars = users.filter(u => u.role === 'registrar');
     
-    const matchesSearch = searchTerm === '' || 
-      [user.first_name, user.middle_name, user.last_name, user.suffix]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase());
-    
-    return matchesTab && matchesSearch;
-  });
+    return {
+      total: users.length,
+      students: students.length,
+      teachers: teachers.length,
+      admins: admins.length,
+      registrars: registrars.length,
+      active: users.filter(u => u.is_active).length,
+      inactive: users.filter(u => !u.is_active).length
+    };
+  }, [users]);
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -255,26 +275,36 @@ export default function UserManagement() {
         <motion.div 
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
+          className="usermanagement-header mb-8"
         >
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-            <div>
-              <h1 className="text-4xl font-bold text-gray-900 mb-2 flex items-center gap-3">
-                <Users className="w-8 h-8 text-blue-600" />
-                User Management
-              </h1>
-              <p className="text-gray-600 text-lg">Manage and organize all system users efficiently</p>
-            </div>
-            <div className="flex gap-3">
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setShowCreateUserModal(true)}
-                className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-3 rounded-xl shadow-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 font-semibold flex items-center gap-3"
-              >
-                <UserPlus className="w-5 h-5" />
-                Add New User
-              </motion.button>
+          <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 rounded-lg">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-users w-6 h-6 text-white">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="9" cy="7" r="4"></circle>
+                    <path d="m22 21-2-2"></path>
+                    <path d="M16 16h6"></path>
+                  </svg>
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold text-white tracking-tight">User Management</h1>
+                  <p className="text-white/80 text-sm font-medium">Manage and organize all system users efficiently</p>
+                  <div className="flex items-center gap-4 mt-2 text-xs text-white/80"></div>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setShowCreateUserModal(true)}
+                  className="usermanagement-add-button bg-white/20 backdrop-blur-sm text-white px-6 py-2 rounded-lg hover:bg-white/30 transition-all duration-300 font-semibold flex items-center gap-2 border border-white/30"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  Add New User
+                </motion.button>
+              </div>
             </div>
           </div>
         </motion.div>
@@ -285,7 +315,7 @@ export default function UserManagement() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 mb-8"
+          className="usermanagement-search bg-white rounded-2xl p-6 shadow-lg border border-gray-100 mb-8"
         >
           <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
             <div className="flex-1 max-w-md">
@@ -310,7 +340,7 @@ export default function UserManagement() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="mb-6"
+          className="usermanagement-tabs mb-6"
         >
           <div className="bg-white rounded-2xl shadow-lg p-1 border border-gray-100">
             <div className="flex gap-2">
@@ -326,7 +356,7 @@ export default function UserManagement() {
               <Users className="w-4 h-4" />
               <span>All Users</span>
               <span className="px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600">
-                {users.length}
+                {userStats.total}
               </span>
             </div>
           </button>
@@ -342,7 +372,7 @@ export default function UserManagement() {
               <Users className="w-4 h-4" />
               <span>Students</span>
               <span className="px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600">
-                {users.filter(u => u.role === 'student').length}
+                {userStats.students}
               </span>
             </div>
           </button>
@@ -358,7 +388,7 @@ export default function UserManagement() {
               <Users className="w-4 h-4" />
               <span>Teachers</span>
               <span className="px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600">
-                {users.filter(u => u.role === 'teacher').length}
+                {userStats.teachers}
               </span>
             </div>
           </button>
@@ -371,13 +401,58 @@ export default function UserManagement() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
+          className="usermanagement-table"
         >
       <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100">
         {loading ? (
-          <div className="flex justify-center items-center py-20">
-            <div className="flex flex-col items-center gap-3">
-              <Loader2 className="animate-spin w-8 h-8 text-blue-500" />
-              <p className="text-gray-500 text-sm">Loading users...</p>
+          <div className="usermanagement-skeleton">
+            {/* Header Skeleton */}
+            <div className="animate-pulse">
+              <div className="h-8 bg-gray-200 rounded w-64 mb-2"></div>
+              <div className="h-4 bg-gray-200 rounded w-96 mb-6"></div>
+            </div>
+            
+            {/* Search Bar Skeleton */}
+            <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 mb-8 animate-pulse">
+              <div className="h-12 bg-gray-200 rounded-xl w-full"></div>
+            </div>
+            
+            {/* Tabs Skeleton */}
+            <div className="mb-6 animate-pulse">
+              <div className="bg-white rounded-2xl shadow-lg p-1 border border-gray-100">
+                <div className="flex gap-2">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="flex-1 h-12 bg-gray-200 rounded-xl"></div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            
+            {/* Table Skeleton */}
+            <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100">
+              <div className="p-6">
+                <div className="space-y-4">
+                  {[1, 2, 3, 4, 5].map(i => (
+                    <div key={i} className="flex items-center gap-4 animate-pulse">
+                      <div className="w-12 h-12 bg-gray-200 rounded-full"></div>
+                      <div className="flex-1 space-y-2">
+                        <div className="h-4 bg-gray-200 rounded w-48"></div>
+                        <div className="h-3 bg-gray-200 rounded w-32"></div>
+                        <div className="h-3 bg-gray-200 rounded w-24"></div>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="h-6 bg-gray-200 rounded w-20"></div>
+                        <div className="h-6 bg-gray-200 rounded w-16"></div>
+                      </div>
+                      <div className="flex gap-2">
+                        <div className="w-8 h-8 bg-gray-200 rounded"></div>
+                        <div className="w-8 h-8 bg-gray-200 rounded"></div>
+                        <div className="w-8 h-8 bg-gray-200 rounded"></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         ) : (
@@ -556,7 +631,7 @@ export default function UserManagement() {
                             <motion.button
                               whileHover={{ scale: 1.05 }}
                               whileTap={{ scale: 0.95 }}
-                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200"
+                              className="usermanagement-action-button p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200"
                               title="Edit user"
                               onClick={() => {
                                 setSelectedUserId(user.id);
@@ -569,7 +644,7 @@ export default function UserManagement() {
                               whileHover={{ scale: 1.05 }}
                               whileTap={{ scale: 0.95 }}
                               onClick={() => handleToggleUserStatus(user)}
-                              className={`p-2 rounded-lg transition-colors duration-200 ${
+                              className={`usermanagement-action-button p-2 rounded-lg transition-colors duration-200 ${
                                 user.is_active 
                                   ? 'text-orange-600 hover:bg-orange-50' 
                                   : 'text-green-600 hover:bg-green-50'
@@ -582,7 +657,7 @@ export default function UserManagement() {
                               whileHover={{ scale: 1.05 }}
                               whileTap={{ scale: 0.95 }}
                               onClick={() => handleDeleteUser(user)}
-                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200"
+                              className="usermanagement-action-button p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200"
                               title="Delete user"
                             >
                               <Trash2 className="w-4 h-4" />
