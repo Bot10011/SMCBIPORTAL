@@ -109,7 +109,7 @@ const MyCourse: React.FC<MyCourseProps> = ({ enrollments, courseImages, teacherI
               </div>
               <div>
                 <h2 className="text-2xl font-bold text-white tracking-tight">My Subjects</h2>
-                <p className="text-white/80 text-sm font-medium mt-1">View and manage your enrolled courses</p>
+                <p className="text-white/80 text-sm font-medium mt-1">View and manage your enrolled Subjects</p>
               </div>
             </div>
             <div className="flex gap-3 mt-4 sm:mt-0 ml-0 sm:ml-auto">
