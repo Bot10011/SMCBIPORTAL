@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertTriangle, X } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 
 interface ConfirmationDialogProps {
   isOpen: boolean;
@@ -51,30 +51,67 @@ export default function ConfirmationDialog({
 
   const styles = getTypeStyles();
 
+  // Function to highlight user names in the message
+  const renderMessage = (message: string) => {
+    // Check if message contains user information (likely contains a name)
+    if (message.includes('Are you sure you want to') && (message.includes('delete') || message.includes('deactivate') || message.includes('activate'))) {
+      // Split the message to find the user name part
+      const parts = message.split('?');
+      if (parts.length >= 2) {
+        const actionPart = parts[0];
+        const userPart = parts[1];
+        
+        // Find the user name (usually after the action and before "?")
+        const actionMatch = actionPart.match(/Are you sure you want to (delete|deactivate|activate) (.+)/);
+        if (actionMatch) {
+          const action = actionMatch[1];
+          const userName = actionMatch[2];
+          
+          return (
+            <span>
+              Are you sure you want to {action}{' '}
+              <span className="font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded-md border border-blue-200">
+                {userName}
+              </span>
+              ?{userPart}
+            </span>
+          );
+        }
+      }
+    }
+    
+    // If no special formatting needed, return the message as is
+    return message;
+  };
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-2xl w-full max-w-md mx-4">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl w-full max-w-md mx-4 shadow-2xl border border-gray-200 relative">
+        {/* Styled Close Button */}
+        <button 
+          onClick={onClose}
+          className="absolute w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center text-lg sm:text-xl font-bold text-white bg-red-500 hover:bg-red-600 rounded-full shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 animate-pop-in hover:scale-110 hover:rotate-90 top-2 right-2 sm:top-3 sm:right-3 z-50"
+          aria-label="Close dialog"
+          style={{ backgroundColor: 'rgb(239, 68, 68)', boxShadow: 'rgba(239, 68, 68, 0.3) 0px 2px 8px' }}
+        >
+          ×
+        </button>
+
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b">
-          <div className="flex items-center gap-3">
-            <AlertTriangle className={`w-5 h-5 ${styles.icon}`} />
-            <h2 className="text-xl font-semibold text-gray-800">{title}</h2>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <X className="w-5 h-5 text-gray-500" />
-          </button>
+        <div className="flex items-center gap-3 p-6 border-b border-gray-100">
+          <AlertTriangle className={`w-6 h-6 ${styles.icon}`} />
+          <h2 className="text-xl font-semibold text-gray-800">{title}</h2>
         </div>
 
         {/* Content */}
         <div className="p-6">
-          <p className="text-gray-600">{message}</p>
+          <p className="text-gray-600 leading-relaxed">
+            {renderMessage(message)}
+          </p>
         </div>
 
         {/* Actions */}
-        <div className="flex justify-end gap-3 p-6 border-t">
+        <div className="flex justify-end gap-3 p-6 border-t border-gray-100">
           <button
             onClick={onClose}
             disabled={isLoading}
