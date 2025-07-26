@@ -440,6 +440,753 @@ body {
   animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
+/* Performance optimizations for UserManagement component */
+.usermanagement-header {
+  will-change: transform, opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.usermanagement-search {
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.usermanagement-search:hover {
+  transform: translateY(-1px) translateZ(0);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+}
+
+.usermanagement-tabs {
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.usermanagement-table {
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.usermanagement-table:hover {
+  transform: translateY(-1px) translateZ(0);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+}
+
+.usermanagement-add-button {
+  will-change: transform, background;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.usermanagement-add-button:hover {
+  transform: translateY(-2px) translateZ(0);
+  box-shadow: 0 8px 25px rgba(59, 130, 246, 0.3);
+}
+
+.usermanagement-action-button {
+  will-change: transform, background-color;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.usermanagement-action-button:hover {
+  transform: scale(1.1) translateZ(0);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.usermanagement-action-button:active {
+  transform: scale(0.95) translateZ(0);
+}
+
+/* UserManagement Skeleton optimizations */
+.usermanagement-skeleton {
+  will-change: opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+.usermanagement-skeleton .animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.usermanagement-skeleton > div {
+  will-change: opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* User avatar optimizations */
+.usermanagement-avatar {
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.usermanagement-avatar:hover {
+  transform: scale(1.05) translateZ(0);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* Table row optimizations */
+.usermanagement-table-row {
+  will-change: background-color, transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.usermanagement-table-row:hover {
+  transform: translateX(2px) translateZ(0);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Performance optimizations for AdminDashboard component */
+.admindashboard-header {
+  will-change: transform, opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.admindashboard-stats-grid {
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.admindashboard-overview-grid {
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.admindashboard-overview-card {
+  will-change: transform, box-shadow;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.admindashboard-overview-card:hover {
+  transform: translateY(-2px) translateZ(0);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+}
+
+.admindashboard-notifications-card {
+  will-change: transform, box-shadow;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.admindashboard-notifications-card:hover {
+  transform: translateY(-2px) translateZ(0);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+}
+
+.admindashboard-activity-card {
+  will-change: transform, box-shadow;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.admindashboard-activity-card:hover {
+  transform: translateY(-2px) translateZ(0);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+}
+
+.admindashboard-refresh-button {
+  will-change: transform, background-color;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.admindashboard-refresh-button:hover {
+  transform: translateY(-1px) translateZ(0);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+/* AdminDashboard Skeleton optimizations */
+.admindashboard-skeleton {
+  will-change: opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+.admindashboard-skeleton .animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.admindashboard-skeleton > div {
+  will-change: opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* Dashboard Card optimizations */
+.card-hover-effect {
+  will-change: transform, box-shadow;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-hover-effect:hover {
+  transform: translateY(-4px) translateZ(0);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+}
+
+/* System Overview Grid optimizations */
+.admindashboard-overview-card .grid > div {
+  will-change: transform, background-color;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.admindashboard-overview-card .grid > div:hover {
+  transform: scale(1.05) translateZ(0);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Notification item optimizations */
+.admindashboard-notifications-card .space-y-4 > div {
+  will-change: transform, background-color;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.admindashboard-notifications-card .space-y-4 > div:hover {
+  transform: translateX(4px) translateZ(0);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Activity item optimizations */
+.admindashboard-activity-card .space-y-4 > div {
+  will-change: transform, background-color;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.admindashboard-activity-card .space-y-4 > div:hover {
+  transform: translateX(4px) translateZ(0);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Performance optimizations for Announcement component */
+.announcement-controls {
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.announcement-controls:hover {
+  transform: translateY(-1px) translateZ(0);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+}
+
+.announcement-create-button {
+  will-change: transform, background-color;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.announcement-create-button:hover {
+  transform: translateY(-2px) translateZ(0);
+  box-shadow: 0 8px 25px rgba(59, 130, 246, 0.3);
+}
+
+.announcement-grid {
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.announcement-card {
+  will-change: transform, box-shadow;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.announcement-card:hover {
+  transform: translateY(-4px) translateZ(0);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+}
+
+.announcement-action-button {
+  will-change: transform, background-color;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.announcement-action-button:hover {
+  transform: scale(1.1) translateZ(0);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.announcement-action-button:active {
+  transform: scale(0.95) translateZ(0);
+}
+
+/* Announcement Skeleton optimizations */
+.announcement-skeleton {
+  will-change: opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+.announcement-skeleton .animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.announcement-skeleton > div {
+  will-change: opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* Announcement Stats optimizations */
+.announcement-skeleton .grid > div {
+  will-change: transform, background-color;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.announcement-skeleton .grid > div:hover {
+  transform: scale(1.02) translateZ(0);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Announcement Card Image optimizations */
+.announcement-card img {
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.announcement-card:hover img {
+  transform: scale(1.05) translateZ(0);
+}
+
+/* Announcement Priority Badge optimizations */
+.announcement-card .px-2.py-1.rounded-full {
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.announcement-card:hover .px-2.py-1.rounded-full {
+  transform: scale(1.05) translateZ(0);
+}
+
+/* Performance optimizations for CourseManagement component */
+.coursemanagement-stats-card {
+  will-change: transform, box-shadow;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.coursemanagement-stats-card:hover {
+  transform: translateY(-4px) translateZ(0);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+}
+
+.coursemanagement-controls {
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.coursemanagement-controls:hover {
+  transform: translateY(-1px) translateZ(0);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+}
+
+.coursemanagement-cleanup-button {
+  will-change: transform, background-color;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.coursemanagement-cleanup-button:hover {
+  transform: translateY(-2px) translateZ(0);
+  box-shadow: 0 8px 25px rgba(249, 115, 22, 0.3);
+}
+
+.coursemanagement-add-button {
+  will-change: transform, background-color;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.coursemanagement-add-button:hover {
+  transform: translateY(-2px) translateZ(0);
+  box-shadow: 0 8px 25px rgba(59, 130, 246, 0.3);
+}
+
+.coursemanagement-grid {
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.coursemanagement-card {
+  will-change: transform, box-shadow;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.coursemanagement-card:hover {
+  transform: translateY(-6px) translateZ(0);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+}
+
+/* CourseManagement Skeleton optimizations */
+.coursemanagement-skeleton {
+  will-change: opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+.coursemanagement-skeleton .animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.coursemanagement-skeleton > div {
+  will-change: opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* CourseManagement Card Image optimizations */
+.coursemanagement-card img {
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.coursemanagement-card:hover img {
+  transform: scale(1.05) translateZ(0);
+}
+
+/* CourseManagement Badge optimizations */
+.coursemanagement-card .px-3.py-1.rounded-full {
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.coursemanagement-card:hover .px-3.py-1.rounded-full {
+  transform: scale(1.05) translateZ(0);
+}
+
+/* CourseManagement Action Button optimizations */
+.coursemanagement-card .absolute.top-4.right-4 {
+  will-change: transform, opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.coursemanagement-card:hover .absolute.top-4.right-4 {
+  transform: scale(1.1) translateZ(0);
+  opacity: 1;
+}
+
+/* CourseManagement Table optimizations */
+.coursemanagement-card table {
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.coursemanagement-card table tr {
+  will-change: background-color;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.coursemanagement-card table tr:hover {
+  transform: translateX(4px) translateZ(0);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Performance optimizations for ProgramManagement component */
+.programmanagement-stats-card {
+  will-change: transform, box-shadow;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.programmanagement-stats-card:hover {
+  transform: translateY(-4px) translateZ(0);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+}
+
+.programmanagement-controls {
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.programmanagement-controls:hover {
+  transform: translateY(-1px) translateZ(0);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+}
+
+.programmanagement-refresh-button {
+  will-change: transform, background-color;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.programmanagement-refresh-button:hover {
+  transform: translateY(-2px) translateZ(0);
+  box-shadow: 0 8px 25px rgba(107, 114, 128, 0.3);
+}
+
+.programmanagement-add-button {
+  will-change: transform, background-color;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.programmanagement-add-button:hover {
+  transform: translateY(-2px) translateZ(0);
+  box-shadow: 0 8px 25px rgba(99, 102, 241, 0.3);
+}
+
+.programmanagement-table {
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.programmanagement-table-row {
+  will-change: transform, background-color;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.programmanagement-table-row:hover {
+  transform: translateX(4px) translateZ(0);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.programmanagement-action-button {
+  will-change: transform, background-color;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.programmanagement-action-button:hover {
+  transform: scale(1.1) translateZ(0);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.programmanagement-action-button:active {
+  transform: scale(0.95) translateZ(0);
+}
+
+/* ProgramManagement Skeleton optimizations */
+.programmanagement-skeleton {
+  will-change: opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+.programmanagement-skeleton .animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.programmanagement-skeleton > div {
+  will-change: opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* ProgramManagement Stats optimizations */
+.programmanagement-skeleton .grid > div {
+  will-change: transform, background-color;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.programmanagement-skeleton .grid > div:hover {
+  transform: scale(1.02) translateZ(0);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* ProgramManagement Badge optimizations */
+.programmanagement-table-row .px-3.py-1.rounded-full {
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.programmanagement-table-row:hover .px-3.py-1.rounded-full {
+  transform: scale(1.05) translateZ(0);
+}
+
+/* ProgramManagement Form optimizations */
+.programmanagement-skeleton input,
+.programmanagement-skeleton textarea,
+.programmanagement-skeleton select {
+  will-change: transform, border-color;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.programmanagement-skeleton input:focus,
+.programmanagement-skeleton textarea:focus,
+.programmanagement-skeleton select:focus {
+  transform: translateY(-1px) translateZ(0);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+}
+
+/* ProgramManagement Modal optimizations */
+.programmanagement-modal {
+  will-change: opacity, transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.programmanagement-modal-content {
+  will-change: transform, box-shadow;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.programmanagement-modal-content:hover {
+  transform: translateY(-2px) translateZ(0);
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
+}
+
+/* ProgramManagement Modal Form optimizations */
+.programmanagement-modal form input,
+.programmanagement-modal form textarea,
+.programmanagement-modal form select {
+  will-change: transform, border-color, box-shadow;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.programmanagement-modal form input:focus,
+.programmanagement-modal form textarea:focus,
+.programmanagement-modal form select:focus {
+  transform: translateY(-1px) translateZ(0);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+}
+
+/* ProgramManagement Modal Button optimizations */
+.programmanagement-modal button {
+  will-change: transform, background-color, box-shadow;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.programmanagement-modal button:hover {
+  transform: translateY(-1px) translateZ(0);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.programmanagement-modal button:active {
+  transform: translateY(0) translateZ(0);
+}
+
+/* ProgramManagement Modal Close Button optimizations */
+.programmanagement-modal .close-button {
+  will-change: transform, color;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.programmanagement-modal .close-button:hover {
+  transform: scale(1.1) translateZ(0);
+  color: #4f46e5;
+}
+
+/* ProgramManagement Modal Checkbox optimizations */
+.programmanagement-modal input[type="checkbox"] {
+  will-change: transform, border-color;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.programmanagement-modal input[type="checkbox"]:checked {
+  transform: scale(1.1) translateZ(0);
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+}
+
+/* Pop-in animation for close button */
+@keyframes pop-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.5) rotate(-180deg);
+  }
+  50% {
+    transform: scale(1.1) rotate(0deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+.animate-pop-in {
+  animation: pop-in 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+}
+
 @layer base {
   body {
     @apply antialiased text-gray-900 bg-gray-50;
