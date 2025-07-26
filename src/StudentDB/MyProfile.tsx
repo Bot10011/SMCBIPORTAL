@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { Database } from '../types/supabase';
@@ -354,7 +354,7 @@ export const MyProfile: React.FC = () => {
     };
   }, []);
 
-  const handleProfileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleProfileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !user?.id) return;
 
@@ -371,10 +371,10 @@ export const MyProfile: React.FC = () => {
     // Show crop modal with preview
     const previewUrl = URL.createObjectURL(file);
     setCropModalImage(previewUrl);
-  };
+  }, [user?.id]);
 
   // Handle crop and upload
-  const handleCropAndUpload = async (croppedBlob: Blob) => {
+  const handleCropAndUpload = useCallback(async (croppedBlob: Blob) => {
     if (!user?.id) return;
     setIsUploading(true);
     setCropModalImage(null);
@@ -441,7 +441,7 @@ export const MyProfile: React.FC = () => {
     } finally {
       setIsUploading(false);
     }
-  };
+  }, [user?.id, profile?.profile_picture_url, profilePictureUrl]);
 
   // Add cleanup for blob URLs when component unmounts
   useEffect(() => {
@@ -505,6 +505,16 @@ export const MyProfile: React.FC = () => {
     fetchProfile();
   }, [user?.id]);
 
+  // Memoized profile data processing
+  const processedProfile = useMemo(() => {
+    if (!profile) return null;
+    return {
+      ...profile,
+      fullName: `${profile.last_name} ${profile.middle_name ? profile.middle_name + ' ' : ''}${profile.first_name}`,
+      enrollmentStatus: profile.enrollment_status === 'enrolled' ? 'enrolled' : 'not_enrolled'
+    };
+  }, [profile]);
+
   if (loading) {
     if (isOffline) {
       return (
@@ -520,21 +530,28 @@ export const MyProfile: React.FC = () => {
     return (
       <div className="min-h-screen via-white to-purple-50 py-10 px-2 sm:px-0">
         <div className="max-w-3xl mx-auto space-y-10">
+          {/* Enhanced Profile Card Skeleton */}
           <div className="relative overflow-visible rounded-3xl bg-gradient-to-br from-white via-blue-50 to-purple-50 shadow-xl border border-blue-100 p-0">
             <div className="absolute inset-0 bg-gradient-to-br from-blue-100/20 to-purple-100/20 pointer-events-none rounded-3xl" />
             <div className="relative flex flex-col sm:flex-row items-center gap-8 px-8 sm:px-14 pt-10 sm:pt-14 pb-2">
-              {/* Profile Picture Skeleton */}
-              <div className="w-36 h-36 sm:w-44 sm:h-44 rounded-full bg-gray-200 animate-pulse" />
-              {/* Info Skeleton */}
-              <div className="flex-1 text-center sm:text-left space-y-2">
-                <div className="h-8 w-48 bg-gray-200 rounded mb-2 animate-pulse mx-auto sm:mx-0" />
-                <div className="h-5 w-64 bg-gray-200 rounded mb-2 animate-pulse mx-auto sm:mx-0" />
-                <div className="mt-4 flex justify-center sm:justify-start">
-                  <div className="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-gray-200 animate-pulse w-32 h-8" />
+              {/* Profile Picture Skeleton with shimmer effect */}
+              <div className="relative w-36 h-36 sm:w-44 sm:h-44 rounded-full bg-gray-200 animate-pulse overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" 
+                     style={{ animation: 'shimmer 2s infinite' }} />
+              </div>
+              {/* Info Skeleton with staggered animation */}
+              <div className="flex-1 text-center sm:text-left space-y-3">
+                <div className="h-10 w-56 bg-gray-200 rounded-lg mb-3 animate-pulse mx-auto sm:mx-0" 
+                     style={{ animationDelay: '0.1s' }} />
+                <div className="h-6 w-72 bg-gray-200 rounded-lg mb-3 animate-pulse mx-auto sm:mx-0" 
+                     style={{ animationDelay: '0.2s' }} />
+                <div className="mt-6 flex justify-center sm:justify-start">
+                  <div className="inline-flex items-center gap-3 px-6 py-2 rounded-full bg-gray-200 animate-pulse w-36 h-10" 
+                       style={{ animationDelay: '0.3s' }} />
                 </div>
               </div>
             </div>
-            {/* Info Boxes Skeleton */}
+            {/* Info Boxes Skeleton with staggered loading */}
             <div className="
               w-full
               grid grid-cols-2 gap-5 items-stretch
@@ -542,7 +559,9 @@ export const MyProfile: React.FC = () => {
               px-8 py-4 min-h-[80px] z-10 mb-3
             ">
               {[1,2,3,4].map(i => (
-                <div key={i} className="flex flex-col sm:flex-row sm:items-center sm:justify-center items-center justify-center min-w-[130px] min-h-[48px] bg-gray-200 rounded-xl px-4 py-2 animate-pulse" />
+                <div key={i} 
+                     className="flex flex-col sm:flex-row sm:items-center sm:justify-center items-center justify-center min-w-[130px] min-h-[48px] bg-gray-200 rounded-xl px-4 py-2 animate-pulse"
+                     style={{ animationDelay: `${0.1 * i}s` }} />
               ))}
             </div>
           </div>
@@ -563,14 +582,14 @@ export const MyProfile: React.FC = () => {
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="relative overflow-visible rounded-3xl bg-gradient-to-br from-white via-blue-50 to-purple-50 shadow-xl border border-blue-100 p-0"
+          className="profile-card relative overflow-visible rounded-3xl bg-gradient-to-br from-white via-blue-50 to-purple-50 shadow-xl border border-blue-100 p-0"
         >
           <div className="absolute inset-0 bg-gradient-to-br from-blue-100/20 to-purple-100/20 pointer-events-none rounded-3xl" />
           <div className="relative flex flex-col sm:flex-row items-center gap-8 px-8 sm:px-14 pt-10 sm:pt-14 pb-2">
             {/* Profile Picture Section */}
             <motion.div
               whileHover={{ scale: 1.04 }}
-              className="relative group flex flex-col items-center"
+              className="profile-interactive relative group flex flex-col items-center"
             >
               {/* Crop modal */}
               {cropModalImage && (
@@ -585,7 +604,7 @@ export const MyProfile: React.FC = () => {
                 />
               )}
               <div
-                className="relative w-36 h-36 sm:w-44 sm:h-44 rounded-full bg-gradient-to-br from-purple-200 to-blue-200 shadow-lg flex items-center justify-center cursor-pointer transition-all duration-300 group outline-none border-4 border-white ring-4 ring-blue-200 hover:ring-blue-400 focus:ring-blue-400"
+                className="profile-picture relative w-36 h-36 sm:w-44 sm:h-44 rounded-full bg-gradient-to-br from-purple-200 to-blue-200 shadow-lg flex items-center justify-center cursor-pointer group outline-none border-4 border-white ring-4 ring-blue-200 hover:ring-blue-400 focus:ring-blue-400"
                 aria-label="Upload profile photo"
                 tabIndex={0}
                 onMouseEnter={() => {
@@ -681,7 +700,7 @@ export const MyProfile: React.FC = () => {
                 transition={{ delay: 0.1 }}
                 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-1"
               >
-                {profile?.last_name} {profile?.middle_name ? profile.middle_name + ' ' : ''}{profile?.first_name}
+                {processedProfile?.fullName}
               </motion.h1>
               <motion.p
                 initial={{ opacity: 0, y: 20 }}
@@ -698,9 +717,9 @@ export const MyProfile: React.FC = () => {
                 transition={{ delay: 0.4 }}
                 className="mt-4 flex justify-center sm:justify-start"
               >
-                <div className={`inline-flex items-center gap-2 px-4 py-1 rounded-full shadow bg-white border ${profile?.enrollment_status === 'enrolled' ? 'border-green-200' : 'border-red-200'}`}
+                <div className={`inline-flex items-center gap-2 px-4 py-1 rounded-full shadow bg-white border ${processedProfile?.enrollmentStatus === 'enrolled' ? 'border-green-200' : 'border-red-200'}`}
                 >
-                  {profile?.enrollment_status === 'enrolled' ? (
+                  {processedProfile?.enrollmentStatus === 'enrolled' ? (
                     <>
                       <CheckCircle2 className="w-5 h-5 text-green-600" />
                       <span className="text-base font-semibold text-green-600">Enrolled</span>
