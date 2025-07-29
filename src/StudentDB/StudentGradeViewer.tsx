@@ -17,7 +17,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 interface GradeSummary extends BaseGradeSummary {
   year_level: string | null;
-  is_releases?: boolean;
+  is_released?: boolean;
 }
 
 const YEAR_LABELS = [
@@ -150,7 +150,7 @@ export const StudentGradeViewer: React.FC = () => {
             year_level: normalizeYearLevel(grade.year_level),
             semester: grade.semester ?? null,
             academic_year: grade.academic_year ?? null,
-            is_releases: grade.is_releases, // Assuming is_releases is part of the grade object
+            is_released: grade.is_released, // Use is_released from the grade object
           }));
           console.log('Fetched grades:', gradesSummary);
 
@@ -166,8 +166,8 @@ export const StudentGradeViewer: React.FC = () => {
     fetchGrades();
   }, [user?.id]);
 
-  // Only show grades where is_releases is true
-  const releasedGrades = useMemo(() => grades.filter(g => g.is_releases !== false), [grades]);
+  // Only show grades where is_released is true
+  const releasedGrades = useMemo(() => grades.filter(g => g.is_released === true), [grades]);
   
   // Filter grades by search
   const filteredGrades = useMemo(() => releasedGrades.filter(g =>
@@ -551,8 +551,13 @@ export const StudentGradeViewer: React.FC = () => {
                           <div className="p-3 rounded-full bg-gray-100">
                             <BookOpen className="w-6 h-6 text-gray-400" />
                           </div>
-                          <p className="text-gray-500 text-base font-medium">No grades found</p>
-                          <p className="text-sm text-gray-400">Grades will appear here once posted</p>
+                          <p className="text-gray-500 text-base font-medium">No grades available</p>
+                          <p className="text-sm text-gray-400">
+                            {releasedGrades.length === 0 && grades.length > 0 
+                              ? "Grades are not yet released by your teachers" 
+                              : "Grades will appear here once posted and released"
+                            }
+                          </p>
                         </div>
                       </div>
                     ) : (
