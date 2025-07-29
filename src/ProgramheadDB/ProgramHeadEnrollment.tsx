@@ -73,6 +73,15 @@ const ProgramHeadEnrollment: React.FC = () => {
   const [filterType, setFilterType] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [editForm, setEditForm] = useState<Student | null>(null);
+  const [editFormFields, setEditFormFields] = useState<{
+    firstName: string;
+    middleName: string;
+    lastName: string;
+  }>({
+    firstName: '',
+    middleName: '',
+    lastName: '',
+  });
   const [savingEdit, setSavingEdit] = useState(false);
   const [isExistingModalOpen, setIsExistingModalOpen] = useState(false);
   const [existingStudentsByYear, setExistingStudentsByYear] = useState<Record<string, Student[]>>({});
@@ -93,6 +102,7 @@ const ProgramHeadEnrollment: React.FC = () => {
 
   const [createForm, setCreateForm] = useState({
     firstName: '',
+    middleName: '',
     lastName: '',
     email: '',
     password: 'TempPass@123',
@@ -169,6 +179,34 @@ const ProgramHeadEnrollment: React.FC = () => {
     fetchCourses();
   }, []);
 
+  // Initialize edit form fields when editForm is set
+  useEffect(() => {
+    if (editForm) {
+      // Parse the student name to handle middle names
+      const nameParts = editForm.name.split(' ');
+      let firstName = '';
+      let middleName = '';
+      let lastName = '';
+      
+      if (nameParts.length === 1) {
+        lastName = nameParts[0];
+      } else if (nameParts.length === 2) {
+        firstName = nameParts[1];
+        lastName = nameParts[0];
+      } else if (nameParts.length >= 3) {
+        firstName = nameParts[nameParts.length - 1]; // Last part is first name
+        lastName = nameParts[0]; // First part is last name
+        middleName = nameParts.slice(1, nameParts.length - 1).join(' '); // Everything in between is middle name
+      }
+      
+      setEditFormFields({
+        firstName,
+        middleName,
+        lastName,
+      });
+    }
+  }, [editForm]);
+
   const loadEnrollments = async () => {
     try {
       setLoading(true);
@@ -180,18 +218,29 @@ const ProgramHeadEnrollment: React.FC = () => {
         .order('created_at', { ascending: true });
       if (error) throw error;
       // Map to Student interface if needed
-      const students = (data || []).map((student: Record<string, unknown>) => ({
-        id: String(student.student_id || student.id),
-        name: `${String(student.first_name)} ${String(student.last_name)}`,
-        studentType: (student.student_type as Student['studentType']) || 'Freshman',
-        yearLevel: Number(student.year_level) || 1,
-        currentSubjects: [],
-        doneSubjects: [],
-        status: (student.enrollment_status as Student['status']) || 'pending',
-        department: String(student.department || ''),
-        schoolYear: String(student.school_year || ''),
-        semester: String(student.semester || ''),
-      }));
+      const students = (data || []).map((student: Record<string, unknown>) => {
+        const firstName = String(student.first_name || '');
+        const middleName = String(student.middle_name || '');
+        const lastName = String(student.last_name || '');
+        
+        // Construct full name with middle name if available
+        const fullName = middleName 
+          ? `${lastName} ${middleName} ${firstName}`
+          : `${lastName} ${firstName}`;
+        
+        return {
+          id: String(student.student_id || student.id),
+          name: fullName,
+          studentType: (student.student_type as Student['studentType']) || 'Freshman',
+          yearLevel: Number(student.year_level) || 1,
+          currentSubjects: [],
+          doneSubjects: [],
+          status: (student.enrollment_status as Student['status']) || 'pending',
+          department: String(student.department || ''),
+          schoolYear: String(student.school_year || ''),
+          semester: String(student.semester || ''),
+        };
+      });
       setStudents(students);
     } catch (err) {
       setError('Failed to load enrollments');
@@ -221,6 +270,7 @@ const ProgramHeadEnrollment: React.FC = () => {
         // Update existing student profile
         const { error: updateError } = await supabase.from('user_profiles').update({
           first_name: createForm.firstName,
+          middle_name: createForm.middleName,
           last_name: createForm.lastName,
           student_type: createForm.studentType,
           year_level: String(createForm.yearLevel),
@@ -249,7 +299,7 @@ const ProgramHeadEnrollment: React.FC = () => {
         }
         toast.success('Existing student enrollment updated!');
         setIsCreateDialogOpen(false);
-        setCreateForm({ firstName: '', lastName: '', email: '', password: 'TempPass@123', studentType: 'Freshman', yearLevel: 1, schoolYear: getDefaultSchoolYear(), studentId: '', department: 'BSIT', semester: '1st Semester' });
+        setCreateForm({ firstName: '', middleName: '', lastName: '', email: '', password: 'TempPass@123', studentType: 'Freshman', yearLevel: 1, schoolYear: getDefaultSchoolYear(), studentId: '', department: 'BSIT', semester: '1st Semester' });
         setSelectedCourses([]);
         setSelectedExistingStudent(null);
         loadEnrollments();
@@ -288,6 +338,7 @@ const ProgramHeadEnrollment: React.FC = () => {
         id: authData.user!.id, // Use the auth user ID
         email: fullEmail,
         first_name: createForm.firstName,
+        middle_name: createForm.middleName,
         last_name: createForm.lastName,
         role: 'student',
         is_active: true,
@@ -318,7 +369,7 @@ const ProgramHeadEnrollment: React.FC = () => {
       }
       toast.success('Student account successfully created.');
       setIsCreateDialogOpen(false);
-      setCreateForm({ firstName: '', lastName: '', email: '', password: 'TempPass@123', studentType: 'Freshman', yearLevel: 1, schoolYear: getDefaultSchoolYear(), studentId: '', department: 'BSIT', semester: '1st Semester' });
+      setCreateForm({ firstName: '', middleName: '', lastName: '', email: '', password: 'TempPass@123', studentType: 'Freshman', yearLevel: 1, schoolYear: getDefaultSchoolYear(), studentId: '', department: 'BSIT', semester: '1st Semester' });
       setSelectedCourses([]);
       setSelectedExistingStudent(null);
       loadEnrollments();
@@ -437,8 +488,9 @@ const ProgramHeadEnrollment: React.FC = () => {
     setSavingEdit(true);
     try {
       const { error } = await supabase.from('user_profiles').update({
-        first_name: editForm.name.split(' ')[1] || '',
-        last_name: editForm.name.split(' ')[0] || '',
+        first_name: editFormFields.firstName,
+        middle_name: editFormFields.middleName,
+        last_name: editFormFields.lastName,
         student_type: editForm.studentType,
         year_level: String(editForm.yearLevel),
         school_year: editForm.schoolYear,
@@ -450,6 +502,7 @@ const ProgramHeadEnrollment: React.FC = () => {
       if (error) throw error;
       toast.success('Student info updated!');
       setEditForm(null);
+      setEditFormFields({ firstName: '', middleName: '', lastName: '' });
       loadEnrollments();
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to update student';
@@ -475,9 +528,28 @@ const ProgramHeadEnrollment: React.FC = () => {
   // Handler to enroll existing student
   const handleEnrollExisting = (student: Student) => {
     setSelectedExistingStudent(student);
+    
+    // Parse the student name to handle middle names
+    const nameParts = student.name.split(' ');
+    let firstName = '';
+    let middleName = '';
+    let lastName = '';
+    
+    if (nameParts.length === 1) {
+      lastName = nameParts[0];
+    } else if (nameParts.length === 2) {
+      firstName = nameParts[1];
+      lastName = nameParts[0];
+    } else if (nameParts.length >= 3) {
+      firstName = nameParts[nameParts.length - 1]; // Last part is first name
+      lastName = nameParts[0]; // First part is last name
+      middleName = nameParts.slice(1, nameParts.length - 1).join(' '); // Everything in between is middle name
+    }
+    
     setCreateForm({
-      firstName: student.name.split(' ')[1] || '',
-      lastName: student.name.split(' ')[0] || '',
+      firstName,
+      middleName,
+      lastName,
       email: '', // Not editable
       password: 'TempPass@123', // Not editable
       studentType: student.studentType,
@@ -538,6 +610,7 @@ const ProgramHeadEnrollment: React.FC = () => {
   const flushNewStudentForm = () => {
     setCreateForm({
       firstName: '',
+      middleName: '',
       lastName: '',
       email: '',
       password: 'TempPass@123',
@@ -1311,7 +1384,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                     </Typography>
                   </Box>
                   <Grid container spacing={2}>
-                    <Grid item xs={12} sm={6}>
+                    <Grid item xs={12} sm={4}>
                       <TextField 
                         label="First Name" 
                         value={createForm.firstName} 
@@ -1328,7 +1401,23 @@ const ProgramHeadEnrollment: React.FC = () => {
                         }}
                       />
                     </Grid>
-                    <Grid item xs={12} sm={6}>
+                    <Grid item xs={12} sm={4}>
+                      <TextField 
+                        label="Middle Name" 
+                        value={createForm.middleName} 
+                        fullWidth 
+                        InputProps={{ readOnly: true }}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            backgroundColor: '#f9fafb',
+                            '& fieldset': {
+                              borderColor: '#d1d5db'
+                            }
+                          }
+                        }}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={4}>
                       <TextField 
                         label="Last Name" 
                         value={createForm.lastName} 
@@ -1452,6 +1541,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                         >
                           <MenuItem value="1st Semester">1st Semester</MenuItem>
                           <MenuItem value="2nd Semester">2nd Semester</MenuItem>
+                          <MenuItem value="Summer">Summer</MenuItem>
                         </Select>
                       </FormControl>
                     </Grid>
@@ -1783,7 +1873,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                     </Typography>
                   </Box>
                   <Grid container spacing={2}>
-                    <Grid item xs={12} sm={6}>
+                    <Grid item xs={12} sm={4}>
                       <TextField 
                         label="First Name" 
                         value={createForm.firstName} 
@@ -1805,7 +1895,28 @@ const ProgramHeadEnrollment: React.FC = () => {
                         }}
                       />
                     </Grid>
-                    <Grid item xs={12} sm={6}>
+                    <Grid item xs={12} sm={4}>
+                      <TextField 
+                        label="Middle Name" 
+                        value={createForm.middleName} 
+                        onChange={e => setCreateForm(f => ({ ...f, middleName: e.target.value }))} 
+                        fullWidth 
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            '& fieldset': {
+                              borderColor: '#d1d5db'
+                            },
+                            '&:hover fieldset': {
+                              borderColor: '#9ca3af'
+                            },
+                            '&.Mui-focused fieldset': {
+                              borderColor: '#667eea'
+                            }
+                          }
+                        }}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={4}>
                       <TextField 
                         label="Last Name" 
                         value={createForm.lastName} 
@@ -1967,6 +2078,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                         >
                           <MenuItem value="1st Semester">1st Semester</MenuItem>
                           <MenuItem value="2nd Semester">2nd Semester</MenuItem>
+                          <MenuItem value="Summer">Summer</MenuItem>
                         </Select>
                       </FormControl>
                     </Grid>
@@ -2290,11 +2402,31 @@ const ProgramHeadEnrollment: React.FC = () => {
         >
           {editForm && (
             <Grid container spacing={3} alignItems="flex-start">
-              <Grid item xs={12} sm={6}>
-                <TextField label="First Name" value={editForm.name.split(' ')[1] || ''} onChange={e => setEditForm((f: Student | null) => f ? { ...f, name: `${f.name.split(' ')[0]} ${e.target.value}` } : null)} fullWidth required />
+              <Grid item xs={12} sm={4}>
+                <TextField 
+                  label="First Name" 
+                  value={editFormFields.firstName} 
+                  onChange={e => setEditFormFields(f => ({ ...f, firstName: e.target.value }))} 
+                  fullWidth 
+                  required 
+                />
               </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField label="Last Name" value={editForm.name.split(' ')[0] || ''} onChange={e => setEditForm((f: Student | null) => f ? { ...f, name: `${e.target.value} ${f.name.split(' ')[1]}` } : null)} fullWidth required />
+              <Grid item xs={12} sm={4}>
+                <TextField 
+                  label="Middle Name" 
+                  value={editFormFields.middleName} 
+                  onChange={e => setEditFormFields(f => ({ ...f, middleName: e.target.value }))} 
+                  fullWidth 
+                />
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <TextField 
+                  label="Last Name" 
+                  value={editFormFields.lastName} 
+                  onChange={e => setEditFormFields(f => ({ ...f, lastName: e.target.value }))} 
+                  fullWidth 
+                  required 
+                />
               </Grid>
               <Grid item xs={12} sm={6}>
                 <FormControl fullWidth>
@@ -2342,6 +2474,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                   >
                     <MenuItem value="1st Semester">1st Semester</MenuItem>
                     <MenuItem value="2nd Semester">2nd Semester</MenuItem>
+                    <MenuItem value="Summer">Summer</MenuItem>
                   </Select>
                 </FormControl>
                 </Grid>
@@ -2366,7 +2499,10 @@ const ProgramHeadEnrollment: React.FC = () => {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => { setEditForm(null); }} disabled={savingEdit}>Cancel</Button>
+          <Button onClick={() => { 
+            setEditForm(null); 
+            setEditFormFields({ firstName: '', middleName: '', lastName: '' }); 
+          }} disabled={savingEdit}>Cancel</Button>
           <Button onClick={handleSaveEdit} variant="contained" color="primary" disabled={savingEdit}>{savingEdit ? 'Saving...' : 'Save Changes'}</Button>
         </DialogActions>
       </Dialog>
