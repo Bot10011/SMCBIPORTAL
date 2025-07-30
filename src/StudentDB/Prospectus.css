@@ -1,914 +1,785 @@
-import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
-import './Prospectus.css';
-import { motion } from 'framer-motion';
-import { supabase } from '../lib/supabase';
-import { useAuth } from '../contexts/AuthContext';
+/* Prospectus Container */
+.prospectus-container {
+  min-height: 100vh;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-family: 'Times New Roman', serif;
+}
 
-const Prospectus: React.FC = () => {
-  const { user } = useAuth();
-  const [isFlipped, setIsFlipped] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [subjects, setSubjects] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const frontCardRef = useRef<HTMLDivElement>(null);
-  const backCardRef = useRef<HTMLDivElement>(null);
+.prospectus-header {
+  text-align: center;
+  margin-bottom: 2rem;
+  color: #2c3e50;
+}
 
-  // Types for better type safety
-  interface Subject {
-    id: string;
-    code: string;
-    name: string;
-    units: number;
-    year_level: string;
-    prerequisite?: string;
-  }
+.prospectus-header h1 {
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
+  color: #34495e;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+}
 
-  interface Enrollment {
-    school_year: string;
-    semester: string;
-    subject: Subject;
-  }
+.prospectus-header p {
+  font-size: 1.2rem;
+  color: #7f8c8d;
+  font-style: italic;
+  margin-bottom: 1rem;
+}
 
-  // Memoized data processing
-  const groupedSubjects = useMemo(() => {
-    const grouped: Record<string, Record<string, Subject[]>> = {};
-    subjects.forEach((enrollment: any) => {
-      const year = enrollment.school_year || 'Unknown Year';
-      const sem = enrollment.semester || 'Unknown Semester';
-      if (!grouped[year]) grouped[year] = {};
-      if (!grouped[year][sem]) grouped[year][sem] = [];
-      grouped[year][sem].push(enrollment.subject);
-    });
-    return grouped;
-  }, [subjects]);
+.download-btn {
+  background: linear-gradient(135deg, #8b4513 0%, #a0522d 100%);
+  color: white;
+  border: none;
+  padding: 0.8rem 1.5rem;
+  border-radius: 25px;
+  font-size: 0.9rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 8px rgba(139, 69, 19, 0.3);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 auto;
+}
 
-  // Memoized handlers
-  const handleCardDoubleClick = useCallback(() => {
-    setIsFlipped(!isFlipped);
-  }, [isFlipped]);
+.download-btn:hover {
+  background: linear-gradient(135deg, #a0522d 0%, #8b4513 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(139, 69, 19, 0.4);
+}
 
-  const downloadAsPDF = useCallback(async () => {
-    setIsDownloading(true);
-    try {
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      
-      // Download front side
-      if (frontCardRef.current) {
-        const docEl = frontCardRef.current.querySelector('.prospectus-document') as HTMLDivElement;
-        const prevStyle = setDocumentFullHeight(docEl);
-        applyDownloadMode(docEl);
-        
-        // Wait for styles to apply
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-        const canvas = await html2canvas(docEl, {
-          scale: 2,
-          useCORS: true,
-          allowTaint: true,
-          backgroundColor: '#2c3e50',
-          logging: false,
-          removeContainer: true,
-          width: docEl.scrollWidth,
-          height: docEl.scrollHeight,
-          scrollX: 0,
-          scrollY: 0,
-          windowWidth: docEl.scrollWidth,
-          windowHeight: docEl.scrollHeight
-        });
-        
-        restoreDocumentStyle(docEl, prevStyle);
-        removeDownloadMode(docEl);
-        
-        const imgData = canvas.toDataURL('image/png');
-        const imgWidth = 210; // A4 width in mm
-        const imgHeight = (canvas.height * imgWidth) / canvas.width;
-        pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
-        
-        // Add new page for back side
-        if (backCardRef.current) {
-          const docEl2 = backCardRef.current.querySelector('.prospectus-document') as HTMLDivElement;
-          const prevStyle2 = setDocumentFullHeight(docEl2);
-          applyDownloadMode(docEl2);
-          
-          // Wait for styles to apply
-          await new Promise(resolve => setTimeout(resolve, 100));
-          
-          const canvas2 = await html2canvas(docEl2, {
-            scale: 2,
-            useCORS: true,
-            allowTaint: true,
-            backgroundColor: '#2c3e50',
-            logging: false,
-            removeContainer: true,
-            width: docEl2.scrollWidth,
-            height: docEl2.scrollHeight,
-            scrollX: 0,
-            scrollY: 0,
-            windowWidth: docEl2.scrollWidth,
-            windowHeight: docEl2.scrollHeight
-          });
-          
-          restoreDocumentStyle(docEl2, prevStyle2);
-          removeDownloadMode(docEl2);
-          
-          const imgData2 = canvas2.toDataURL('image/png');
-          const imgHeight2 = (canvas2.height * imgWidth) / canvas2.width;
-          pdf.addPage();
-          pdf.addImage(imgData2, 'PNG', 0, 0, imgWidth, imgHeight2);
-        }
-        
-        pdf.save('BSIT-Prospectus-2020-2021.pdf');
-      }
-    } catch (error) {
-      console.error('Error generating PDF:', error);
-      alert('Failed to download PDF. Please try again.');
-    } finally {
-      setIsDownloading(false);
-    }
-  }, [frontCardRef, backCardRef]);
+.download-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
 
-  const downloadAsImage = useCallback(async () => {
-    setIsDownloading(true);
-    try {
-      if (frontCardRef.current) {
-        const docEl = frontCardRef.current.querySelector('.prospectus-document') as HTMLDivElement;
-        const prevStyle = setDocumentFullHeight(docEl);
-        applyDownloadMode(docEl);
-        
-        // Wait for styles to apply
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-        const canvas = await html2canvas(docEl, {
-          scale: 2,
-          useCORS: true,
-          allowTaint: true,
-          backgroundColor: '#2c3e50',
-          width: docEl.scrollWidth,
-          height: docEl.scrollHeight,
-          scrollX: 0,
-          scrollY: 0,
-          windowWidth: docEl.scrollWidth,
-          windowHeight: docEl.scrollHeight
-        });
-        
-        restoreDocumentStyle(docEl, prevStyle);
-        removeDownloadMode(docEl);
-        
-        const link = document.createElement('a');
-        link.download = 'BSIT-Prospectus-Page1.png';
-        link.href = canvas.toDataURL();
-        link.click();
-      }
-    } catch (error) {
-      console.error('Error generating image:', error);
-      alert('Failed to download image. Please try again.');
-    } finally {
-      setIsDownloading(false);
-    }
-  }, [frontCardRef]);
+.download-btn::before {
+  content: '📄';
+  font-size: 1rem;
+}
 
-  useEffect(() => {
-    const fetchSubjects = async () => {
-      if (!user?.id) return;
-      setLoading(true);
-      try {
-        const { data, error } = await supabase
-          .from('enrollcourse')
-          .select(`school_year, semester, subject:subjects(id, code, name, units, year_level, prerequisite)`) // join with subjects
-          .eq('student_id', user.id)
-          .eq('status', 'active');
-        if (!error && data) {
-          setSubjects(data);
-        }
-      } catch (error) {
-        console.error('Error fetching subjects:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchSubjects();
-  }, [user?.id]);
+.download-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
 
-  // Helper to group by school_year and semester
-  const groupBySchoolYearAndSemester = (enrollments: any[]) => {
-    const grouped: Record<string, Record<string, any[]>> = {};
-    enrollments.forEach(enrollment => {
-      const year = enrollment.school_year || 'Unknown Year';
-      const sem = enrollment.semester || 'Unknown Semester';
-      if (!grouped[year]) grouped[year] = {};
-      if (!grouped[year][sem]) grouped[year][sem] = [];
-      grouped[year][sem].push(enrollment.subject);
-    });
-    return grouped;
-  };
+.download-btn.secondary {
+  background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+}
 
-  const setDocumentFullHeight = (doc: HTMLDivElement | null) => {
-    if (!doc) return { height: '', maxHeight: '', overflowY: '' };
-    const prev = {
-      height: doc.style.height,
-      maxHeight: doc.style.maxHeight,
-      overflowY: doc.style.overflowY,
-    };
-    doc.style.height = 'auto';
-    doc.style.maxHeight = 'none';
-    doc.style.overflowY = 'visible';
-    return prev;
-  };
+.download-btn.secondary:hover {
+  background: linear-gradient(135deg, #495057 0%, #6c757d 100%);
+}
 
-  const restoreDocumentStyle = (doc: HTMLDivElement | null, prev: { height: string, maxHeight: string, overflowY: string }) => {
-    if (!doc) return;
-    doc.style.height = prev.height;
-    doc.style.maxHeight = prev.maxHeight;
-    doc.style.overflowY = prev.overflowY;
-  };
+.download-btn.secondary::before {
+  content: '🖼️';
+}
 
-  const applyDownloadMode = (doc: HTMLDivElement | null) => {
-    if (!doc) return;
-    doc.classList.add('download-mode');
-  };
+/* Flip Card Container */
+.flip-card-container {
+  perspective: 1000px;
+  width: 100%;
+  max-width: 1200px;
+  height: calc(100vh - 180px);
+  min-height: 400px;
+  margin: 0 auto;
+  display: flex;
+  align-items: stretch;
+}
 
-  const removeDownloadMode = (doc: HTMLDivElement | null) => {
-    if (!doc) return;
-    doc.classList.remove('download-mode');
-  };
+.flip-card {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  text-align: left;
+  transition: transform 0.8s;
+  transform-style: preserve-3d;
+  cursor: pointer;
+  display: flex;
+}
 
+.flip-card.flipped {
+  transform: rotateY(180deg);
+}
 
+.flip-card-front,
+.flip-card-back {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+  border-radius: 15px;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
 
-  // Loading skeleton component
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br via-white to-blue-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {/* Header Skeleton */}
-          <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 via-white to-purple-50 border border-blue-100 mb-8"
-          >
-            <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 min-h-[110px] flex items-center w-full">
-              <div className="flex items-center gap-4 w-full justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
-                    <div className="w-6 h-6 bg-white/30 rounded animate-pulse"></div>
-                  </div>
-                  <div>
-                    <div className="h-8 w-48 bg-white/20 rounded animate-pulse mb-2"></div>
-                    <div className="h-4 w-64 bg-white/20 rounded animate-pulse"></div>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <div className="h-10 w-32 bg-white/20 rounded-lg animate-pulse"></div>
-                  <div className="h-10 w-32 bg-white/20 rounded-lg animate-pulse"></div>
-                </div>
-              </div>
-            </div>
-          </motion.div>
+.flip-card-back {
+  transform: rotateY(180deg);
+}
 
-          {/* Flip Card Skeleton */}
-          <div className="flip-card-container">
-            <div className="flip-card">
-              <div className="flip-card-front">
-                <div className="page-indicator">Page 1</div>
-                <div className="prospectus-document">
-                  {/* Header Skeleton */}
-                  <div className="document-header">
-                    <div className="header-content">
-                      <div className="logo-section">
-                        <div className="logo-seal">
-                          <div className="w-20 h-20 bg-gray-200 rounded-full animate-pulse"></div>
-                        </div>
-                      </div>
-                      <div className="institution-info">
-                        <div className="h-6 w-64 bg-gray-200 rounded animate-pulse mb-2"></div>
-                        <div className="h-4 w-48 bg-gray-200 rounded animate-pulse mb-1"></div>
-                        <div className="h-4 w-56 bg-gray-200 rounded animate-pulse mb-2"></div>
-                        <div className="h-5 w-72 bg-gray-200 rounded animate-pulse mb-1"></div>
-                        <div className="h-4 w-40 bg-gray-200 rounded animate-pulse"></div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Table Skeleton */}
-                  <div className="space-y-4">
-                    {[1, 2].map(i => (
-                      <div key={i}>
-                        <div className="h-5 w-32 bg-gray-200 rounded animate-pulse mb-3"></div>
-                        <div className="h-4 w-24 bg-gray-200 rounded animate-pulse mb-2"></div>
-                        <div className="prospectus-table">
-                          <div className="h-8 bg-gray-200 rounded animate-pulse mb-2"></div>
-                          {[1, 2, 3].map(j => (
-                            <div key={j} className="h-6 bg-gray-100 rounded animate-pulse mb-1"></div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+/* Document Styling */
+.prospectus-document {
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 100%;
+  background: linear-gradient(135deg, #f5f2eb 0%, #e8e4d9 50%, #d4c8b8 100%);
+  padding: 1.5rem;
+  overflow-y: auto;
+  position: relative;
+  font-size: 0.8rem;
+  line-height: 1.3;
+  color: #2c3e50;
+  scrollbar-width: thin;
+  scrollbar-color: #8b4513 #f5f2eb;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* Paper texture effect */
+.prospectus-document::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: 
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 2px,
+      rgba(139, 69, 19, 0.03) 2px,
+      rgba(139, 69, 19, 0.03) 4px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(139, 69, 19, 0.02) 2px,
+      rgba(139, 69, 19, 0.02) 4px
     );
+  pointer-events: none;
+  opacity: 0.8;
+}
+
+/* Document Header */
+.document-header {
+  margin-bottom: 2rem;
+  position: relative;
+  z-index: 1;
+}
+
+.header-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.5rem;
+  max-width: 100%;
+}
+
+.logo-section {
+  flex-shrink: 0;
+}
+
+.logo-seal {
+  position: relative;
+}
+
+.logo-image {
+  width: 90px;
+  height: 90px;
+  object-fit: contain;
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(139, 69, 19, 0.3);
+}
+
+.institution-info {
+  flex: 1;
+  text-align: left;
+}
+
+.institution-info h2 {
+  font-size: 1.3rem;
+  font-weight: bold;
+  margin-bottom: 0.3rem;
+  color: #2c3e50;
+  line-height: 1.2;
+}
+
+.institution-info .former-name {
+  font-size: 0.8rem;
+  color: #7f8c8d;
+  margin-bottom: 0.2rem;
+  font-style: italic;
+}
+
+.institution-info .address {
+  font-size: 0.8rem;
+  color: #34495e;
+  margin-bottom: 0.8rem;
+  line-height: 1.3;
+}
+
+.institution-info h3 {
+  font-size: 1.1rem;
+  font-weight: bold;
+  margin: 0.8rem 0 0.3rem 0;
+  color: #8b4513;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.institution-info .effective-date {
+  font-size: 0.85rem;
+  color: #7f8c8d;
+  font-weight: 500;
+}
+
+/* Semester Sections */
+.semester-section {
+  margin-bottom: 2rem;
+  position: relative;
+  z-index: 1;
+}
+
+.semester-section h4 {
+  font-size: 0.9rem;
+  font-weight: bold;
+  margin-bottom: 1rem;
+  color: #8b4513;
+  text-align: center;
+  background: #f8f4f0;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid #8b4513;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: 0 1px 3px rgba(139, 69, 19, 0.2);
+}
+
+/* Table Styling */
+.prospectus-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1.5rem;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #8b4513;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+  font-size: 0.7rem;
+}
+
+.prospectus-table th {
+  background: #8b4513;
+  color: white;
+  padding: 0.4rem 0.3rem;
+  text-align: center;
+  font-size: 0.65rem;
+  font-weight: bold;
+  border: 1px solid #654321;
+  vertical-align: middle;
+}
+
+.prospectus-table th:first-child {
+  width: 8%;
+}
+
+.prospectus-table th:nth-child(2) {
+  width: 12%;
+}
+
+.prospectus-table th:nth-child(3) {
+  width: 35%;
+}
+
+.prospectus-table th:nth-child(4),
+.prospectus-table th:nth-child(5),
+.prospectus-table th:nth-child(6) {
+  width: 8%;
+}
+
+.prospectus-table th:nth-child(7) {
+  width: 15%;
+}
+
+.prospectus-table th:last-child {
+  width: 12%;
+}
+
+.prospectus-table td {
+  padding: 0.3rem 0.2rem;
+  text-align: center;
+  border: 1px solid #ddd;
+  font-size: 0.65rem;
+  vertical-align: middle;
+  line-height: 1.2;
+}
+
+.prospectus-table td:nth-child(3) {
+  text-align: left;
+  font-size: 0.6rem;
+  padding-left: 0.4rem;
+  padding-right: 0.4rem;
+}
+
+.prospectus-table td:nth-child(7) {
+  font-size: 0.6rem;
+}
+
+.prospectus-table tr:nth-child(even) {
+  background: rgba(248, 244, 240, 0.6);
+}
+
+.prospectus-table tr:hover {
+  background: rgba(139, 69, 19, 0.05);
+}
+
+.total-row {
+  background: #f8f4f0 !important;
+  font-weight: bold;
+  color: #8b4513;
+}
+
+.total-row td {
+  border-top: 2px solid #8b4513;
+  font-size: 0.7rem;
+}
+
+.total-row td:first-child {
+  text-align: right;
+  padding-right: 0.5rem;
+}
+
+/* Electives Section */
+.electives-section {
+  margin: 2rem 0;
+  position: relative;
+  z-index: 1;
+}
+
+.electives-section h4 {
+  font-size: 1rem;
+  font-weight: bold;
+  margin-bottom: 1rem;
+  color: #8b4513;
+  text-align: center;
+  background: #f8f4f0;
+  padding: 0.5rem;
+  border-radius: 5px;
+  border-left: 4px solid #8b4513;
+}
+
+.electives-list {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 0.5rem;
+}
+
+.electives-list li {
+  background: rgba(255, 255, 255, 0.8);
+  padding: 0.5rem;
+  border-radius: 5px;
+  border-left: 3px solid #8b4513;
+  font-size: 0.75rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+/* Signatures Section */
+.signatures-section {
+  margin: 2rem 0;
+  position: relative;
+  z-index: 1;
+}
+
+.signature-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+  gap: 2rem;
+}
+
+.signature-item {
+  flex: 1;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.8);
+  padding: 1rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.signature-item p {
+  margin: 0.3rem 0;
+  font-size: 0.75rem;
+}
+
+.signature-line {
+  width: 150px;
+  height: 2px;
+  background: #8b4513;
+  margin: 1rem auto 0;
+  border-radius: 1px;
+}
+
+.stamp-section {
+  text-align: center;
+  margin: 2rem 0;
+}
+
+.stamp {
+  display: inline-block;
+  background: #8b4513;
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: bold;
+  margin-bottom: 0.5rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+/* Document Footer */
+.document-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid #8b4513;
+  position: relative;
+  z-index: 1;
+}
+
+.footer-left,
+.footer-right {
+  font-size: 0.65rem;
+  color: #7f8c8d;
+  line-height: 1.2;
+}
+
+.footer-left p,
+.footer-right p {
+  margin: 0.1rem 0;
+}
+
+.footer-center {
+  text-align: center;
+  flex: 1;
+  margin: 0 1rem;
+}
+
+.footer-center .stamp {
+  font-size: 0.6rem;
+  padding: 0.2rem 0.6rem;
+  background: #8b4513;
+  color: white;
+  border-radius: 12px;
+  display: inline-block;
+  margin-bottom: 0.2rem;
+  font-weight: bold;
+}
+
+.footer-center .signature {
+  font-size: 0.65rem;
+  color: #7f8c8d;
+  margin-top: 0.2rem;
+  font-style: italic;
+}
+
+/* Instructions */
+.prospectus-instructions {
+  text-align: center;
+  margin-top: 2rem;
+  color: #7f8c8d;
+  font-style: italic;
+  font-size: 0.9rem;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .prospectus-container {
+    padding: 1rem;
   }
+  
+  .flip-card-container {
+    height: calc(100vh - 120px);
+    min-height: 300px;
+  }
+  
+  .prospectus-document {
+    padding: 1rem;
+    font-size: 0.75rem;
+  }
+  
+  .signature-row {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .electives-list {
+    grid-template-columns: 1fr;
+  }
+  
+  .prospectus-table {
+    font-size: 0.6rem;
+  }
+  
+  .prospectus-table th,
+  .prospectus-table td {
+    padding: 0.3rem 0.2rem;
+    font-size: 0.6rem;
+  }
+}
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br via-white to-blue-50">
-      {/* Premium Header Section */}
-      <motion.div
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 via-white to-purple-50 border border-blue-100"
-      >
-      <div className="mb-8 max-w-7xl mx-auto">
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 via-white to-purple-50  border border-blue-100 w-full">
-          <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 min-h-[110px] flex items-center w-full">
-            <div className="flex items-center gap-4 w-full justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 text-white"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0A9 9 0 11 3 12a9 9 0 0118 0z" /></svg>
-                </div>
-                <div>
-                  <h1 className="text-2xl font-bold text-white tracking-tight">Academic Prospectus</h1>
-                  <p className="text-white/80 text-sm font-medium">Bachelor of Science in Information Technology (BSIT)</p>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <button 
-                  onClick={downloadAsPDF}
-                  disabled={isDownloading}
-                  className="prospectus-download-button px-4 py-2 bg-white rounded-lg border border-gray-200 shadow-inner flex items-center gap-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-                >
-                  {isDownloading ? 'Generating PDF...' : 'Download PDF'}
-                </button>
-                <button 
-                  onClick={downloadAsImage}
-                  disabled={isDownloading}
-                  className="prospectus-download-button px-4 py-2 bg-white rounded-lg border border-gray-200 shadow-inner flex items-center gap-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-                >
-                  {isDownloading ? 'Generating Image...' : 'Download Image'}
-                </button>
-              </div>
-            </div>
-            
-          </div>
-        </div>
-      </div>
-      </motion.div>
-      
-      <div className="flip-card-container">
-        <div 
-          className={`prospectus-flip-card flip-card ${isFlipped ? 'flipped' : ''}`}
-          onDoubleClick={handleCardDoubleClick}
-        >
-          {/* Front Side */}
-          <div className="flip-card-front" ref={frontCardRef}>
-            <div className="page-indicator">Page 1</div>
-            <div className="prospectus-document">
-              {/* Header Section */}
-              <div className="document-header">
-                <div className="header-content">
-                  <div className="logo-section">
-                    <div className="logo-seal">
-                      <img src="/img/logo.png" alt="St. Mary's College Logo" className="logo-image" />
-                    </div>
-                  </div>
-                  <div className="institution-info">
-                    <h2>St. Mary's College of Bansalan, Inc.</h2>
-                    <p className="former-name">(Formerly: Holy Cross of Bansalan College, Inc.)</p>
-                    <p className="address">Dahlia Street, Poblacion Uno, Bansalan, Davao del Sur, 8005 Philippines</p>
-                    <h3>Bachelor of Science in Information Technology (BSIT)</h3>
-                    <p className="effective-date">Effective SY 2020 - 2021</p>
-                  </div>
-                </div>
-              </div>
-              {/* Dynamic School Year/Semester Sections */}
-              {Object.entries(groupedSubjects).map(([schoolYear, semesters]) => (
-                <div key={schoolYear}>
-                  <h4 className="year-header">{schoolYear}</h4>
-                  {Object.entries(semesters).map(([sem, subs]) => (
-                    <div key={sem}>
-                      <h5 className="semester-header">{sem}</h5>
-                      <table className="prospectus-table">
-                        <thead>
-                          <tr>
-                            <th>Code</th>
-                            <th>Name</th>
-                            <th>Units</th>
-                            <th>Prerequisite</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {subs.map(subj => (
-                            <tr key={subj.id}>
-                              <td>{subj.code}</td>
-                              <td>{subj.name}</td>
-                              <td>{subj.units}</td>
-                              <td>{subj.prerequisite || '-'}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
-          </div>
+/* Scrollbar Styling */
+.prospectus-document::-webkit-scrollbar {
+  width: 10px;
+}
 
-          {/* Back Side */}
-          <div className="flip-card-back" ref={backCardRef}>
-            <div className="page-indicator">Page 2</div>
-            <div className="prospectus-document">
-              {/* Header Section */}
-              <div className="document-header">
-                <div className="header-content">
-                  <div className="logo-section">
-                    <div className="logo-seal">
-                      <img src="/img/logo.png" alt="St. Mary's College Logo" className="logo-image" />
-                    </div>
-                  </div>
-                  <div className="institution-info">
-                    <h2>St. Mary's College of Bansalan, Inc.</h2>
-                    <p className="former-name">(Formerly: Holy Cross of Bansalan College, Inc.)</p>
-                    <p className="address">Dahlia Street, Poblacion Uno, Bansalan, Davao del Sur, 8005 Philippines</p>
-                    <h3>Bachelor of Science in Information Technology (BSIT)</h3>
-                    <p className="effective-date">Effective SY 2020 - 2021</p>
-                  </div>
-                </div>
-              </div>
+.prospectus-document::-webkit-scrollbar-track {
+  background: #f5f2eb;
+  border-radius: 4px;
+}
 
-              {/* Summer Required */}
-              <div className="semester-section">
-                <h4>SUMMER REQUIRED</h4>
-                <table className="prospectus-table">
-                  <thead>
-                    <tr>
-                      <th>GRADES</th>
-                      <th colSpan={2}>SUBJECT</th>
-                      <th colSpan={3}>UNITS</th>
-                      <th>PRE-REQUISITE</th>
-                      <th>Total Hrs./wk.</th>
-                    </tr>
-                    <tr>
-                      <th></th>
-                      <th>CODE</th>
-                      <th>DESCRIPTION</th>
-                      <th>LEC</th>
-                      <th>LAB</th>
-                      <th>Total</th>
-                      <th></th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td></td>
-                      <td>GE Elec102</td>
-                      <td>Entrepreneurial Mind</td>
-                      <td>3</td>
-                      <td>0</td>
-                      <td>3</td>
-                      <td>None</td>
-                      <td>3</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>Per Dev</td>
-                      <td>Social Grace and Etiquette</td>
-                      <td>3</td>
-                      <td>0</td>
-                      <td>3</td>
-                      <td>None</td>
-                      <td>3</td>
-                    </tr>
-                    <tr className="total-row">
-                      <td colSpan={5}><strong>TOTAL UNITS</strong></td>
-                      <td><strong>6</strong></td>
-                      <td></td>
-                      <td></td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+.prospectus-document::-webkit-scrollbar-thumb {
+  background: #8b4513;
+  border-radius: 4px;
+  border: 2px solid #f5f2eb;
+}
 
-              {/* Third Year - First Semester */}
-              <div className="semester-section">
-                <h4>Third Year - FIRST SEMESTER</h4>
-                <table className="prospectus-table">
-                  <thead>
-                    <tr>
-                      <th>GRADES</th>
-                      <th colSpan={2}>SUBJECT</th>
-                      <th colSpan={3}>UNITS</th>
-                      <th>PRE-REQUISITE</th>
-                      <th>Total Hrs./wk.</th>
-                    </tr>
-                    <tr>
-                      <th></th>
-                      <th>CODE</th>
-                      <th>DESCRIPTION</th>
-                      <th>LEC</th>
-                      <th>LAB</th>
-                      <th>Total</th>
-                      <th></th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td></td>
-                      <td>IT 311</td>
-                      <td>E-Commerce</td>
-                      <td>2</td>
-                      <td>1</td>
-                      <td>3</td>
-                      <td>3rd yr. Standing</td>
-                      <td>5</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>IT 312</td>
-                      <td>Networking 2</td>
-                      <td>2</td>
-                      <td>1</td>
-                      <td>3</td>
-                      <td>IT 222</td>
-                      <td>5</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>IT 313</td>
-                      <td>Integrative Programming and Technologies 1</td>
-                      <td>2</td>
-                      <td>1</td>
-                      <td>3</td>
-                      <td>3rd yr. Standing</td>
-                      <td>5</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>IT 314</td>
-                      <td>Information Assurance and Security 2</td>
-                      <td>2</td>
-                      <td>1</td>
-                      <td>3</td>
-                      <td>IT 221</td>
-                      <td>5</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>IT 315</td>
-                      <td>System Analysis and Design</td>
-                      <td>2</td>
-                      <td>1</td>
-                      <td>3</td>
-                      <td>3rd yr. Standing</td>
-                      <td>5</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>IT 316</td>
-                      <td>Quantitative Methods (incl. Modeling & Simulation)</td>
-                      <td>2</td>
-                      <td>1</td>
-                      <td>3</td>
-                      <td>3rd yr. Standing</td>
-                      <td>5</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>GE Elec 103</td>
-                      <td>Reading Visual Arts</td>
-                      <td>3</td>
-                      <td>0</td>
-                      <td>3</td>
-                      <td>3rd yr. Standing</td>
-                      <td>3</td>
-                    </tr>
-                    <tr className="total-row">
-                      <td colSpan={5}><strong>TOTAL UNITS</strong></td>
-                      <td><strong>21</strong></td>
-                      <td></td>
-                      <td></td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+.prospectus-document::-webkit-scrollbar-thumb:hover {
+  background: #a0522d;
+}
 
-              {/* Third Year - Second Semester */}
-              <div className="semester-section">
-                <h4>Third Year - SECOND SEMESTER</h4>
-                <table className="prospectus-table">
-                  <thead>
-                    <tr>
-                      <th>GRADES</th>
-                      <th colSpan={2}>SUBJECT</th>
-                      <th colSpan={3}>UNITS</th>
-                      <th>PRE-REQUISITE</th>
-                      <th>Total Hrs./wk.</th>
-                    </tr>
-                    <tr>
-                      <th></th>
-                      <th>CODE</th>
-                      <th>DESCRIPTION</th>
-                      <th>LEC</th>
-                      <th>LAB</th>
-                      <th>Total</th>
-                      <th></th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td></td>
-                      <td>IT 321</td>
-                      <td>System Integration and Architecture 1</td>
-                      <td>2</td>
-                      <td>1</td>
-                      <td>3</td>
-                      <td>IT 315</td>
-                      <td>5</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>IT 322</td>
-                      <td>Capstone Project and Research 1</td>
-                      <td>4</td>
-                      <td>2</td>
-                      <td>6</td>
-                      <td>3rd yr. Standing</td>
-                      <td>5</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>IT Elective2</td>
-                      <td>IT Elective 2</td>
-                      <td>3</td>
-                      <td>0</td>
-                      <td>3</td>
-                      <td>3rd yr. Standing</td>
-                      <td>3</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>IT 323</td>
-                      <td>Social and Professional Issues</td>
-                      <td>3</td>
-                      <td>0</td>
-                      <td>3</td>
-                      <td>3rd yr. Standing</td>
-                      <td>3</td>
-                    </tr>
-                    <tr className="total-row">
-                      <td colSpan={5}><strong>TOTAL UNITS</strong></td>
-                      <td><strong>15</strong></td>
-                      <td></td>
-                      <td></td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+/* Ensure proper scrolling behavior */
+.flip-card-front .prospectus-document,
+.flip-card-back .prospectus-document {
+  overflow-y: scroll;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
 
-              {/* Summer Required */}
-              <div className="semester-section">
-                <h4>SUMMER REQUIRED</h4>
-                <table className="prospectus-table">
-                  <thead>
-                    <tr>
-                      <th>GRADES</th>
-                      <th colSpan={2}>SUBJECT</th>
-                      <th colSpan={3}>UNITS</th>
-                      <th>PRE-REQUISITE</th>
-                      <th>Total Hrs./wk.</th>
-                    </tr>
-                    <tr>
-                      <th></th>
-                      <th>CODE</th>
-                      <th>DESCRIPTION</th>
-                      <th>LEC</th>
-                      <th>LAB</th>
-                      <th>Total</th>
-                      <th></th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td></td>
-                      <td>IT 401</td>
-                      <td>Systems Administration and Maintenance</td>
-                      <td>2</td>
-                      <td>1</td>
-                      <td>3</td>
-                      <td>3rd yr. Standing</td>
-                      <td>5</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>IT 402</td>
-                      <td>Computer Graphics and Animation</td>
-                      <td>2</td>
-                      <td>1</td>
-                      <td>3</td>
-                      <td>3rd yr. Standing</td>
-                      <td>5</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>IT Elective3</td>
-                      <td>IT Elective 3</td>
-                      <td>2</td>
-                      <td>1</td>
-                      <td>3</td>
-                      <td>3rd yr. Standing</td>
-                      <td>5</td>
-                    </tr>
-                    <tr className="total-row">
-                      <td colSpan={5}><strong>TOTAL UNITS</strong></td>
-                      <td><strong>9</strong></td>
-                      <td></td>
-                      <td></td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+/* Page Indicators */
+.page-indicator {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: rgba(139, 69, 19, 0.9);
+  color: white;
+  padding: 0.3rem 0.8rem;
+  border-radius: 15px;
+  font-size: 0.7rem;
+  font-weight: bold;
+  z-index: 10;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
 
-              {/* Fourth Year - First Semester */}
-              <div className="semester-section">
-                <h4>Fourth Year - FIRST SEMESTER</h4>
-                <table className="prospectus-table">
-                  <thead>
-                    <tr>
-                      <th>GRADES</th>
-                      <th colSpan={2}>SUBJECT</th>
-                      <th colSpan={3}>UNITS</th>
-                      <th>PRE-REQUISITE</th>
-                      <th>Total Hrs./wk.</th>
-                    </tr>
-                    <tr>
-                      <th></th>
-                      <th>CODE</th>
-                      <th>DESCRIPTION</th>
-                      <th>LEC</th>
-                      <th>LAB</th>
-                      <th>Total</th>
-                      <th></th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td></td>
-                      <td>IT 411</td>
-                      <td>Capstone Project and Research 2</td>
-                      <td>4</td>
-                      <td>2</td>
-                      <td>6</td>
-                      <td>IT 322</td>
-                      <td>5</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>IT Elective4</td>
-                      <td>IT Elective 4</td>
-                      <td>2</td>
-                      <td>1</td>
-                      <td>3</td>
-                      <td>4th yr. Standing</td>
-                      <td>5</td>
-                    </tr>
-                    <tr className="total-row">
-                      <td colSpan={5}><strong>TOTAL UNITS</strong></td>
-                      <td><strong>9</strong></td>
-                      <td></td>
-                      <td></td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+.flip-card-back .page-indicator {
+  background: rgba(139, 69, 19, 0.9);
+}
 
-              {/* Fourth Year - Second Semester */}
-              <div className="semester-section">
-                <h4>Fourth Year - SECOND SEMESTER</h4>
-                <table className="prospectus-table">
-                  <thead>
-                    <tr>
-                      <th>GRADES</th>
-                      <th colSpan={2}>SUBJECT</th>
-                      <th colSpan={3}>UNITS</th>
-                      <th>PRE-REQUISITE</th>
-                      <th>Total Hrs./wk.</th>
-                    </tr>
-                    <tr>
-                      <th></th>
-                      <th>CODE</th>
-                      <th>DESCRIPTION</th>
-                      <th>LEC</th>
-                      <th>LAB</th>
-                      <th>Total</th>
-                      <th></th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td></td>
-                      <td>PRAC</td>
-                      <td>Practicum (486 hours)</td>
-                      <td>9</td>
-                      <td>0</td>
-                      <td>9</td>
-                      <td>4th yr. Standing</td>
-                      <td></td>
-                    </tr>
-                    <tr className="total-row">
-                      <td colSpan={5}><strong>TOTAL UNITS</strong></td>
-                      <td><strong>9</strong></td>
-                      <td></td>
-                      <td></td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+/* Animation for page load */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 
-              {/* IT Electives List */}
-              <div className="electives-section">
-                <h4>LIST OF IT ELECTIVES</h4>
-                <ul className="electives-list">
-                  <li>Human Computer Interaction 2</li>
-                  <li>Operating System & Platforms</li>
-                  <li>Multimedia Systems</li>
-                  <li>Integrative Programming and Technologies 2</li>
-                  <li>Mobile Development</li>
-                  <li>Applications Development & Emerging Technologies 2</li>
-                  <li>Fundamentals of Data Warehousing and Data Mining</li>
-                  <li>Information Management 2</li>
-                  <li>Systems Integration and Architecture 2</li>
-                </ul>
-              </div>
+.prospectus-container {
+  animation: fadeInUp 0.8s ease-out;
+}
 
-              {/* Signatures Section */}
-              <div className="signatures-section">
-                <div className="signature-row">
-                  <div className="signature-item">
-                    <p><strong>Prepared by:</strong></p>
-                    <p>Mr. Jhon Bryan J. Cantil, LPT</p>
-                    <p>BSIT Program Head</p>
-                    <div className="signature-line"></div>
-                  </div>
-                  <div className="signature-item">
-                    <p><strong>Checked by:</strong></p>
-                    <p>Ms. Sheryl O. Singkala, LPT</p>
-                    <p>College Registrar</p>
-                    <div className="signature-line"></div>
-                  </div>
-                </div>
-                <div className="signature-row">
-                  <div className="signature-item">
-                    <p><strong>Approved by:</strong></p>
-                    <p>S. Ma. Charita P. Cabunoc, RVM</p>
-                    <p>VP Academics / Dean of College</p>
-                    <div className="signature-line"></div>
-                  </div>
-                  <div className="signature-item">
-                    <p><strong>Approved by:</strong></p>
-                    <p>S. Ma. Fe D. Gerodias, RVM</p>
-                    <p>School President</p>
-                    <div className="signature-line"></div>
-                  </div>
-                </div>
-                <div className="stamp-section">
-                  <div className="stamp">CONFORME NOTED</div>
-                  <p>7/15/2020</p>
-                </div>
-              </div>
+/* Print and Download Styles */
+@media print, screen {
+  .prospectus-document {
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  
+  .prospectus-table {
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    border-collapse: collapse !important;
+    border: 1px solid #8b4513 !important;
+  }
+  
+  .prospectus-table th {
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    background: #8b4513 !important;
+    color: white !important;
+    border: 1px solid #654321 !important;
+  }
+  
+  .prospectus-table td {
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    border: 1px solid #ddd !important;
+  }
+  
+  .prospectus-table tr:nth-child(even) {
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    background: rgba(248, 244, 240, 0.6) !important;
+  }
+  
+  .total-row {
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    background: #f8f4f0 !important;
+    color: #8b4513 !important;
+  }
+  
+  .semester-section h4 {
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    background: #f8f4f0 !important;
+    color: #8b4513 !important;
+    border: 1px solid #8b4513 !important;
+  }
+  
+  .stamp {
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    background: #8b4513 !important;
+    color: white !important;
+  }
+  
+  .signature-line {
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    background: #8b4513 !important;
+  }
+  
+  .electives-list li {
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    background: rgba(255, 255, 255, 0.8) !important;
+    border-left: 3px solid #8b4513 !important;
+  }
+  
+  .signature-item {
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    background: rgba(255, 255, 255, 0.8) !important;
+  }
+}
 
-              {/* Footer */}
-              <div className="document-footer">
-                <div className="footer-left">
-                  <p>Based on CMO No. 25, Series 2015</p>
-                  <p>BSIT-ACAD-P001</p>
-                </div>
-                <div className="footer-right">
-                  <p>Rev. 0</p>
-                  <p>2</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+/* Inverted text styles for download */
+.prospectus-document.download-mode {
+  background: #2c3e50 !important;
+  color: white !important;
+}
 
-      <div className="prospectus-instructions">
-        <p>Double-click on the card to flip and view the complete prospectus</p>
-      </div>
-    </div>
-  );
-};
+.prospectus-document.download-mode .prospectus-table {
+  background: rgba(255, 255, 255, 0.95) !important;
+  color: #2c3e50 !important;
+}
 
-export default Prospectus;
+.prospectus-document.download-mode .prospectus-table th {
+  background: #34495e !important;
+  color: white !important;
+}
+
+.prospectus-document.download-mode .prospectus-table td {
+  color: #2c3e50 !important;
+}
+
+.prospectus-document.download-mode .semester-section h4 {
+  background: #34495e !important;
+  color: white !important;
+  border-color: #2c3e50 !important;
+}
+
+.prospectus-document.download-mode .total-row {
+  background: #ecf0f1 !important;
+  color: #2c3e50 !important;
+}
+
+.prospectus-document.download-mode .stamp {
+  background: #34495e !important;
+  color: white !important;
+}
+
+.prospectus-document.download-mode .signature-line {
+  background: #34495e !important;
+}
+
+.prospectus-document.download-mode .electives-list li {
+  background: rgba(255, 255, 255, 0.9) !important;
+  color: #2c3e50 !important;
+  border-left-color: #34495e !important;
+}
+
+.prospectus-document.download-mode .signature-item {
+  background: rgba(255, 255, 255, 0.9) !important;
+  color: #2c3e50 !important;
+}
+
+/* Enhanced table styling for better capture */
+.prospectus-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1.5rem;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #8b4513;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+  font-size: 0.7rem;
+  table-layout: fixed;
+}
+
+.prospectus-table th {
+  background: #8b4513;
+  color: white;
+  padding: 0.4rem 0.3rem;
+  text-align: center;
+  font-size: 0.65rem;
+  font-weight: bold;
+  border: 1px solid #654321;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.prospectus-table td {
+  padding: 0.3rem 0.2rem;
+  text-align: center;
+  border: 1px solid #ddd;
+  font-size: 0.65rem;
+  vertical-align: middle;
+  line-height: 1.2;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.prospectus-table td:nth-child(3) {
+  text-align: left;
+  font-size: 0.6rem;
+  padding-left: 0.4rem;
+  padding-right: 0.4rem;
+  white-space: normal;
+} 
