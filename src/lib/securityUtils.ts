@@ -6,7 +6,7 @@ import { supabase } from './supabase';
 export interface UserProfile {
   id: string;
   email: string;
-  role: 'teacher' | 'student' | 'registrar' | 'program_head' | 'admin' | 'superadmin';
+  role: 'teacher' | 'instructor' | 'student' | 'registrar' | 'program_head' | 'admin' | 'superadmin';
   first_name: string;
   last_name: string;
   is_active: boolean;
