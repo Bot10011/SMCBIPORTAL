@@ -21,7 +21,7 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
 export type User = {
   id: string;
   email: string;
-  role: 'admin' | 'teacher' | 'student' | 'registrar';
+  role: 'admin' | 'teacher' | 'instructor' | 'student' | 'registrar';
   first_name: string;
   last_name: string;
   department?: string;
