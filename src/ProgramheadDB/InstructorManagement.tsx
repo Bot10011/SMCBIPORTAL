@@ -28,6 +28,7 @@ import {
   Alert,
   CircularProgress,
   Grid,
+  Avatar,
 } from '@mui/material';
 import { toast } from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
@@ -40,7 +41,9 @@ import {
   GraduationCap,
   BookOpen,
   Users,
-  Plus
+  Plus,
+  X,
+  Eye
 } from 'lucide-react';
 import SubjectAssignmentModal from './SubjectAssignmentModal';
 
@@ -70,6 +73,8 @@ interface TeacherSubject {
   time?: string;
   created_at?: string;
   teacher_name?: string;
+  teacher_role?: string;
+  teacher_profile_picture?: string;
   subject_code?: string;
   subject_name?: string;
   subject_units?: number;
@@ -126,8 +131,8 @@ const InstructorManagement: React.FC = () => {
     middleName: '',
     lastName: '',
     email: '',
-    role: 'teacher' as 'teacher' | 'instructor',
-    department: '',
+    role: 'instructor' as 'teacher' | 'instructor', // default to instructor
+    department: 'BSIT', // default to BSIT
     password: 'TempPass@123',
   });
 
@@ -157,6 +162,26 @@ const InstructorManagement: React.FC = () => {
   const [assignmentsLoading, setAssignmentsLoading] = useState(true);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [selectedYearLevel, setSelectedYearLevel] = useState<string>('all');
+  
+  // Assignment Detail Modal State
+  const [assignmentDetailModal, setAssignmentDetailModal] = useState<{
+    isOpen: boolean;
+    assignment: TeacherSubject | null;
+  }>({
+    isOpen: false,
+    assignment: null
+  });
+
+  // Edit Assignment Modal State
+  const [editAssignmentModal, setEditAssignmentModal] = useState<{
+    isOpen: boolean;
+    assignment: TeacherSubject | null;
+    loading: boolean;
+  }>({
+    isOpen: false,
+    assignment: null,
+    loading: false
+  });
 
   // Fetch instructors on component mount
   useEffect(() => {
@@ -200,7 +225,8 @@ const InstructorManagement: React.FC = () => {
             middle_name,
             email,
             role,
-            department
+            department,
+            profile_picture_url
           ),
           subject:courses!teacher_subjects_subject_id_fkey(
             id,
@@ -231,6 +257,8 @@ const InstructorManagement: React.FC = () => {
         teacher_name: assignment.teacher 
           ? `${assignment.teacher.first_name} ${assignment.teacher.middle_name ? assignment.teacher.middle_name + ' ' : ''}${assignment.teacher.last_name}`
           : 'Unknown Teacher',
+        teacher_role: assignment.teacher?.role || 'Unknown',
+        teacher_profile_picture: assignment.teacher?.profile_picture_url || null,
         subject_code: assignment.subject?.code || 'Unknown',
         subject_name: assignment.subject?.name || 'Unknown',
         subject_units: assignment.subject?.units || 0
@@ -333,8 +361,8 @@ const InstructorManagement: React.FC = () => {
       middleName: '',
       lastName: '',
       email: '',
-      role: 'teacher',
-      department: '',
+      role: 'instructor', // default to instructor
+      department: 'BSIT', // default to BSIT
       password: 'TempPass@123',
     });
   };
@@ -452,6 +480,71 @@ const InstructorManagement: React.FC = () => {
       ...prev,
       [yearLevel]: !prev[yearLevel]
     }));
+  };
+
+  const openAssignmentDetail = (assignment: TeacherSubject) => {
+    setAssignmentDetailModal({
+      isOpen: true,
+      assignment
+    });
+  };
+
+  const closeAssignmentDetail = () => {
+    setAssignmentDetailModal({
+      isOpen: false,
+      assignment: null
+    });
+  };
+
+  const openEditAssignment = (assignment: TeacherSubject) => {
+    setEditAssignmentModal({
+      isOpen: true,
+      assignment,
+      loading: false
+    });
+  };
+
+  const closeEditAssignment = () => {
+    setEditAssignmentModal({
+      isOpen: false,
+      assignment: null,
+      loading: false
+    });
+  };
+
+  const handleEditAssignment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editAssignmentModal.assignment) return;
+
+    setEditAssignmentModal(prev => ({ ...prev, loading: true }));
+
+    try {
+      const { error } = await supabase
+        .from('teacher_subjects')
+        .update({
+          teacher_id: editAssignmentModal.assignment.teacher_id,
+          subject_id: editAssignmentModal.assignment.subject_id,
+          section: editAssignmentModal.assignment.section,
+          academic_year: editAssignmentModal.assignment.academic_year,
+          semester: editAssignmentModal.assignment.semester,
+          year_level: editAssignmentModal.assignment.year_level,
+          day: editAssignmentModal.assignment.day,
+          time: editAssignmentModal.assignment.time,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', editAssignmentModal.assignment.id);
+
+      if (error) throw error;
+
+      toast.success('Assignment updated successfully');
+      closeEditAssignment();
+      fetchAssignments(); // Refresh the assignments list
+    } catch (error) {
+      console.error('Error updating assignment:', error);
+      toast.error('Failed to update assignment');
+    } finally {
+      setEditAssignmentModal(prev => ({ ...prev, loading: false }));
+    }
   };
 
   const dayAbbr: Record<string, string> = {
@@ -729,7 +822,7 @@ const InstructorManagement: React.FC = () => {
                 <Grid item xs={12} sm={8}>
                   <Typography variant="body2" color="textSecondary">
                     {selectedYearLevel === 'all' 
-                      ? `${assignments.length} total assignments`
+                      ? `${assignments.length} total assigned`
                       : `${assignments.filter(a => a.year_level === selectedYearLevel).length} assignments in ${selectedYearLevel}`
                     }
                   </Typography>
@@ -773,15 +866,23 @@ const InstructorManagement: React.FC = () => {
 
                   return sortedYearLevels.map(yearLevel => (
                     <Card key={yearLevel} sx={{ borderRadius: 3, overflow: 'hidden' }}>
-                      {/* Year Level Header */}
-                      <Box sx={{ 
-                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                        px: 3,
-                        py: 2,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between'
-                      }}>
+                      {/* Year Level Header - Clickable */}
+                      <Box 
+                        onClick={() => toggleSection(yearLevel)}
+                        sx={{ 
+                          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                          px: 3,
+                          py: 2,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          cursor: 'pointer',
+                          '&:hover': { 
+                            background: 'linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%)'
+                          },
+                          transition: 'background 0.2s ease'
+                        }}
+                      >
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                           <Box sx={{ 
                             width: 32, 
@@ -810,7 +911,10 @@ const InstructorManagement: React.FC = () => {
                           />
                         </Box>
                         <Button
-                          onClick={() => toggleSection(yearLevel)}
+                          onClick={(e) => {
+                            e.stopPropagation(); // Prevent triggering the parent onClick
+                            toggleSection(yearLevel);
+                          }}
                           sx={{ 
                             color: 'white',
                             '&:hover': { bg: 'rgba(255, 255, 255, 0.1)' }
@@ -826,111 +930,160 @@ const InstructorManagement: React.FC = () => {
                           <Grid container spacing={2}>
                             {groupedAssignments[yearLevel].map((assignment) => (
                               <Grid item xs={12} md={6} lg={4} key={assignment.id}>
-                                <Card sx={{ 
-                                  p: 2, 
-                                  bg: '#f9fafb',
-                                  border: '1px solid #e5e7eb',
-                                  '&:hover': { boxShadow: 2 }
-                                }}>
-                                  {/* Teacher Info */}
-                                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                      <Box sx={{ 
-                                        width: 32, 
-                                        height: 32, 
-                                        bg: '#dbeafe', 
-                                        borderRadius: '50%',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center'
-                                      }}>
-                                        <Typography sx={{ color: '#2563eb', fontWeight: 'semibold', fontSize: '0.75rem' }}>
+                                <Card 
+                                  onClick={() => openAssignmentDetail(assignment)}
+                                  sx={{ 
+                                    cursor: 'pointer',
+                                    bg: '#ffffff',
+                                    border: '1px solid #e5e7eb',
+                                    borderRadius: 2,
+                                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+                                    '&:hover': { 
+                                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                                      transform: 'translateY(-1px)',
+                                      transition: 'all 0.2s ease-in-out'
+                                    },
+                                    transition: 'all 0.2s ease-in-out',
+                                    overflow: 'hidden'
+                                  }}
+                                >
+                                  {/* Compact View - Always Visible */}
+                                  <Box sx={{ p: 2.5 }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                        <Avatar
+                                          src={assignment.teacher_profile_picture || undefined}
+                                          sx={{ 
+                                            width: 36, 
+                                            height: 36, 
+                                            bgcolor: '#dbeafe',
+                                            color: '#2563eb',
+                                            fontSize: '0.75rem',
+                                            fontWeight: 'semibold',
+                                            border: '2px solid #e5e7eb'
+                                          }}
+                                        >
                                           {assignment.teacher_name?.split(' ').map((n: string) => n[0]).join('')}
-                                        </Typography>
+                                        </Avatar>
+                                        <Box>
+                                          <Typography variant="body2" sx={{ fontWeight: '600', color: '#111827', mb: 0.5 }}>
+                                            {assignment.teacher_name}
+                                          </Typography>
+                                          <Chip 
+                                            label={assignment.teacher_role ? assignment.teacher_role.charAt(0).toUpperCase() + assignment.teacher_role.slice(1) : 'Unknown'}
+                                            size="small"
+                                            sx={{ 
+                                              bgcolor: assignment.teacher_role === 'instructor' ? '#fef3c7' : '#dbeafe',
+                                              color: assignment.teacher_role === 'instructor' ? '#92400e' : '#1e40af',
+                                              fontSize: '0.7rem',
+                                              fontWeight: '500'
+                                            }}
+                                          />
+                                        </Box>
                                       </Box>
-                                      <Box>
-                                        <Typography variant="body2" sx={{ fontWeight: 'medium', color: '#111827' }}>
-                                          {assignment.teacher_name}
-                                        </Typography>
-                                        <Typography variant="caption" sx={{ color: '#6b7280' }}>
-                                          Teacher
-                                        </Typography>
-                                      </Box>
+                                                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                         <Chip 
+                                           label={`${assignment.subject_units} ${assignment.subject_units === 1 ? 'Unit' : 'Units'}`}
+                                           size="medium"
+                                           sx={{ 
+                                             bg: '#3b82f6', 
+                                             color: 'white', 
+                                             fontSize: '0.85rem',
+                                             fontWeight: '600',
+                                             px: 1
+                                           }}
+                                         />
+                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                           <IconButton
+                                             size="small"
+                                             onClick={(e) => {
+                                               e.stopPropagation();
+                                               openEditAssignment(assignment);
+                                             }}
+                                             sx={{ 
+                                               p: 1,
+                                               color: '#6b7280',
+                                               '&:hover': { 
+                                                 color: '#3b82f6',
+                                                 bg: 'rgba(59, 130, 246, 0.1)'
+                                               }
+                                             }}
+                                           >
+                                             <Edit className="w-4 h-4" />
+                                           </IconButton>
+                                           <Box sx={{ 
+                                             color: '#6b7280',
+                                             fontSize: '1rem',
+                                             display: 'flex',
+                                             alignItems: 'center',
+                                             justifyContent: 'center',
+                                             width: 32,
+                                             height: 32,
+                                             borderRadius: '50%',
+                                             '&:hover': { 
+                                               bg: 'rgba(107, 114, 128, 0.1)'
+                                             }
+                                           }}>
+                                             <Typography variant="body2" sx={{ color: '#6b7280', fontSize: '1.2rem' }}>
+                                               👁
+                                             </Typography>
+                                           </Box>
+                                         </Box>
+                                       </Box>
+                                    </Box>
+                                    
+                                    {/* Subject Info - Compact */}
+                                    <Box sx={{ 
+                                      bg: '#f8fafc', 
+                                      p: 2, 
+                                      border: '1px solid #e2e8f0',
+                                      borderRadius: 1.5,
+                                      mb: 2
+                                    }}>
+                                      <Typography variant="h6" sx={{ fontWeight: '700', color: '#1e293b', fontSize: '0.9rem', mb: 0.5 }}>
+                                        {assignment.subject_code}
+                                      </Typography>
+                                      <Typography variant="body2" sx={{ color: '#475569', fontSize: '0.8rem', lineHeight: 1.3 }}>
+                                        {assignment.subject_name}
+                                      </Typography>
+                                    </Box>
+
+                                    {/* Quick Details - Compact */}
+                                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                                      <Chip 
+                                        label={`Section ${assignment.section}`}
+                                        size="small"
+                                        sx={{ 
+                                          bg: '#f1f5f9', 
+                                          color: '#475569', 
+                                          fontSize: '0.7rem',
+                                          fontWeight: '500'
+                                        }}
+                                      />
+                                      <Chip 
+                                        label={assignment.semester}
+                                        size="small"
+                                        sx={{ 
+                                          bg: '#f1f5f9', 
+                                          color: '#475569', 
+                                          fontSize: '0.7rem',
+                                          fontWeight: '500'
+                                        }}
+                                      />
+                                      <Chip 
+                                        label={`${typeof assignment.day === 'string' && assignment.day ? assignment.day.split(',').map((d: string) => dayAbbr[d] || d).join(', ') : ''} ${assignment.time || ''}`}
+                                        size="small"
+                                        sx={{ 
+                                          bg: '#f1f5f9', 
+                                          color: '#475569', 
+                                          fontSize: '0.7rem',
+                                          fontWeight: '500'
+                                        }}
+                                      />
                                     </Box>
                                   </Box>
 
-                                  {/* Course Info */}
-                                  <Box sx={{ mb: 2 }}>
-                                    <Card sx={{ bg: 'white', p: 2, border: '1px solid #e5e7eb' }}>
-                                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-                                        <Typography variant="body2" sx={{ fontWeight: 'semibold', color: '#111827' }}>
-                                          {assignment.subject_code}
-                                        </Typography>
-                                        <Chip 
-                                          label={`${assignment.subject_units} ${assignment.subject_units === 1 ? 'Unit' : 'Units'}`}
-                                          size="small"
-                                          sx={{ bg: '#dbeafe', color: '#1e40af', fontSize: '0.75rem' }}
-                                        />
-                                      </Box>
-                                      <Typography variant="body2" sx={{ color: '#6b7280', fontSize: '0.875rem' }}>
-                                        {assignment.subject_name}
-                                      </Typography>
-                                    </Card>
-                                  </Box>
 
-                                  {/* Assignment Details */}
-                                  <Grid container spacing={1}>
-                                    <Grid item xs={6}>
-                                      <Box sx={{ bg: 'white', p: 1, borderRadius: 1, border: '1px solid #e5e7eb' }}>
-                                        <Typography variant="caption" sx={{ color: '#6b7280' }}>Section</Typography>
-                                        <Typography variant="body2" sx={{ fontWeight: 'medium', color: '#111827' }}>
-                                          Section {assignment.section}
-                                        </Typography>
-                                      </Box>
-                                    </Grid>
-                                    <Grid item xs={6}>
-                                      <Box sx={{ bg: 'white', p: 1, borderRadius: 1, border: '1px solid #e5e7eb' }}>
-                                        <Typography variant="caption" sx={{ color: '#6b7280' }}>Semester</Typography>
-                                        <Typography variant="body2" sx={{ fontWeight: 'medium', color: '#111827' }}>
-                                          {assignment.semester}
-                                        </Typography>
-                                      </Box>
-                                    </Grid>
-                                    <Grid item xs={6}>
-                                      <Box sx={{ bg: 'white', p: 1, borderRadius: 1, border: '1px solid #e5e7eb' }}>
-                                        <Typography variant="caption" sx={{ color: '#6b7280' }}>Day(s)</Typography>
-                                        <Typography variant="body2" sx={{ fontWeight: 'medium', color: '#111827' }}>
-                                          {typeof assignment.day === 'string' && assignment.day
-                                            ? assignment.day.split(',').map((d: string) => dayAbbr[d] || d).join(', ')
-                                            : ''
-                                          }
-                                        </Typography>
-                                      </Box>
-                                    </Grid>
-                                    <Grid item xs={6}>
-                                      <Box sx={{ bg: 'white', p: 1, borderRadius: 1, border: '1px solid #e5e7eb' }}>
-                                        <Typography variant="caption" sx={{ color: '#6b7280' }}>Time</Typography>
-                                        <Typography variant="body2" sx={{ fontWeight: 'medium', color: '#111827' }}>
-                                          {assignment.time || ''}
-                                        </Typography>
-                                      </Box>
-                                    </Grid>
-                                    <Grid item xs={12}>
-                                      <Box sx={{ bg: 'white', p: 1, borderRadius: 1, border: '1px solid #e5e7eb' }}>
-                                        <Typography variant="caption" sx={{ color: '#6b7280' }}>Academic Year</Typography>
-                                        <Typography variant="body2" sx={{ fontWeight: 'medium', color: '#111827' }}>
-                                          {assignment.academic_year}
-                                        </Typography>
-                                      </Box>
-                                    </Grid>
-                                  </Grid>
-
-                                  {/* Date Assigned */}
-                                  <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid #e5e7eb' }}>
-                                    <Typography variant="caption" sx={{ color: '#6b7280' }}>
-                                      Assigned: {new Date(assignment.created_at || '').toLocaleDateString()}
-                                    </Typography>
-                                  </Box>
                                 </Card>
                               </Grid>
                             ))}
@@ -1049,34 +1202,22 @@ const InstructorManagement: React.FC = () => {
                   }}
                 />
               </Grid>
+              {/* Remove Role Dropdown, use hidden input instead */}
+              <input type="hidden" name="role" value="instructor" />
+              {/* Remove Department Dropdown, use read-only text field instead */}
               <Grid item xs={12} sm={6}>
-                <FormControl fullWidth>
-                  <InputLabel>Role</InputLabel>
-                  <Select
-                    value={createForm.role}
-                    label="Role"
-                    onChange={(e) => setCreateForm(f => ({ ...f, role: e.target.value as 'teacher' | 'instructor' }))}
-                    required
-                  >
-                    <MenuItem value="teacher">Teacher</MenuItem>
-                    <MenuItem value="instructor">Instructor</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <FormControl fullWidth>
-                  <InputLabel>Department</InputLabel>
-                  <Select
-                    value={createForm.department}
-                    label="Department"
-                    onChange={(e) => setCreateForm(f => ({ ...f, department: e.target.value }))}
-                  >
-                    <MenuItem value="">Select Department</MenuItem>
-                    <MenuItem value="BSIT">BSIT</MenuItem>
-                    <MenuItem value="BSBA">BSBA</MenuItem>
-                    <MenuItem value="BSA">BSA</MenuItem>
-                  </Select>
-                </FormControl>
+                <TextField
+                  fullWidth
+                  label="Department"
+                  value={createForm.department}
+                  InputProps={{ readOnly: true }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      backgroundColor: '#f9fafb'
+                    }
+                  }}
+                  helperText="Department is set to BSIT by default."
+                />
               </Grid>
               <Grid item xs={12}>
                 <TextField
@@ -1121,6 +1262,461 @@ const InstructorManagement: React.FC = () => {
             </Button>
           </DialogActions>
         </form>
+      </Dialog>
+
+      {/* Assignment Detail Modal */}
+      <Dialog
+        open={assignmentDetailModal.isOpen}
+        onClose={closeAssignmentDetail}
+        maxWidth="sm"
+        PaperProps={{
+          sx: {
+            borderRadius: 2,
+            boxShadow: '0 10px 40px rgba(0, 0, 0, 0.15)',
+            maxWidth: '500px',
+            width: '100%'
+          }
+        }}
+      >
+        {assignmentDetailModal.assignment && (
+          <>
+            <DialogTitle 
+              sx={{
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                color: 'white',
+                py: 2,
+                px: 3,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <BookOpen className="w-5 h-5" />
+                <Typography variant="h6" sx={{ fontWeight: '600', fontSize: '1.1rem' }}>
+                  Assignment Details
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <IconButton
+                  onClick={() => openEditAssignment(assignmentDetailModal.assignment!)}
+                  sx={{ 
+                    color: 'white', 
+                    p: 1,
+                    '&:hover': { 
+                      bg: 'rgba(255, 255, 255, 0.1)'
+                    }
+                  }}
+                  size="medium"
+                >
+                  <Edit className="w-5 h-5" />
+                </IconButton>
+                <IconButton
+                  onClick={closeAssignmentDetail}
+                  sx={{ color: 'white', p: 1 }}
+                  size="medium"
+                >
+                  <X className="w-5 h-5" />
+                </IconButton>
+              </Box>
+            </DialogTitle>
+            
+            <DialogContent sx={{ p: 3 }}>
+              <Grid container spacing={2}>
+                {/* Teacher Information */}
+                <Grid item xs={12}>
+                  <Card sx={{ p: 2, bg: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                      <Avatar
+                        src={assignmentDetailModal.assignment.teacher_profile_picture || undefined}
+                        sx={{ 
+                          width: 48, 
+                          height: 48, 
+                          bgcolor: '#dbeafe',
+                          color: '#2563eb',
+                          fontSize: '1rem',
+                          fontWeight: 'semibold',
+                          border: '2px solid #e5e7eb'
+                        }}
+                      >
+                        {assignmentDetailModal.assignment.teacher_name?.split(' ').map((n: string) => n[0]).join('')}
+                      </Avatar>
+                      <Box sx={{ flexGrow: 1 }}>
+                        <Typography variant="h6" sx={{ fontWeight: '600', color: '#111827', mb: 0.5 }}>
+                          {assignmentDetailModal.assignment.teacher_name}
+                        </Typography>
+                        <Chip 
+                          label={assignmentDetailModal.assignment.teacher_role ? assignmentDetailModal.assignment.teacher_role.charAt(0).toUpperCase() + assignmentDetailModal.assignment.teacher_role.slice(1) : 'Unknown'}
+                          size="small"
+                          sx={{ 
+                            bgcolor: assignmentDetailModal.assignment.teacher_role === 'instructor' ? '#fef3c7' : '#dbeafe',
+                            color: assignmentDetailModal.assignment.teacher_role === 'instructor' ? '#92400e' : '#1e40af',
+                            fontSize: '0.75rem',
+                            fontWeight: '600'
+                          }}
+                        />
+                      </Box>
+                    </Box>
+                  </Card>
+                </Grid>
+
+                {/* Subject Information */}
+                <Grid item xs={12}>
+                  <Card sx={{ p: 2, bg: '#f0f9ff', border: '1px solid #bae6fd' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                      <Box>
+                        <Typography variant="h5" sx={{ fontWeight: '700', color: '#0c4a6e', mb: 0.5 }}>
+                          {assignmentDetailModal.assignment.subject_code}
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: '#0369a1', fontWeight: '500' }}>
+                          {assignmentDetailModal.assignment.subject_name}
+                        </Typography>
+                      </Box>
+                      <Chip 
+                        label={`${assignmentDetailModal.assignment.subject_units} ${assignmentDetailModal.assignment.subject_units === 1 ? 'Unit' : 'Units'}`}
+                        size="small"
+                        sx={{ 
+                          bg: '#0ea5e9', 
+                          color: 'white', 
+                          fontSize: '0.875rem',
+                          fontWeight: '600'
+                        }}
+                      />
+                    </Box>
+                  </Card>
+                </Grid>
+
+                {/* Assignment Details */}
+                <Grid item xs={12}>
+                  <Card sx={{ p: 2, bg: '#f9fafb', border: '1px solid #e5e7eb' }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: '600', color: '#374151', mb: 2 }}>
+                      Assignment Details
+                    </Typography>
+                    <Grid container spacing={1.5}>
+                      <Grid item xs={6}>
+                        <Box sx={{ 
+                          bg: 'white', 
+                          p: 1.5, 
+                          borderRadius: 1, 
+                          border: '1px solid #e5e7eb',
+                          textAlign: 'center'
+                        }}>
+                          <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: '600', textTransform: 'uppercase' }}>
+                            Section
+                          </Typography>
+                          <Typography variant="body1" sx={{ fontWeight: '600', color: '#111827', mt: 0.5 }}>
+                            Section {assignmentDetailModal.assignment.section}
+                          </Typography>
+                        </Box>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Box sx={{ 
+                          bg: 'white', 
+                          p: 1.5, 
+                          borderRadius: 1, 
+                          border: '1px solid #e5e7eb',
+                          textAlign: 'center'
+                        }}>
+                          <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: '600', textTransform: 'uppercase' }}>
+                            Semester
+                          </Typography>
+                          <Typography variant="body1" sx={{ fontWeight: '600', color: '#111827', mt: 0.5 }}>
+                            {assignmentDetailModal.assignment.semester}
+                          </Typography>
+                        </Box>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Box sx={{ 
+                          bg: 'white', 
+                          p: 1.5, 
+                          borderRadius: 1, 
+                          border: '1px solid #e5e7eb',
+                          textAlign: 'center'
+                        }}>
+                          <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: '600', textTransform: 'uppercase' }}>
+                            Schedule
+                          </Typography>
+                          <Typography variant="body1" sx={{ fontWeight: '600', color: '#111827', mt: 0.5 }}>
+                            {typeof assignmentDetailModal.assignment.day === 'string' && assignmentDetailModal.assignment.day
+                              ? assignmentDetailModal.assignment.day.split(',').map((d: string) => dayAbbr[d] || d).join(', ')
+                              : ''
+                            }
+                          </Typography>
+                          <Typography variant="body2" sx={{ fontWeight: '500', color: '#6b7280', mt: 0.25 }}>
+                            {assignmentDetailModal.assignment.time || ''}
+                          </Typography>
+                        </Box>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Box sx={{ 
+                          bg: 'white', 
+                          p: 1.5, 
+                          borderRadius: 1, 
+                          border: '1px solid #e5e7eb',
+                          textAlign: 'center'
+                        }}>
+                          <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: '600', textTransform: 'uppercase' }}>
+                            Academic Year
+                          </Typography>
+                          <Typography variant="body1" sx={{ fontWeight: '600', color: '#111827', mt: 0.5 }}>
+                            {assignmentDetailModal.assignment.academic_year}
+                          </Typography>
+                        </Box>
+                      </Grid>
+                    </Grid>
+                  </Card>
+                </Grid>
+
+                {/* Assignment Date */}
+                <Grid item xs={12}>
+                  <Box sx={{ 
+                    bg: '#fef3c7', 
+                    p: 1.5, 
+                    borderRadius: 1, 
+                    border: '1px solid #f59e0b',
+                    textAlign: 'center'
+                  }}>
+                    <Typography variant="body2" sx={{ 
+                      color: '#92400e', 
+                      fontWeight: '600'
+                    }}>
+                      Assigned: {new Date(assignmentDetailModal.assignment.created_at || '').toLocaleDateString()}
+                    </Typography>
+                  </Box>
+                </Grid>
+              </Grid>
+            </DialogContent>
+          </>
+        )}
+      </Dialog>
+
+      {/* Edit Assignment Modal */}
+      <Dialog
+        open={editAssignmentModal.isOpen}
+        onClose={closeEditAssignment}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 2,
+            boxShadow: '0 10px 40px rgba(0, 0, 0, 0.15)'
+          }
+        }}
+      >
+        {editAssignmentModal.assignment && (
+          <form onSubmit={handleEditAssignment}>
+            <DialogTitle 
+              sx={{
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                color: 'white',
+                py: 2,
+                px: 3,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <Edit className="w-5 h-5" />
+                <Typography variant="h6" sx={{ fontWeight: '600', fontSize: '1.1rem' }}>
+                  Edit Assignment
+                </Typography>
+              </Box>
+              <IconButton
+                onClick={closeEditAssignment}
+                sx={{ color: 'white', p: 0.5 }}
+                size="small"
+              >
+                <X className="w-4 h-4" />
+              </IconButton>
+            </DialogTitle>
+            
+            <DialogContent sx={{ p: 3 }}>
+              <Grid container spacing={2}>
+                {/* Instructor Selection */}
+                <Grid item xs={12}>
+                  <FormControl fullWidth>
+                    <InputLabel>Instructor</InputLabel>
+                    <Select
+                      value={editAssignmentModal.assignment.teacher_id}
+                      onChange={(e) => setEditAssignmentModal(prev => ({
+                        ...prev,
+                        assignment: prev.assignment ? {
+                          ...prev.assignment,
+                          teacher_id: e.target.value
+                        } : null
+                      }))}
+                      label="Instructor"
+                    >
+                      {instructors.map((instructor) => (
+                        <MenuItem key={instructor.id} value={instructor.id}>
+                          {instructor.first_name} {instructor.middle_name ? instructor.middle_name + ' ' : ''}{instructor.last_name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+
+                {/* Subject Selection */}
+                <Grid item xs={12}>
+                  <FormControl fullWidth>
+                    <InputLabel>Subject</InputLabel>
+                    <Select
+                      value={editAssignmentModal.assignment.subject_id}
+                      onChange={(e) => setEditAssignmentModal(prev => ({
+                        ...prev,
+                        assignment: prev.assignment ? {
+                          ...prev.assignment,
+                          subject_id: e.target.value
+                        } : null
+                      }))}
+                      label="Subject"
+                    >
+                      {courses.map((course) => (
+                        <MenuItem key={course.id} value={course.id}>
+                          {course.code} - {course.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+
+                {/* Section */}
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Section"
+                    value={editAssignmentModal.assignment.section}
+                    onChange={(e) => setEditAssignmentModal(prev => ({
+                      ...prev,
+                      assignment: prev.assignment ? {
+                        ...prev.assignment,
+                        section: e.target.value
+                      } : null
+                    }))}
+                  />
+                </Grid>
+
+                {/* Semester */}
+                <Grid item xs={12} sm={6}>
+                  <FormControl fullWidth>
+                    <InputLabel>Semester</InputLabel>
+                    <Select
+                      value={editAssignmentModal.assignment.semester}
+                      onChange={(e) => setEditAssignmentModal(prev => ({
+                        ...prev,
+                        assignment: prev.assignment ? {
+                          ...prev.assignment,
+                          semester: e.target.value
+                        } : null
+                      }))}
+                      label="Semester"
+                    >
+                      <MenuItem value="First Semester">First Semester</MenuItem>
+                      <MenuItem value="Second Semester">Second Semester</MenuItem>
+                      <MenuItem value="Summer">Summer</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+
+                {/* Academic Year */}
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Academic Year"
+                    value={editAssignmentModal.assignment.academic_year}
+                    onChange={(e) => setEditAssignmentModal(prev => ({
+                      ...prev,
+                      assignment: prev.assignment ? {
+                        ...prev.assignment,
+                        academic_year: e.target.value
+                      } : null
+                    }))}
+                  />
+                </Grid>
+
+                {/* Year Level */}
+                <Grid item xs={12} sm={6}>
+                  <FormControl fullWidth>
+                    <InputLabel>Year Level</InputLabel>
+                    <Select
+                      value={editAssignmentModal.assignment.year_level}
+                      onChange={(e) => setEditAssignmentModal(prev => ({
+                        ...prev,
+                        assignment: prev.assignment ? {
+                          ...prev.assignment,
+                          year_level: e.target.value
+                        } : null
+                      }))}
+                      label="Year Level"
+                    >
+                      <MenuItem value="1st Year">1st Year</MenuItem>
+                      <MenuItem value="2nd Year">2nd Year</MenuItem>
+                      <MenuItem value="3rd Year">3rd Year</MenuItem>
+                      <MenuItem value="4th Year">4th Year</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+
+                {/* Schedule */}
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Days (e.g., Monday, Tuesday)"
+                    value={editAssignmentModal.assignment.day || ''}
+                    onChange={(e) => setEditAssignmentModal(prev => ({
+                      ...prev,
+                      assignment: prev.assignment ? {
+                        ...prev.assignment,
+                        day: e.target.value
+                      } : null
+                    }))}
+                    placeholder="Monday, Tuesday, Wednesday"
+                  />
+                </Grid>
+
+                {/* Time */}
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Time"
+                    value={editAssignmentModal.assignment.time || ''}
+                    onChange={(e) => setEditAssignmentModal(prev => ({
+                      ...prev,
+                      assignment: prev.assignment ? {
+                        ...prev.assignment,
+                        time: e.target.value
+                      } : null
+                    }))}
+                    placeholder="9:00 AM - 10:30 AM"
+                  />
+                </Grid>
+              </Grid>
+            </DialogContent>
+            
+            <DialogActions sx={{ p: 3, background: '#f8fafc' }}>
+              <Button 
+                onClick={closeEditAssignment}
+                disabled={editAssignmentModal.loading}
+              >
+                Cancel
+              </Button>
+              <Button 
+                type="submit" 
+                variant="contained"
+                disabled={editAssignmentModal.loading}
+                sx={{
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  '&:hover': {
+                    background: 'linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%)',
+                  }
+                }}
+              >
+                {editAssignmentModal.loading ? 'Updating...' : 'Update Assignment'}
+              </Button>
+            </DialogActions>
+          </form>
+        )}
       </Dialog>
 
       {/* Subject Assignment Modal */}
