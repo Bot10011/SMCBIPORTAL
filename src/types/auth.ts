@@ -1,4 +1,4 @@
-export type UserRole = 'superadmin' | 'admin' | 'registrar' | 'program_head' | 'teacher' | 'student';
+export type UserRole = 'superadmin' | 'admin' | 'registrar' | 'program_head' | 'teacher' | 'instructor' | 'student';
 export type StudentStatus = 'regular' | 'irregular' | 'transferee';
 
 export interface User {
@@ -54,6 +54,14 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canManageSubjects: true,
   },
   teacher: {
+    canCreateUsers: [],
+    canManageCurriculum: false,
+    canManageGrades: true,
+    canViewAllData: false,
+    canManageEnrollment: false,
+    canManageSubjects: false,
+  },
+  instructor: {
     canCreateUsers: [],
     canManageCurriculum: false,
     canManageGrades: true,
