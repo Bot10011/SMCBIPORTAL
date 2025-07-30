@@ -167,12 +167,6 @@ const sidebarItems: SidebarItem[] = [
     roles: ['program_head'],
   },
   {
-    label: 'Instructor Management',
-    path: '/dashboard/instructor-management',
-    icon: <GraduationCap className="w-5 h-5" />,
-    roles: ['program_head'],
-  },
-  {
     label: 'List of Subjects',
     path: '/dashboard/academic-history',
     icon: <ClipboardList className="w-5 h-5" />,
