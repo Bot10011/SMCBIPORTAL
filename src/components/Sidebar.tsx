@@ -155,15 +155,9 @@ const sidebarItems: SidebarItem[] = [
     roles: ['program_head'],
   },
   {
-    label: 'Subject Assignment',
-    path: '/dashboard/assign-subjects',
-    icon: <BookOpen className="w-5 h-5" />,
-    roles: ['program_head'],
-  },
-  {
-    label: 'User Management',
-    path: '/dashboard/user-management',
-    icon: <UserPlus className="w-5 h-5" />,
+    label: 'Instructor Management',
+    path: '/dashboard/instructor-management',
+    icon: <GraduationCap className="w-5 h-5" />,
     roles: ['program_head'],
   },
   {
