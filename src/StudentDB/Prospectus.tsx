@@ -1,50 +1,58 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import './Prospectus.css';
 import { motion } from 'framer-motion';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 
 const Prospectus: React.FC = () => {
-  const [isFlipped, setIsFlipped] = useState(false);
+  const { user } = useAuth();
   const [isDownloading, setIsDownloading] = useState(false);
+  const [subjects, setSubjects] = useState<Array<{
+    school_year: string;
+    semester: string;
+    subject: {
+      id: string;
+      code: string;
+      name: string;
+      units: number;
+      year_level: string;
+      prerequisite?: string;
+    };
+  }>>([]);
+
   const frontCardRef = useRef<HTMLDivElement>(null);
   const backCardRef = useRef<HTMLDivElement>(null);
 
-  const handleCardDoubleClick = () => {
-    setIsFlipped(!isFlipped);
-  };
 
-  const setDocumentFullHeight = (doc: HTMLDivElement | null) => {
-    if (!doc) return { height: '', maxHeight: '', overflowY: '' };
-    const prev = {
-      height: doc.style.height,
-      maxHeight: doc.style.maxHeight,
-      overflowY: doc.style.overflowY,
-    };
-    doc.style.height = 'auto';
-    doc.style.maxHeight = 'none';
-    doc.style.overflowY = 'visible';
-    return prev;
-  };
 
-  const restoreDocumentStyle = (doc: HTMLDivElement | null, prev: { height: string, maxHeight: string, overflowY: string }) => {
-    if (!doc) return;
-    doc.style.height = prev.height;
-    doc.style.maxHeight = prev.maxHeight;
-    doc.style.overflowY = prev.overflowY;
-  };
 
-  const applyDownloadMode = (doc: HTMLDivElement | null) => {
-    if (!doc) return;
-    doc.classList.add('download-mode');
-  };
 
-  const removeDownloadMode = (doc: HTMLDivElement | null) => {
-    if (!doc) return;
-    doc.classList.remove('download-mode');
-  };
 
-  const downloadAsPDF = async () => {
+
+  const groupedSubjects = useMemo(() => {
+    if (!subjects.length) return {};
+    
+    const grouped: Record<string, Record<string, Array<{
+      id: string;
+      code: string;
+      name: string;
+      units: number;
+      year_level: string;
+      prerequisite?: string;
+    }>>> = {};
+    for (const enrollment of subjects) {
+      const year = enrollment.school_year || 'Unknown Year';
+      const sem = enrollment.semester || 'Unknown Semester';
+      if (!grouped[year]) grouped[year] = {};
+      if (!grouped[year][sem]) grouped[year][sem] = [];
+      grouped[year][sem].push(enrollment.subject);
+    }
+    return grouped;
+  }, [subjects]);
+
+  const downloadAsPDF = useCallback(async () => {
     setIsDownloading(true);
     try {
       const pdf = new jsPDF('p', 'mm', 'a4');
@@ -122,9 +130,9 @@ const Prospectus: React.FC = () => {
     } finally {
       setIsDownloading(false);
     }
-  };
+  }, [frontCardRef, backCardRef]);
 
-  const downloadAsImage = async () => {
+  const downloadAsImage = useCallback(async () => {
     setIsDownloading(true);
     try {
       if (frontCardRef.current) {
@@ -162,45 +170,111 @@ const Prospectus: React.FC = () => {
     } finally {
       setIsDownloading(false);
     }
+  }, [frontCardRef]);
+
+  useEffect(() => {
+    const fetchSubjects = async () => {
+      if (!user?.id) return;
+      try {
+        const { data, error } = await supabase
+          .from('enrollcourse')
+          .select(`school_year, semester, subject:subjects(id, code, name, units, year_level, prerequisite)`)
+          .eq('student_id', user.id)
+          .eq('status', 'active');
+        
+        if (!error && data) {
+          const transformedData = data.map((item: any) => ({
+            school_year: item.school_year || '',
+            semester: item.semester || '',
+            subject: {
+              id: item.subject?.id || '',
+              code: item.subject?.code || '',
+              name: item.subject?.name || '',
+              units: item.subject?.units || 0,
+              year_level: item.subject?.year_level || '',
+              prerequisite: item.subject?.prerequisite || undefined
+            }
+          }));
+          setSubjects(transformedData);
+        }
+      } catch (error) {
+        console.error('Error fetching subjects:', error);
+      }
+    };
+    
+    const timeoutId = setTimeout(fetchSubjects, 100);
+    return () => clearTimeout(timeoutId);
+  }, [user?.id]);
+
+  const setDocumentFullHeight = (doc: HTMLDivElement | null) => {
+    if (!doc) return { height: '', maxHeight: '', overflowY: '' };
+    const prev = {
+      height: doc.style.height,
+      maxHeight: doc.style.maxHeight,
+      overflowY: doc.style.overflowY,
+    };
+    doc.style.height = 'auto';
+    doc.style.maxHeight = 'none';
+    doc.style.overflowY = 'visible';
+    return prev;
   };
 
+  const restoreDocumentStyle = (doc: HTMLDivElement | null, prev: { height: string, maxHeight: string, overflowY: string }) => {
+    if (!doc) return;
+    doc.style.height = prev.height;
+    doc.style.maxHeight = prev.maxHeight;
+    doc.style.overflowY = prev.overflowY;
+  };
+
+  const applyDownloadMode = (doc: HTMLDivElement | null) => {
+    if (!doc) return;
+    doc.classList.add('download-mode');
+  };
+
+  const removeDownloadMode = (doc: HTMLDivElement | null) => {
+    if (!doc) return;
+    doc.classList.remove('download-mode');
+  };
+
+  const hasData = useMemo(() => Object.keys(groupedSubjects).length > 0, [groupedSubjects]);
+
+
+
   return (
-    <div className="min-h-screen bg-gradient-to-brvia-white to-blue-50">
-  
-    
+    <div className="min-h-screen bg-gradient-to-br via-white to-blue-50">
       {/* Premium Header Section */}
-  
-     <motion.div
-       initial={{ opacity: 0, y: 24 }}
+      <motion.div
+        initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 via-white to-purple-50  border border-blue-100"
+        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 via-white  border border-blue-100"
       >
       <div className="mb-8 max-w-7xl mx-auto">
         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 via-white to-purple-50  border border-blue-100 w-full">
-          <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 min-h-[110px] flex items-center w-full">
+          <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-4 sm:px-6 py-4 min-h-[110px] flex items-center w-full">
             <div className="flex items-center gap-4 w-full justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm flex items-center justify-center">
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm flex items-center justify-center flex-shrink-0">
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 text-white"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0A9 9 0 11 3 12a9 9 0 0118 0z" /></svg>
                 </div>
-                <div>
-                  <h1 className="text-2xl font-bold text-white tracking-tight">Academic Prospectus</h1>
-                  <p className="text-white/80 text-sm font-medium">Bachelor of Science in Information Technology (BSIT)</p>
+                <div className="min-w-0 flex-1">
+                  <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-white tracking-tight">Academic Prospectus</h1>
+                  <p className="text-white/80 text-xs sm:text-sm font-medium leading-tight">Bachelor of Science in Information Technology (BSIT)</p>
                 </div>
               </div>
-              <div className="flex gap-2">
+              {/* Download buttons - hidden on mobile phones, visible on tablet and desktop */}
+              <div className="hidden lg:flex gap-2 flex-shrink-0">
                 <button 
                   onClick={downloadAsPDF}
                   disabled={isDownloading}
-                  className="px-4 py-2 bg-white rounded-lg border border-gray-200 shadow-inner flex items-center gap-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                  className="prospectus-download-button px-4 py-2 bg-white rounded-lg border border-gray-200 shadow-inner flex items-center gap-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
                 >
                   {isDownloading ? 'Generating PDF...' : 'Download PDF'}
                 </button>
                 <button 
                   onClick={downloadAsImage}
                   disabled={isDownloading}
-                  className="px-4 py-2 bg-white rounded-lg border border-gray-200 shadow-inner flex items-center gap-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                  className="prospectus-download-button px-4 py-2 bg-white rounded-lg border border-gray-200 shadow-inner flex items-center gap-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
                 >
                   {isDownloading ? 'Generating Image...' : 'Download Image'}
                 </button>
@@ -212,15 +286,26 @@ const Prospectus: React.FC = () => {
       </div>
       </motion.div>
       
-      <div className="flip-card-container">
-        <div 
-          className={`flip-card ${isFlipped ? 'flipped' : ''}`}
-          onDoubleClick={handleCardDoubleClick}
-        >
-          {/* Front Side */}
-          <div className="flip-card-front" ref={frontCardRef}>
-            <div className="page-indicator">Page 1</div>
+            {/* Mobile Message */}
+      <div className="lg:hidden bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6 mx-4">
+        <div className="flex items-center gap-3">
+          <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+          </svg>
+          <div>
+            <h3 className="text-yellow-800 font-semibold">Mobile View Notice</h3>
+            <p className="text-yellow-700 text-sm">The prospectus is designed for desktop viewing. Please download the PDF for the best experience on mobile devices.</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Desktop Layout */}
+      <div className="hidden lg:block max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Front Page (Left) */}
+          <div className="prospectus-page" ref={frontCardRef}>
             <div className="prospectus-document">
+              <div className="page-indicator">FRONT PAGE</div>
               {/* Header Section */}
               <div className="document-header">
                 <div className="header-content">
@@ -238,546 +323,245 @@ const Prospectus: React.FC = () => {
                   </div>
                 </div>
               </div>
+              
+              {/* Dynamic School Year/Semester Sections */}
+              {hasData ? (
+                // Show actual data if available
+                Object.entries(groupedSubjects).map(([schoolYear, semesters]) => (
+                  <div key={schoolYear}>
+                    <h4 className="year-header">{schoolYear}</h4>
+                    {Object.entries(semesters).map(([sem, subs]) => (
+                      <div key={sem}>
+                        <h5 className="semester-header">{sem}</h5>
+                        <table className="prospectus-table">
+                          <thead>
+                            <tr>
+                              <th>GRADES</th>
+                              <th>Subject</th>
+                              <th>DESCRIPTION</th>
+                              <th colSpan={3}>UNITS</th>
+                              <th>PRE-REQUISITE</th>
+                              <th>Total</th>
+                            </tr>
+                            <tr>
+                              <th></th>
+                              <th>CODE</th>
+                              <th></th>
+                              <th>LEC</th>
+                              <th>LAB</th>
+                              <th>Total</th>
+                              <th></th>
+                              <th>HRS/WK</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {subs.map(subj => (
+                              <tr key={subj.id}>
+                                <td></td>
+                                <td>{subj.code}</td>
+                                <td>{subj.name}</td>
+                                <td>{Math.floor(subj.units * 0.7)}</td>
+                                <td>{Math.floor(subj.units * 0.3)}</td>
+                                <td>{subj.units}</td>
+                                <td>{subj.prerequisite || 'None'}</td>
+                                <td>{subj.units}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ))}
+                  </div>
+                ))
+              ) : (
+                // Show default table structure when no data
+                <div>
+                  <h4 className="year-header"><strong>FIRST YEAR - FIRST SEMESTER</strong></h4>
+                  <table className="prospectus-table">
+                    <thead>
+                      <tr>
+                        <th>GRADES</th>
+                        <th>SUBJECT</th>
+                        <th>DESCRIPTION</th>
+                        <th colSpan={3}>UNITS</th>
+                        <th>PRE-REQUISITE</th>
+                        <th>Total</th>
+                      </tr>
+                      <tr>
+                        <th></th>
+                        <th>CODE</th>
+                        <th></th>
+                        <th>LEC</th>
+                        <th>LAB</th>
+                        <th>Total</th>
+                        <th></th>
+                        <th>HRS/WK</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td colSpan={8} className="text-center text-gray-500 italic">
+                          No enrolled subjects found for this semester
+                        </td>
+                      </tr>
+                      <tr className="total-row">
+                        <td colSpan={5}><strong>TOTAL</strong></td>
+                        <td><strong>0</strong></td>
+                        <td></td>
+                        <td></td>
+                      </tr>
+                    </tbody>
+                  </table>
 
-              {/* First Year - First Semester */}
-              <div className="semester-section">
-                <h4>First Year - FIRST SEMESTER</h4>
-                <table className="prospectus-table">
-                  <thead>
-                    <tr>
-                      <th>GRADES</th>
-                      <th colSpan={2}>SUBJECT</th>
-                      <th colSpan={3}>UNITS</th>
-                      <th>PRE-REQUISITE</th>
-                      <th>Total Hrs./wk.</th>
-                    </tr>
-                    <tr>
-                      <th></th>
-                      <th>CODE</th>
-                      <th>DESCRIPTION</th>
-                      <th>LEC</th>
-                      <th>LAB</th>
-                      <th>Total</th>
-                      <th></th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td></td>
-                      <td>RS 101</td>
-                      <td>Essentials of Catholic Faith and Life</td>
-                      <td>3</td>
-                      <td>0</td>
-                      <td>3</td>
-                      <td>None</td>
-                      <td>3</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>GE 100</td>
-                      <td>Purposive Communication & Grammar</td>
-                      <td>3</td>
-                      <td>0</td>
-                      <td>3</td>
-                      <td>None</td>
-                      <td>3</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>GE 101</td>
-                      <td>Understanding the Self</td>
-                      <td>3</td>
-                      <td>0</td>
-                      <td>3</td>
-                      <td>None</td>
-                      <td>3</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>GE 102</td>
-                      <td>The Contemporary World</td>
-                      <td>3</td>
-                      <td>0</td>
-                      <td>3</td>
-                      <td>None</td>
-                      <td>3</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>IT 111</td>
-                      <td>Introduction to Computing</td>
-                      <td>2</td>
-                      <td>1</td>
-                      <td>3</td>
-                      <td>None</td>
-                      <td>5</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>IT 112</td>
-                      <td>Computer Programming 1</td>
-                      <td>2</td>
-                      <td>1</td>
-                      <td>3</td>
-                      <td>None</td>
-                      <td>5</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>IT 113</td>
-                      <td>Introduction to Human Computer Interaction</td>
-                      <td>2</td>
-                      <td>1</td>
-                      <td>3</td>
-                      <td>None</td>
-                      <td>5</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>PE 1</td>
-                      <td>Movement Enhancement</td>
-                      <td>2</td>
-                      <td>0</td>
-                      <td>2</td>
-                      <td>None</td>
-                      <td>2</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>NSTP 1</td>
-                      <td>Civic Welfare Training Services</td>
-                      <td>3</td>
-                      <td>0</td>
-                      <td>3</td>
-                      <td>None</td>
-                      <td>3</td>
-                    </tr>
-                    <tr className="total-row">
-                      <td colSpan={5}><strong>TOTAL UNITS</strong></td>
-                      <td><strong>26</strong></td>
-                      <td></td>
-                      <td></td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+                  <h4 className="year-header"><strong>FIRST YEAR - SECOND SEMESTER</strong></h4>
+                  <table className="prospectus-table">
+                    <thead>
+                      <tr>
+                        <th>GRADES</th>
+                        <th>SUBJECT</th>
+                        <th>DESCRIPTION</th>
+                        <th colSpan={3}>UNITS</th>
+                        <th>PRE-REQUISITE</th>
+                        <th>Total</th>
+                      </tr>
+                      <tr>
+                        <th></th>
+                        <th>CODE</th>
+                        <th></th>
+                        <th>LEC</th>
+                        <th>LAB</th>
+                        <th>Total</th>
+                        <th></th>
+                        <th>HRS/WK</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td colSpan={8} className="text-center text-gray-500 italic">
+                          No enrolled subjects found for this semester
+                        </td>
+                      </tr>
+                      <tr className="total-row">
+                        <td colSpan={5}><strong>TOTAL</strong></td>
+                        <td><strong>0</strong></td>
+                        <td></td>
+                        <td></td>
+                      </tr>
+                    </tbody>
+                  </table>
 
-              {/* First Year - Second Semester */}
-              <div className="semester-section">
-                <h4>First Year - SECOND SEMESTER</h4>
-                <table className="prospectus-table">
-                  <thead>
-                    <tr>
-                      <th>GRADES</th>
-                      <th colSpan={2}>SUBJECT</th>
-                      <th colSpan={3}>UNITS</th>
-                      <th>PRE-REQUISITE</th>
-                      <th>Total Hrs./wk.</th>
-                    </tr>
-                    <tr>
-                      <th></th>
-                      <th>CODE</th>
-                      <th>DESCRIPTION</th>
-                      <th>LEC</th>
-                      <th>LAB</th>
-                      <th>Total</th>
-                      <th></th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td></td>
-                      <td>RS 102</td>
-                      <td>Religions, Religious Experiences & Spirituality</td>
-                      <td>3</td>
-                      <td>0</td>
-                      <td>3</td>
-                      <td>RS 101</td>
-                      <td>3</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>ENGL 102</td>
-                      <td>Interactive Listening, Speaking & Writing</td>
-                      <td>3</td>
-                      <td>0</td>
-                      <td>3</td>
-                      <td>GE 100</td>
-                      <td>3</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>GE 104</td>
-                      <td>Mathematics in the Modern World</td>
-                      <td>3</td>
-                      <td>0</td>
-                      <td>3</td>
-                      <td>None</td>
-                      <td>3</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>GE 105</td>
-                      <td>Ethics</td>
-                      <td>3</td>
-                      <td>0</td>
-                      <td>3</td>
-                      <td>None</td>
-                      <td>3</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>IT 121</td>
-                      <td>Discrete Structures</td>
-                      <td>3</td>
-                      <td>0</td>
-                      <td>3</td>
-                      <td>None</td>
-                      <td>3</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>IT 122</td>
-                      <td>Computer Programming 2</td>
-                      <td>2</td>
-                      <td>1</td>
-                      <td>3</td>
-                      <td>IT 112</td>
-                      <td>5</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>IT Elective1</td>
-                      <td>IT Elective 1</td>
-                      <td>2</td>
-                      <td>1</td>
-                      <td>3</td>
-                      <td>IT 113</td>
-                      <td>5</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>PE 2</td>
-                      <td>Fitness Exercise</td>
-                      <td>2</td>
-                      <td>0</td>
-                      <td>2</td>
-                      <td>PE 1</td>
-                      <td>2</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>NSTP 2</td>
-                      <td>Civic Welfare Training Services</td>
-                      <td>3</td>
-                      <td>0</td>
-                      <td>3</td>
-                      <td>NSTP 1</td>
-                      <td>3</td>
-                    </tr>
-                    <tr className="total-row">
-                      <td colSpan={5}><strong>TOTAL UNITS</strong></td>
-                      <td><strong>26</strong></td>
-                      <td></td>
-                      <td></td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+                  <h4 className="year-header"><strong>SUMMER REQUIRED</strong></h4>
+                  <table className="prospectus-table">
+                    <thead>
+                      <tr>
+                        <th>GRADES</th>
+                        <th>SUBJECT</th>
+                        <th>DESCRIPTION</th>
+                        <th colSpan={3}>UNITS</th>
+                        <th>PRE-REQUISITE</th>
+                        <th>Total</th>
+                      </tr>
+                      <tr>
+                        <th></th>
+                        <th>CODE</th>
+                        <th></th>
+                        <th>LEC</th>
+                        <th>LAB</th>
+                        <th>Total</th>
+                        <th></th>
+                        <th>HRS/WK</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td colSpan={8} className="text-center text-gray-500 italic">
+                          No enrolled subjects found for this semester
+                        </td>
+                      </tr>
+                      <tr className="total-row">
+                        <td colSpan={5}><strong>TOTAL</strong></td>
+                        <td><strong>0</strong></td>
+                        <td></td>
+                        <td></td>
+                      </tr>
+                    </tbody>
+                  </table>
 
-              {/* Summer Required */}
-              <div className="semester-section">
-                <h4>SUMMER REQUIRED</h4>
-                <table className="prospectus-table">
-                  <thead>
-                    <tr>
-                      <th>GRADES</th>
-                      <th colSpan={2}>SUBJECT</th>
-                      <th colSpan={3}>UNITS</th>
-                      <th>PRE-REQUISITE</th>
-                      <th>Total Hrs./wk.</th>
-                    </tr>
-                    <tr>
-                      <th></th>
-                      <th>CODE</th>
-                      <th>DESCRIPTION</th>
-                      <th>LEC</th>
-                      <th>LAB</th>
-                      <th>Total</th>
-                      <th></th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td></td>
-                      <td>GE 103</td>
-                      <td>Art Appreciation</td>
-                      <td>3</td>
-                      <td>0</td>
-                      <td>3</td>
-                      <td>None</td>
-                      <td>3</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>GE 107</td>
-                      <td>Life, Works and Writings of Dr. Jose Rizal</td>
-                      <td>3</td>
-                      <td>0</td>
-                      <td>3</td>
-                      <td>None</td>
-                      <td>3</td>
-                    </tr>
-                    <tr className="total-row">
-                      <td colSpan={5}><strong>TOTAL UNITS</strong></td>
-                      <td><strong>6</strong></td>
-                      <td></td>
-                      <td></td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+                  <h4 className="year-header"><strong>SECOND YEAR - FIRST SEMESTER</strong></h4>
+                  <table className="prospectus-table">
+                    <thead>
+                      <tr>
+                        <th>GRADES</th>
+                        <th>SUBJECT</th>
+                        <th>DESCRIPTION</th>
+                        <th colSpan={3}>UNITS</th>
+                        <th>PRE-REQUISITE</th>
+                        <th>Total</th>
+                      </tr>
+                      <tr>
+                        <th></th>
+                        <th>CODE</th>
+                        <th></th>
+                        <th>LEC</th>
+                        <th>LAB</th>
+                        <th>Total</th>
+                        <th></th>
+                        <th>HRS/WK</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td colSpan={8} className="text-center text-gray-500 italic">
+                          No enrolled subjects found for this semester
+                        </td>
+                      </tr>
+                      <tr className="total-row">
+                        <td colSpan={5}><strong>TOTAL</strong></td>
+                        <td><strong>0</strong></td>
+                        <td></td>
+                        <td></td>
+                      </tr>
+                    </tbody>
+                  </table>
 
-              {/* Second Year - First Semester */}
-              <div className="semester-section">
-                <h4>Second Year - FIRST SEMESTER</h4>
-                <table className="prospectus-table">
-                  <thead>
-                    <tr>
-                      <th>GRADES</th>
-                      <th colSpan={2}>SUBJECT</th>
-                      <th colSpan={3}>UNITS</th>
-                      <th>PRE-REQUISITE</th>
-                      <th>Total Hrs./wk.</th>
-                    </tr>
-                    <tr>
-                      <th></th>
-                      <th>CODE</th>
-                      <th>DESCRIPTION</th>
-                      <th>LEC</th>
-                      <th>LAB</th>
-                      <th>Total</th>
-                      <th></th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td></td>
-                      <td>IFP 101</td>
-                      <td>Ignacian Spirituality & Christian Life</td>
-                      <td>1</td>
-                      <td>0</td>
-                      <td>1</td>
-                      <td>RS 101</td>
-                      <td>1</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>GE Elec101</td>
-                      <td>People and Earth's Ecosystem</td>
-                      <td>3</td>
-                      <td>0</td>
-                      <td>3</td>
-                      <td>None</td>
-                      <td>3</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>GE 106</td>
-                      <td>Readings in Philippine History</td>
-                      <td>3</td>
-                      <td>0</td>
-                      <td>3</td>
-                      <td>None</td>
-                      <td>3</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>GE 108</td>
-                      <td>Science, Technology and Society</td>
-                      <td>3</td>
-                      <td>0</td>
-                      <td>3</td>
-                      <td>None</td>
-                      <td>3</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>ACC1G</td>
-                      <td>Fundamentals of Accounting</td>
-                      <td>3</td>
-                      <td>0</td>
-                      <td>3</td>
-                      <td>None</td>
-                      <td>3</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>IT 211</td>
-                      <td>Web Systems and Technologies</td>
-                      <td>2</td>
-                      <td>1</td>
-                      <td>3</td>
-                      <td>IT 122</td>
-                      <td>5</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>IT 212</td>
-                      <td>Data Structures and Algorithms</td>
-                      <td>2</td>
-                      <td>1</td>
-                      <td>3</td>
-                      <td>IT 121</td>
-                      <td>5</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>IT 213</td>
-                      <td>Information Management 1</td>
-                      <td>2</td>
-                      <td>1</td>
-                      <td>3</td>
-                      <td>2nd yr. Standing</td>
-                      <td>5</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>PE 3</td>
-                      <td>Physical Activities Towards Health and Fitness (Sports)</td>
-                      <td>2</td>
-                      <td>0</td>
-                      <td>2</td>
-                      <td>PE 2</td>
-                      <td>3</td>
-                    </tr>
-                    <tr className="total-row">
-                      <td colSpan={5}><strong>TOTAL UNITS</strong></td>
-                      <td><strong>24</strong></td>
-                      <td></td>
-                      <td></td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Second Year - Second Semester */}
-              <div className="semester-section">
-                <h4>Second Year - SECOND SEMESTER</h4>
-                <table className="prospectus-table">
-                  <thead>
-                    <tr>
-                      <th>GRADES</th>
-                      <th colSpan={2}>SUBJECT</th>
-                      <th colSpan={3}>UNITS</th>
-                      <th>PRE-REQUISITE</th>
-                      <th>Total Hrs./wk.</th>
-                    </tr>
-                    <tr>
-                      <th></th>
-                      <th>CODE</th>
-                      <th>DESCRIPTION</th>
-                      <th>LEC</th>
-                      <th>LAB</th>
-                      <th>Total</th>
-                      <th></th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td></td>
-                      <td>IFP 102</td>
-                      <td>Ignacian Formation Program 2</td>
-                      <td>1</td>
-                      <td>0</td>
-                      <td>1</td>
-                      <td>IFP 101</td>
-                      <td>1</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>IT 221</td>
-                      <td>Information Assurance and Security 1</td>
-                      <td>2</td>
-                      <td>1</td>
-                      <td>3</td>
-                      <td>2nd yr. Standing</td>
-                      <td>5</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>IT 222</td>
-                      <td>Data Communications and Networking 1</td>
-                      <td>2</td>
-                      <td>1</td>
-                      <td>3</td>
-                      <td>2nd yr. Standing</td>
-                      <td>5</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>IT 223</td>
-                      <td>Advance Database Systems</td>
-                      <td>2</td>
-                      <td>1</td>
-                      <td>3</td>
-                      <td>IT 213</td>
-                      <td>5</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>IT 224</td>
-                      <td>Applications Development & Emerging Technologies</td>
-                      <td>2</td>
-                      <td>1</td>
-                      <td>3</td>
-                      <td>2nd yr. Standing</td>
-                      <td>5</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>IT 225</td>
-                      <td>Technopreneurship</td>
-                      <td>3</td>
-                      <td>0</td>
-                      <td>3</td>
-                      <td>2nd yr. Standing</td>
-                      <td>3</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>IT 226</td>
-                      <td>Object Oriented Programming</td>
-                      <td>2</td>
-                      <td>1</td>
-                      <td>3</td>
-                      <td>2nd yr. Standing</td>
-                      <td>5</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>PE 4</td>
-                      <td>Physical Activities Towards Health and Fitness (Recreational Activities)</td>
-                      <td>2</td>
-                      <td>0</td>
-                      <td>2</td>
-                      <td>PE 3</td>
-                      <td>3</td>
-                    </tr>
-                    <tr className="total-row">
-                      <td colSpan={5}><strong>TOTAL UNITS</strong></td>
-                      <td><strong>21</strong></td>
-                      <td></td>
-                      <td></td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+                  <h4 className="year-header"><strong>SECOND YEAR - SECOND SEMESTER</strong></h4>
+                  <table className="prospectus-table">
+                    <thead>
+                      <tr>
+                        <th>GRADES</th>
+                        <th>SUBJECT</th>
+                        <th>DESCRIPTION</th>
+                        <th colSpan={3}>UNITS</th>
+                        <th>PRE-REQUISITE</th>
+                        <th>Total</th>
+                      </tr>
+                      <tr>
+                        <th></th>
+                        <th>CODE</th>
+                        <th></th>
+                        <th>LEC</th>
+                        <th>LAB</th>
+                        <th>Total</th>
+                        <th></th>
+                        <th>HRS/WK</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td colSpan={8} className="text-center text-gray-500 italic">
+                          No enrolled subjects found for this semester
+                        </td>
+                      </tr>
+                      <tr className="total-row">
+                        <td colSpan={5}><strong>TOTAL</strong></td>
+                        <td><strong>0</strong></td>
+                        <td></td>
+                        <td></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              )}
 
               {/* Footer */}
               <div className="document-footer">
@@ -785,22 +569,18 @@ const Prospectus: React.FC = () => {
                   <p>Based on CMO No. 25, Series 2015</p>
                   <p>BSIT-ACAD-P001</p>
                 </div>
-                <div className="footer-center">
-                  <div className="stamp">OFFICE OF THE...</div>
-                  <div className="signature">7/13/2020</div>
-                </div>
                 <div className="footer-right">
-                  <p>1</p>
                   <p>Rev. 0</p>
+               
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Back Side */}
-          <div className="flip-card-back" ref={backCardRef}>
-            <div className="page-indicator">Page 2</div>
+          {/* Back Page (Right) */}
+          <div className="prospectus-page" ref={backCardRef}>
             <div className="prospectus-document">
+              <div className="page-indicator">BACK PAGE</div>
               {/* Header Section */}
               <div className="document-header">
                 <div className="header-content">
@@ -819,399 +599,458 @@ const Prospectus: React.FC = () => {
                 </div>
               </div>
 
-              {/* Summer Required */}
-              <div className="semester-section">
-                <h4>SUMMER REQUIRED</h4>
-                <table className="prospectus-table">
-                  <thead>
-                    <tr>
-                      <th>GRADES</th>
-                      <th colSpan={2}>SUBJECT</th>
-                      <th colSpan={3}>UNITS</th>
-                      <th>PRE-REQUISITE</th>
-                      <th>Total Hrs./wk.</th>
-                    </tr>
-                    <tr>
-                      <th></th>
-                      <th>CODE</th>
-                      <th>DESCRIPTION</th>
-                      <th>LEC</th>
-                      <th>LAB</th>
-                      <th>Total</th>
-                      <th></th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td></td>
-                      <td>GE Elec102</td>
-                      <td>Entrepreneurial Mind</td>
-                      <td>3</td>
-                      <td>0</td>
-                      <td>3</td>
-                      <td>None</td>
-                      <td>3</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>Per Dev</td>
-                      <td>Social Grace and Etiquette</td>
-                      <td>3</td>
-                      <td>0</td>
-                      <td>3</td>
-                      <td>None</td>
-                      <td>3</td>
-                    </tr>
-                    <tr className="total-row">
-                      <td colSpan={5}><strong>TOTAL UNITS</strong></td>
-                      <td><strong>6</strong></td>
-                      <td></td>
-                      <td></td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+              {/* Dynamic Back Page Sections */}
+              {hasData ? (
+                // Show actual data if available for back page sections
+                <div>
+                  <h4 className="year-header"><strong>SUMMER REQUIRED</strong></h4>
+                  <table className="prospectus-table">
+                    <thead>
+                      <tr>
+                        <th>GRADES</th>
+                        <th>Subject</th>
+                        <th>DESCRIPTION</th>
+                        <th colSpan={3}>UNITS</th>
+                        <th>PRE-REQUISITE</th>
+                        <th>Total</th>
+                      </tr>
+                      <tr>
+                        <th></th>
+                        <th>CODE</th>
+                        <th></th>
+                        <th>LEC</th>
+                        <th>LAB</th>
+                        <th>Total</th>
+                        <th></th>
+                        <th>HRS/WK</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td colSpan={8} className="text-center text-gray-500 italic">
+                          No enrolled subjects found for this semester
+                        </td>
+                      </tr>
+                      <tr className="total-row">
+                        <td colSpan={5}><strong>TOTAL</strong></td>
+                        <td><strong>0</strong></td>
+                        <td></td>
+                        <td></td>
+                      </tr>
+                    </tbody>
+                  </table>
 
-              {/* Third Year - First Semester */}
-              <div className="semester-section">
-                <h4>Third Year - FIRST SEMESTER</h4>
-                <table className="prospectus-table">
-                  <thead>
-                    <tr>
-                      <th>GRADES</th>
-                      <th colSpan={2}>SUBJECT</th>
-                      <th colSpan={3}>UNITS</th>
-                      <th>PRE-REQUISITE</th>
-                      <th>Total Hrs./wk.</th>
-                    </tr>
-                    <tr>
-                      <th></th>
-                      <th>CODE</th>
-                      <th>DESCRIPTION</th>
-                      <th>LEC</th>
-                      <th>LAB</th>
-                      <th>Total</th>
-                      <th></th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td></td>
-                      <td>IT 311</td>
-                      <td>E-Commerce</td>
-                      <td>2</td>
-                      <td>1</td>
-                      <td>3</td>
-                      <td>3rd yr. Standing</td>
-                      <td>5</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>IT 312</td>
-                      <td>Networking 2</td>
-                      <td>2</td>
-                      <td>1</td>
-                      <td>3</td>
-                      <td>IT 222</td>
-                      <td>5</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>IT 313</td>
-                      <td>Integrative Programming and Technologies 1</td>
-                      <td>2</td>
-                      <td>1</td>
-                      <td>3</td>
-                      <td>3rd yr. Standing</td>
-                      <td>5</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>IT 314</td>
-                      <td>Information Assurance and Security 2</td>
-                      <td>2</td>
-                      <td>1</td>
-                      <td>3</td>
-                      <td>IT 221</td>
-                      <td>5</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>IT 315</td>
-                      <td>System Analysis and Design</td>
-                      <td>2</td>
-                      <td>1</td>
-                      <td>3</td>
-                      <td>3rd yr. Standing</td>
-                      <td>5</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>IT 316</td>
-                      <td>Quantitative Methods (incl. Modeling & Simulation)</td>
-                      <td>2</td>
-                      <td>1</td>
-                      <td>3</td>
-                      <td>3rd yr. Standing</td>
-                      <td>5</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>GE Elec 103</td>
-                      <td>Reading Visual Arts</td>
-                      <td>3</td>
-                      <td>0</td>
-                      <td>3</td>
-                      <td>3rd yr. Standing</td>
-                      <td>3</td>
-                    </tr>
-                    <tr className="total-row">
-                      <td colSpan={5}><strong>TOTAL UNITS</strong></td>
-                      <td><strong>21</strong></td>
-                      <td></td>
-                      <td></td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+                  <h4 className="year-header"><strong>THIRD YEAR - FIRST SEMESTER</strong></h4>
+                  <table className="prospectus-table">
+                    <thead>
+                      <tr>
+                        <th>GRADES</th>
+                        <th>Subject</th>
+                        <th>DESCRIPTION</th>
+                        <th colSpan={3}>UNITS</th>
+                        <th>PRE-REQUISITE</th>
+                        <th>Total</th>
+                      </tr>
+                      <tr>
+                        <th></th>
+                        <th>CODE</th>
+                        <th></th>
+                        <th>LEC</th>
+                        <th>LAB</th>
+                        <th>Total</th>
+                        <th></th>
+                        <th>HRS/WK</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td colSpan={8} className="text-center text-gray-500 italic">
+                          No enrolled subjects found for this semester
+                        </td>
+                      </tr>
+                      <tr className="total-row">
+                        <td colSpan={5}><strong>TOTAL</strong></td>
+                        <td><strong>0</strong></td>
+                        <td></td>
+                        <td></td>
+                      </tr>
+                    </tbody>
+                  </table>
 
-              {/* Third Year - Second Semester */}
-              <div className="semester-section">
-                <h4>Third Year - SECOND SEMESTER</h4>
-                <table className="prospectus-table">
-                  <thead>
-                    <tr>
-                      <th>GRADES</th>
-                      <th colSpan={2}>SUBJECT</th>
-                      <th colSpan={3}>UNITS</th>
-                      <th>PRE-REQUISITE</th>
-                      <th>Total Hrs./wk.</th>
-                    </tr>
-                    <tr>
-                      <th></th>
-                      <th>CODE</th>
-                      <th>DESCRIPTION</th>
-                      <th>LEC</th>
-                      <th>LAB</th>
-                      <th>Total</th>
-                      <th></th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td></td>
-                      <td>IT 321</td>
-                      <td>System Integration and Architecture 1</td>
-                      <td>2</td>
-                      <td>1</td>
-                      <td>3</td>
-                      <td>IT 315</td>
-                      <td>5</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>IT 322</td>
-                      <td>Capstone Project and Research 1</td>
-                      <td>4</td>
-                      <td>2</td>
-                      <td>6</td>
-                      <td>3rd yr. Standing</td>
-                      <td>5</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>IT Elective2</td>
-                      <td>IT Elective 2</td>
-                      <td>3</td>
-                      <td>0</td>
-                      <td>3</td>
-                      <td>3rd yr. Standing</td>
-                      <td>3</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>IT 323</td>
-                      <td>Social and Professional Issues</td>
-                      <td>3</td>
-                      <td>0</td>
-                      <td>3</td>
-                      <td>3rd yr. Standing</td>
-                      <td>3</td>
-                    </tr>
-                    <tr className="total-row">
-                      <td colSpan={5}><strong>TOTAL UNITS</strong></td>
-                      <td><strong>15</strong></td>
-                      <td></td>
-                      <td></td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+                  <h4 className="year-header"><strong>THIRD YEAR - SECOND SEMESTER</strong></h4>
+                  <table className="prospectus-table">
+                    <thead>
+                      <tr>
+                        <th>GRADES</th>
+                        <th>Subject</th>
+                        <th>DESCRIPTION</th>
+                        <th colSpan={3}>UNITS</th>
+                        <th>PRE-REQUISITE</th>
+                        <th>Total</th>
+                      </tr>
+                      <tr>
+                        <th></th>
+                        <th>CODE</th>
+                        <th></th>
+                        <th>LEC</th>
+                        <th>LAB</th>
+                        <th>Total</th>
+                        <th></th>
+                        <th>HRS/WK</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td colSpan={8} className="text-center text-gray-500 italic">
+                          No enrolled subjects found for this semester
+                        </td>
+                      </tr>
+                      <tr className="total-row">
+                        <td colSpan={5}><strong>TOTAL</strong></td>
+                        <td><strong>0</strong></td>
+                        <td></td>
+                        <td></td>
+                      </tr>
+                    </tbody>
+                  </table>
 
-              {/* Summer Required */}
-              <div className="semester-section">
-                <h4>SUMMER REQUIRED</h4>
-                <table className="prospectus-table">
-                  <thead>
-                    <tr>
-                      <th>GRADES</th>
-                      <th colSpan={2}>SUBJECT</th>
-                      <th colSpan={3}>UNITS</th>
-                      <th>PRE-REQUISITE</th>
-                      <th>Total Hrs./wk.</th>
-                    </tr>
-                    <tr>
-                      <th></th>
-                      <th>CODE</th>
-                      <th>DESCRIPTION</th>
-                      <th>LEC</th>
-                      <th>LAB</th>
-                      <th>Total</th>
-                      <th></th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td></td>
-                      <td>IT 401</td>
-                      <td>Systems Administration and Maintenance</td>
-                      <td>2</td>
-                      <td>1</td>
-                      <td>3</td>
-                      <td>3rd yr. Standing</td>
-                      <td>5</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>IT 402</td>
-                      <td>Computer Graphics and Animation</td>
-                      <td>2</td>
-                      <td>1</td>
-                      <td>3</td>
-                      <td>3rd yr. Standing</td>
-                      <td>5</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>IT Elective3</td>
-                      <td>IT Elective 3</td>
-                      <td>2</td>
-                      <td>1</td>
-                      <td>3</td>
-                      <td>3rd yr. Standing</td>
-                      <td>5</td>
-                    </tr>
-                    <tr className="total-row">
-                      <td colSpan={5}><strong>TOTAL UNITS</strong></td>
-                      <td><strong>9</strong></td>
-                      <td></td>
-                      <td></td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+                  <h4 className="year-header"><strong>SUMMER REQUIRED</strong></h4>
+                  <table className="prospectus-table">
+                    <thead>
+                      <tr>
+                        <th>GRADES</th>
+                        <th>Subject</th>
+                        <th>DESCRIPTION</th>
+                        <th colSpan={3}>UNITS</th>
+                        <th>PRE-REQUISITE</th>
+                        <th>Total</th>
+                      </tr>
+                      <tr>
+                        <th></th>
+                        <th>CODE</th>
+                        <th></th>
+                        <th>LEC</th>
+                        <th>LAB</th>
+                        <th>Total</th>
+                        <th></th>
+                        <th>HRS/WK</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td colSpan={8} className="text-center text-gray-500 italic">
+                          No enrolled subjects found for this semester
+                        </td>
+                      </tr>
+                      <tr className="total-row">
+                        <td colSpan={5}><strong>TOTAL</strong></td>
+                        <td><strong>0</strong></td>
+                        <td></td>
+                        <td></td>
+                      </tr>
+                    </tbody>
+                  </table>
 
-              {/* Fourth Year - First Semester */}
-              <div className="semester-section">
-                <h4>Fourth Year - FIRST SEMESTER</h4>
-                <table className="prospectus-table">
-                  <thead>
-                    <tr>
-                      <th>GRADES</th>
-                      <th colSpan={2}>SUBJECT</th>
-                      <th colSpan={3}>UNITS</th>
-                      <th>PRE-REQUISITE</th>
-                      <th>Total Hrs./wk.</th>
-                    </tr>
-                    <tr>
-                      <th></th>
-                      <th>CODE</th>
-                      <th>DESCRIPTION</th>
-                      <th>LEC</th>
-                      <th>LAB</th>
-                      <th>Total</th>
-                      <th></th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td></td>
-                      <td>IT 411</td>
-                      <td>Capstone Project and Research 2</td>
-                      <td>4</td>
-                      <td>2</td>
-                      <td>6</td>
-                      <td>IT 322</td>
-                      <td>5</td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td>IT Elective4</td>
-                      <td>IT Elective 4</td>
-                      <td>2</td>
-                      <td>1</td>
-                      <td>3</td>
-                      <td>4th yr. Standing</td>
-                      <td>5</td>
-                    </tr>
-                    <tr className="total-row">
-                      <td colSpan={5}><strong>TOTAL UNITS</strong></td>
-                      <td><strong>9</strong></td>
-                      <td></td>
-                      <td></td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+                  <h4 className="year-header"><strong>FOURTH YEAR - FIRST SEMESTER</strong></h4>
+                  <table className="prospectus-table">
+                    <thead>
+                      <tr>
+                        <th>GRADES</th>
+                        <th>Subject</th>
+                        <th>DESCRIPTION</th>
+                        <th colSpan={3}>UNITS</th>
+                        <th>PRE-REQUISITE</th>
+                        <th>Total</th>
+                      </tr>
+                      <tr>
+                        <th></th>
+                        <th>CODE</th>
+                        <th></th>
+                        <th>LEC</th>
+                        <th>LAB</th>
+                        <th>Total</th>
+                        <th></th>
+                        <th>HRS/WK</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td colSpan={8} className="text-center text-gray-500 italic">
+                          No enrolled subjects found for this semester
+                        </td>
+                      </tr>
+                      <tr className="total-row">
+                        <td colSpan={5}><strong>TOTAL</strong></td>
+                        <td><strong>0</strong></td>
+                        <td></td>
+                        <td></td>
+                      </tr>
+                    </tbody>
+                  </table>
 
-              {/* Fourth Year - Second Semester */}
-              <div className="semester-section">
-                <h4>Fourth Year - SECOND SEMESTER</h4>
-                <table className="prospectus-table">
-                  <thead>
-                    <tr>
-                      <th>GRADES</th>
-                      <th colSpan={2}>SUBJECT</th>
-                      <th colSpan={3}>UNITS</th>
-                      <th>PRE-REQUISITE</th>
-                      <th>Total Hrs./wk.</th>
-                    </tr>
-                    <tr>
-                      <th></th>
-                      <th>CODE</th>
-                      <th>DESCRIPTION</th>
-                      <th>LEC</th>
-                      <th>LAB</th>
-                      <th>Total</th>
-                      <th></th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td></td>
-                      <td>PRAC</td>
-                      <td>Practicum (486 hours)</td>
-                      <td>9</td>
-                      <td>0</td>
-                      <td>9</td>
-                      <td>4th yr. Standing</td>
-                      <td></td>
-                    </tr>
-                    <tr className="total-row">
-                      <td colSpan={5}><strong>TOTAL UNITS</strong></td>
-                      <td><strong>9</strong></td>
-                      <td></td>
-                      <td></td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+                  <h4 className="year-header"><strong>FOURTH YEAR - SECOND SEMESTER</strong></h4>
+                  <table className="prospectus-table">
+                    <thead>
+                      <tr>
+                        <th>GRADES</th>
+                        <th>Subject</th>
+                        <th>DESCRIPTION</th>
+                        <th colSpan={3}>UNITS</th>
+                        <th>PRE-REQUISITE</th>
+                        <th>Total</th>
+                      </tr>
+                      <tr>
+                        <th></th>
+                        <th>CODE</th>
+                        <th></th>
+                        <th>LEC</th>
+                        <th>LAB</th>
+                        <th>Total</th>
+                        <th></th>
+                        <th>HRS/WK</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td colSpan={8} className="text-center text-gray-500 italic">
+                          No enrolled subjects found for this semester
+                        </td>
+                      </tr>
+                      <tr className="total-row">
+                        <td colSpan={5}><strong>TOTAL</strong></td>
+                        <td><strong>0</strong></td>
+                        <td></td>
+                        <td></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                // Show default table structure when no data
+                <div>
+                  <h4 className="year-header"><strong>SUMMER REQUIRED</strong></h4>
+                  <table className="prospectus-table">
+                    <thead>
+                      <tr>
+                        <th>GRADES</th>
+                        <th>SUBJECT</th>
+                        <th>DESCRIPTION</th>
+                        <th colSpan={3}>UNITS</th>
+                        <th>PRE-REQUISITE</th>
+                        <th>Total</th>
+                      </tr>
+                      <tr>
+                        <th></th>
+                        <th>CODE</th>
+                        <th></th>
+                        <th>LEC</th>
+                        <th>LAB</th>
+                        <th>Total</th>
+                        <th></th>
+                        <th>HRS/WK</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td colSpan={8} className="text-center text-gray-500 italic">
+                          No enrolled subjects found for this semester
+                        </td>
+                      </tr>
+                      <tr className="total-row">
+                        <td colSpan={5}><strong>TOTAL</strong></td>
+                        <td><strong>0</strong></td>
+                        <td></td>
+                        <td></td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  <h4 className="year-header"><strong>THIRD YEAR - FIRST SEMESTER</strong></h4>
+                  <table className="prospectus-table">
+                    <thead>
+                      <tr>
+                        <th>GRADES</th>
+                        <th>SUBJECT</th>
+                        <th>DESCRIPTION</th>
+                        <th colSpan={3}>UNITS</th>
+                        <th>PRE-REQUISITE</th>
+                        <th>Total</th>
+                      </tr>
+                      <tr>
+                        <th></th>
+                        <th>CODE</th>
+                        <th></th>
+                        <th>LEC</th>
+                        <th>LAB</th>
+                        <th>Total</th>
+                        <th></th>
+                        <th>HRS/WK</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td colSpan={8} className="text-center text-gray-500 italic">
+                          No enrolled subjects found for this semester
+                        </td>
+                      </tr>
+                      <tr className="total-row">
+                        <td colSpan={5}><strong>TOTAL</strong></td>
+                        <td><strong>0</strong></td>
+                        <td></td>
+                        <td></td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  <h4 className="year-header"><strong>THIRD YEAR - SECOND SEMESTER</strong></h4>
+                  <table className="prospectus-table">
+                    <thead>
+                      <tr>
+                        <th>GRADES</th>
+                        <th>SUBJECT</th>
+                        <th>DESCRIPTION</th>
+                        <th colSpan={3}>UNITS</th>
+                        <th>PRE-REQUISITE</th>
+                        <th>Total</th>
+                      </tr>
+                      <tr>
+                        <th></th>
+                        <th>CODE</th>
+                        <th></th>
+                        <th>LEC</th>
+                        <th>LAB</th>
+                        <th>Total</th>
+                        <th></th>
+                        <th>HRS/WK</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td colSpan={8} className="text-center text-gray-500 italic">
+                          No enrolled subjects found for this semester
+                        </td>
+                      </tr>
+                      <tr className="total-row">
+                        <td colSpan={5}><strong>TOTAL</strong></td>
+                        <td><strong>0</strong></td>
+                        <td></td>
+                        <td></td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  <h4 className="year-header"><strong>SUMMER REQUIRED</strong></h4>
+                  <table className="prospectus-table">
+                    <thead>
+                      <tr>
+                        <th>GRADES</th>
+                        <th>SUBJECT</th>
+                        <th>DESCRIPTION</th>
+                        <th colSpan={3}>UNITS</th>
+                        <th>PRE-REQUISITE</th>
+                        <th>Total</th>
+                      </tr>
+                      <tr>
+                        <th></th>
+                        <th>CODE</th>
+                        <th></th>
+                        <th>LEC</th>
+                        <th>LAB</th>
+                        <th>Total</th>
+                        <th></th>
+                        <th>HRS/WK</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td colSpan={8} className="text-center text-gray-500 italic">
+                          No enrolled subjects found for this semester
+                        </td>
+                      </tr>
+                      <tr className="total-row">
+                        <td colSpan={5}><strong>TOTAL</strong></td>
+                        <td><strong>0</strong></td>
+                        <td></td>
+                        <td></td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  <h4 className="year-header"><strong>FOURTH YEAR - FIRST SEMESTER</strong></h4>
+                  <table className="prospectus-table">
+                    <thead>
+                      <tr>
+                        <th>GRADES</th>
+                        <th>SUBJECT</th>
+                        <th>DESCRIPTION</th>
+                        <th colSpan={3}>UNITS</th>
+                        <th>PRE-REQUISITE</th>
+                        <th>Total</th>
+                      </tr>
+                      <tr>
+                        <th></th>
+                        <th>CODE</th>
+                        <th></th>
+                        <th>LEC</th>
+                        <th>LAB</th>
+                        <th>Total</th>
+                        <th></th>
+                        <th>HRS/WK</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td colSpan={8} className="text-center text-gray-500 italic">
+                          No enrolled subjects found for this semester
+                        </td>
+                      </tr>
+                      <tr className="total-row">
+                        <td colSpan={5}><strong>TOTAL</strong></td>
+                        <td><strong>0</strong></td>
+                        <td></td>
+                        <td></td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  <h4 className="year-header"><strong>FOURTH YEAR - SECOND SEMESTER</strong></h4>
+                  <table className="prospectus-table">
+                    <thead>
+                      <tr>
+                        <th>GRADES</th>
+                        <th>SUBJECT</th>
+                        <th>DESCRIPTION</th>
+                        <th colSpan={3}>UNITS</th>
+                        <th>PRE-REQUISITE</th>
+                        <th>Total</th>
+                      </tr>
+                      <tr>
+                        <th></th>
+                        <th>CODE</th>
+                        <th></th>
+                        <th>LEC</th>
+                        <th>LAB</th>
+                        <th>Total</th>
+                        <th></th>
+                        <th>HRS/WK</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td colSpan={8} className="text-center text-gray-500 italic">
+                          No enrolled subjects found for this semester
+                        </td>
+                      </tr>
+                      <tr className="total-row">
+                        <td colSpan={5}><strong>TOTAL</strong></td>
+                        <td><strong>0</strong></td>
+                        <td></td>
+                        <td></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              )}
 
               {/* IT Electives List */}
               <div className="electives-section">
@@ -1273,7 +1112,7 @@ const Prospectus: React.FC = () => {
                 </div>
                 <div className="footer-right">
                   <p>Rev. 0</p>
-                  <p>2</p>
+              
                 </div>
               </div>
             </div>
@@ -1281,8 +1120,28 @@ const Prospectus: React.FC = () => {
         </div>
       </div>
 
-      <div className="prospectus-instructions">
-        <p>Double-click on the card to flip and view the complete prospectus</p>
+      {/* Mobile Download Section */}
+      <div className="lg:hidden max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="bg-white rounded-lg shadow-lg p-6">
+          <h2 className="text-xl font-bold text-gray-800 mb-4">Download Prospectus</h2>
+          <p className="text-gray-600 mb-6">For the best viewing experience, download the prospectus as a PDF or image.</p>
+          <div className="flex flex-col sm:flex-row gap-4">
+            <button 
+              onClick={downloadAsPDF}
+              disabled={isDownloading}
+              className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
+            >
+              {isDownloading ? 'Generating PDF...' : 'Download PDF'}
+            </button>
+            <button 
+              onClick={downloadAsImage}
+              disabled={isDownloading}
+              className="flex-1 px-4 py-3 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 transition-colors disabled:opacity-50"
+            >
+              {isDownloading ? 'Generating Image...' : 'Download Image'}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
