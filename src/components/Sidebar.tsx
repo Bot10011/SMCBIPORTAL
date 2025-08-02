@@ -155,9 +155,15 @@ const sidebarItems: SidebarItem[] = [
     roles: ['program_head'],
   },
   {
-    label: 'Instructor Management',
-    path: '/dashboard/instructor-management',
-    icon: <GraduationCap className="w-5 h-5" />,
+    label: 'Subject Assignment',
+    path: '/dashboard/assign-subjects',
+    icon: <BookOpen className="w-5 h-5" />,
+    roles: ['program_head'],
+  },
+  {
+    label: 'User Management',
+    path: '/dashboard/user-management',
+    icon: <UserPlus className="w-5 h-5" />,
     roles: ['program_head'],
   },
   {
@@ -525,7 +531,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
             duration: 0.3,
             ease: 'easeInOut',
           }}
-          className={`fixed top-0 left-0 h-screen ${isCollapsed ? 'w-16' : 'w-64'} flex flex-col bg-white border-r border-gray-200 z-[40] sidebar-blur shadow-lg shadow-gray-200/40 ${isMobile && isCollapsed ? 'hidden' : ''}`}
+          className={`fixed top-0 left-0 h-screen ${isCollapsed ? 'w-16' : 'w-64'} flex flex-col bg-white/80 backdrop-blur-xl border-r border-white/20 z-[40] sidebar-blur shadow-lg shadow-gray-200/40 rounded-r-2xl ${isMobile && isCollapsed ? 'hidden' : ''}`}
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
           style={{
@@ -742,8 +748,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
         data-modal="true"
         className={`min-h-screen bg-gray-50 ${shouldBlur() ? 'pointer-events-none [&:not(.course-modal):not(.subject-modal)]' : ''} z-[30] ${mainContentScrollLock}`}
       >
-        <div className="h-full lg:pt-12">
-          <div className={`bg-white rounded-l-lg border border-gray-200 p-6 sm:p-8 md:p-11 w-full h-full relative ${shouldBlur() ? 'opacity-80' : ''}`.replace(/`$/, '"')}
+        <div className="h-full lg:pt-0">
+          <div className={`bg-white rounded-l-lg border border-gray-200 p-4 sm:p-6 md:p-8 w-full h-full relative ${shouldBlur() ? 'opacity-80' : ''}`.replace(/`$/, '"')}
             style={{
               animation: 'fadeIn 0.3s ease-out',
               boxShadow: 'inset 0 2px 12px 0 rgba(0,0,0,0.06)',
