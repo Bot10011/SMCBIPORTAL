@@ -421,22 +421,22 @@ const ClassManagement: React.FC = () => {
     }
   };
 
-  // Group classes by year level and semester
+  // Group classes by year level and section
   const groupedClasses = classes.reduce((acc, cls) => {
     const yearLevel = cls.year_level || 'Unknown';
-    const semester = cls.semester || 'Unknown';
-    const key = `${yearLevel}-${semester}`;
+    const section = cls.section || 'Unknown';
+    const key = `${yearLevel}-${section}`;
     
     if (!acc[key]) {
       acc[key] = {
         yearLevel,
-        semester,
+        section,
         classes: []
       };
     }
     acc[key].classes.push(cls);
     return acc;
-  }, {} as Record<string, { yearLevel: string; semester: string; classes: TeacherClass[] }>);
+  }, {} as Record<string, { yearLevel: string; section: string; classes: TeacherClass[] }>);
 
   // Filter classes based on search and filters
   const filteredGroupedClasses = Object.entries(groupedClasses).reduce((acc, [key, group]) => {
@@ -447,9 +447,9 @@ const ClassManagement: React.FC = () => {
         cls.section.toLowerCase().includes(searchTerm.toLowerCase());
       
       const matchesYearLevel = filterYearLevel === 'all' || cls.year_level === filterYearLevel;
-      const matchesSemester = filterSemester === 'all' || cls.semester === filterSemester;
+      const matchesSection = filterSemester === 'all' || cls.section === filterSemester;
       
-      return matchesSearch && matchesYearLevel && matchesSemester;
+      return matchesSearch && matchesYearLevel && matchesSection;
     });
 
     if (filteredClasses.length > 0) {
@@ -459,9 +459,9 @@ const ClassManagement: React.FC = () => {
     return acc;
   }, {} as Record<string, { yearLevel: string; semester: string; classes: TeacherClass[] }>);
 
-  // Get unique year levels and semesters for filters
+  // Get unique year levels and sections for filters
   const yearLevels = [...new Set(classes.map(cls => cls.year_level).filter(Boolean))];
-  const semesters = [...new Set(classes.map(cls => cls.semester).filter(Boolean))];
+  const sections = [...new Set(classes.map(cls => cls.section).filter(Boolean))];
 
   // Toggle section expansion
   const toggleSection = (key: string) => {
@@ -564,9 +564,9 @@ const ClassManagement: React.FC = () => {
                           onChange={(e) => setFilterSemester(e.target.value)}
                           className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                         >
-                          <option value="all">All Semesters</option>
-                          {semesters.map(sem => (
-                            <option key={sem} value={sem}>{sem}</option>
+                          <option value="all">All Sections</option>
+                          {sections.map(section => (
+                            <option key={section} value={section}>{section}</option>
                           ))}
                         </select>
                       </div>
@@ -610,7 +610,7 @@ const ClassManagement: React.FC = () => {
                                 )}
                                 <div>
                                   <div className="font-medium text-sm text-gray-900">{group.yearLevel}</div>
-                                  <div className="text-xs text-gray-500">{group.semester} Semester</div>
+                                  <div className="text-xs text-gray-500">Section {group.section}</div>
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
@@ -648,6 +648,8 @@ const ClassManagement: React.FC = () => {
                                           </span>
                                           <span className="text-xs text-gray-500">•</span>
                                           <span className="text-xs text-gray-600">{cls.course?.units} units</span>
+                                          <span className="text-xs text-gray-500">•</span>
+                                          <span className="text-xs text-gray-600">Section {cls.section}</span>
                                         </div>
                                       </div>
                                       <div className={`w-3 h-3 rounded-full ${
@@ -655,19 +657,7 @@ const ClassManagement: React.FC = () => {
                                       }`} />
                                     </div>
                                     
-                                    {/* Class Details */}
-                                    <div className="space-y-1.5">
-                                      <div className="flex items-center gap-2 text-xs text-gray-600">
-                                        <GraduationCap className="w-3 h-3" />
-                                        <span className="font-medium">Section:</span>
-                                        <span className="bg-white px-2 py-0.5 rounded text-xs font-medium">{cls.section}</span>
-                                      </div>
-                                      <div className="flex items-center gap-2 text-xs text-gray-600">
-                                        <Calendar className="w-3 h-3" />
-                                        <span className="font-medium">Academic Year:</span>
-                                        <span className="bg-white px-2 py-0.5 rounded text-xs">{cls.academic_year}</span>
-                                      </div>
-                                    </div>
+
                                   </button>
                                 ))}
                               </div>
