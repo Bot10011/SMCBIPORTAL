@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { ExternalLink, CheckCircle, AlertCircle, Loader2, BookOpen, Clock, FileText, Upload, Bell, Target, AlertTriangle, Folder, Search } from 'lucide-react';
+import { ExternalLink, CheckCircle, AlertCircle, Loader2, BookOpen, FileText, Upload, Bell, Folder, Search } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { googleClassroomService, type GoogleCourse, type GoogleAssignment, type GoogleSubmission } from '../lib/services/googleClassroomService';
 import { SmartNotificationService } from '../lib/services/smartNotificationService';
@@ -1306,33 +1306,7 @@ export const StudentGoogleClassroom: React.FC<StudentGoogleClassroomProps> = ({ 
                         <span className="text-green-700 font-medium">Connected to Google Classroom</span>
                       </div>
                       
-                      {/* Analytics Summary */}
-                      {analytics && (
-                        <div className="flex items-center space-x-4 text-sm">
-                          <div className="flex items-center space-x-1">
-                            <Target className="w-4 h-4 text-blue-500" />
-                            <span className="text-gray-600">
-                              {analytics.completedAssignments}/{analytics.totalAssignments} completed
-                            </span>
-                          </div>
-                          {analytics.overdueAssignments > 0 && (
-                            <div className="flex items-center space-x-1">
-                              <AlertTriangle className="w-4 h-4 text-red-500" />
-                              <span className="text-red-600 font-medium">
-                                {analytics.overdueAssignments} overdue
-                              </span>
-                            </div>
-                          )}
-                          {analytics.upcomingDeadlines > 0 && (
-                            <div className="flex items-center space-x-1">
-                              <Clock className="w-4 h-4 text-orange-500" />
-                              <span className="text-orange-600 font-medium">
-                                {analytics.upcomingDeadlines} due soon
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      )}
+
                     </div>
                     
                     <div className="flex items-center space-x-3">
