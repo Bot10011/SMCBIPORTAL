@@ -1,5 +1,5 @@
 import React, { Suspense, useState, useEffect, useMemo, useCallback } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import DashboardLayout from '../components/Sidebar';
 import { StudentGradeViewer } from './StudentGradeViewer';
 import MyCourse from './MyCourse';
@@ -8,14 +8,17 @@ import { CertificateOfEnrollment } from './CertificateOfEnrollment';
 import Prospectus from './Prospectus';
 import { useAuth } from '../contexts/AuthContext';
 import { ReceiptPermit } from './ReceiptPermit';
+import { StudentGoogleClassroom } from '../components/StudentGoogleClassroom';
 import { 
   BookOpen,  
   Bell,
-  GraduationCap
+  GraduationCap,
+  ExternalLink
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { motion } from 'framer-motion';
 import { toast } from 'react-hot-toast';
+import { getGoogleClassroomConnectionInfo } from '../lib/services/googleClassroomService';
 
 // Enhanced Loading component with skeleton
 const LoadingSpinner = () => (
@@ -120,12 +123,39 @@ class ErrorBoundary extends React.Component<
 // Dashboard Overview component
 const DashboardOverview = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [studentName, setStudentName] = useState<string>('');
   const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(null);
   const [stats, setStats] = useState({
     enrolledCourses: 0,
     gpa: 0
   });
+  const [googleClassroomStatus, setGoogleClassroomStatus] = useState<'connected' | 'disconnected' | 'checking'>('checking');
+
+  // Check Google Classroom connection status
+  useEffect(() => {
+    const checkGoogleClassroomStatus = () => {
+      if (!user?.id) {
+        setGoogleClassroomStatus('disconnected');
+        return;
+      }
+
+      const connectionInfo = getGoogleClassroomConnectionInfo(user.id);
+      setGoogleClassroomStatus(connectionInfo.status);
+    };
+
+    checkGoogleClassroomStatus();
+    
+    // Listen for storage changes to update status
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key?.includes('google_classroom_token_') || e.key?.includes('google_auth_code_')) {
+        checkGoogleClassroomStatus();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [user?.id]);
 
   // Memoized data processing
   const processedProfile = useMemo(() => {
@@ -352,7 +382,7 @@ const DashboardOverview = () => {
           </motion.div>
 
           {/* Stats Grid */}
-          <div className="grid grid-cols-2 gap-3 sm:gap-6 lg:gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6 lg:gap-8">
             {/* Enrolled Courses */}
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
@@ -393,6 +423,44 @@ const DashboardOverview = () => {
                 </div>
                 <div className="p-2 sm:p-4 rounded-xl bg-gray-200/80 group-hover:bg-gray-300/80 transition-colors duration-300 shadow-[inset_2px_2px_4px_rgba(0,0,0,0.1),inset_-2px_-2px_4px_rgba(255,255,255,0.8)]">
                   <GraduationCap className="w-5 h-5 sm:w-7 sm:h-7 text-green-600" />
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Google Classroom Integration */}
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+              onClick={() => navigate('/dashboard/google-classroom')}
+              className="dashboard-stat-card group relative bg-gray-100/80 backdrop-blur-sm rounded-xl p-3 sm:p-6 md:p-8 border border-gray-200/50 transition-all duration-300 shadow-[inset_4px_4px_8px_rgba(0,0,0,0.1),inset_-4px_-4px_8px_rgba(255,255,255,0.8)] hover:shadow-[inset_6px_6px_12px_rgba(0,0,0,0.12),inset_-6px_-6px_12px_rgba(255,255,255,0.9)] cursor-pointer"
+            >
+              <div className="absolute inset-0 bg-gradient-to-br from-purple-50/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-xl"></div>
+              <div className="relative flex items-center justify-between">
+                <div className="space-y-0.5 sm:space-y-1">
+                  <p className="text-xs sm:text-sm font-medium text-gray-600">Google Classroom</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-lg sm:text-xl md:text-2xl font-bold bg-gradient-to-r from-purple-600 to-purple-700 bg-clip-text text-transparent">
+                      {googleClassroomStatus === 'checking' ? 'Checking...' : 
+                       googleClassroomStatus === 'connected' ? 'Connected' : 'Not Connected'}
+                    </p>
+                    {googleClassroomStatus === 'connected' && (
+                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    )}
+                    {googleClassroomStatus === 'disconnected' && (
+                      <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                    )}
+                    {googleClassroomStatus === 'checking' && (
+                      <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
+                    )}
+                  </div>
+                  <p className="text-xs sm:text-sm text-gray-500">
+                    {googleClassroomStatus === 'connected' ? 'Access assignments' : 
+                     googleClassroomStatus === 'disconnected' ? 'Connect to sync' : 'Verifying connection'}
+                  </p>
+                </div>
+                <div className="p-2 sm:p-4 rounded-xl bg-gray-200/80 group-hover:bg-gray-300/80 transition-colors duration-300 shadow-[inset_2px_2px_4px_rgba(0,0,0,0.1),inset_-2px_-2px_4px_rgba(255,255,255,0.8)]">
+                  <ExternalLink className="w-5 h-5 sm:w-7 sm:h-7 text-purple-600" />
                 </div>
               </div>
             </motion.div>
@@ -817,6 +885,7 @@ const StudentDashboard: React.FC = () => {
             <Route path="/coe" element={<CertificateOfEnrollment />} />
             <Route path="/prospectus" element={<Prospectus />} />
             <Route path="/receipt-permit" element={<ReceiptPermit />} />
+            <Route path="/google-classroom" element={<StudentGoogleClassroom />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </Suspense>
