@@ -382,25 +382,25 @@ const DashboardOverview = () => {
           </motion.div>
 
           {/* Stats Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6 lg:gap-8">
+          <div className="grid grid-cols-1 xs:grid-cols-3 gap-4 xs:gap-6 sm:gap-6 lg:gap-8">
             {/* Enrolled Courses */}
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.1 }}
-              className="dashboard-stat-card group relative bg-gray-100/80 backdrop-blur-sm rounded-xl p-3 sm:p-6 md:p-8 border border-gray-200/50 transition-all duration-300 shadow-[inset_4px_4px_8px_rgba(0,0,0,0.1),inset_-4px_-4px_8px_rgba(255,255,255,0.8)] hover:shadow-[inset_6px_6px_12px_rgba(0,0,0,0.12),inset_-6px_-6px_12px_rgba(255,255,255,0.9)]"
+              className="dashboard-stat-card group relative bg-gray-100/80 backdrop-blur-sm rounded-xl p-4 xs:p-3 sm:p-6 md:p-8 border border-gray-200/50 transition-all duration-300 shadow-[inset_4px_4px_8px_rgba(0,0,0,0.1),inset_-4px_-4px_8px_rgba(255,255,255,0.8)] hover:shadow-[inset_6px_6px_12px_rgba(0,0,0,0.12),inset_-6px_-6px_12px_rgba(255,255,255,0.9)]"
             >
               <div className="absolute inset-0 bg-gradient-to-br from-blue-50/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-xl"></div>
-              <div className="relative flex items-center justify-between">
-                <div className="space-y-0.5 sm:space-y-1">
-                  <p className="text-xs sm:text-sm font-medium text-gray-600">Enrolled Courses</p>
-                  <p className="text-xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-blue-600 to-blue-700 bg-clip-text text-transparent">
+              <div className="relative flex flex-col xs:flex-row xs:items-center justify-between h-full">
+                <div className="space-y-1 xs:space-y-0.5 sm:space-y-1 text-center xs:text-left">
+                  <p className="text-sm xs:text-xs sm:text-sm font-medium text-gray-600">Enrolled Courses</p>
+                  <p className="text-2xl xs:text-xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-blue-600 to-blue-700 bg-clip-text text-transparent">
                     {stats.enrolledCourses}
                   </p>
-                  <p className="text-xs sm:text-sm text-gray-500">Active courses</p>
+                  <p className="text-sm xs:text-xs sm:text-sm text-gray-500">Active courses</p>
                 </div>
-                <div className="p-2 sm:p-4 rounded-xl bg-gray-200/80 group-hover:bg-gray-300/80 transition-colors duration-300 shadow-[inset_2px_2px_4px_rgba(0,0,0,0.1),inset_-2px_-2px_4px_rgba(255,255,255,0.8)]">
-                  <BookOpen className="w-5 h-5 sm:w-7 sm:h-7 text-blue-600" />
+                <div className="p-3 xs:p-2 sm:p-4 rounded-xl bg-gray-200/80 group-hover:bg-gray-300/80 transition-colors duration-300 shadow-[inset_2px_2px_4px_rgba(0,0,0,0.1),inset_-2px_-2px_4px_rgba(255,255,255,0.8)] mx-auto xs:mx-0 mt-3 xs:mt-0">
+                  <BookOpen className="w-6 h-6 xs:w-5 xs:h-5 sm:w-7 sm:h-7 text-blue-600" />
                 </div>
               </div>
             </motion.div>
@@ -410,19 +410,19 @@ const DashboardOverview = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.2 }}
-              className="dashboard-stat-card group relative bg-gray-100/80 backdrop-blur-sm rounded-xl p-3 sm:p-6 md:p-8 border border-gray-200/50 transition-all duration-300 shadow-[inset_4px_4px_8px_rgba(0,0,0,0.1),inset_-4px_-4px_8px_rgba(255,255,255,0.8)] hover:shadow-[inset_6px_6px_12px_rgba(0,0,0,0.12),inset_-6px_-6px_12px_rgba(255,255,255,0.9)]"
+              className="dashboard-stat-card group relative bg-gray-100/80 backdrop-blur-sm rounded-xl p-4 xs:p-3 sm:p-6 md:p-8 border border-gray-200/50 transition-all duration-300 shadow-[inset_4px_4px_8px_rgba(0,0,0,0.1),inset_-4px_-4px_8px_rgba(255,255,255,0.8)] hover:shadow-[inset_6px_6px_12px_rgba(0,0,0,0.12),inset_-6px_-6px_12px_rgba(255,255,255,0.9)]"
             >
               <div className="absolute inset-0 bg-gradient-to-br from-green-50/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-xl"></div>
-              <div className="relative flex items-center justify-between">
-                <div className="space-y-0.5 sm:space-y-1">
-                  <p className="text-xs sm:text-sm font-medium text-gray-600">Current GPA</p>
-                  <p className="text-xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-green-600 to-green-700 bg-clip-text text-transparent">
+              <div className="relative flex flex-col xs:flex-row xs:items-center justify-between h-full">
+                <div className="space-y-1 xs:space-y-0.5 sm:space-y-1 text-center xs:text-left">
+                  <p className="text-sm xs:text-xs sm:text-sm font-medium text-gray-600">Current GPA</p>
+                  <p className="text-2xl xs:text-xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-green-600 to-green-700 bg-clip-text text-transparent">
                     {stats.gpa.toFixed(2)}
                   </p>
-                  <p className="text-xs sm:text-sm text-gray-500">This semester</p>
+                  <p className="text-sm xs:text-xs sm:text-sm text-gray-500">This semester</p>
                 </div>
-                <div className="p-2 sm:p-4 rounded-xl bg-gray-200/80 group-hover:bg-gray-300/80 transition-colors duration-300 shadow-[inset_2px_2px_4px_rgba(0,0,0,0.1),inset_-2px_-2px_4px_rgba(255,255,255,0.8)]">
-                  <GraduationCap className="w-5 h-5 sm:w-7 sm:h-7 text-green-600" />
+                <div className="p-3 xs:p-2 sm:p-4 rounded-xl bg-gray-200/80 group-hover:bg-gray-300/80 transition-colors duration-300 shadow-[inset_2px_2px_4px_rgba(0,0,0,0.1),inset_-2px_-2px_4px_rgba(255,255,255,0.8)] mx-auto xs:mx-0 mt-3 xs:mt-0">
+                  <GraduationCap className="w-6 h-6 xs:w-5 xs:h-5 sm:w-7 sm:h-7 text-green-600" />
                 </div>
               </div>
             </motion.div>
@@ -433,34 +433,34 @@ const DashboardOverview = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.3 }}
               onClick={() => navigate('/dashboard/google-classroom')}
-              className="dashboard-stat-card group relative bg-gray-100/80 backdrop-blur-sm rounded-xl p-3 sm:p-6 md:p-8 border border-gray-200/50 transition-all duration-300 shadow-[inset_4px_4px_8px_rgba(0,0,0,0.1),inset_-4px_-4px_8px_rgba(255,255,255,0.8)] hover:shadow-[inset_6px_6px_12px_rgba(0,0,0,0.12),inset_-6px_-6px_12px_rgba(255,255,255,0.9)] cursor-pointer"
+              className="dashboard-stat-card group relative bg-gray-100/80 backdrop-blur-sm rounded-xl p-4 xs:p-3 sm:p-6 md:p-8 border border-gray-200/50 transition-all duration-300 shadow-[inset_4px_4px_8px_rgba(0,0,0,0.1),inset_-4px_-4px_8px_rgba(255,255,255,0.8)] hover:shadow-[inset_6px_6px_12px_rgba(0,0,0,0.12),inset_-6px_-6px_12px_rgba(255,255,255,0.9)] cursor-pointer"
             >
               <div className="absolute inset-0 bg-gradient-to-br from-purple-50/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-xl"></div>
-              <div className="relative flex items-center justify-between">
-                <div className="space-y-0.5 sm:space-y-1">
-                  <p className="text-xs sm:text-sm font-medium text-gray-600">Google Classroom</p>
-                  <div className="flex items-center gap-2">
-                    <p className="text-lg sm:text-xl md:text-2xl font-bold bg-gradient-to-r from-purple-600 to-purple-700 bg-clip-text text-transparent">
+              <div className="relative flex flex-col xs:flex-row xs:items-center justify-between h-full">
+                <div className="space-y-1 xs:space-y-0.5 sm:space-y-1 text-center xs:text-left">
+                  <p className="text-sm xs:text-xs sm:text-sm font-medium text-gray-600">Google Classroom</p>
+                  <div className="flex flex-col xs:flex-row xs:items-center gap-1 xs:gap-2">
+                    <p className="text-lg xs:text-lg sm:text-xl md:text-2xl font-bold bg-gradient-to-r from-purple-600 to-purple-700 bg-clip-text text-transparent">
                       {googleClassroomStatus === 'checking' ? 'Checking...' : 
                        googleClassroomStatus === 'connected' ? 'Connected' : 'Not Connected'}
                     </p>
                     {googleClassroomStatus === 'connected' && (
-                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse mx-auto xs:mx-0"></div>
                     )}
                     {googleClassroomStatus === 'disconnected' && (
-                      <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                      <div className="w-2 h-2 bg-red-500 rounded-full mx-auto xs:mx-0"></div>
                     )}
                     {googleClassroomStatus === 'checking' && (
-                      <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
+                      <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse mx-auto xs:mx-0"></div>
                     )}
                   </div>
-                  <p className="text-xs sm:text-sm text-gray-500">
+                  <p className="text-sm xs:text-xs sm:text-sm text-gray-500">
                     {googleClassroomStatus === 'connected' ? 'Access assignments' : 
                      googleClassroomStatus === 'disconnected' ? 'Connect to sync' : 'Verifying connection'}
                   </p>
                 </div>
-                <div className="p-2 sm:p-4 rounded-xl bg-gray-200/80 group-hover:bg-gray-300/80 transition-colors duration-300 shadow-[inset_2px_2px_4px_rgba(0,0,0,0.1),inset_-2px_-2px_4px_rgba(255,255,255,0.8)]">
-                  <ExternalLink className="w-5 h-5 sm:w-7 sm:h-7 text-purple-600" />
+                <div className="p-3 xs:p-2 sm:p-4 rounded-xl bg-gray-200/80 group-hover:bg-gray-300/80 transition-colors duration-300 shadow-[inset_2px_2px_4px_rgba(0,0,0,0.1),inset_-2px_-2px_4px_rgba(255,255,255,0.8)] mx-auto xs:mx-0 mt-3 xs:mt-0">
+                  <ExternalLink className="w-6 h-6 xs:w-5 xs:h-5 sm:w-7 sm:h-7 text-purple-600" />
                 </div>
               </div>
             </motion.div>
