@@ -551,7 +551,7 @@ const StudentDashboard: React.FC = () => {
   const [showChangePassModal, setShowChangePassModal] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [checkingDefault, setCheckingDefault] = useState(true);
+
 
   // Centralized data fetching for MyCourse
   const [enrollmentsWithTeacher, setEnrollmentsWithTeacher] = useState<Enrollment[]>([]);
@@ -808,8 +808,6 @@ const StudentDashboard: React.FC = () => {
         }
       } catch {
         // Ignore errors
-      } finally {
-        setCheckingDefault(false);
       }
     };
     checkDefaultPassword();
@@ -819,9 +817,7 @@ const StudentDashboard: React.FC = () => {
     return <Navigate to="/login" replace />;
   }
 
-  if (checkingDefault) {
-    return <div className="flex justify-center items-center h-64">Checking account security...</div>;
-  }
+
 
   // Modal for changing default password
   if (showChangePassModal) {
