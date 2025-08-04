@@ -1220,23 +1220,23 @@ export const StudentGoogleClassroom: React.FC<StudentGoogleClassroomProps> = ({ 
     <>
       <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 flex flex-col h-screen max-h-screen">
         {/* Fixed Header - Never scrolls */}
-        <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 rounded-t-2xl flex-shrink-0 z-10">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
-                <BookOpen className="w-6 h-6 text-white" />
+        <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-4 sm:px-6 py-3 sm:py-4 rounded-t-2xl flex-shrink-0 z-10">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="p-1.5 sm:p-2 rounded-lg bg-white/20 backdrop-blur-sm">
+                <BookOpen className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-white tracking-tight">Google Classroom</h1>
-                <p className="text-white/80 text-sm font-medium">Access your assignments and courses</p>
+                <h1 className="text-lg sm:text-2xl font-bold text-white tracking-tight">Google Classroom</h1>
+                <p className="text-white/80 text-xs sm:text-sm font-medium">Access your assignments and courses</p>
               </div>
             </div>
             {onClose && (
               <button
                 onClick={onClose}
-                className="text-white/80 hover:text-white transition-colors"
+                className="text-white/80 hover:text-white transition-colors p-1"
               >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
@@ -1299,25 +1299,23 @@ export const StudentGoogleClassroom: React.FC<StudentGoogleClassroomProps> = ({ 
               ) : (
                 <div>
                   {/* Connection Status and Smart Features */}
-                  <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center space-x-4">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 sm:mb-6 gap-3 sm:gap-0">
+                    <div className="flex items-center space-x-2 sm:space-x-4">
                       <div className="flex items-center space-x-2">
-                        <CheckCircle className="w-5 h-5 text-green-500" />
-                        <span className="text-green-700 font-medium">Connected to Google Classroom</span>
+                        <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-green-500" />
+                        <span className="text-green-700 font-medium text-sm sm:text-base">Connected to Google Classroom</span>
                       </div>
-                      
-
                     </div>
                     
-                    <div className="flex items-center space-x-3">
+                    <div className="flex items-center space-x-2 sm:space-x-3 w-full sm:w-auto justify-center sm:justify-end">
                       {/* Notification Bell */}
                       <button
                         onClick={() => setShowNotificationCenter(true)}
-                        className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                        className="relative p-1.5 sm:p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
                       >
-                        <Bell className="w-5 h-5" />
+                        <Bell className="w-4 h-4 sm:w-5 sm:h-5" />
                         {(unreadNotifications > 0 || urgentNotifications > 0) && (
-                          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center">
                             {urgentNotifications > 0 ? urgentNotifications : unreadNotifications}
                           </span>
                         )}
@@ -1325,20 +1323,22 @@ export const StudentGoogleClassroom: React.FC<StudentGoogleClassroomProps> = ({ 
                       
                       <button
                         onClick={() => window.open('https://classroom.google.com', '_blank')}
-                        className="flex items-center space-x-2 text-blue-600 hover:text-blue-700 text-sm font-medium"
+                        className="flex items-center space-x-1 sm:space-x-2 text-blue-600 hover:text-blue-700 text-xs sm:text-sm font-medium px-2 py-1 sm:px-0 sm:py-0"
                       >
-                        <ExternalLink className="w-4 h-4" />
-                        <span>Open Classroom</span>
+                        <ExternalLink className="w-3 h-3 sm:w-4 sm:h-4" />
+                        <span className="hidden xs:inline">Open Classroom</span>
+                        <span className="xs:hidden">Open</span>
                       </button>
                       <button
                         onClick={() => setShowDisconnectConfirm(true)}
                         disabled={isDisconnecting}
-                        className="text-red-600 hover:text-red-700 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="text-red-600 hover:text-red-700 text-xs sm:text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed px-2 py-1 sm:px-0 sm:py-0"
                       >
                         {isDisconnecting ? (
-                          <div className="flex items-center gap-2">
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            Disconnecting...
+                          <div className="flex items-center gap-1 sm:gap-2">
+                            <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 animate-spin" />
+                            <span className="hidden xs:inline">Disconnecting...</span>
+                            <span className="xs:hidden">...</span>
                           </div>
                         ) : (
                           'Disconnect'
@@ -1348,22 +1348,23 @@ export const StudentGoogleClassroom: React.FC<StudentGoogleClassroomProps> = ({ 
                   </div>
 
                                     {/* Enhanced Tab Navigation */}
-                  <div className="mb-8">
+                  <div className="mb-6 sm:mb-8">
                     <div className="flex bg-white rounded-xl shadow-lg border border-gray-200 p-1 sticky top-0 z-10">
                       <button
                         onClick={() => setActiveTab('assignments')}
-                        className={`flex-1 px-6 py-4 rounded-lg text-sm font-semibold transition-all duration-200 relative ${
+                        className={`flex-1 px-2 sm:px-6 py-3 sm:py-4 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-200 relative ${
                           activeTab === 'assignments'
                             ? 'text-blue-700 bg-blue-50 shadow-md'
                             : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
                         }`}
                       >
-                        <div className="flex items-center justify-center gap-2">
-                          <FileText className={`w-4 h-4 ${
+                        <div className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2">
+                          <FileText className={`w-3 h-3 sm:w-4 sm:h-4 ${
                             activeTab === 'assignments' ? 'text-blue-600' : 'text-gray-500'
                           }`} />
-                          <span>Assignments</span>
-                          <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                          <span className="hidden xs:inline">Assignments</span>
+                          <span className="xs:hidden">Assign</span>
+                          <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full text-xs font-bold ${
                             activeTab === 'assignments'
                               ? 'bg-blue-600 text-white'
                               : 'bg-gray-200 text-gray-600'
@@ -1378,18 +1379,19 @@ export const StudentGoogleClassroom: React.FC<StudentGoogleClassroomProps> = ({ 
                       
                       <button
                         onClick={() => setActiveTab('courses')}
-                        className={`flex-1 px-6 py-4 rounded-lg text-sm font-semibold transition-all duration-200 relative ${
+                        className={`flex-1 px-2 sm:px-6 py-3 sm:py-4 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-200 relative ${
                           activeTab === 'courses'
                             ? 'text-blue-700 bg-blue-50 shadow-md'
                             : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
                         }`}
                       >
-                        <div className="flex items-center justify-center gap-2">
-                          <BookOpen className={`w-4 h-4 ${
+                        <div className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2">
+                          <BookOpen className={`w-3 h-3 sm:w-4 sm:h-4 ${
                             activeTab === 'courses' ? 'text-blue-600' : 'text-gray-500'
                           }`} />
-                          <span>Courses</span>
-                          <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                          <span className="hidden xs:inline">Courses</span>
+                          <span className="xs:hidden">Courses</span>
+                          <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full text-xs font-bold ${
                             activeTab === 'courses'
                               ? 'bg-blue-600 text-white'
                               : 'bg-gray-200 text-gray-600'
@@ -1404,15 +1406,16 @@ export const StudentGoogleClassroom: React.FC<StudentGoogleClassroomProps> = ({ 
                       
                       <button
                         onClick={() => setActiveTab('files')}
-                        className={`flex-1 px-6 py-4 rounded-lg text-sm font-semibold transition-all duration-200 relative ${
+                        className={`flex-1 px-2 sm:px-6 py-3 sm:py-4 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-200 relative ${
                           activeTab === 'files'
                             ? 'text-blue-700 bg-blue-50 shadow-md'
                             : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
                         }`}
                       >
-                        <div className="flex items-center justify-center gap-2">
-                          <Folder className="w-4 h-4 text-gray-500" />
-                          <span>File Organizer</span>
+                        <div className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2">
+                          <Folder className="w-3 h-3 sm:w-4 sm:h-4 text-gray-500" />
+                          <span className="hidden xs:inline">File Organizer</span>
+                          <span className="xs:hidden">Files</span>
                         </div>
                         {activeTab === 'files' && (
                           <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full"></div>
@@ -1426,26 +1429,28 @@ export const StudentGoogleClassroom: React.FC<StudentGoogleClassroomProps> = ({ 
                     <div className="mb-6">
                       {/* Assignment Status Tabs */}
                       <div className="flex justify-center mb-4">
-                        <div className="flex space-x-1 bg-gray-100 rounded-lg p-1">
+                        <div className="flex space-x-1 bg-gray-100 rounded-lg p-1 w-full max-w-xs sm:max-w-none">
                         <button
                           onClick={() => setAssignmentFilter('assigned')}
-                          className={`px-6 py-3 text-sm font-medium transition-colors relative ${
+                          className={`flex-1 px-2 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm font-medium transition-colors relative ${
                             assignmentFilter === 'assigned'
                               ? 'text-blue-600 border-b-2 border-blue-600'
                               : 'text-gray-600 hover:text-gray-900'
                           }`}
                         >
-                          Assigned
+                          <span className="hidden xs:inline">Assigned</span>
+                          <span className="xs:hidden">Active</span>
                         </button>
                         <button
                           onClick={() => setAssignmentFilter('missing')}
-                          className={`px-6 py-3 text-sm font-medium transition-colors relative ${
+                          className={`flex-1 px-2 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm font-medium transition-colors relative ${
                             assignmentFilter === 'missing'
                                 ? 'text-red-600 border-b-2 border-red-600'
                               : 'text-gray-600 hover:text-gray-900'
                           }`}
                         >
-                          Missing
+                          <span className="hidden xs:inline">Missing</span>
+                          <span className="xs:hidden">Late</span>
                         </button>
                         <button
                             onClick={() => {
@@ -1465,7 +1470,7 @@ export const StudentGoogleClassroom: React.FC<StudentGoogleClassroomProps> = ({ 
                                 console.log('Filtered assignment titles:', filtered.map(a => a.title));
                               }, 100);
                             }}
-                          className={`px-6 py-3 text-sm font-medium transition-colors relative ${
+                          className={`flex-1 px-2 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm font-medium transition-colors relative ${
                             assignmentFilter === 'done'
                                 ? 'text-green-600 border-b-2 border-green-600'
                               : 'text-gray-600 hover:text-gray-900'
@@ -1513,11 +1518,11 @@ export const StudentGoogleClassroom: React.FC<StudentGoogleClassroomProps> = ({ 
 
                       {/* Class Filter Dropdown */}
                       <div className="flex justify-center mb-4">
-                        <div className="relative border-2 border-black rounded-lg p-1 bg-gray-50">
+                        <div className="relative border-2 border-black rounded-lg p-1 bg-gray-50 w-full max-w-xs sm:max-w-sm">
                           <select
                             value={selectedClass}
                             onChange={(e) => setSelectedClass(e.target.value)}
-                            className="appearance-none bg-white border border-gray-300 rounded-lg px-4 py-2 pr-8 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            className="appearance-none bg-white border border-gray-300 rounded-lg px-4 py-2 pr-8 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-full text-center"
                           >
                             <option value="all">All classes</option>
                             {courses.map((course) => (
@@ -1599,31 +1604,31 @@ export const StudentGoogleClassroom: React.FC<StudentGoogleClassroomProps> = ({ 
                                       return (
                                         <div
                                           key={assignment.id}
-                                        className={`flex items-center p-4 hover:bg-gray-50 transition-colors ${
+                                        className={`flex flex-col sm:flex-row items-start sm:items-center p-3 sm:p-4 hover:bg-gray-50 transition-colors ${
                                           index !== filteredAssignments.length - 1 ? 'border-b border-gray-100' : ''
                                           }`}
                                         >
                                         {/* Left Section - Icon (matching the image exactly) */}
-                                        <div className="flex-shrink-0 mr-4">
-                                          <div className={`w-10 h-10 rounded-lg ${iconColor} flex items-center justify-center`}>
-                                            <FileText className="w-5 h-5 text-white" />
+                                        <div className="flex-shrink-0 mr-3 sm:mr-4 mb-2 sm:mb-0">
+                                          <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg ${iconColor} flex items-center justify-center`}>
+                                            <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                                           </div>
                                               </div>
                                               
                                         {/* Middle Section - Assignment Details (matching the image exactly) */}
-                                        <div className="flex-1 min-w-0">
-                                          <h3 className="text-base font-semibold text-gray-900 truncate">
+                                        <div className="flex-1 min-w-0 mb-2 sm:mb-0">
+                                          <h3 className="text-sm sm:text-base font-semibold text-gray-900 truncate">
                                             {assignment.title}
                                           </h3>
                                               {course && (
-                                            <p className="text-sm text-gray-600 mt-1">
+                                            <p className="text-xs sm:text-sm text-gray-600 mt-1">
                                                     {course.name}
                                             </p>
                                               )}
                                             </div>
                                             
                                         {/* Status Indicator */}
-                                        <div className="flex-shrink-0 mx-4">
+                                        <div className="flex-shrink-0 mx-2 sm:mx-4 mb-2 sm:mb-0">
                                           <div className={`w-3 h-3 rounded-full ${
                                             assignmentStatus.status === 'GRADED' ? 'bg-purple-500' :
                                             assignmentStatus.status === 'TURNED_IN' ? 'bg-green-500' :
@@ -1636,38 +1641,47 @@ export const StudentGoogleClassroom: React.FC<StudentGoogleClassroomProps> = ({ 
                                           </div>
                                           
                                         {/* Right Section - Due Date/Status (matching the image exactly) */}
-                                        <div className="flex-shrink-0 text-right mr-4">
+                                        <div className="flex-shrink-0 text-left sm:text-right mr-0 sm:mr-4 mb-2 sm:mb-0">
                                           {dueDate ? (
                                             <div>
-                                              <div className={`text-sm font-medium ${
+                                              <div className={`text-xs sm:text-sm font-medium ${
                                                 isOverdue ? 'text-gray-500' : 'text-red-600'
                                               }`}>
-                                                {dueDate.toLocaleDateString('en-US', { 
-                                                  weekday: 'long', 
-                                                  month: 'short', 
-                                                  day: 'numeric' 
-                                    })}
+                                                <span className="hidden xs:inline">
+                                                  {dueDate.toLocaleDateString('en-US', { 
+                                                    weekday: 'long', 
+                                                    month: 'short', 
+                                                    day: 'numeric' 
+                                                  })}
+                                                </span>
+                                                <span className="xs:hidden">
+                                                  {dueDate.toLocaleDateString('en-US', { 
+                                                    month: 'short', 
+                                                    day: 'numeric' 
+                                                  })}
+                                                </span>
                                   </div>
                                               {isOverdue && (
                                                 <div className="text-xs text-gray-400 italic mt-1">
-                                                  Not accepting work
+                                                  <span className="hidden xs:inline">Not accepting work</span>
+                                                  <span className="xs:hidden">Overdue</span>
                               </div>
                         )}
                       </div>
                                 ) : (
-                                            <div className="text-sm text-gray-500">
+                                            <div className="text-xs sm:text-sm text-gray-500">
                                               No due date
                                             </div>
                                           )}
                                         </div>
                                         
                                         {/* View Button */}
-                                        <div className="flex-shrink-0">
+                                        <div className="flex-shrink-0 w-full sm:w-auto">
                                         <button
                                           onClick={() => window.open(getAssignmentUrl(assignment.courseId, assignment.id), '_blank')}
-                                            className="flex items-center gap-2 px-3 py-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors text-sm font-medium"
+                                            className="flex items-center justify-center sm:justify-start gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors text-xs sm:text-sm font-medium w-full sm:w-auto"
                                         >
-                                          <ExternalLink className="w-4 h-4" />
+                                          <ExternalLink className="w-3 h-3 sm:w-4 sm:h-4" />
                                             <span>View</span>
                                         </button>
                                       </div>
@@ -1811,57 +1825,60 @@ export const StudentGoogleClassroom: React.FC<StudentGoogleClassroomProps> = ({ 
 
                     {activeTab === 'files' && (
                       <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-                        <div className="p-4 flex items-center justify-between border-b border-gray-100">
-                          <h3 className="text-lg font-semibold text-gray-900">My Google Drive</h3>
-                          <div className="flex items-center space-x-2">
+                        <div className="p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-gray-100 gap-3 sm:gap-0">
+                          <h3 className="text-base sm:text-lg font-semibold text-gray-900">My Google Drive</h3>
+                          <div className="flex items-center space-x-1 sm:space-x-2 w-full sm:w-auto justify-center sm:justify-end">
                             <button
                               onClick={() => setShowCreateFolder(true)}
                               disabled={isCreatingFolder}
-                              className="flex items-center space-x-2 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                              className="flex items-center space-x-1 sm:space-x-2 px-2 sm:px-3 py-1 sm:py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm"
                             >
                               {isCreatingFolder ? (
                                 <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
                               ) : (
-                                <Folder className="w-4 h-4" />
+                                <Folder className="w-3 h-3 sm:w-4 sm:h-4" />
                               )}
-                              <span>{isCreatingFolder ? 'Creating...' : 'New Folder'}</span>
+                              <span className="hidden xs:inline">{isCreatingFolder ? 'Creating...' : 'New Folder'}</span>
+                              <span className="xs:hidden">{isCreatingFolder ? '...' : 'Folder'}</span>
                             </button>
                             
                             <button
                               onClick={() => driveFileInputRef.current?.click()}
                               disabled={isUploading}
-                              className="flex items-center space-x-2 px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                              className="flex items-center space-x-1 sm:space-x-2 px-2 sm:px-3 py-1 sm:py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm"
                             >
                               {isUploading ? (
                                 <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
                               ) : (
-                                <Upload className="w-4 h-4" />
+                                <Upload className="w-3 h-3 sm:w-4 sm:h-4" />
                               )}
-                              <span>{isUploading ? 'Uploading...' : 'Upload Files'}</span>
+                              <span className="hidden xs:inline">{isUploading ? 'Uploading...' : 'Upload Files'}</span>
+                              <span className="xs:hidden">{isUploading ? '...' : 'Upload'}</span>
                             </button>
                             
                             <button
                               onClick={() => window.open('https://drive.google.com', '_blank')}
-                              className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+                              className="text-blue-600 hover:text-blue-700 text-xs sm:text-sm font-medium px-2 py-1 sm:px-0 sm:py-0"
                             >
-                              Open Drive
+                              <span className="hidden xs:inline">Open Drive</span>
+                              <span className="xs:hidden">Drive</span>
                             </button>
                           </div>
                         </div>
 
                         {/* Search Bar */}
-                        <div className="p-3 bg-gray-50 border-b border-gray-200">
+                        <div className="p-2 sm:p-3 bg-gray-50 border-b border-gray-200">
                           <div className="flex items-center space-x-2">
                             <div className="relative flex-1 max-w-md">
                               <input
                                 type="text"
-                                placeholder="Type to search files and folders..."
+                                placeholder="Search files..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                className="w-full pl-8 sm:pl-10 pr-3 sm:pr-4 py-1.5 sm:py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm"
                               />
-                              <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
-                                <Search className="w-4 h-4 text-gray-400" />
+                              <div className="absolute left-2 sm:left-3 top-1/2 transform -translate-y-1/2">
+                                <Search className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />
                               </div>
                             </div>
                             {searchQuery && (
@@ -1870,7 +1887,7 @@ export const StudentGoogleClassroom: React.FC<StudentGoogleClassroomProps> = ({ 
                                   setSearchQuery('');
                                   loadDriveFiles();
                                 }}
-                                className="px-3 py-2 text-gray-600 hover:text-gray-800 text-sm"
+                                className="px-2 sm:px-3 py-1.5 sm:py-2 text-gray-600 hover:text-gray-800 text-xs sm:text-sm"
                               >
                                 Clear
                               </button>
@@ -1918,18 +1935,18 @@ export const StudentGoogleClassroom: React.FC<StudentGoogleClassroomProps> = ({ 
                               <p>No files found</p>
                             </div>
                           ) : (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4">
                               {driveFiles.map((item) => (
                                 <div
                                   key={item.id}
-                                  className="bg-gray-50 border border-gray-200 rounded-lg p-3 flex items-center justify-between cursor-pointer hover:bg-gray-100 transition-colors"
+                                  className="bg-gray-50 border border-gray-200 rounded-lg p-2 sm:p-3 flex items-center justify-between cursor-pointer hover:bg-gray-100 transition-colors"
                                   onClick={() => handleDriveFileClick(item)}
                                 >
-                                  <div className="flex items-center space-x-3">
+                                  <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
                                     {getFileIcon(item)}
-                                    <div>
-                                      <p className="text-sm font-medium text-gray-900">{item.name}</p>
-                                      <p className="text-xs text-gray-500">{item.isFolder ? 'Folder' : formatFileSize(item.size || '0')} • {formatDate(item.modifiedTime)}</p>
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-xs sm:text-sm font-medium text-gray-900 truncate">{item.name}</p>
+                                      <p className="text-xs text-gray-500 truncate">{item.isFolder ? 'Folder' : formatFileSize(item.size || '0')} • {formatDate(item.modifiedTime)}</p>
                                     </div>
                                   </div>
                                 </div>
@@ -1958,9 +1975,9 @@ export const StudentGoogleClassroom: React.FC<StudentGoogleClassroomProps> = ({ 
 
       {/* Submit Assignment Modal */}
       {showSubmitModal && selectedAssignment && createPortal(
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999]">
-          <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
+          <div className="bg-white rounded-xl p-4 sm:p-6 max-w-md w-full mx-4 shadow-2xl">
+            <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-4">
               Submit Assignment: {selectedAssignment.title}
             </h3>
             
@@ -1972,39 +1989,39 @@ export const StudentGoogleClassroom: React.FC<StudentGoogleClassroomProps> = ({ 
                 <input
                   type="file"
                   onChange={handleFileSelect}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-2 sm:px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm"
                 />
               </div>
               
               {selectedFile && (
-                <div className="p-3 bg-gray-50 rounded-lg">
-                  <p className="text-sm text-gray-600">
+                <div className="p-2 sm:p-3 bg-gray-50 rounded-lg">
+                  <p className="text-xs sm:text-sm text-gray-600">
                     Selected: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
                   </p>
                 </div>
               )}
             </div>
             
-            <div className="flex space-x-3 mt-6">
+            <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3 mt-6">
               <button
                 onClick={() => {
                   setShowSubmitModal(false);
                   setSelectedAssignment(null);
                   setSelectedFile(null);
                 }}
-                className="flex-1 px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="flex-1 px-3 sm:px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSubmitAssignment}
                 disabled={isLoading || !selectedFile}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
               >
                 {isLoading ? (
                   <div className="flex items-center justify-center space-x-2">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Submitting...</span>
+                    <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 animate-spin" />
+                    <span className="text-xs sm:text-sm">Submitting...</span>
                   </div>
                 ) : (
                   'Submit'
@@ -2018,37 +2035,37 @@ export const StudentGoogleClassroom: React.FC<StudentGoogleClassroomProps> = ({ 
 
       {/* Disconnect Confirmation Modal */}
       {showDisconnectConfirm && createPortal(
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999]">
-          <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
+          <div className="bg-white rounded-xl p-4 sm:p-6 max-w-md w-full mx-4 shadow-2xl">
             <div className="text-center">
-              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <AlertCircle className="w-8 h-8 text-red-600" />
+              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertCircle className="w-6 h-6 sm:w-8 sm:h-8 text-red-600" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-2">
                 Disconnect Google Classroom?
               </h3>
-              <p className="text-gray-600 mb-6">
+              <p className="text-gray-600 mb-6 text-sm">
                 This will remove your Google Classroom connection and clear all cached data. 
                 You'll need to reconnect to access your courses and assignments again.
               </p>
               
-              <div className="flex space-x-3">
+              <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
                 <button
                   onClick={() => setShowDisconnectConfirm(false)}
                   disabled={isDisconnecting}
-                  className="flex-1 px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 px-3 sm:px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleDisconnect}
                   disabled={isDisconnecting}
-                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 px-3 sm:px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
                 >
                   {isDisconnecting ? (
                     <div className="flex items-center justify-center space-x-2">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Disconnecting...</span>
+                      <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 animate-spin" />
+                      <span className="text-xs sm:text-sm">Disconnecting...</span>
                     </div>
                   ) : (
                     'Disconnect'
@@ -2069,27 +2086,27 @@ export const StudentGoogleClassroom: React.FC<StudentGoogleClassroomProps> = ({ 
 
       {/* Create Folder Modal */}
       {showCreateFolder && createPortal(
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999]">
-          <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
-            <h3 className="text-lg font-semibold mb-4">Create New Folder</h3>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
+          <div className="bg-white rounded-xl p-4 sm:p-6 max-w-md w-full mx-4 shadow-2xl">
+            <h3 className="text-base sm:text-lg font-semibold mb-4">Create New Folder</h3>
             <input
               type="text"
               placeholder="Folder name"
               value={newFolderName}
               onChange={(e) => setNewFolderName(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-2 sm:px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
               autoFocus
             />
-            <div className="flex justify-end space-x-2 mt-4">
+            <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-2 mt-4">
               <button
                 onClick={() => setShowCreateFolder(false)}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                className="px-3 sm:px-4 py-2 text-gray-600 hover:text-gray-800 text-sm"
               >
                 Cancel
               </button>
               <button
                 onClick={handleCreateFolder}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                className="px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
               >
                 Create
               </button>
@@ -2101,24 +2118,24 @@ export const StudentGoogleClassroom: React.FC<StudentGoogleClassroomProps> = ({ 
 
       {/* File Viewer Modal */}
       {showFileViewer && selectedDriveFile && createPortal(
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[99999] backdrop-blur-md">
-          <div className="bg-white rounded-lg shadow-xl w-3/10 h-11/12 max-w-md max-h-5xl flex flex-col">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[99999] backdrop-blur-md p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] flex flex-col">
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200">
-              <div className="flex items-center space-x-3">
+            <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-200">
+              <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
                 {getFileIcon(selectedDriveFile)}
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">{selectedDriveFile.name}</h3>
-                  <p className="text-sm text-gray-500">
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-sm sm:text-lg font-semibold text-gray-900 truncate">{selectedDriveFile.name}</h3>
+                  <p className="text-xs sm:text-sm text-gray-500 truncate">
                     {formatFileSize(selectedDriveFile.size || '0')} • {formatDate(selectedDriveFile.modifiedTime)}
                   </p>
                 </div>
               </div>
               
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2 flex-shrink-0">
                 <button
                   onClick={() => setShowFileViewer(false)}
-                  className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg"
+                  className="p-1 sm:p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg"
                 >
                   ✕
                 </button>
@@ -2126,22 +2143,22 @@ export const StudentGoogleClassroom: React.FC<StudentGoogleClassroomProps> = ({ 
             </div>
 
             {/* Content */}
-            <div className="flex-1 p-4 overflow-auto">
+            <div className="flex-1 p-3 sm:p-4 overflow-auto">
               {isImageFile(selectedDriveFile.name) ? (
                 // Image Preview
                 <div className="h-full flex flex-col">
                   <div className="flex-1 flex items-center justify-center">
                     {imageLoading ? (
                       <div className="text-center">
-                        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                        <p className="text-gray-600 text-sm">Loading image...</p>
+                        <div className="animate-spin rounded-full h-12 w-12 sm:h-16 sm:w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                        <p className="text-gray-600 text-xs sm:text-sm">Loading image...</p>
                       </div>
                     ) : imageUrl ? (
                       <div className="w-full h-full flex items-center justify-center">
                         <img 
                           src={imageUrl}
                           alt={selectedDriveFile.name}
-                          className="max-w-[90%] max-h-[80%] object-contain rounded-lg shadow-lg"
+                          className="max-w-[95%] sm:max-w-[90%] max-h-[70%] sm:max-h-[80%] object-contain rounded-lg shadow-lg"
                           onLoad={() => {
                             console.log('✅ Image loaded successfully:', imageUrl);
                           }}
@@ -2152,29 +2169,30 @@ export const StudentGoogleClassroom: React.FC<StudentGoogleClassroomProps> = ({ 
                           }}
                         />
                         <div className="hidden text-center py-6">
-                          <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center mx-auto mb-3">
+                          <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gray-100 rounded-lg flex items-center justify-center mx-auto mb-3">
                             {getFileIcon(selectedDriveFile)}
                           </div>
-                          <p className="text-sm text-gray-500 mb-2">Image preview not available</p>
+                          <p className="text-xs sm:text-sm text-gray-500 mb-2">Image preview not available</p>
                           <p className="text-xs text-gray-400">This image may be private or require special permissions</p>
                         </div>
                       </div>
                     ) : (
                       <div className="text-center py-6">
-                        <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center mx-auto mb-3">
+                        <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gray-100 rounded-lg flex items-center justify-center mx-auto mb-3">
                           {getFileIcon(selectedDriveFile)}
                         </div>
-                        <p className="text-sm text-gray-500 mb-2">Image preview not available</p>
+                        <p className="text-xs sm:text-sm text-gray-500 mb-2">Image preview not available</p>
                         <p className="text-xs text-gray-400">Unable to load image preview</p>
                       </div>
                     )}
                   </div>
-                  <div className="flex justify-center space-x-3 mt-4">
+                  <div className="flex flex-col sm:flex-row justify-center space-y-2 sm:space-y-0 sm:space-x-3 mt-4">
                     <button
                       onClick={() => window.open(selectedDriveFile.webViewLink, '_blank')}
-                      className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                      className="px-2 sm:px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs sm:text-sm"
                     >
-                      Open in Google Drive
+                      <span className="hidden xs:inline">Open in Google Drive</span>
+                      <span className="xs:hidden">Open Drive</span>
                     </button>
                     <button
                       onClick={() => {
@@ -2184,7 +2202,7 @@ export const StudentGoogleClassroom: React.FC<StudentGoogleClassroomProps> = ({ 
                         link.download = selectedDriveFile.name;
                         link.click();
                       }}
-                      className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+                      className="px-2 sm:px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 text-xs sm:text-sm"
                     >
                       Download
                     </button>
@@ -2193,19 +2211,20 @@ export const StudentGoogleClassroom: React.FC<StudentGoogleClassroomProps> = ({ 
               ) : (
                 // Non-image file details
                 <div className="text-center py-6">
-                  <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center mx-auto mb-3">
+                  <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gray-100 rounded-lg flex items-center justify-center mx-auto mb-3">
                     {getFileIcon(selectedDriveFile)}
                   </div>
-                  <h4 className="text-lg font-medium text-gray-900 mb-2">{selectedDriveFile.name}</h4>
-                  <p className="text-sm text-gray-500 mb-4">
+                  <h4 className="text-sm sm:text-lg font-medium text-gray-900 mb-2">{selectedDriveFile.name}</h4>
+                  <p className="text-xs sm:text-sm text-gray-500 mb-4">
                     {formatFileSize(selectedDriveFile.size || '0')} • Modified {formatDate(selectedDriveFile.modifiedTime)}
                   </p>
-                  <div className="flex justify-center space-x-3">
+                  <div className="flex flex-col sm:flex-row justify-center space-y-2 sm:space-y-0 sm:space-x-3">
                     <button
                       onClick={() => window.open(selectedDriveFile.webViewLink, '_blank')}
-                      className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                      className="px-2 sm:px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs sm:text-sm"
                     >
-                      Open in Google Drive
+                      <span className="hidden xs:inline">Open in Google Drive</span>
+                      <span className="xs:hidden">Open Drive</span>
                     </button>
                     <button
                       onClick={() => {
@@ -2215,7 +2234,7 @@ export const StudentGoogleClassroom: React.FC<StudentGoogleClassroomProps> = ({ 
                         link.download = selectedDriveFile.name;
                         link.click();
                       }}
-                      className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+                      className="px-2 sm:px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 text-xs sm:text-sm"
                     >
                       Download
                     </button>
