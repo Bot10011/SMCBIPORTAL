@@ -8,6 +8,7 @@ import ProtectedRoute from './middleware/ProtectedRoute';
 import { motion, AnimatePresence } from 'framer-motion';
 import CreateUserModal from './components/CreateUserModal';
 import EditUserModal from './components/EditUserModal';
+import GoogleClassroomCallback from './components/GoogleClassroomCallback';
 import { useModal } from './contexts/ModalContext';
 import NotFoundOrHome from './middleware/NotFoundOrHome';
 
@@ -140,6 +141,9 @@ const App: React.FC = () => {
               <Route path="/" element={<LandingPage />} />
               <Route path="/login" element={<Login />} />
               <Route path="/test-redirect" element={<Navigate to="/" replace />} />
+
+              {/* Google Classroom OAuth Callback */}
+              <Route path="/google-classroom-callback" element={<GoogleClassroomCallback />} />
 
               {/* Redirect old dashboard URLs to /dashboard for security */}
               <Route path="/admin/dashboard/*" element={<Navigate to="/dashboard" replace />} />
