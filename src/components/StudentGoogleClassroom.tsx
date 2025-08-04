@@ -1,12 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { ExternalLink, CheckCircle, AlertCircle, Loader2, BookOpen, Clock, FileText, Plus, Upload, Bell, Target, AlertTriangle, Bug, HardDrive, Folder, Search } from 'lucide-react';
+import { ExternalLink, CheckCircle, AlertCircle, Loader2, BookOpen, Clock, FileText, Upload, Bell, Target, AlertTriangle, Folder, Search } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { googleClassroomService, type GoogleCourse, type GoogleAssignment, type GoogleSubmission } from '../lib/services/googleClassroomService';
-import { SmartAssignmentService, type SmartAssignment, type AssignmentAnalytics } from '../lib/services/smartAssignmentService';
 import { SmartNotificationService } from '../lib/services/smartNotificationService';
 import { ImageProxyService } from '../lib/services/imageProxyService';
-import SmartAssignmentCard from './SmartAssignmentCard';
 import SmartNotificationCenter from './SmartNotificationCenter';
 import { toast } from 'react-toastify';
 import { googleDriveService, DriveItem, DriveFolder } from '../lib/services/googleDriveService';
@@ -37,8 +35,6 @@ export const StudentGoogleClassroom: React.FC<StudentGoogleClassroomProps> = ({ 
   const [selectedAssignment, setSelectedAssignment] = useState<GoogleAssignment | null>(null);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
-  const [smartAssignments, setSmartAssignments] = useState<SmartAssignment[]>([]);
-  const [analytics, setAnalytics] = useState<AssignmentAnalytics | null>(null);
   const [showNotificationCenter, setShowNotificationCenter] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [urgentNotifications, setUrgentNotifications] = useState(0);
@@ -132,11 +128,11 @@ export const StudentGoogleClassroom: React.FC<StudentGoogleClassroomProps> = ({ 
   };
 
   // Enhanced data fetching with retry logic
-  const fetchWithRetry = async <T>(
-    fetchFn: () => Promise<T>,
+  const fetchWithRetry = async (
+    fetchFn: () => Promise<any>,
     maxRetries: number = 3,
     context: string = 'API call'
-  ): Promise<T> => {
+  ): Promise<any> => {
     let lastError: unknown;
     
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
