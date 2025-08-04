@@ -9,11 +9,9 @@ import {
   Users,
   Settings,
   FileText,
-  BookOpen,
   CheckSquare,
   Users2,
   ClipboardList,
-  Award as StudentAward,
   User,
   LogOut,
   LayoutDashboard,
@@ -22,42 +20,25 @@ import {
   GraduationCap,
   UserPlus,
 } from 'lucide-react';
+import { PiCertificateBold  } from "react-icons/pi";
+import { PiBookOpenTextBold } from "react-icons/pi";
+import { PiChartLineUpBold } from "react-icons/pi";
+import { PiGraduationCapBold } from "react-icons/pi";
+import { PiMegaphoneBold } from "react-icons/pi";
+import { PiClipboardTextBold } from "react-icons/pi";
+import { PiNotebookBold } from "react-icons/pi";
+import { PiUsersBold } from "react-icons/pi";
+import { PiHandshakeBold } from "react-icons/pi";
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Add custom CSS for animations and scrollbar
 import './sidebar.css';
 
-// Custom Prospectus Icon Component
-const ProspectusIcon: React.FC<{ className?: string }> = ({ className = "w-5 h-5" }) => (
-  <svg 
-    className={className} 
-    viewBox="0 0 24 24" 
-    fill="none" 
-    stroke="currentColor" 
-    strokeWidth="2" 
-    strokeLinecap="round" 
-    strokeLinejoin="round"
-  >
-    {/* Document base */}
-    <rect x="3" y="2" width="18" height="20" rx="2" ry="2" />
-    {/* Document header with title */}
-    <line x1="6" y1="5" x2="18" y2="5" />
-    <line x1="6" y1="7" x2="18" y2="7" />
-    {/* Document content lines */}
-    <line x1="6" y1="10" x2="16" y2="10" />
-    <line x1="6" y1="12" x2="16" y2="12" />
-    <line x1="6" y1="14" x2="14" y2="14" />
-    {/* Academic seal/emblem */}
-    <circle cx="12" cy="17" r="2.5" />
-    <path d="M12 14.5v-1" />
-    {/* Graduation cap symbol */}
-    <path d="M9 19l3-2 3 2" />
-    <path d="M12 17v-1" />
-    {/* Small tassel */}
-    <path d="M11 16h2" />
-    <path d="M11.5 15l0.5 1 0.5-1" />
-  </svg>
-);
+
+
+
+
+
 
 interface SidebarItem {
   label: string;
@@ -120,7 +101,7 @@ const sidebarItems: SidebarItem[] = [
   {
     label: 'Course Management',
     path: '/dashboard/courses',
-    icon: <BookOpen className="w-5 h-5" />,
+    icon: <PiGraduationCapBold className="w-5 h-5" />,
     roles: ['admin'],
   },
   {
@@ -132,7 +113,7 @@ const sidebarItems: SidebarItem[] = [
   {
     label: 'Announcements',
     path: '/dashboard/announcements',
-    icon: <BookOpen className="w-5 h-5" />,
+    icon: <PiMegaphoneBold className="w-5 h-5" />,
     roles: ['admin'],
   },
   {
@@ -151,19 +132,19 @@ const sidebarItems: SidebarItem[] = [
   {
     label: 'Enroll Student',
     path: '/dashboard/enroll-student',
-    icon: <User className="w-5 h-5" />,
+    icon: <UserPlus className="w-5 h-5" />,
     roles: ['program_head'],
   },
   {
     label: 'Subject Assignment',
     path: '/dashboard/assign-subjects',
-    icon: <BookOpen className="w-5 h-5" />,
+    icon: <PiHandshakeBold className="w-5 h-5" />,
     roles: ['program_head'],
   },
   {
     label: 'User Management',
     path: '/dashboard/user-management',
-    icon: <UserPlus className="w-5 h-5" />,
+    icon: <User className="w-5 h-5" />,
     roles: ['program_head'],
   },
   {
@@ -188,7 +169,7 @@ const sidebarItems: SidebarItem[] = [
   {
     label: 'Subject Review',
     path: '/dashboard/subject-review',
-    icon: <BookOpen className="w-5 h-5" />,
+    icon: <PiClipboardTextBold className="w-5 h-5" />,
     roles: ['registrar'],
   },
   {
@@ -200,13 +181,13 @@ const sidebarItems: SidebarItem[] = [
   {
     label: 'Student Grades',
     path: '/dashboard/student-grades',
-    icon: <FileText className="w-5 h-5" />,
+    icon: <PiNotebookBold className="w-5 h-5" />,
     roles: ['registrar'],
   },
   {
     label: 'Class List Viewer',
     path: '/dashboard/class-list',
-    icon: <Users2 className="w-5 h-5" />,
+    icon: <PiUsersBold className="w-5 h-5" />,
     roles: ['registrar'],
   },
   {
@@ -256,13 +237,13 @@ const sidebarItems: SidebarItem[] = [
   {
     label: 'COE',
     path: '/dashboard/coe',
-    icon: <FileText className="w-5 h-5" />,
+    icon: <PiCertificateBold   className="w-5 h-5" />,
     roles: ['student'],
   },
   {
     label: 'Prospectus',
     path: '/dashboard/prospectus',
-    icon: <ProspectusIcon />,
+    icon: <PiBookOpenTextBold className="w-5 h-5" />,
     roles: ['student'],
   },
   {
@@ -274,7 +255,7 @@ const sidebarItems: SidebarItem[] = [
   {
     label: 'Grade Report',
     path: '/dashboard/grades',
-    icon: <StudentAward className="w-5 h-5" />,
+    icon: <PiChartLineUpBold className="w-5 h-5" />,
     roles: ['student'],
   },
   {
