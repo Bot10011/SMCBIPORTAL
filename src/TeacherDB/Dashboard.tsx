@@ -4,11 +4,13 @@ import DashboardLayout from '../components/Sidebar';
 import ClassManagement from './ClassManagement';
 import GradeInput from './GradeInput';
 import TeacherSettings from './Settings';
-import { BookOpen, Search, Bell, ChevronDown, Download, Trash2, FileText } from 'lucide-react';
+import { BookOpen, Search, Bell, Download, Trash2, FileText, StickyNote, Calendar } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import userAvatar from '../../img/user-avatar.png';
+import { LuNotebookPen } from 'react-icons/lu';
+import { IoDocuments } from 'react-icons/io5';
 
 interface Document {
   id: string;
@@ -81,14 +83,13 @@ const TeacherDashboardOverview: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(null);
-  const [teacherName, setTeacherName] = useState<string>('');
   const [profileLoading, setProfileLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [documents, setDocuments] = useState<Document[]>([]);
   const [classes, setClasses] = useState<ClassData[]>([]);
   const [students, setStudents] = useState<StudentData[]>([]);
-  const [notifications, setNotifications] = useState(3);
+  const [notifications] = useState(3);
   const [selectedDate, setSelectedDate] = useState(new Date().getDate());
   
   // Search states
@@ -112,7 +113,6 @@ const TeacherDashboardOverview: React.FC = () => {
   // Cache states to prevent refetching
   const [profileCache, setProfileCache] = useState<{ 
     pictureUrl: string | null; 
-    name: string; 
     timestamp: number 
   } | null>(null);
   const [classesCache, setClassesCache] = useState<{ data: ClassData[]; timestamp: number } | null>(null);
@@ -134,7 +134,6 @@ const TeacherDashboardOverview: React.FC = () => {
       // Check cache first
       if (profileCache && isCacheValid(profileCache.timestamp)) {
         setProfilePictureUrl(profileCache.pictureUrl);
-        setTeacherName(profileCache.name);
         setProfileLoading(false);
         return;
       }
@@ -159,26 +158,17 @@ const TeacherDashboardOverview: React.FC = () => {
           }
         }
         
-        // Get teacher's full name
-        const fullName = data?.first_name && data?.last_name 
-          ? `${data.first_name} ${data.last_name}`
-          : data?.first_name || data?.last_name || 'Unknown Teacher';
-        
         setProfilePictureUrl(pictureUrl);
-        setTeacherName(fullName);
         // Cache the result
         setProfileCache({ 
           pictureUrl, 
-          name: fullName, 
           timestamp: Date.now() 
         });
       } catch (error) {
         console.error('Error fetching profile:', error);
         setProfilePictureUrl(null);
-        setTeacherName('Unknown Teacher');
         setProfileCache({ 
           pictureUrl: null, 
-          name: 'Unknown Teacher', 
           timestamp: Date.now() 
         });
       } finally {
@@ -562,15 +552,9 @@ const TeacherDashboardOverview: React.FC = () => {
   };
 
   // Handle notification click
-  const handleNotificationClick = () => {
-    setNotifications(0);
-    console.log('Notifications clicked');
-  };
 
-  // Handle profile dropdown
-  const handleProfileClick = () => {
-    navigate('/dashboard/profile');
-  };
+
+
 
   // Get current day and time for class status
   const getCurrentDayAndTime = () => {
@@ -696,6 +680,12 @@ const TeacherDashboardOverview: React.FC = () => {
   };
 
   const calendarDates = getCalendarDates();
+
+  // Add modal states after other useState hooks
+  const [showNotificationsModal, setShowNotificationsModal] = useState(false);
+  const [showNotesModal, setShowNotesModal] = useState(false);
+  const [showDocumentsModal, setShowDocumentsModal] = useState(false);
+  const [showCalendarModal, setShowCalendarModal] = useState(false);
 
   return (
     <div className="flex flex-col h-full  min-h-screen">
@@ -932,176 +922,442 @@ const TeacherDashboardOverview: React.FC = () => {
                 </div>
               </div>
 
-              {/* Student Performance Graph */}
-              <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 shadow-xl border border-white/20">
-                <h3 className="font-bold text-gray-700 text-lg mb-4">Student performance</h3>
-                <div className="h-64 bg-gray-50/50 backdrop-blur-sm rounded-lg p-4 border border-white/20">
-                  {/* Graph Placeholder */}
-                  <div className="h-full flex items-end justify-between">
-                    {[20, 45, 30, 60, 40, 80, 65, 90, 75, 85, 70, 73].map((value, index) => (
-                      <div key={index} className="flex flex-col items-center">
-                        <div 
-                          className="bg-teal-500 rounded-t w-8 mb-2 relative shadow-lg cursor-pointer hover:bg-teal-600 transition-colors"
-                          style={{ height: `${value}%` }}
-                        >
-                          {index === 6 && (
-                            <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-blue-600/90 backdrop-blur-sm text-white px-2 py-1 rounded text-xs border border-white/20 shadow-lg">
-                              Average 73
-                            </div>
-                          )}
-                        </div>
-                        <span className="text-xs text-gray-500">{['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][index]}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
+
 
               {/* My Classes Section */}
               <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 shadow-xl border border-white/20">
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center space-x-3">
-                    <h3 className="font-bold text-gray-700 text-lg">My Classes</h3>
-                    <span className="text-sm text-gray-500">({classes.length} classes)</span>
+                    <h3 className="font-bold text-gray-700 text-xl">My Classes</h3>
+                    <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded-full">({classes.length} classes)</span>
                   </div>
-                  <div className="flex items-center space-x-4 text-sm">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                  <div className="flex items-center space-x-3 text-xs">
+                    <div className="flex items-center space-x-1">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                       <span className="text-gray-600">Current</span>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                    <div className="flex items-center space-x-1">
+                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                       <span className="text-gray-600">Upcoming</span>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                    <div className="flex items-center space-x-1">
+                      <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
                       <span className="text-gray-600">Today</span>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <div className="w-3 h-3 bg-gray-400 rounded-full"></div>
-                      <span className="text-gray-600">Past</span>
-                    </div>
                   </div>
                 </div>
-                <div className="overflow-x-auto">
-                  <div className="max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
-                    <table className="w-full">
-                      <thead className="sticky top-0 bg-white z-20 shadow-sm">
-                        <tr className="border-b-2 border-gray-300">
-                          <th className="text-left py-3 px-4 font-bold text-gray-800 bg-white">Day</th>
-                          <th className="text-left py-3 px-4 font-bold text-gray-800 bg-white">Time</th>
-                          <th className="text-left py-3 px-4 font-bold text-gray-800 bg-white">Course</th>
-                          <th className="text-left py-3 px-4 font-bold text-gray-800 bg-white">Year Level</th>
-                          <th className="text-left py-3 px-4 font-bold text-gray-800 bg-white">Semester</th>
-                          <th className="text-left py-3 px-4 font-bold text-gray-800 bg-white">Section</th>
-                          <th className="text-left py-3 px-4 font-bold text-gray-800 bg-white">Units</th>
-                          <th className="text-left py-3 px-4 font-bold text-gray-800 bg-white">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                      {classes
-                        .sort((a, b) => {
-                          // Sort by day first, then by time
-                          const daysOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-                          const dayA = daysOrder.indexOf(a.day || '');
-                          const dayB = daysOrder.indexOf(b.day || '');
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {classes
+                    .sort((a, b) => {
+                      const daysOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+                      const dayA = daysOrder.indexOf(a.day || '');
+                      const dayB = daysOrder.indexOf(b.day || '');
+                      
+                      if (dayA !== dayB) return dayA - dayB;
+                      return (a.time || '').localeCompare(b.time || '');
+                    })
+                    .map((classItem) => {
+                      const status = getClassStatus(classItem.day || '', classItem.time || '');
+                      
+                      return (
+                        <div 
+                          key={classItem.id}
+                          onClick={() => handleClassClick(classItem.id)}
+                          className={`p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-105 ${
+                            status === 'current' ? 'border-green-300 bg-green-50/80' :
+                            status === 'upcoming' ? 'border-blue-300 bg-blue-50/80' :
+                            status === 'today' ? 'border-yellow-300 bg-yellow-50/80' :
+                            'border-gray-200 bg-gray-50/80'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex items-center space-x-2">
+                              <div className={`w-3 h-3 rounded-full ${
+                                status === 'current' ? 'bg-green-500' :
+                                status === 'upcoming' ? 'bg-blue-500' :
+                                status === 'today' ? 'bg-yellow-500' :
+                                'bg-gray-400'
+                              }`}></div>
+                              <div className="flex flex-col">
+                                <span className="font-bold text-gray-900 text-base">{classItem.day || 'N/A'}</span>
+                                <span className="text-lg font-bold text-blue-600">{classItem.time || 'N/A'}</span>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className={`px-3 py-1 rounded-full text-xs font-bold ${
+                                status === 'current' ? 'bg-green-100 text-green-800' :
+                                status === 'upcoming' ? 'bg-blue-100 text-blue-800' :
+                                status === 'today' ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {status === 'current' ? 'NOW' : 
+                                 status === 'upcoming' ? 'NEXT' : 
+                                 status === 'today' ? 'TODAY' : 'PAST'}
+                              </div>
+                            </div>
+                          </div>
                           
-                          if (dayA !== dayB) {
-                            return dayA - dayB;
-                          }
+                          <h4 className="font-bold text-gray-900 text-sm mb-2 line-clamp-2">{classItem.name}</h4>
                           
-                          // If same day, sort by time
-                          return (a.time || '').localeCompare(b.time || '');
-                        })
-                        .map((classItem) => {
-                          const status = getClassStatus(classItem.day || '', classItem.time || '');
+                          <div className="space-y-1 mb-3">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-gray-600">Year Level:</span>
+                              <span className="font-medium text-gray-800">{classItem.year_level || 'N/A'}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-gray-600">Semester:</span>
+                              <span className="font-medium text-gray-800">{classItem.semester || 'N/A'}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-gray-600">Units:</span>
+                              <span className="font-medium text-gray-800">{classItem.units || 0}</span>
+                            </div>
+                          </div>
                           
-                          return (
-                            <tr 
-                              key={classItem.id}
-                              onClick={() => handleClassClick(classItem.id)}
-                              className={`border-b border-gray-100 hover:bg-gray-100/80 cursor-pointer transition-colors bg-gray-50/60 ${
-                                status === 'current' ? 'bg-green-100/80 border-l-4 border-l-green-500' :
-                                status === 'upcoming' ? 'bg-blue-100/80 border-l-4 border-l-blue-500' :
-                                status === 'today' ? 'bg-yellow-100/80 border-l-4 border-l-yellow-500' :
-                                'border-l-4 border-l-gray-400'
-                              }`}
-                            >
-                              <td className="py-3 px-4">
-                                <span className="font-semibold text-gray-800">{classItem.day || 'N/A'}</span>
-                              </td>
-                              <td className="py-3 px-4">
-                                <span className="font-medium text-gray-700">{classItem.time || 'N/A'}</span>
-                              </td>
-                              <td className="py-3 px-4">
-                                <div className="font-bold text-gray-900">{classItem.name}</div>
-                              </td>
-                              <td className="py-3 px-4">
-                                <span className="font-medium text-gray-700">{classItem.year_level || 'N/A'}</span>
-                              </td>
-                              <td className="py-3 px-4">
-                                <span className="font-medium text-gray-700">{classItem.semester || 'N/A'}</span>
-                              </td>
-                              <td className="py-3 px-4">
-                                <span className="inline-block px-2 py-1 bg-blue-200 text-blue-800 text-xs font-bold rounded-full shadow-sm">
-                                  {classItem.section || 'N/A'}
-                                </span>
-                              </td>
-                              <td className="py-3 px-4">
-                                <span className="font-medium text-gray-700">{classItem.units || 0} units</span>
-                              </td>
-                              <td className="py-3 px-4">
-                                <button className="text-blue-600 hover:text-blue-800 text-sm font-medium">
-                                  View Details
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                    </tbody>
-                  </table>
-                  </div>
+                          <div className="flex items-center justify-between">
+                            <span className="inline-block px-2 py-1 bg-blue-100 text-blue-800 text-xs font-semibold rounded-full">
+                              Section {classItem.section || 'N/A'}
+                            </span>
+                            <button className="text-blue-600 hover:text-blue-800 text-xs font-medium underline">
+                              View Details
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
                 </div>
+                
+                {classes.length === 0 && (
+                  <div className="text-center py-8">
+                    <div className="text-gray-400 text-6xl mb-4">📚</div>
+                    <h4 className="text-gray-600 font-medium mb-2">No Classes Yet</h4>
+                    <p className="text-gray-500 text-sm">Your assigned classes will appear here</p>
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Right Column - Sidebar */}
-            <div className="lg:col-span-1 space-y-6">
-              {/* User Profile & Notifications */}
-              <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 shadow-xl border border-white/20">
+                      {/* Right Column - Sidebar */}
+            <div className="lg:col-span-1 space-y-3">
+              {/* Google Classroom Integration */}
+              <div className="bg-gradient-to-r from-blue-500/90 to-purple-600/90 backdrop-blur-xl rounded-2xl py-6 px-4 shadow-xl border border-white/20 relative glassmorphism">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
-                    <button 
-                      onClick={handleNotificationClick}
-                      className="relative cursor-pointer"
-                    >
-                      <Bell className="w-6 h-6 text-gray-600 hover:text-gray-800 transition-colors" />
-                      {notifications > 0 && (
-                        <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full shadow-lg animate-pulse"></div>
-                      )}
-                    </button>
-                  </div>
-                  <button 
-                    onClick={handleProfileClick}
-                    className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50/50 rounded-lg p-1 transition-colors"
-                  >
-                    <img
-                      src={profilePictureUrl || userAvatar}
-                      alt="Profile"
-                      className="w-8 h-8 rounded-full shadow-lg"
-                    />
-                    <div>
-                      <p className="font-medium text-gray-700">{teacherName}</p>
+                    <div className="bg-white/20 rounded-full p-2">
+                      <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                      </svg>
                     </div>
-                    <ChevronDown className="w-4 h-4 text-gray-400" />
+                    <div>
+                      <h3 className="text-white font-semibold text-sm">Google Classroom</h3>
+                      <p className="text-white/80 text-xs">Access and organize classwork easily</p>
+                    </div>
+                  </div>
+                  <button className="bg-white/20 hover:bg-white/30 text-white px-3 py-1 rounded-lg transition-colors flex items-center space-x-1">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                    <span className="text-xs font-medium">Connect</span>
                   </button>
                 </div>
               </div>
 
+              {/* User Profile & Notifications + Notes/Documents Icons */}
+              <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-4 shadow-xl border border-white/20 relative glassmorphism">
+                                  <div className="flex items-center justify-center">
+                    <div className="flex items-center space-x-4">
+                      {/* Bell Icon */}
+                      <div className="relative flex flex-col items-center">
+                        <button onClick={() => {
+                          setShowNotesModal(false);
+                          setShowDocumentsModal(false);
+                          setShowCalendarModal(false);
+                          setShowNotificationsModal(true);
+                        }} className={`relative cursor-pointer group rounded-xl p-3 shadow-lg border transition-all duration-200 hover:shadow-xl ${
+                          showNotificationsModal 
+                            ? 'bg-blue-100 border-blue-300 shadow-blue-200' 
+                            : 'bg-white/60 hover:bg-white/80 border-white/30'
+                        }`}>
+                          <Bell className={`w-6 h-6 transition-colors ${
+                            showNotificationsModal ? 'text-blue-600' : 'text-gray-600 hover:text-gray-800'
+                          }`} />
+                          {notifications > 0 && !showNotificationsModal && (
+                            <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full shadow-lg animate-pulse"></div>
+                          )}
+                        </button>
+                      </div>
+                      {/* Notes Icon */}
+                      <div className="relative flex flex-col items-center">
+                        <button onClick={() => {
+                          setShowDocumentsModal(false);
+                          setShowCalendarModal(false);
+                          setShowNotificationsModal(false);
+                          setShowNotesModal(true);
+                        }} className={`relative cursor-pointer group rounded-xl p-3 shadow-lg border transition-all duration-200 hover:shadow-xl ${
+                          showNotesModal 
+                            ? 'bg-yellow-100 border-yellow-300 shadow-yellow-200' 
+                            : 'bg-white/60 hover:bg-white/80 border-white/30'
+                        }`}>
+                          <LuNotebookPen className={`w-6 h-6 transition-colors ${
+                            showNotesModal ? 'text-yellow-600' : 'text-gray-600 hover:text-gray-800'
+                          }`} />
+                        </button>
+                      </div>
+                      {/* Documents Icon */}
+                      <div className="relative flex flex-col items-center">
+                        <button onClick={() => {
+                          setShowNotesModal(false);
+                          setShowCalendarModal(false);
+                          setShowNotificationsModal(false);
+                          setShowDocumentsModal(true);
+                        }} className={`relative cursor-pointer group rounded-xl p-3 shadow-lg border transition-all duration-200 hover:shadow-xl ${
+                          showDocumentsModal 
+                            ? 'bg-red-100 border-red-300 shadow-red-200' 
+                            : 'bg-white/60 hover:bg-white/80 border-white/30'
+                        }`}>
+                          <IoDocuments className={`w-6 h-6 transition-colors ${
+                            showDocumentsModal ? 'text-red-600' : 'text-gray-600 hover:text-gray-800'
+                          }`} />
+                        </button>
+                      </div>
+                      {/* Calendar Icon */}
+                      <div className="relative flex flex-col items-center">
+                        <button onClick={() => {
+                          setShowNotesModal(false);
+                          setShowDocumentsModal(false);
+                          setShowNotificationsModal(false);
+                          setShowCalendarModal(true);
+                        }} className={`relative cursor-pointer group rounded-xl p-3 shadow-lg border transition-all duration-200 hover:shadow-xl ${
+                          showCalendarModal 
+                            ? 'bg-green-100 border-green-300 shadow-green-200' 
+                            : 'bg-white/60 hover:bg-white/80 border-white/30'
+                        }`}>
+                          <Calendar className={`w-6 h-6 transition-colors ${
+                            showCalendarModal ? 'text-green-600' : 'text-gray-600 hover:text-gray-800'
+                          }`} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+              </div>
+
+
+
               {/* Calendar */}
-              <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 shadow-xl border border-white/20">
+              <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 shadow-xl border border-white/20 relative glassmorphism">
+                {/* Notifications Modal - Positioned in calendar area */}
+                {showNotificationsModal && (
+                  <div className="absolute z-[9999] top-0 left-0 right-0 bottom-0 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/30 p-4 glassmorphism">
+                    <div className="flex justify-between items-center mb-2">
+                      <h3 className="font-bold text-gray-700 flex items-center"><Bell className="w-4 h-4 mr-1 text-blue-500" /> Notifications</h3>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-200">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                          <div>
+                            <p className="font-medium text-sm text-gray-700">New assignment submitted</p>
+                            <p className="text-xs text-gray-500">Math 101 - John Doe submitted Assignment #3</p>
+                          </div>
+                        </div>
+                        <span className="text-xs text-gray-400">2 min ago</span>
+                      </div>
+                      <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-200">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                          <div>
+                            <p className="font-medium text-sm text-gray-700">Class reminder</p>
+                            <p className="text-xs text-gray-500">Physics 201 starts in 15 minutes</p>
+                          </div>
+                        </div>
+                        <span className="text-xs text-gray-400">5 min ago</span>
+                      </div>
+                      <div className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                          <div>
+                            <p className="font-medium text-sm text-gray-700">Grade update</p>
+                            <p className="text-xs text-gray-500">Chemistry 101 grades have been updated</p>
+                          </div>
+                        </div>
+                        <span className="text-xs text-gray-400">1 hour ago</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Notes Modal - Positioned in calendar area */}
+                {showNotesModal && (
+                  <div className="absolute z-[9999] top-0 left-0 right-0 bottom-0 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/30 p-4 glassmorphism">
+                    <div className="flex justify-between items-center mb-2">
+                      <h3 className="font-bold text-gray-700 flex items-center"><StickyNote className="w-4 h-4 mr-1 text-yellow-500" /> Personal Notes</h3>
+                    </div>
+                    <ul className="space-y-2 text-sm text-gray-600">
+                      {personalNotes.map((note, index) => (
+                        <li key={index} className="flex items-start">
+                          <div className="w-1.5 h-1.5 bg-gray-400 rounded-full mt-2 mr-2 flex-shrink-0"></div>
+                          {note}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Documents Modal - Positioned in calendar area */}
+                {showDocumentsModal && (
+                  <div className="absolute z-[9999] top-0 left-0 right-0 bottom-0 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/30 p-4 glassmorphism">
+                    <div className="flex justify-between items-center mb-2">
+                      <h3 className="font-bold text-gray-700 flex items-center"><FileText className="w-4 h-4 mr-1 text-red-500" /> Recent Documents</h3>
+                    </div>
+                    <div className="space-y-3">
+                      {documents.map((document) => (
+                        <div key={document.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                          <div>
+                            <p className="font-medium text-sm text-gray-700">{document.name}</p>
+                            <p className="text-xs text-gray-500">{document.size} • {document.date}</p>
+                          </div>
+                          <button onClick={() => handleDownloadDocument(document.id)} className="text-gray-400 hover:text-gray-600">
+                            <Download className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Calendar Modal - Positioned in calendar area */}
+                {showCalendarModal && (
+                  <div className="absolute z-[9999] top-0 left-0 right-0 bottom-0 bg-white rounded-2xl shadow-2xl border border-gray-200 p-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-bold text-gray-700 flex items-center">
+                        <Calendar className="w-5 h-5 mr-2 text-blue-600" />
+                        {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                      </h3>
+                      <div className="flex space-x-1">
+                        <button 
+                          onClick={handlePreviousMonth}
+                          className="p-1 hover:bg-gray-100/50 backdrop-blur-sm rounded border border-white/20 transition-colors"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                          </svg>
+                        </button>
+                        <button 
+                          onClick={handleNextMonth}
+                          className="p-1 hover:bg-gray-100/50 backdrop-blur-sm rounded border border-white/20 transition-colors"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                    
+                    {/* Calendar Grid */}
+                    <div className="grid grid-cols-7 gap-1 text-center">
+                      {['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'].map(day => (
+                        <div key={day} className="text-xs font-medium text-gray-500 py-1">{day}</div>
+                      ))}
+                      
+                      {/* Calendar dates */}
+                      {calendarDates.map((date, index) => {
+                        const isCurrentMonth = date.getMonth() === currentMonth.getMonth();
+                        const isToday = date.getDate() === selectedDate && isCurrentMonth;
+                        const isSelected = date.getDate() === selectedDate && isCurrentMonth;
+                        
+                        // Get day name for this date and convert to abbreviated format
+                        const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
+                        const dayAbbrev = dayName === 'Monday' ? 'M' :
+                                        dayName === 'Tuesday' ? 'T' :
+                                        dayName === 'Wednesday' ? 'W' :
+                                        dayName === 'Thursday' ? 'Th' :
+                                        dayName === 'Friday' ? 'F' :
+                                        dayName === 'Saturday' ? 'S' :
+                                        dayName === 'Sunday' ? 'Su' : '';
+                        
+                        // Also check for alternative day formats that might be in the database
+                        const alternativeDayFormats = [
+                          dayAbbrev,
+                          dayName.toUpperCase().substring(0, 3), // MON, TUE, etc.
+                          dayName.substring(0, 2).toUpperCase(), // MO, TU, etc.
+                          dayName.substring(0, 1).toUpperCase()  // M, T, etc.
+                        ];
+                        
+                        // Check if there are classes on this day
+                        const classesOnThisDay = classes.filter(cls => 
+                          cls.day && alternativeDayFormats.includes(cls.day)
+                        );
+                        
+                        return (
+                          <div key={index} className="relative group">
+                            <button
+                              onClick={() => isCurrentMonth && setSelectedDate(date.getDate())}
+                              className={`text-xs py-1 rounded transition-colors w-full ${
+                                isCurrentMonth 
+                                  ? isToday
+                                    ? 'bg-green-500/90 backdrop-blur-sm text-white font-medium shadow-lg' 
+                                    : isSelected
+                                    ? 'bg-blue-500/90 backdrop-blur-sm text-white'
+                                    : 'text-gray-700 hover:bg-gray-100/50 backdrop-blur-sm'
+                                  : 'text-gray-400'
+                              }`}
+                            >
+                              {date.getDate()}
+                              {/* Class indicators */}
+                              {isCurrentMonth && classesOnThisDay.length > 0 && (
+                                <div className="flex justify-center mt-1">
+                                  <div className="w-1 h-1 bg-blue-500 rounded-full"></div>
+                                </div>
+                              )}
+                            </button>
+                            
+                            {/* Hover tooltip for class details */}
+                            {isCurrentMonth && classesOnThisDay.length > 0 && (
+                              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-10">
+                                <div className="bg-gray-900 text-white text-xs rounded-lg p-3 shadow-lg min-w-[280px] max-w-[320px]">
+                                  <div className="font-semibold mb-2 text-sm">{dayName} ({dayAbbrev})</div>
+                                  {classesOnThisDay.map((cls, idx) => (
+                                    <div key={idx} className="mb-2 last:mb-0 p-2 bg-gray-800 rounded">
+                                      <div className="font-medium text-sm mb-1">{cls.name}</div>
+                                      <div className="text-gray-300 text-xs space-y-1">
+                                        <div>⏰ {cls.time}</div>
+                                        <div>📚 Section {cls.section}</div>
+                                        <div>📖 {cls.units} units</div>
+                                        <div>🎓 {cls.year_level}</div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                  <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Modal Tails - Positioned to point to specific icons */}
+                {showNotesModal && (
+                  <div className="absolute z-[9999] -top-3 left-1/4 w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-white shadow-lg"></div>
+                )}
+                {showDocumentsModal && (
+                  <div className="absolute z-[9999] -top-3 left-1/2 w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-white shadow-lg"></div>
+                )}
+                {showCalendarModal && (
+                  <div className="absolute z-[9999] -top-3 left-3/4 w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-white shadow-lg"></div>
+                )}
+
+
+
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-bold text-gray-700">
+                  <h3 className="font-bold text-gray-700 flex items-center">
+                    <Calendar className="w-5 h-5 mr-2 text-blue-600" />
                     {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                   </h3>
                   <div className="flex space-x-1">
@@ -1208,52 +1464,7 @@ const TeacherDashboardOverview: React.FC = () => {
                 </div>
               </div>
 
-              {/* Personal Notes */}
-              <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 shadow-xl border border-white/20">
-                <h3 className="font-bold text-gray-700 mb-4">Personal Notes</h3>
-                <ul className="space-y-2 text-sm text-gray-600">
-                  {personalNotes.map((note, index) => (
-                    <li key={index} className="flex items-start cursor-pointer hover:bg-gray-50/30 rounded p-1 transition-colors">
-                      <div className="w-1.5 h-1.5 bg-gray-400 rounded-full mt-2 mr-2 flex-shrink-0"></div>
-                      {highlightText(note, searchQuery)}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              {/* Recent Documents */}
-              <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 shadow-xl border border-white/20">
-                <h3 className="font-bold text-gray-700 mb-4">Recent Documents</h3>
-                <div className="space-y-3">
-                  {documents.map((document) => (
-                    <div key={document.id} className="flex items-center justify-between p-3 bg-gray-50/50 backdrop-blur-sm rounded-lg border border-white/20 shadow-lg">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-8 h-8 bg-red-500 rounded flex items-center justify-center shadow-lg">
-                          <FileText className="w-4 h-4 text-white" />
-                        </div>
-                        <div>
-                          <p className="font-medium text-sm text-gray-700">{document.name}</p>
-                          <p className="text-xs text-gray-500">{document.size} • {document.date}</p>
-                        </div>
-                      </div>
-                      <div className="flex space-x-2">
-                        <button 
-                          onClick={() => handleDownloadDocument(document.id)}
-                          className="text-gray-400 hover:text-gray-600 transition-colors"
-                        >
-                          <Download className="w-4 h-4" />
-                        </button>
-                        <button 
-                          onClick={() => handleDeleteDocument(document.id)}
-                          className="text-gray-400 hover:text-red-600 transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              {/* Remove old Personal Notes and Recent Documents sections from sidebar */}
             </div>
           </div>
         </div>
