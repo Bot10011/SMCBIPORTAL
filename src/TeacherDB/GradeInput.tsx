@@ -142,7 +142,6 @@ const GradeInputTable: React.FC = () => {
   const { user } = useAuth();
   const [rows, setRows] = useState<Row[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCourse, setSelectedCourse] = useState('');
   const [editingGrades, setEditingGrades] = useState<{ [key: string]: { prelim?: string; midterm?: string; final?: string } }>({});
   const [savingGrades, setSavingGrades] = useState<{ [key: string]: boolean }>({});
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
@@ -246,7 +245,7 @@ const GradeInputTable: React.FC = () => {
             section: Array.isArray(student) ? student[0]?.section : student?.section || null,
             program: (() => {
               const programId = Array.isArray(student) ? student[0]?.program_id : student?.program_id;
-              if (!programId) return 'No Program Assigned';
+              if (!programId) return 'BSIT';
               const programName = programsMap[programId];
               return programName || `Program ID: ${programId}`;
             })(),
@@ -270,9 +269,7 @@ const GradeInputTable: React.FC = () => {
     const matchesSearch = row.student_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          row.course_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          row.course_name.toLowerCase().includes(searchTerm.toLowerCase());
-    const yearSection = `${row.year_level || 'Unknown'} - ${row.section || 'Unknown'}`;
-    const matchesFilter = !selectedCourse || yearSection === selectedCourse;
-    return matchesSearch && matchesFilter;
+    return matchesSearch;
   });
 
   // Group students by program, year level, and section
@@ -432,7 +429,7 @@ const GradeInputTable: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screenfrom-slate-50 to-blue-50 p-6">
+    <div className="min-h-screen bg-gradient-to-br  to-blue-50 p-6">
       <div className="max-w-7xl mx-auto">
         {fetchError && (
           <div className="mb-4 p-4 bg-red-100 text-red-700 rounded-lg border border-red-200 font-semibold">
@@ -466,21 +463,7 @@ const GradeInputTable: React.FC = () => {
 
           {/* Search and Statistics Section */}
           <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 mb-6">
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-              {/* Search Bar */}
-              <div className="lg:col-span-1">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search students, courses..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-200 focus:border-blue-500 transition-all"
-                  />
-                </div>
-              </div>
-
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               {/* Total Students Card */}
               <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-3 shadow-md border border-blue-100 hover:shadow-lg transition-all duration-300 group">
                 <div className="flex items-center justify-between mb-2">
@@ -582,24 +565,13 @@ const GradeInputTable: React.FC = () => {
               <div className="p-6">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-lg font-semibold text-gray-900">Student Groups</h3>
-                  <div className="flex items-center gap-3">
-                    <select
-                      value={selectedCourse}
-                      onChange={(e) => setSelectedCourse(e.target.value)}
-                      className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 transition-all"
-                    >
-                      <option value="">All Year Levels & Sections</option>
-                      {Array.from(new Set(rows.map(row => `${row.year_level || 'Unknown'} - ${row.section || 'Unknown'}`))).map(yearSection => (
-                        <option key={yearSection} value={yearSection}>{yearSection}</option>
-                      ))}
-                    </select>
-                    <button
-                      onClick={() => setShowAllStudents(false)}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    >
-                      View All Students
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => setShowAllStudents(false)}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm flex items-center gap-2"
+                  >
+                    <User className="w-4 h-4" />
+                    View All Students
+                  </button>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {sortedGroups.map(([groupKey, group]) => (
@@ -656,6 +628,24 @@ const GradeInputTable: React.FC = () => {
                   >
                     View All Groups
                   </button>
+                </div>
+
+                {/* Search Bar Container for Students */}
+                <div className="p-6 bg-gradient-to-r from-gray-50 to-blue-50 border-b border-gray-200">
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div className="flex-1 max-w-md">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                        <input
+                          type="text"
+                          placeholder="Search students by name, course, or subject..."
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-200 focus:border-blue-500 transition-all bg-white shadow-sm"
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
                 
                 {/* Students table */}
