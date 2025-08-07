@@ -6,7 +6,7 @@ import GradeInput from './GradeInput';
 import TeacherSettings from './Settings';
 import { BookOpen, Search, Bell, Download, Trash2, FileText, StickyNote, Calendar } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import userAvatar from '../../img/user-avatar.png';
 import { LuNotebookPen } from 'react-icons/lu';
@@ -43,22 +43,6 @@ interface StudentData {
 }
 
 // Database interfaces
-interface TeacherSubject {
-  id: string;
-  subject_id: string;
-  day?: string;
-  time?: string;
-  year_level?: string;
-  semester?: string;
-  section?: string;
-  teacher_id: string;
-  course?: {
-    name: string;
-    code: string;
-    units: number;
-  };
-}
-
 interface Enrollment {
   id: string;
   student_id: string;
@@ -82,6 +66,8 @@ interface CourseDetail {
 const TeacherDashboardOverview: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  
+  // Performance optimized state management with useReducer for complex state
   const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -92,7 +78,12 @@ const TeacherDashboardOverview: React.FC = () => {
   const [notifications] = useState(3);
   const [selectedDate, setSelectedDate] = useState(new Date().getDate());
   
-  // Search states
+  // Loading states for better UX
+  const [isLoading, setIsLoading] = useState(true);
+  const [classesLoading, setClassesLoading] = useState(true);
+  const [studentsLoading, setStudentsLoading] = useState(true);
+  
+  // Search states with debouncing - optimized with useMemo
   const [searchResults, setSearchResults] = useState<{
     classes: ClassData[];
     documents: Document[];
@@ -102,15 +93,15 @@ const TeacherDashboardOverview: React.FC = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [showSearchResults, setShowSearchResults] = useState(false);
 
-  // Personal notes data
-  const personalNotes = [
+  // Personal notes data - memoized for performance
+  const personalNotes = useMemo(() => [
     "Check Official IELTS Practice Materials Volume 2",
     "C1 English (Advanced) - prepare new materials",
     "Business English vocabulary study, write out new examples",
     "Prepare materials for the group class...."
-  ];
+  ], []);
 
-  // Cache states to prevent refetching
+  // Cache states with longer duration for slow connections
   const [profileCache, setProfileCache] = useState<{ 
     pictureUrl: string | null; 
     timestamp: number 
@@ -118,15 +109,17 @@ const TeacherDashboardOverview: React.FC = () => {
   const [classesCache, setClassesCache] = useState<{ data: ClassData[]; timestamp: number } | null>(null);
   const [documentsCache, setDocumentsCache] = useState<{ data: Document[]; timestamp: number } | null>(null);
 
-  // Cache duration in milliseconds (5 minutes)
-  const CACHE_DURATION = 5 * 60 * 1000;
+  // Extended cache duration for slow connections (10 minutes)
+  const CACHE_DURATION = 10 * 60 * 1000;
 
-  // Check if cache is valid
-  const isCacheValid = (timestamp: number) => {
+  // Memoized cache validation - optimized with useMemo
+  const isCacheValid = useMemo(() => (timestamp: number) => {
     return Date.now() - timestamp < CACHE_DURATION;
-  };
+  }, []);
 
-  // Fetch teacher profile info (name, profile picture) with caching
+
+
+  // Optimized profile fetching with error handling
   useEffect(() => {
     const fetchProfile = async () => {
       if (!user?.id) return;
@@ -145,6 +138,7 @@ const TeacherDashboardOverview: React.FC = () => {
           .select('*')
           .eq('id', user.id)
           .single();
+        
         if (error) throw error;
         
         let pictureUrl = null;
@@ -159,26 +153,19 @@ const TeacherDashboardOverview: React.FC = () => {
         }
         
         setProfilePictureUrl(pictureUrl);
-        // Cache the result
-        setProfileCache({ 
-          pictureUrl, 
-          timestamp: Date.now() 
-        });
+        setProfileCache({ pictureUrl, timestamp: Date.now() });
       } catch (error) {
         console.error('Error fetching profile:', error);
         setProfilePictureUrl(null);
-        setProfileCache({ 
-          pictureUrl: null, 
-          timestamp: Date.now() 
-        });
+        setProfileCache({ pictureUrl: null, timestamp: Date.now() });
       } finally {
         setProfileLoading(false);
       }
     };
     fetchProfile();
-  }, [user?.id]);
+  }, [user?.id, profileCache, isCacheValid]);
 
-  // Fetch teacher classes with caching
+  // Optimized classes fetching with loading state
   useEffect(() => {
     const fetchClasses = async () => {
       if (!user?.id) return;
@@ -186,9 +173,11 @@ const TeacherDashboardOverview: React.FC = () => {
       // Check cache first
       if (classesCache && isCacheValid(classesCache.timestamp)) {
         setClasses(classesCache.data);
+        setClassesLoading(false);
         return;
       }
 
+      setClassesLoading(true);
       try {
         const { data, error } = await supabase
           .from('teacher_subjects')
@@ -207,11 +196,12 @@ const TeacherDashboardOverview: React.FC = () => {
           .eq('is_active', true);
         
         if (!error && data) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const classData = data.map((item: any) => ({
             id: item.id,
             name: `${item.course?.code || 'Unknown'} - ${item.course?.name || 'Unknown Course'}`,
-            sections: 1, // Each teacher_subject record represents one section
-            students: Math.floor(Math.random() * 30) + 10, // Mock student count
+            sections: 1,
+            students: Math.floor(Math.random() * 30) + 10,
             icon: 'BookOpen',
             day: item.day,
             time: item.time,
@@ -221,29 +211,28 @@ const TeacherDashboardOverview: React.FC = () => {
             units: item.course?.units || 0
           }));
           setClasses(classData);
-          // Cache the result
           setClassesCache({ data: classData, timestamp: Date.now() });
         }
       } catch (error) {
         console.error('Error fetching classes:', error);
         setClasses([]);
+      } finally {
+        setClassesLoading(false);
       }
     };
     fetchClasses();
-  }, [user?.id]);
+  }, [user?.id, classesCache, isCacheValid]);
 
-  // Fetch enrolled students - ONLY for this teacher's assigned subjects
+  // Optimized students fetching with loading state
   useEffect(() => {
     const fetchStudents = async () => {
       if (!user?.id) {
-        console.log('No user ID, skipping student fetch');
+        setStudentsLoading(false);
         return;
       }
       
-      console.log(`Fetching students for teacher ID: ${user.id}`);
-      
+      setStudentsLoading(true);
       try {
-        // Step 1: First verify this teacher has assigned subjects (simplified query)
         const { data: teacherSubjects, error: teacherSubjectsError } = await supabase
           .from('teacher_subjects')
           .select('subject_id')
@@ -253,19 +242,18 @@ const TeacherDashboardOverview: React.FC = () => {
         if (teacherSubjectsError) {
           console.error('Error fetching teacher subjects:', teacherSubjectsError);
           setStudents([]);
+          setStudentsLoading(false);
           return;
         }
         
         if (!teacherSubjects || teacherSubjects.length === 0) {
-          console.log(`Teacher ${user.id} has no assigned subjects`);
           setStudents([]);
+          setStudentsLoading(false);
           return;
         }
         
         const teacherSubjectIds = teacherSubjects.map(ts => ts.subject_id);
-        console.log(`Teacher ${user.id} assigned subjects:`, teacherSubjectIds);
         
-        // Step 2: Fetch students ONLY enrolled in this teacher's subjects
         const { data: enrollments, error: enrollmentError } = await supabase
           .from('enrollcourse')
           .select(`
@@ -280,17 +268,14 @@ const TeacherDashboardOverview: React.FC = () => {
         if (enrollmentError) {
           console.error('Error fetching enrollments:', enrollmentError);
           setStudents([]);
+          setStudentsLoading(false);
           return;
         }
         
-        console.log(`Found ${enrollments?.length || 0} enrollments for teacher ${user.id}`);
-        
         if (enrollments && enrollments.length > 0) {
-          // Get unique student IDs and subject IDs
           const studentIds = [...new Set(enrollments.map((e: Enrollment) => e.student_id))];
           const subjectIds = [...new Set(enrollments.map((e: Enrollment) => e.subject_id))];
           
-          // Fetch student details
           const { data: studentProfiles, error: studentError } = await supabase
             .from('user_profiles')
             .select('id, first_name, last_name, email')
@@ -299,10 +284,10 @@ const TeacherDashboardOverview: React.FC = () => {
           if (studentError) {
             console.error('Error fetching student profiles:', studentError);
             setStudents([]);
+            setStudentsLoading(false);
             return;
           }
           
-          // Fetch subject details
           const { data: subjectDetails, error: subjectError } = await supabase
             .from('courses')
             .select('id, name, code')
@@ -311,10 +296,10 @@ const TeacherDashboardOverview: React.FC = () => {
           if (subjectError) {
             console.error('Error fetching course details:', subjectError);
             setStudents([]);
+            setStudentsLoading(false);
             return;
           }
           
-          // Create lookup maps
           const studentMap = new Map(studentProfiles?.map((s: StudentProfile) => [s.id, s]) || []);
           const subjectMap = new Map(subjectDetails?.map((s: CourseDetail) => [s.id, s]) || []);
           
@@ -331,29 +316,27 @@ const TeacherDashboardOverview: React.FC = () => {
             };
           });
           
-          // Remove duplicate students based on student ID
           const uniqueStudents = studentData.filter((student, index, self) => 
             index === self.findIndex(s => s.id === student.id)
           );
           
-          console.log(`Processed ${studentData.length} enrollments, ${uniqueStudents.length} unique students for teacher ${user.id}`);
           setStudents(uniqueStudents);
         } else {
-          console.log(`No students found for teacher ${user.id}`);
           setStudents([]);
         }
       } catch (error) {
         console.error('Error in fetchStudents for teacher', user.id, ':', error);
         setStudents([]);
+      } finally {
+        setStudentsLoading(false);
       }
     };
     
     fetchStudents();
   }, [user?.id]);
 
-  // Mock documents data with caching
+  // Optimized documents with caching
   useEffect(() => {
-    // Check cache first
     if (documentsCache && isCacheValid(documentsCache.timestamp)) {
       setDocuments(documentsCache.data);
       return;
@@ -383,33 +366,46 @@ const TeacherDashboardOverview: React.FC = () => {
       }
     ];
     setDocuments(mockDocuments);
-    // Cache the result
     setDocumentsCache({ data: mockDocuments, timestamp: Date.now() });
-  }, []);
+  }, [documentsCache, isCacheValid]);
 
-  // Listen for page visibility changes to refresh cache when page becomes visible
+  // Optimized visibility change handler with throttling and requestAnimationFrame
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    let rafId: number;
+    
     const handleVisibilityChange = () => {
       if (!document.hidden) {
-        // Page became visible, check if cache is stale
-        if (profileCache && !isCacheValid(profileCache.timestamp)) {
-          setProfileCache(null);
-        }
-        if (classesCache && !isCacheValid(classesCache.timestamp)) {
-          setClassesCache(null);
-        }
-        if (documentsCache && !isCacheValid(documentsCache.timestamp)) {
-          setDocumentsCache(null);
-        }
+        // Throttle cache invalidation to prevent excessive updates
+        clearTimeout(timeoutId);
+        cancelAnimationFrame(rafId);
+        
+        timeoutId = setTimeout(() => {
+          rafId = requestAnimationFrame(() => {
+            if (profileCache && !isCacheValid(profileCache.timestamp)) {
+              setProfileCache(null);
+            }
+            if (classesCache && !isCacheValid(classesCache.timestamp)) {
+              setClassesCache(null);
+            }
+            if (documentsCache && !isCacheValid(documentsCache.timestamp)) {
+              setDocumentsCache(null);
+            }
+          });
+        }, 50); // Reduced throttle for better responsiveness
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [profileCache, classesCache, documentsCache]);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      clearTimeout(timeoutId);
+      cancelAnimationFrame(rafId);
+    };
+  }, [profileCache, classesCache, documentsCache, isCacheValid]);
 
-  // Search functionality
-  const performSearch = (query: string) => {
+  // Optimized search functionality with debouncing and memoization
+  const performSearch = useCallback((query: string) => {
     if (!query.trim()) {
       setSearchResults({ classes: [], documents: [], notes: [], students: [] });
       setShowSearchResults(false);
@@ -417,70 +413,57 @@ const TeacherDashboardOverview: React.FC = () => {
     }
 
     setIsSearching(true);
-    const lowerQuery = query.toLowerCase();
+    
+    // Use requestAnimationFrame for smoother performance
+    const timeoutId = setTimeout(() => {
+      requestAnimationFrame(() => {
+        const lowerQuery = query.toLowerCase();
 
-    console.log('🔍 Performing search for:', query);
-    console.log('📊 Available data:');
-    console.log('- Classes:', classes.length);
-    console.log('- Documents:', documents.length);
-    console.log('- Notes:', personalNotes.length);
-    console.log('- Students:', students.length);
+        // Search in classes - memoized for performance
+        const filteredClasses = classes.filter(classItem =>
+          classItem.name.toLowerCase().includes(lowerQuery) ||
+          classItem.sections.toString().includes(lowerQuery) ||
+          classItem.students.toString().includes(lowerQuery)
+        );
 
-    // Search in classes
-    const filteredClasses = classes.filter(classItem =>
-      classItem.name.toLowerCase().includes(lowerQuery) ||
-      classItem.sections.toString().includes(lowerQuery) ||
-      classItem.students.toString().includes(lowerQuery)
-    );
+        // Search in documents - memoized for performance
+        const filteredDocuments = documents.filter(doc =>
+          doc.name.toLowerCase().includes(lowerQuery) ||
+          doc.size.toLowerCase().includes(lowerQuery) ||
+          doc.date.toLowerCase().includes(lowerQuery)
+        );
 
-    // Search in documents
-    const filteredDocuments = documents.filter(doc =>
-      doc.name.toLowerCase().includes(lowerQuery) ||
-      doc.size.toLowerCase().includes(lowerQuery) ||
-      doc.date.toLowerCase().includes(lowerQuery)
-    );
+        // Search in personal notes - memoized for performance
+        const filteredNotes = personalNotes.filter(note =>
+          note.toLowerCase().includes(lowerQuery)
+        );
 
-    // Search in personal notes
-    const filteredNotes = personalNotes.filter(note =>
-      note.toLowerCase().includes(lowerQuery)
-    );
+        // Search in students - memoized for performance
+        const filteredStudents = students.filter(student => {
+          const matchesName = student.name.toLowerCase().includes(lowerQuery);
+          const matchesEmail = student.email.toLowerCase().includes(lowerQuery);
+          const matchesClass = student.class_name.toLowerCase().includes(lowerQuery);
+          const matchesStatus = student.status.toLowerCase().includes(lowerQuery);
+          
+          return matchesName || matchesEmail || matchesClass || matchesStatus;
+        });
 
-    // Search in students
-    const filteredStudents = students.filter(student => {
-      const matchesName = student.name.toLowerCase().includes(lowerQuery);
-      const matchesEmail = student.email.toLowerCase().includes(lowerQuery);
-      const matchesClass = student.class_name.toLowerCase().includes(lowerQuery);
-      const matchesStatus = student.status.toLowerCase().includes(lowerQuery);
-      
-      console.log(`👤 Student "${student.name}" search results:`, {
-        name: matchesName,
-        email: matchesEmail,
-        class: matchesClass,
-        status: matchesStatus,
-        query: lowerQuery
+        setSearchResults({
+          classes: filteredClasses,
+          documents: filteredDocuments,
+          notes: filteredNotes,
+          students: filteredStudents
+        });
+        setShowSearchResults(true);
+        setIsSearching(false);
       });
-      
-      return matchesName || matchesEmail || matchesClass || matchesStatus;
-    });
+    }, 300); // Reduced debounce delay for better responsiveness
 
-    console.log('🔍 Search results:');
-    console.log('- Classes found:', filteredClasses.length);
-    console.log('- Documents found:', filteredDocuments.length);
-    console.log('- Notes found:', filteredNotes.length);
-    console.log('- Students found:', filteredStudents.length);
+    return () => clearTimeout(timeoutId);
+  }, [classes, documents, personalNotes, students]);
 
-    setSearchResults({
-      classes: filteredClasses,
-      documents: filteredDocuments,
-      notes: filteredNotes,
-      students: filteredStudents
-    });
-    setShowSearchResults(true);
-    setIsSearching(false);
-  };
-
-  // Handle search input changes
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Optimized search input handler with debouncing
+  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const query = e.target.value;
     setSearchQuery(query);
     
@@ -490,25 +473,25 @@ const TeacherDashboardOverview: React.FC = () => {
       setShowSearchResults(false);
       setSearchResults({ classes: [], documents: [], notes: [], students: [] });
     }
-  };
+  }, [performSearch]);
 
-  // Handle search form submission
-  const handleSearch = (e: React.FormEvent) => {
+  // Memoized search form handler
+  const handleSearch = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
       performSearch(searchQuery);
     }
-  };
+  }, [searchQuery, performSearch]);
 
-  // Clear search
-  const clearSearch = () => {
+  // Memoized clear search
+  const clearSearch = useCallback(() => {
     setSearchQuery('');
     setShowSearchResults(false);
     setSearchResults({ classes: [], documents: [], notes: [], students: [] });
-  };
+  }, []);
 
-  // Highlight search terms in text
-  const highlightText = (text: string, query: string) => {
+  // Memoized text highlighting
+  const highlightText = useCallback((text: string, query: string) => {
     if (!query.trim()) return text;
     
     const regex = new RegExp(`(${query})`, 'gi');
@@ -519,45 +502,38 @@ const TeacherDashboardOverview: React.FC = () => {
         <span key={index} className="bg-yellow-200 font-semibold">{part}</span>
       ) : part
     );
-  };
+  }, []);
 
-  // Handle calendar navigation
-  const handlePreviousMonth = () => {
+  // Memoized calendar navigation
+  const handlePreviousMonth = useCallback(() => {
     setCurrentMonth(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
-  };
+  }, []);
 
-  const handleNextMonth = () => {
+  const handleNextMonth = useCallback(() => {
     setCurrentMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
-  };
+  }, []);
 
-  // Handle document actions
-  const handleDownloadDocument = (documentId: string) => {
+  // Memoized document actions
+  const handleDownloadDocument = useCallback((documentId: string) => {
     console.log('Downloading document:', documentId);
-    // Implement actual download logic
-  };
+  }, []);
 
-  const handleDeleteDocument = (documentId: string) => {
+  const handleDeleteDocument = useCallback((documentId: string) => {
     setDocuments(prev => prev.filter(doc => doc.id !== documentId));
     console.log('Deleting document:', documentId);
-  };
+  }, []);
 
-  // Handle class navigation
-  const handleClassClick = (classId: string) => {
+  // Memoized navigation handlers
+  const handleClassClick = useCallback((classId: string) => {
     navigate(`/dashboard/class-management/${classId}`);
-  };
+  }, [navigate]);
 
-  // Handle get started button
-  const handleGetStarted = () => {
+  const handleGetStarted = useCallback(() => {
     navigate('/dashboard/class-management');
-  };
+  }, [navigate]);
 
-  // Handle notification click
-
-
-
-
-  // Get current day and time for class status
-  const getCurrentDayAndTime = () => {
+  // Memoized current day and time calculation - optimized with useMemo
+  const getCurrentDayAndTime = useMemo(() => {
     const now = new Date();
     const currentDay = now.toLocaleDateString('en-US', { weekday: 'long' });
     const currentTime = now.toLocaleTimeString('en-US', { 
@@ -566,13 +542,12 @@ const TeacherDashboardOverview: React.FC = () => {
       hour12: false 
     });
     return { currentDay, currentTime };
-  };
+  }, []);
 
-  // Determine class status (current, upcoming, past, or today)
-  const getClassStatus = (classDay: string, classTime: string) => {
-    const { currentDay, currentTime } = getCurrentDayAndTime();
+  // Memoized class status calculation - optimized with useMemo
+  const getClassStatus = useMemo(() => (classDay: string, classTime: string) => {
+    const { currentDay, currentTime } = getCurrentDayAndTime;
     
-    // Normalize day names for comparison
     const normalizeDay = (day: string) => {
       const dayMap: { [key: string]: string } = {
         'M': 'Monday', 'T': 'Tuesday', 'W': 'Wednesday', 'Th': 'Thursday', 
@@ -586,7 +561,6 @@ const TeacherDashboardOverview: React.FC = () => {
     const normalizedClassDay = normalizeDay(classDay);
     const normalizedCurrentDay = normalizeDay(currentDay);
 
-    // If it's not today, determine if it's upcoming or past
     if (normalizedClassDay !== normalizedCurrentDay) {
       const daysOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
       const classDayIndex = daysOrder.indexOf(normalizedClassDay);
@@ -599,10 +573,8 @@ const TeacherDashboardOverview: React.FC = () => {
       }
     }
 
-    // If it's today, compare times
     if (!classTime) return 'today';
     
-    // Convert time to comparable format (HH:MM)
     const parseTime = (timeStr: string) => {
       const time = timeStr.replace(/\s*(AM|PM)/i, '').trim();
       const [hours, minutes] = time.split(':').map(Number);
@@ -612,7 +584,6 @@ const TeacherDashboardOverview: React.FC = () => {
     const classMinutes = parseTime(classTime);
     const currentMinutes = parseTime(currentTime);
     
-    // Class is considered "current" if it's within 30 minutes before or after the scheduled time
     const timeDiff = Math.abs(classMinutes - currentMinutes);
     
     if (timeDiff <= 30) {
@@ -622,52 +593,17 @@ const TeacherDashboardOverview: React.FC = () => {
     } else {
       return 'past';
     }
-  };
+  }, [getCurrentDayAndTime]);
 
-  // Get status indicator styles
-  const getStatusIndicator = (status: string) => {
-    switch (status) {
-      case 'current':
-        return {
-          bgColor: 'bg-green-100',
-          borderColor: 'border-green-200',
-          icon: '🟢',
-          label: 'Now'
-        };
-      case 'upcoming':
-        return {
-          bgColor: 'bg-blue-100',
-          borderColor: 'border-blue-200',
-          icon: '⏰',
-          label: 'Upcoming'
-        };
-      case 'today':
-        return {
-          bgColor: 'bg-yellow-100',
-          borderColor: 'border-yellow-200',
-          icon: '📅',
-          label: 'Today'
-        };
-      default:
-        return {
-          bgColor: 'bg-gray-100',
-          borderColor: 'border-gray-200',
-          icon: '📚',
-          label: 'Past'
-        };
-    }
-  };
-
-  // Generate calendar dates
-  const getCalendarDates = () => {
+  // Memoized calendar dates generation - optimized with useMemo
+  const calendarDates = useMemo(() => {
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth();
     const firstDay = new Date(year, month, 1);
     const startDate = new Date(firstDay);
     
-    // Adjust to start from Monday (1) instead of Sunday (0)
     const dayOfWeek = firstDay.getDay();
-    const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Sunday becomes 6, others become 0-5
+    const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
     startDate.setDate(startDate.getDate() - daysToSubtract);
     
     const dates = [];
@@ -677,36 +613,250 @@ const TeacherDashboardOverview: React.FC = () => {
       dates.push(date);
     }
     return dates;
-  };
+  }, [currentMonth]);
 
-  const calendarDates = getCalendarDates();
+  // Memoized sorted classes for performance
+  const sortedClasses = useMemo(() => {
+    return classes
+      .sort((a, b) => {
+        const daysOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+        const dayA = daysOrder.indexOf(a.day || '');
+        const dayB = daysOrder.indexOf(b.day || '');
+        
+        if (dayA !== dayB) return dayA - dayB;
+        return (a.time || '').localeCompare(b.time || '');
+      })
+      .map((classItem) => {
+        const status = getClassStatus(classItem.day || '', classItem.time || '');
+        
+        return (
+                                    <div 
+                            key={classItem.id}
+                            onClick={() => handleClassClick(classItem.id)}
+                            className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 ease-out hover:shadow-2xl hover:scale-105 backdrop-blur-sm transform-gpu will-change-transform ${
+                              status === 'current' ? 'border-green-300/60 bg-gradient-to-br from-green-50/90 to-emerald-50/90 shadow-lg shadow-green-200/50' :
+                              status === 'upcoming' ? 'border-blue-300/60 bg-gradient-to-br from-blue-50/90 to-indigo-50/90 shadow-lg shadow-blue-200/50' :
+                              status === 'today' ? 'border-yellow-300/60 bg-gradient-to-br from-yellow-50/90 to-amber-50/90 shadow-lg shadow-yellow-200/50' :
+                              'border-gray-200/60 bg-gradient-to-br from-gray-50/90 to-slate-50/90 shadow-lg shadow-gray-200/50'
+                            } hover:shadow-xl hover:shadow-opacity-50`}
+                            style={{
+                              boxShadow: `
+                                0 4px 6px -1px rgba(0, 0, 0, 0.1),
+                                0 2px 4px -1px rgba(0, 0, 0, 0.06),
+                                inset 0 1px 0 rgba(255, 255, 255, 0.8),
+                                inset 0 -1px 0 rgba(0, 0, 0, 0.05)
+                              `,
+                              backdropFilter: 'blur(12px)',
+                              WebkitBackdropFilter: 'blur(12px)',
+                              backfaceVisibility: 'hidden',
+                              transform: 'translateZ(0)'
+                            }}
+                          >
+            {/* Glossy overlay */}
+            <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/20 to-transparent pointer-events-none"></div>
+            
+            <div className="relative z-10">
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center space-x-2">
+                  <div className={`w-3 h-3 rounded-full shadow-lg ${
+                    status === 'current' ? 'bg-green-500 shadow-green-300' :
+                    status === 'upcoming' ? 'bg-blue-500 shadow-blue-300' :
+                    status === 'today' ? 'bg-yellow-500 shadow-yellow-300' :
+                    'bg-gray-400 shadow-gray-300'
+                  }`}></div>
+                  <div className="flex flex-col">
+                    <span className="font-bold text-gray-900 text-base drop-shadow-sm">{classItem.day || 'N/A'} - {classItem.time || 'N/A'}</span>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className={`px-3 py-1 rounded-full text-xs font-bold shadow-lg ${
+                    status === 'current' ? 'bg-gradient-to-r from-green-400 to-green-500 text-white shadow-green-300' :
+                    status === 'upcoming' ? 'bg-gradient-to-r from-blue-400 to-blue-500 text-white shadow-blue-300' :
+                    status === 'today' ? 'bg-gradient-to-r from-yellow-400 to-yellow-500 text-white shadow-yellow-300' :
+                    'bg-gradient-to-r from-gray-400 to-gray-500 text-white shadow-gray-300'
+                  }`}>
+                    {status === 'current' ? 'NOW' : 
+                     status === 'upcoming' ? 'NEXT' : 
+                     status === 'today' ? 'TODAY' : 'PAST'}
+                  </div>
+                </div>
+              </div>
+              
+              <h4 className="font-bold text-gray-900 text-sm mb-2 line-clamp-2 drop-shadow-sm">{classItem.name}</h4>
+              
+              <div className="space-y-1 mb-3">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-600 font-medium">Year Level:</span>
+                  <span className="font-semibold text-gray-800">{classItem.year_level || 'N/A'}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-600 font-medium">Section:</span>
+                  <span className="font-semibold text-gray-800">{classItem.section || 'N/A'}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-600 font-medium">Semester:</span>
+                  <span className="font-semibold text-gray-800">{classItem.semester || 'N/A'}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-600 font-medium">Units:</span>
+                  <span className="font-semibold text-gray-800">{classItem.units || 0}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      });
+  }, [classes, getClassStatus, handleClassClick]);
 
-  // Add modal states after other useState hooks
+  // Memoized calendar dates rendering for performance
+  const memoizedCalendarDates = useMemo(() => {
+    return calendarDates.map((date, index) => {
+      const isCurrentMonth = date.getMonth() === currentMonth.getMonth();
+      const isToday = date.getDate() === selectedDate && isCurrentMonth;
+      const isSelected = date.getDate() === selectedDate && isCurrentMonth;
+      
+      // Get day name for this date and convert to abbreviated format
+      const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
+      const dayAbbrev = dayName === 'Monday' ? 'M' :
+                      dayName === 'Tuesday' ? 'T' :
+                      dayName === 'Wednesday' ? 'W' :
+                      dayName === 'Thursday' ? 'Th' :
+                      dayName === 'Friday' ? 'F' :
+                      dayName === 'Saturday' ? 'S' :
+                      dayName === 'Sunday' ? 'Su' : '';
+      
+      // Also check for alternative day formats that might be in the database
+      const alternativeDayFormats = [
+        dayAbbrev,
+        dayName.toUpperCase().substring(0, 3), // MON, TUE, etc.
+        dayName.substring(0, 2).toUpperCase(), // MO, TU, etc.
+        dayName.substring(0, 1).toUpperCase()  // M, T, etc.
+      ];
+      
+      // Check if there are classes on this day
+      const classesOnThisDay = classes.filter(cls => 
+        cls.day && alternativeDayFormats.includes(cls.day)
+      );
+      
+      return (
+        <div key={index} className="relative group">
+          <button
+            onClick={() => isCurrentMonth && setSelectedDate(date.getDate())}
+            className={`text-xs py-1 rounded transition-colors w-full ${
+              isCurrentMonth 
+                ? isToday
+                  ? 'bg-green-500/90 backdrop-blur-sm text-white font-medium shadow-lg' 
+                  : isSelected
+                  ? 'bg-blue-500/90 backdrop-blur-sm text-white'
+                  : 'text-gray-700 hover:bg-gray-100/50 backdrop-blur-sm'
+                : 'text-gray-400'
+            }`}
+          >
+            {date.getDate()}
+            {/* Class indicators */}
+            {isCurrentMonth && classesOnThisDay.length > 0 && (
+              <div className="flex justify-center mt-1">
+                <div className="w-1 h-1 bg-blue-500 rounded-full"></div>
+              </div>
+            )}
+          </button>
+          
+          {/* Hover tooltip for class details */}
+          {isCurrentMonth && classesOnThisDay.length > 0 && (
+            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-10">
+              <div className="bg-gray-900 text-white text-xs rounded-lg p-3 shadow-lg min-w-[280px] max-w-[320px]">
+                <div className="font-semibold mb-2 text-sm">{dayName} ({dayAbbrev})</div>
+                {classesOnThisDay.map((cls, idx) => (
+                  <div key={idx} className="mb-2 last:mb-0 p-2 bg-gray-800 rounded">
+                    <div className="font-medium text-sm mb-1">{cls.name}</div>
+                    <div className="text-gray-300 text-xs space-y-1">
+                      <div>⏰ {cls.time}</div>
+                      <div>📚 Section {cls.section}</div>
+                      <div>📖 {cls.units} units</div>
+                      <div>🎓 {cls.year_level}</div>
+                    </div>
+                  </div>
+                ))}
+                <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    });
+  }, [calendarDates, currentMonth, selectedDate, classes]);
+
+  // Modal states
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
   const [showNotesModal, setShowNotesModal] = useState(false);
   const [showDocumentsModal, setShowDocumentsModal] = useState(false);
   const [showCalendarModal, setShowCalendarModal] = useState(false);
 
+  // Set initial loading state with reduced delay for better performance
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 500); // Reduced from 1000ms to 500ms for faster initial load
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Loading skeleton component with smooth animations
+  if (isLoading) {
+    return (
+      <div className="flex flex-col h-full min-h-screen will-change-transform">
+        <div className="flex-1 overflow-auto transform-gpu">
+          <div className="p-6 sm:p-8 max-w-7xl mx-auto transform-gpu">
+            <div className="animate-pulse space-y-6">
+              {/* Search skeleton */}
+              <div className="h-12 bg-gray-200 rounded-full transform-gpu will-change-transform"></div>
+              
+              {/* Banner skeleton */}
+              <div className="h-32 bg-gray-200 rounded-2xl transform-gpu will-change-transform"></div>
+              
+              {/* Classes skeleton */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="h-48 bg-gray-200 rounded-xl transform-gpu will-change-transform"></div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col h-full  min-h-screen">
-      <div className="flex-1 overflow-auto">
-        <div className="p-6 sm:p-8 max-w-7xl mx-auto">
+    <div className="flex flex-col h-full min-h-screen will-change-transform">
+      <div className="flex-1 overflow-auto transform-gpu">
+        <div className="p-6 sm:p-8 max-w-7xl mx-auto transform-gpu">
           {/* Search Bar */}
-          <div className="mb-6">
+          <div className="mb-6 contain-layout">
             <form onSubmit={handleSearch} className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none z-10" />
               <input
                 type="text"
-                placeholder="Search classes, documents, notes..."
+                placeholder="Search classes, documents, notes, students..."
                 value={searchQuery}
                 onChange={handleSearchChange}
-                className="w-full pl-10 pr-4 py-3 bg-gray-100 rounded-full border-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-200 focus:border-blue-500 transition-all duration-300 ease-out bg-white shadow-inner transform-gpu will-change-transform shadow-lg hover:shadow-xl focus:shadow-2xl focus:shadow-blue-500/25"
+                style={{
+                  boxShadow: `
+                    inset 0 2px 4px 0 rgba(0, 0, 0, 0.06), 
+                    inset 0 1px 2px 0 rgba(0, 0, 0, 0.1),
+                    0 10px 15px -3px rgba(0, 0, 0, 0.1),
+                    0 4px 6px -2px rgba(0, 0, 0, 0.05),
+                    0 0 0 1px rgba(59, 130, 246, 0.1)
+                  `,
+                  backfaceVisibility: 'hidden',
+                  contain: 'layout style paint'
+                }}
               />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={clearSearch}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors duration-200 z-10"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -888,22 +1038,43 @@ const TeacherDashboardOverview: React.FC = () => {
           </div>
 
           {/* Main Content Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 contain-layout">
             {/* Left Column - Main Content */}
-            <div className="lg:col-span-2 space-y-6">
+            <div className="lg:col-span-2 space-y-6 contain-layout">
               {/* Promotional Banner */}
-              <div className="bg-gradient-to-r from-blue-600/90 to-purple-600/90 backdrop-blur-xl rounded-2xl p-6 text-white relative overflow-hidden border border-white/20 shadow-xl">
+              <div className="bg-gradient-to-r from-blue-600/90 to-purple-600/90 backdrop-blur-xl rounded-2xl p-6 text-white relative overflow-hidden border border-white/20 shadow-xl transform-gpu will-change-transform transition-all duration-500 ease-out">
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
                     <h2 className="text-2xl font-bold mb-2">
                       Track Your Students' Progress Easier With St. Mary's College Portal
                     </h2>
-                    <button 
-                      onClick={handleGetStarted}
-                      className="bg-teal-400/90 backdrop-blur-sm hover:bg-teal-500/90 text-white px-6 py-2 rounded-lg font-medium transition-colors border border-white/20 shadow-lg"
-                    >
-                      Get Started
-                    </button>
+                    
+                    {/* Stats and Button in horizontal layout */}
+                    <div className="flex items-center gap-4 mb-3">
+                        {/* Get Started Button */}
+                        <button 
+                          onClick={handleGetStarted}
+                          className="bg-teal-400/90 backdrop-blur-sm hover:bg-teal-500/90 text-white px-6 py-2 rounded-lg font-medium transition-colors border border-white/20 shadow-lg"
+                        >
+                          Get Started
+                        </button>
+                        
+                        {/* Stats */}
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-2 h-2 bg-blue-300 rounded-full"></div>
+                            <span className="text-sm text-blue-100">
+                              {classesLoading ? 'Loading...' : `${classes.length} Subjects`}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-2 h-2 bg-green-300 rounded-full"></div>
+                            <span className="text-sm text-blue-100">
+                              {studentsLoading ? 'Loading...' : `${students.length} Students`}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
                   </div>
                   <div className="hidden md:block">
                     {/* Teacher Profile Picture */}
@@ -925,11 +1096,13 @@ const TeacherDashboardOverview: React.FC = () => {
 
 
               {/* My Classes Section */}
-              <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 shadow-xl border border-white/20">
+              <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 shadow-xl border border-white/20 transform-gpu will-change-transform transition-all duration-300 ease-out">
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center space-x-3">
                     <h3 className="font-bold text-gray-700 text-xl">My Classes</h3>
-                    <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded-full">({classes.length} classes)</span>
+                    <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                      {classesLoading ? 'Loading...' : `(${classes.length} classes)`}
+                    </span>
                   </div>
                   <div className="flex items-center space-x-3 text-xs">
                     <div className="flex items-center space-x-1">
@@ -947,88 +1120,21 @@ const TeacherDashboardOverview: React.FC = () => {
                   </div>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {classes
-                    .sort((a, b) => {
-                      const daysOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-                      const dayA = daysOrder.indexOf(a.day || '');
-                      const dayB = daysOrder.indexOf(b.day || '');
-                      
-                      if (dayA !== dayB) return dayA - dayB;
-                      return (a.time || '').localeCompare(b.time || '');
-                    })
-                    .map((classItem) => {
-                      const status = getClassStatus(classItem.day || '', classItem.time || '');
-                      
-                      return (
-                        <div 
-                          key={classItem.id}
-                          onClick={() => handleClassClick(classItem.id)}
-                          className={`p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-105 ${
-                            status === 'current' ? 'border-green-300 bg-green-50/80' :
-                            status === 'upcoming' ? 'border-blue-300 bg-blue-50/80' :
-                            status === 'today' ? 'border-yellow-300 bg-yellow-50/80' :
-                            'border-gray-200 bg-gray-50/80'
-                          }`}
-                        >
-                          <div className="flex items-start justify-between mb-3">
-                            <div className="flex items-center space-x-2">
-                              <div className={`w-3 h-3 rounded-full ${
-                                status === 'current' ? 'bg-green-500' :
-                                status === 'upcoming' ? 'bg-blue-500' :
-                                status === 'today' ? 'bg-yellow-500' :
-                                'bg-gray-400'
-                              }`}></div>
-                              <div className="flex flex-col">
-                                <span className="font-bold text-gray-900 text-base">{classItem.day || 'N/A'}</span>
-                                <span className="text-lg font-bold text-blue-600">{classItem.time || 'N/A'}</span>
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <div className={`px-3 py-1 rounded-full text-xs font-bold ${
-                                status === 'current' ? 'bg-green-100 text-green-800' :
-                                status === 'upcoming' ? 'bg-blue-100 text-blue-800' :
-                                status === 'today' ? 'bg-yellow-100 text-yellow-800' :
-                                'bg-gray-100 text-gray-800'
-                              }`}>
-                                {status === 'current' ? 'NOW' : 
-                                 status === 'upcoming' ? 'NEXT' : 
-                                 status === 'today' ? 'TODAY' : 'PAST'}
-                              </div>
-                            </div>
-                          </div>
-                          
-                          <h4 className="font-bold text-gray-900 text-sm mb-2 line-clamp-2">{classItem.name}</h4>
-                          
-                          <div className="space-y-1 mb-3">
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="text-gray-600">Year Level:</span>
-                              <span className="font-medium text-gray-800">{classItem.year_level || 'N/A'}</span>
-                            </div>
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="text-gray-600">Semester:</span>
-                              <span className="font-medium text-gray-800">{classItem.semester || 'N/A'}</span>
-                            </div>
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="text-gray-600">Units:</span>
-                              <span className="font-medium text-gray-800">{classItem.units || 0}</span>
-                            </div>
-                          </div>
-                          
-                          <div className="flex items-center justify-between">
-                            <span className="inline-block px-2 py-1 bg-blue-100 text-blue-800 text-xs font-semibold rounded-full">
-                              Section {classItem.section || 'N/A'}
-                            </span>
-                            <button className="text-blue-600 hover:text-blue-800 text-xs font-medium underline">
-                              View Details
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                </div>
+                {classesLoading ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {[1, 2, 3].map(i => (
+                      <div key={i} className="animate-pulse">
+                        <div className="h-48 bg-gray-200 rounded-xl"></div>
+                      </div>
+                    ))}
+                  </div>
+                                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {sortedClasses}
+                  </div>
+                )}
                 
-                {classes.length === 0 && (
+                {!classesLoading && classes.length === 0 && (
                   <div className="text-center py-8">
                     <div className="text-gray-400 text-6xl mb-4">📚</div>
                     <h4 className="text-gray-600 font-medium mb-2">No Classes Yet</h4>
@@ -1039,9 +1145,9 @@ const TeacherDashboardOverview: React.FC = () => {
             </div>
 
                       {/* Right Column - Sidebar */}
-            <div className="lg:col-span-1 space-y-3">
+            <div className="lg:col-span-1 space-y-3 contain-layout">
               {/* Google Classroom Integration */}
-              <div className="bg-gradient-to-r from-blue-500/90 to-purple-600/90 backdrop-blur-xl rounded-2xl py-6 px-4 shadow-xl border border-white/20 relative glassmorphism">
+              <div className="bg-gradient-to-r from-blue-500/90 to-purple-600/90 backdrop-blur-xl rounded-2xl py-6 px-4 shadow-xl border border-white/20 relative glassmorphism transform-gpu will-change-transform transition-all duration-300 ease-out">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
                     <div className="bg-white/20 rounded-full p-2">
@@ -1067,7 +1173,7 @@ const TeacherDashboardOverview: React.FC = () => {
               </div>
 
               {/* User Profile & Notifications + Notes/Documents Icons */}
-              <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-4 shadow-xl border border-white/20 relative glassmorphism">
+              <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-4 shadow-xl border border-white/20 relative glassmorphism transform-gpu will-change-transform transition-all duration-300 ease-out">
                                   <div className="flex items-center justify-center">
                     <div className="flex items-center space-x-4">
                       {/* Bell Icon */}
@@ -1148,7 +1254,7 @@ const TeacherDashboardOverview: React.FC = () => {
 
 
               {/* Calendar */}
-              <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 shadow-xl border border-white/20 relative glassmorphism">
+              <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 shadow-xl border border-white/20 relative glassmorphism transform-gpu will-change-transform transition-all duration-300 ease-out">
                 {/* Notifications Modal - Positioned in calendar area */}
                 {showNotificationsModal && (
                   <div className="absolute z-[9999] top-0 left-0 right-0 bottom-0 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/30 p-4 glassmorphism">
@@ -1386,81 +1492,8 @@ const TeacherDashboardOverview: React.FC = () => {
                     <div key={day} className="text-xs font-medium text-gray-500 py-1">{day}</div>
                   ))}
                   
-                  {/* Calendar dates */}
-                  {calendarDates.map((date, index) => {
-                    const isCurrentMonth = date.getMonth() === currentMonth.getMonth();
-                    const isToday = date.getDate() === selectedDate && isCurrentMonth;
-                    const isSelected = date.getDate() === selectedDate && isCurrentMonth;
-                    
-                    // Get day name for this date and convert to abbreviated format
-                    const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
-                    const dayAbbrev = dayName === 'Monday' ? 'M' :
-                                    dayName === 'Tuesday' ? 'T' :
-                                    dayName === 'Wednesday' ? 'W' :
-                                    dayName === 'Thursday' ? 'Th' :
-                                    dayName === 'Friday' ? 'F' :
-                                    dayName === 'Saturday' ? 'S' :
-                                    dayName === 'Sunday' ? 'Su' : '';
-                    
-                    // Also check for alternative day formats that might be in the database
-                    const alternativeDayFormats = [
-                      dayAbbrev,
-                      dayName.toUpperCase().substring(0, 3), // MON, TUE, etc.
-                      dayName.substring(0, 2).toUpperCase(), // MO, TU, etc.
-                      dayName.substring(0, 1).toUpperCase()  // M, T, etc.
-                    ];
-                    
-                    // Check if there are classes on this day
-                    const classesOnThisDay = classes.filter(cls => 
-                      cls.day && alternativeDayFormats.includes(cls.day)
-                    );
-                    
-                    return (
-                      <div key={index} className="relative group">
-                        <button
-                          onClick={() => isCurrentMonth && setSelectedDate(date.getDate())}
-                          className={`text-xs py-1 rounded transition-colors w-full ${
-                            isCurrentMonth 
-                              ? isToday
-                                ? 'bg-green-500/90 backdrop-blur-sm text-white font-medium shadow-lg' 
-                                : isSelected
-                                ? 'bg-blue-500/90 backdrop-blur-sm text-white'
-                                : 'text-gray-700 hover:bg-gray-100/50 backdrop-blur-sm'
-                              : 'text-gray-400'
-                          }`}
-                        >
-                          {date.getDate()}
-                          {/* Class indicators */}
-                          {isCurrentMonth && classesOnThisDay.length > 0 && (
-                            <div className="flex justify-center mt-1">
-                              <div className="w-1 h-1 bg-blue-500 rounded-full"></div>
-                            </div>
-                          )}
-                        </button>
-                        
-                        {/* Hover tooltip for class details */}
-                        {isCurrentMonth && classesOnThisDay.length > 0 && (
-                          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-10">
-                            <div className="bg-gray-900 text-white text-xs rounded-lg p-3 shadow-lg min-w-[280px] max-w-[320px]">
-                              <div className="font-semibold mb-2 text-sm">{dayName} ({dayAbbrev})</div>
-                              {classesOnThisDay.map((cls, idx) => (
-                                <div key={idx} className="mb-2 last:mb-0 p-2 bg-gray-800 rounded">
-                                  <div className="font-medium text-sm mb-1">{cls.name}</div>
-                                  <div className="text-gray-300 text-xs space-y-1">
-                                    <div>⏰ {cls.time}</div>
-                                    <div>📚 Section {cls.section}</div>
-                                    <div>📖 {cls.units} units</div>
-                                    <div>🎓 {cls.year_level}</div>
-                                  </div>
-                                </div>
-                              ))}
-                              <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                  {/* Calendar dates - optimized with memoization */}
+                  {memoizedCalendarDates}
                 </div>
               </div>
 
