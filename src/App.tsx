@@ -20,49 +20,90 @@ import Login from './Login';
 // NEW: Import DashboardRouter
 const DashboardRouter = lazy(() => import('./middleware/DashboardRouter'));
 
-// Loading component for lazy-loaded routes
+// Loading component for lazy-loaded routes (styled to match LandingPage)
 const DashboardLoading: React.FC = () => (
-  <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50">
-    <div className="text-center max-w-md mx-auto px-6">
-      {/* Logo and Spinner Container */}
-      <div className="relative mb-8">
-        {/* School Logo */}
-        <div className="mb-6">
-          <img 
-            src="/img/logo3.png" 
-            alt="School Logo" 
-            className="w-20 h-20 mx-auto object-contain drop-shadow-lg"
-          />
-        </div>
-        
-        {/* Modern Spinner */}
-        <div className="relative">
-          <div className="w-20 h-20 border-4 border-blue-100 rounded-full animate-spin mx-auto">
-            <div className="w-full h-full border-4 border-transparent border-t-blue-600 rounded-full animate-spin"></div>
-          </div>
-          
-          {/* Pulse effect */}
-          <div className="absolute inset-0 w-20 h-20 border-2 border-blue-200 rounded-full animate-ping mx-auto"></div>
-        </div>
-      </div>
-      
-      {/* Loading Text */}
-      <div className="space-y-3">
-        <h2 className="text-2xl font-bold text-gray-800 bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-          Loading Dashboard
-        </h2>
-        <p className="text-gray-600 font-medium">Please wait while we prepare your workspace</p>
-        <div className="flex justify-center space-x-1">
-          <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"></div>
-          <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-          <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-        </div>
-      </div>
-      
-      {/* Decorative elements */}
-      <div className="absolute top-10 left-10 w-20 h-20 bg-blue-100 rounded-full opacity-20 animate-pulse"></div>
-      <div className="absolute bottom-10 right-10 w-16 h-16 bg-indigo-100 rounded-full opacity-20 animate-pulse" style={{ animationDelay: '1s' }}></div>
+  <div className="relative min-h-screen overflow-hidden bg-[#031730]">
+    {/* Background video and overlays */}
+    <div className="fixed inset-0 w-full h-full">
+      <video
+        className="absolute inset-0 w-full h-full object-cover scale-[1.02] transform-gpu"
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="metadata"
+      >
+        <source src="/img/bg.mp4" type="video/mp4" />
+      </video>
+      <div className="absolute inset-0 bg-[#031730]/80" />
+      <div className="absolute inset-0 bg-black/30" />
     </div>
+
+    {/* Decorative gradient blobs */}
+    <div className="pointer-events-none absolute -top-20 -left-20 w-72 h-72 bg-gradient-to-br from-blue-400/20 to-cyan-400/10 blur-3xl rounded-full" />
+    <div className="pointer-events-none absolute -bottom-20 -right-20 w-72 h-72 bg-gradient-to-br from-indigo-400/20 to-purple-400/10 blur-3xl rounded-full" />
+
+    {/* Foreground content */}
+    <div className="relative z-10 flex min-h-screen items-center justify-center p-6">
+      <div className="text-center max-w-md w-full">
+        {/* Floating logo with subtle glow */}
+        <div className="relative mb-8 flex items-center justify-center">
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: [0, -8, 0] }}
+            transition={{ duration: 1, repeat: Infinity, ease: 'easeInOut' }}
+            className="relative"
+          >
+            <img
+              src="/img/logo3.png"
+              alt="School Logo"
+              className="w-24 h-24 mx-auto object-contain drop-shadow-2xl relative z-10"
+            />
+            {/* Glow ring */}
+            <div className="absolute inset-0 -z-0 rounded-full blur-2xl bg-white/10" />
+            {/* Pulsing halo */}
+            <div className="absolute inset-0 -z-0 rounded-full border border-white/20 animate-ping" />
+          </motion.div>
+        </div>
+
+        {/* Shimmer loading bar */}
+        <div className="mx-auto w-64 h-2 rounded-full bg-white/10 overflow-hidden relative loading-bar mb-6" />
+
+        {/* Loading text */}
+        <div className="space-y-2">
+          <h2 className="text-xl md:text-2xl font-bold text-white tracking-wide">Loading Dashboard</h2>
+          <p className="text-white/70 text-sm">Please wait while we prepare your workspace</p>
+        </div>
+
+        {/* Subtle bouncing dots for liveliness */}
+        <div className="mt-4 flex justify-center gap-1.5" aria-hidden>
+          <span className="w-2 h-2 rounded-full bg-white/80 animate-bounce" />
+          <span className="w-2 h-2 rounded-full bg-white/80 animate-bounce" style={{ animationDelay: '0.12s' }} />
+          <span className="w-2 h-2 rounded-full bg-white/80 animate-bounce" style={{ animationDelay: '0.24s' }} />
+        </div>
+      </div>
+    </div>
+
+    {/* Local styles for shimmer animation and reduced motion */}
+    <style>{`
+      .loading-bar::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        width: 40%;
+        left: -40%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.7), transparent);
+        animation: shimmer 1.2s ease-in-out infinite;
+        border-radius: 9999px;
+      }
+      @keyframes shimmer {
+        0% { left: -40%; }
+        100% { left: 100%; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .loading-bar::after { animation: none; }
+      }
+    `}</style>
   </div>
 );
 
