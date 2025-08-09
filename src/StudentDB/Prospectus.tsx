@@ -36,6 +36,7 @@ interface StudentProfile {
   student_type?: string;
   year_level?: string | number;
   department?: string;
+  enrollment_status?: string;
 }
 
 const getYearLabel = (year: string | number) => {
@@ -79,15 +80,22 @@ const Prospectus: React.FC = () => {
           }
         });
 
-        const flat: EnrollmentSubject[] = (coursesData || []).map((row: any) => ({
-          id: row.id,
-          code: row.code,
-          name: row.name,
-          units: row.units ?? 0,
-          year_level: row.year_level ?? '',
-          has_grade: hasGradeCodes.has(String(row.code)),
-          enrollment_status: enrollmentBySubjectId.get(String(row.id)) || 'not enrolled',
-        }));
+        const flat: EnrollmentSubject[] = (coursesData || []).map((row: any) => {
+          const raw = enrollmentBySubjectId.get(String(row.id));
+          let enrollment_status: string = 'not enrolled';
+          if (raw) {
+            enrollment_status = String(raw).toLowerCase() === 'active' ? 'enrolled' : 'pending';
+          }
+          return {
+            id: row.id,
+            code: row.code,
+            name: row.name,
+            units: row.units ?? 0,
+            year_level: row.year_level ?? '',
+            has_grade: hasGradeCodes.has(String(row.code)),
+            enrollment_status,
+          };
+        });
 
         setSubjects(flat);
       } finally {
@@ -204,8 +212,13 @@ const Prospectus: React.FC = () => {
                           <TableCell sx={{ fontWeight: 600, fontFamily: 'monospace', fontSize: '0.875rem', color: '#1f2937' }}>{subj.code}</TableCell>
                           <TableCell sx={{ fontSize: '0.875rem', color: '#374151', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{subj.name}</TableCell>
                           <TableCell sx={{ textAlign: 'center' }}>
-                            <Box sx={{ display: 'inline-block', px: 1.5, py: 0.5, borderRadius: 1, fontSize: '0.75rem', fontWeight: 500, background: subj.enrollment_status === 'active' ? '#dcfce7' : '#f3f4f6', color: subj.enrollment_status === 'active' ? '#166534' : '#374151', textTransform: 'capitalize' }}>
-                              {subj.enrollment_status === 'active' ? 'Enrolled' : 'Not enrolled'}
+                            <Box sx={{
+                              display: 'inline-block', px: 1.5, py: 0.5, borderRadius: 1, fontSize: '0.75rem', fontWeight: 500,
+                              background: subj.enrollment_status === 'enrolled' ? '#dcfce7' : (subj.enrollment_status === 'pending' ? '#fef3c7' : '#f3f4f6'),
+                              color: subj.enrollment_status === 'enrolled' ? '#166534' : (subj.enrollment_status === 'pending' ? '#92400e' : '#374151'),
+                              textTransform: 'capitalize'
+                            }}>
+                              {subj.enrollment_status}
                             </Box>
                           </TableCell>
                           <TableCell sx={{ textAlign: 'center', fontWeight: 600, fontSize: '0.875rem', color: '#059669' }}>{subj.units}</TableCell>
