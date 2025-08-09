@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import DashboardLayout from '../components/Sidebar';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, Settings, Bell, ShieldAlert, TrendingUp, Activity, Database, BookOpen, GraduationCap } from 'lucide-react';
+import { Users, Settings, Bell, ShieldAlert, Activity, Database, BookOpen, GraduationCap } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
@@ -362,9 +362,8 @@ const DashboardOverview: React.FC = () => {
 
   useEffect(() => {
     fetchDashboardData();
-    // Set up real-time updates every 30 seconds
-    const interval = setInterval(fetchDashboardData, 30000);
-    return () => clearInterval(interval);
+    // Removed auto-refresh interval to prevent periodic refreshes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Memoized dashboard data fetching
@@ -549,7 +548,7 @@ const DashboardOverview: React.FC = () => {
               ))}
             </div>
 
-            {/* System Overview and Notifications Skeleton */}
+            {/* Recent Activity and Notifications Skeleton */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
               <motion.div 
                 className="bg-white p-6 rounded-xl shadow-md col-span-2 h-[300px] animate-pulse"
@@ -558,17 +557,20 @@ const DashboardOverview: React.FC = () => {
                 transition={{ duration: 0.5, delay: 0.3 }}
               >
                 <div className="h-6 bg-gray-200 rounded w-40 mb-4"></div>
-                <div className="grid grid-cols-2 gap-4 h-[220px]">
-                  {[1, 2, 3, 4].map(i => (
-                    <div key={i} className="bg-gray-100 rounded-lg p-4 flex flex-col justify-center items-center">
-                      <div className="w-8 h-8 bg-gray-200 rounded mb-2"></div>
-                      <div className="h-3 bg-gray-200 rounded w-16 mb-1"></div>
-                      <div className="h-5 bg-gray-200 rounded w-12"></div>
+                <div className="space-y-4">
+                  {[1, 2, 3, 4, 5].map(i => (
+                    <div key={i} className="p-3 bg-gray-50 rounded-lg">
+                      <div className="flex items-start space-x-3">
+                        <div className="w-8 h-8 bg-gray-200 rounded-full"></div>
+                        <div>
+                          <div className="h-4 bg-gray-200 rounded w-48 mb-1"></div>
+                          <div className="h-3 bg-gray-200 rounded w-24"></div>
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>
               </motion.div>
-
               <motion.div 
                 className="bg-white p-6 rounded-xl shadow-md h-[300px] animate-pulse"
                 initial={{ opacity: 0, scale: 0.95 }}
@@ -595,28 +597,7 @@ const DashboardOverview: React.FC = () => {
               </motion.div>
             </div>
 
-            {/* Recent Activity Skeleton */}
-            <motion.div 
-              className="bg-white p-6 rounded-xl shadow-md animate-pulse"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.5 }}
-            >
-              <div className="h-6 bg-gray-200 rounded w-40 mb-4"></div>
-              <div className="space-y-4">
-                {[1, 2, 3, 4, 5].map(i => (
-                  <div key={i} className="p-3 bg-gray-50 rounded-lg">
-                    <div className="flex items-start space-x-3">
-                      <div className="w-8 h-8 bg-gray-200 rounded-full"></div>
-                      <div>
-                        <div className="h-4 bg-gray-200 rounded w-48 mb-1"></div>
-                        <div className="h-3 bg-gray-200 rounded w-24"></div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </motion.div>
+            
           </div>
         ) : (
           <motion.div
@@ -659,45 +640,55 @@ const DashboardOverview: React.FC = () => {
               />
             </div>
 
-            <div className="admindashboard-overview-grid grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
               <motion.div 
-                className="admindashboard-overview-card bg-white p-6 rounded-xl shadow-md col-span-2 h-[300px] relative overflow-hidden card-hover-effect"
+                className="admindashboard-activity-card bg-white p-6 rounded-xl shadow-md card-hover-effect col-span-2 h-[300px]"
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.5, delay: 0.3 }}
               >
-                <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                  <span>System Overview</span>
-                  <motion.span 
-                    className="ml-2 w-2 h-2 rounded-full bg-green-500 inline-block"
-                    animate={{ scale: [1, 1.5, 1] }}
-                    transition={{ duration: 2, repeat: Infinity }}
-                  />
-                </h3>
-                <div className="grid grid-cols-2 gap-4 h-[220px]">
-                  <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-4 flex flex-col justify-center items-center">
-                    <Database className="w-8 h-8 text-blue-600 mb-2" />
-                    <p className="text-sm text-gray-600">Database</p>
-                    <p className="text-lg font-bold text-gray-800">Online</p>
-                  </div>
-                  <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-4 flex flex-col justify-center items-center">
-                    <Activity className="w-8 h-8 text-green-600 mb-2" />
-                    <p className="text-sm text-gray-600">Uptime</p>
-                    <p className="text-lg font-bold text-gray-800">99.8%</p>
-                  </div>
-                  <div className="bg-gradient-to-br from-purple-50 to-violet-50 rounded-lg p-4 flex flex-col justify-center items-center">
-                    <ShieldAlert className="w-8 h-8 text-purple-600 mb-2" />
-                    <p className="text-sm text-gray-600">Security</p>
-                    <p className="text-lg font-bold text-gray-800">Active</p>
-                  </div>
-                  <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-lg p-4 flex flex-col justify-center items-center">
-                    <TrendingUp className="w-8 h-8 text-orange-600 mb-2" />
-                    <p className="text-sm text-gray-600">Performance</p>
-                    <p className="text-lg font-bold text-gray-800">Good</p>
-                  </div>
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">Recent Activity</h3>
+                <div className="space-y-4 overflow-y-auto h-[220px] custom-dashboard-scrollbar pr-2">
+                  {recentActivity.map((activity, i) => (
+                    <motion.div 
+                      key={i}
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.5, delay: 0.5 + (i * 0.1) }}
+                      whileHover={{ 
+                        scale: 1.02, 
+                        boxShadow: '0 4px 8px -2px rgba(0, 0, 0, 0.1)' 
+                      }}
+                      className="p-3 bg-gray-50 rounded-lg cursor-pointer transition-all duration-300"
+                    >
+                      <div className="flex items-start space-x-3">
+                        <motion.div 
+                          className={`p-2 rounded-full ${
+                            activity.type === 'user' ? 'bg-blue-100' : 
+                            activity.type === 'course' ? 'bg-green-100' : 
+                            activity.type === 'program' ? 'bg-purple-100' : 'bg-amber-100'
+                          }`}
+                          whileHover={{ scale: 1.1 }}
+                        >
+                          <activity.icon className={`w-4 h-4 ${
+                            activity.type === 'user' ? 'text-blue-600' : 
+                            activity.type === 'course' ? 'text-green-600' : 
+                            activity.type === 'program' ? 'text-purple-600' : 'text-amber-600'
+                          }`} />
+                        </motion.div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-800">
+                            {activity.message}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {activity.time}
+                          </p>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
                 </div>
               </motion.div>
-
               <motion.div 
                 className="admindashboard-notifications-card bg-white p-6 rounded-xl shadow-md h-[300px] card-hover-effect"
                 initial={{ opacity: 0, scale: 0.95 }}
@@ -775,56 +766,6 @@ const DashboardOverview: React.FC = () => {
                 </div>
               </motion.div>
             </div>
-
-            {/* Recent Activity Section */}
-            <motion.div 
-              className="admindashboard-activity-card bg-white p-6 rounded-xl shadow-md card-hover-effect"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.5 }}
-            >
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">Recent Activity</h3>
-              <div className="space-y-4">
-                {recentActivity.map((activity, i) => (
-                  <motion.div 
-                    key={i}
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.5, delay: 0.6 + (i * 0.1) }}
-                    whileHover={{ 
-                      scale: 1.02, 
-                      boxShadow: '0 4px 8px -2px rgba(0, 0, 0, 0.1)' 
-                    }}
-                    className="p-3 bg-gray-50 rounded-lg cursor-pointer transition-all duration-300"
-                  >
-                    <div className="flex items-start space-x-3">
-                      <motion.div 
-                        className={`p-2 rounded-full ${
-                          activity.type === 'user' ? 'bg-blue-100' : 
-                          activity.type === 'course' ? 'bg-green-100' : 
-                          activity.type === 'program' ? 'bg-purple-100' : 'bg-amber-100'
-                        }`}
-                        whileHover={{ scale: 1.1 }}
-                      >
-                        <activity.icon className={`w-4 h-4 ${
-                          activity.type === 'user' ? 'text-blue-600' : 
-                          activity.type === 'course' ? 'text-green-600' : 
-                          activity.type === 'program' ? 'text-purple-600' : 'text-amber-600'
-                        }`} />
-                      </motion.div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-800">
-                          {activity.message}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {activity.time}
-                        </p>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
