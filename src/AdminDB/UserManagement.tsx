@@ -34,16 +34,18 @@ interface UserProfile {
   section?: string;
   enrollment_status?: string;
   department?: string;
+  profile_picture_url?: string;
 }
 
 export default function UserManagement() {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
   const [loading, setLoading] = useState(true);
+  const [profilePictureUrls, setProfilePictureUrls] = useState<Record<string, string | null>>({});
   
   // Add back the search and filter state
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState<'all' | 'students' | 'teachers'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'students' | 'teachers' | 'registrars' | 'program_heads'>('all');
   
   // Add modal state
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
@@ -62,7 +64,9 @@ export default function UserManagement() {
       const matchesTab = 
         activeTab === 'all' ? true :
         activeTab === 'students' ? user.role === 'student' :
-        activeTab === 'teachers' ? user.role === 'teacher' : true;
+        activeTab === 'teachers' ? user.role === 'teacher' :
+        activeTab === 'registrars' ? user.role === 'registrar' :
+        activeTab === 'program_heads' ? user.role === 'program_head' : true;
       
       const matchesSearch = searchTerm === '' || 
         [user.first_name, user.middle_name, user.last_name, user.suffix]
@@ -81,6 +85,7 @@ export default function UserManagement() {
     const teachers = users.filter(u => u.role === 'teacher');
     const admins = users.filter(u => u.role === 'admin');
     const registrars = users.filter(u => u.role === 'registrar');
+    const program_heads = users.filter(u => u.role === 'program_head');
     
     return {
       total: users.length,
@@ -88,6 +93,7 @@ export default function UserManagement() {
       teachers: teachers.length,
       admins: admins.length,
       registrars: registrars.length,
+      program_heads: program_heads.length,
       active: users.filter(u => u.is_active).length,
       inactive: users.filter(u => !u.is_active).length
     };
@@ -116,6 +122,43 @@ export default function UserManagement() {
     fetchUsers();
     fetchPrograms();
   }, [fetchUsers]);
+
+  // Resolve signed URLs for user profile pictures
+  useEffect(() => {
+    let isCancelled = false;
+    const loadProfilePictures = async () => {
+      const usersWithPics = users.filter(u => !!u.profile_picture_url);
+      if (usersWithPics.length === 0) return;
+
+      const entries = await Promise.all(
+        usersWithPics.map(async (u) => {
+          try {
+            const { data: signedUrlData, error } = await supabase
+              .storage
+              .from('avatar')
+              .createSignedUrl(u.profile_picture_url as string, 60 * 60);
+            if (error) return [u.id, null] as const;
+            return [u.id, signedUrlData?.signedUrl ?? null] as const;
+          } catch {
+            return [u.id, null] as const;
+          }
+        })
+      );
+
+      if (!isCancelled) {
+        setProfilePictureUrls((prev) => {
+          const next = { ...prev } as Record<string, string | null>;
+          entries.forEach(([userId, url]) => {
+            next[userId] = url;
+          });
+          return next;
+        });
+      }
+    };
+
+    loadProfilePictures();
+    return () => { isCancelled = true; };
+  }, [users]);
 
   async function fetchPrograms() {
     const { data, error } = await supabase.from('programs').select('*').order('name');
@@ -146,7 +189,7 @@ export default function UserManagement() {
   const [teacherSubjects, setTeacherSubjects] = useState<Record<string, TeacherSubject[]>>({});
 
   // Add back the fetchTeacherSubjects function
-  const fetchTeacherSubjects = async (teacherId: string) => {
+  const fetchTeacherSubjects = useCallback(async (teacherId: string) => {
     try {
       const { data, error } = await supabase
         .from('teacher_subjects')
@@ -184,7 +227,7 @@ export default function UserManagement() {
       console.error('Error fetching teacher subjects:', error);
       toast.error('Failed to load teacher subjects');
     }
-  };
+  }, []);
 
   // Add useEffect to fetch teacher subjects when viewing teachers
   useEffect(() => {
@@ -196,7 +239,7 @@ export default function UserManagement() {
         }
       });
     }
-  }, [activeTab, users]);
+  }, [activeTab, users, fetchTeacherSubjects, teacherSubjects]);
 
   // Action functions
 
@@ -310,30 +353,7 @@ export default function UserManagement() {
         </motion.div>
 
 
-        {/* Search Bar */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="usermanagement-search bg-white rounded-2xl p-6 shadow-lg border border-gray-100 mb-8"
-        >
-          <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
-            <div className="flex-1 max-w-md">
-              <div className="relative">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
-                </svg>
-                <input
-                  type="text"
-                  placeholder="Search users by full name..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                />
-              </div>
-            </div>
-          </div>
-        </motion.div>
+        
 
         {/* Tabs */}
         <motion.div 
@@ -342,11 +362,25 @@ export default function UserManagement() {
           transition={{ delay: 0.3 }}
           className="usermanagement-tabs mb-6"
         >
-          <div className="bg-white rounded-2xl shadow-lg p-1 border border-gray-100">
-            <div className="flex gap-2">
+          <div className="bg-white rounded-2xl shadow-lg p-2 border border-gray-100 max-w-full">
+            <div className="flex items-center gap-2 md:gap-3 flex-nowrap overflow-x-auto whitespace-nowrap pr-1">
+          <div className="flex-1 min-w-[8rem] sm:min-w-[10rem] md:min-w-[14rem] lg:min-w-[16rem] xl:min-w-[20rem] max-w-[28rem]">
+            <div className="relative overflow-hidden rounded-xl bg-white/60 backdrop-blur-md border border-white/60 shadow-[inset_0_2px_8px_rgba(0,0,0,0.08)] before:content-[''] before:absolute before:inset-0 before:rounded-xl before:bg-gradient-to-b before:from-white/70 before:to-white/10 before:pointer-events-none focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-inset transition-shadow">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+              </svg>
+              <input
+                type="text"
+                placeholder="Search users by full name..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-3 py-2 bg-transparent rounded-xl outline-none transition-all duration-200 text-xs sm:text-sm placeholder-gray-500"
+              />
+            </div>
+          </div>
           <button
             onClick={() => setActiveTab('all')}
-            className={`flex-1 sm:flex-none px-6 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
+            className={`flex-none shrink-0 px-3 md:px-5 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-medium transition-all duration-200 md:ml-2 ${
               activeTab === 'all'
                 ? 'bg-blue-50 text-blue-700 shadow-sm'
                 : 'text-gray-600 hover:bg-gray-50'
@@ -355,14 +389,14 @@ export default function UserManagement() {
             <div className="flex items-center justify-center gap-2">
               <Users className="w-4 h-4" />
               <span>All Users</span>
-              <span className="px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600">
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-gray-100 text-gray-600 hidden xl:inline-flex">
                 {userStats.total}
               </span>
             </div>
           </button>
           <button
             onClick={() => setActiveTab('students')}
-            className={`flex-1 sm:flex-none px-6 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
+            className={`flex-none shrink-0 px-3 md:px-5 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-medium transition-all duration-200 ${
               activeTab === 'students'
                 ? 'bg-green-50 text-green-700 shadow-sm'
                 : 'text-gray-600 hover:bg-gray-50'
@@ -371,14 +405,14 @@ export default function UserManagement() {
             <div className="flex items-center justify-center gap-2">
               <Users className="w-4 h-4" />
               <span>Students</span>
-              <span className="px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600">
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-gray-100 text-gray-600 hidden xl:inline-flex">
                 {userStats.students}
               </span>
             </div>
           </button>
           <button
             onClick={() => setActiveTab('teachers')}
-            className={`flex-1 sm:flex-none px-6 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
+            className={`flex-none shrink-0 px-3 md:px-5 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-medium transition-all duration-200 ${
               activeTab === 'teachers'
                 ? 'bg-indigo-50 text-indigo-700 shadow-sm'
                 : 'text-gray-600 hover:bg-gray-50'
@@ -386,9 +420,41 @@ export default function UserManagement() {
           >
             <div className="flex items-center justify-center gap-2">
               <Users className="w-4 h-4" />
-              <span>Teachers</span>
-              <span className="px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600">
+              <span>Instructor</span>
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-gray-100 text-gray-600 hidden xl:inline-flex">
                 {userStats.teachers}
+              </span>
+            </div>
+          </button>
+          <button
+            onClick={() => setActiveTab('registrars')}
+            className={`flex-none shrink-0 px-3 md:px-5 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-medium transition-all duration-200 ${
+              activeTab === 'registrars'
+                ? 'bg-orange-50 text-orange-700 shadow-sm'
+                : 'text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            <div className="flex items-center justify-center gap-2">
+              <Users className="w-4 h-4" />
+              <span>Registrars</span>
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-gray-100 text-gray-600 hidden xl:inline-flex">
+                {userStats.registrars}
+              </span>
+            </div>
+          </button>
+          <button
+            onClick={() => setActiveTab('program_heads')}
+            className={`flex-none shrink-0 px-3 md:px-5 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-medium transition-all duration-200 ${
+              activeTab === 'program_heads'
+                ? 'bg-purple-50 text-purple-700 shadow-sm'
+                : 'text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            <div className="flex items-center justify-center gap-2">
+              <Users className="w-4 h-4" />
+              <span>Program Heads</span>
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-gray-100 text-gray-600 hidden xl:inline-flex">
+                {userStats.program_heads}
               </span>
             </div>
           </button>
@@ -500,6 +566,12 @@ export default function UserManagement() {
                       {activeTab === 'teachers' && (
                         <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Department & Subjects</th>
                       )}
+                      {activeTab === 'registrars' && (
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Department & Status</th>
+                      )}
+                      {activeTab === 'program_heads' && (
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Department & Status</th>
+                      )}
                       <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
@@ -513,12 +585,22 @@ export default function UserManagement() {
                       >
                         <td className="px-6 py-5">
                           <div className="flex items-center gap-4">
-                            <div className={`h-12 w-12 rounded-full flex items-center justify-center text-white font-semibold text-lg shadow-lg ${
-                              user.role === 'student' 
-                                ? 'bg-gradient-to-br from-green-500 to-green-600 shadow-green-500/20'
-                                : 'bg-gradient-to-br from-blue-500 to-blue-600 shadow-blue-500/20'
-                            }`}>
-                              {user.first_name?.charAt(0).toUpperCase() || '?'}
+                            <div className="h-12 w-12 rounded-full overflow-hidden shadow-lg flex items-center justify-center">
+                              {profilePictureUrls[user.id] ? (
+                                <img
+                                  src={profilePictureUrls[user.id] as string}
+                                  alt={`${[user.first_name, user.last_name].filter(Boolean).join(' ')} profile`}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className={`w-full h-full flex items-center justify-center text-white font-semibold text-lg ${
+                                  user.role === 'student' 
+                                    ? 'bg-gradient-to-br from-green-500 to-green-600 shadow-green-500/20'
+                                    : 'bg-gradient-to-br from-blue-500 to-blue-600 shadow-blue-500/20'
+                                }`}>
+                                  {user.first_name?.charAt(0).toUpperCase() || (user.email?.[0]?.toUpperCase() ?? '?')}
+                                </div>
+                              )}
                             </div>
                             <div>
                               <div className="font-semibold text-gray-900">
@@ -623,6 +705,46 @@ export default function UserManagement() {
                                   <span className="text-gray-400 ml-1">No subjects assigned</span>
                                 )}
                               </div>
+                            </div>
+                          </td>
+                        )}
+                        {activeTab === 'registrars' && user.role === 'registrar' && (
+                          <td className="px-6 py-5">
+                            <div className="flex flex-col gap-1">
+                              <div className="text-sm">
+                                <span className="text-gray-500">Department:</span>{' '}
+                                <span className="font-medium text-gray-900">{user.department || 'N/A'}</span>
+                              </div>
+                              <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold w-fit ${
+                                user.is_active 
+                                  ? 'bg-emerald-100 text-emerald-700' 
+                                  : 'bg-red-100 text-red-700'
+                              }`}>
+                                <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${
+                                  user.is_active ? 'bg-emerald-500' : 'bg-red-500'
+                                }`}></span>
+                                {user.is_active ? 'Active' : 'Inactive'}
+                              </span>
+                            </div>
+                          </td>
+                        )}
+                        {activeTab === 'program_heads' && user.role === 'program_head' && (
+                          <td className="px-6 py-5">
+                            <div className="flex flex-col gap-1">
+                              <div className="text-sm">
+                                <span className="text-gray-500">Department:</span>{' '}
+                                <span className="font-medium text-gray-900">{user.department || 'N/A'}</span>
+                              </div>
+                              <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold w-fit ${
+                                user.is_active 
+                                  ? 'bg-emerald-100 text-emerald-700' 
+                                  : 'bg-red-100 text-red-700'
+                              }`}>
+                                <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${
+                                  user.is_active ? 'bg-emerald-500' : 'bg-red-500'
+                                }`}></span>
+                                {user.is_active ? 'Active' : 'Inactive'}
+                              </span>
                             </div>
                           </td>
                         )}
