@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Box,
   Button,
@@ -30,9 +30,14 @@ import {
 } from '@mui/material';
 import { toast } from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 interface Student {
   id: string;
+  firstName?: string;
+  middleName?: string;
+  lastName?: string;
   name: string;
   studentType: 'Freshman' | 'Regular' | 'Irregular' | 'Transferee';
   yearLevel: number;
@@ -65,7 +70,7 @@ const ProgramHeadEnrollment: React.FC = () => {
     code: string;
     name: string;
     units: number;
-    year_level?: number;
+    year_level?: string;
   }>>([]);
   const [allowMixedCourses, setAllowMixedCourses] = useState(false);
   const [filterSearch, setFilterSearch] = useState('');
@@ -92,6 +97,23 @@ const ProgramHeadEnrollment: React.FC = () => {
   const [endSemesterConfirmation, setEndSemesterConfirmation] = useState('');
   const [endSemesterConfirmationError, setEndSemesterConfirmationError] = useState(false);
   const [courseSearch, setCourseSearch] = useState('');
+  const [isProspectusModalOpen, setIsProspectusModalOpen] = useState(false);
+  const [selectedStudentForProspectus, setSelectedStudentForProspectus] = useState<Student | null>(null);
+  const [studentGrades, setStudentGrades] = useState<Array<{
+    id: string;
+    student_id: string;
+    subject_code: string;
+    subject_name: string;
+    prelim_grade?: number;
+    midterm_grade?: number;
+    final_grade?: number;
+    remarks?: string;
+    year_level?: string;
+    semester?: string;
+    academic_year?: string;
+  }>>([]);
+  const [loadingGrades, setLoadingGrades] = useState(false);
+  const prospectusContentRef = useRef<HTMLDivElement>(null);
 
   const getDefaultSchoolYear = () => {
     const now = new Date();
@@ -174,7 +196,12 @@ const ProgramHeadEnrollment: React.FC = () => {
         .from('courses')
         .select('id, code, name, units, year_level')
         .order('code', { ascending: true });
-      if (!error && data) setCourses(data);
+      if (!error && data) {
+        console.log('Fetched courses:', data);
+        setCourses(data);
+      } else if (error) {
+        console.error('Error fetching courses:', error);
+      }
     };
     fetchCourses();
   }, []);
@@ -182,28 +209,33 @@ const ProgramHeadEnrollment: React.FC = () => {
   // Initialize edit form fields when editForm is set
   useEffect(() => {
     if (editForm) {
-      // Parse the student name to handle middle names
-      const nameParts = editForm.name.split(' ');
+      // Prefer explicit fields if present, fallback to parsing full name
+      const derivedFirst = editForm.firstName || '';
+      const derivedMiddle = editForm.middleName || '';
+      const derivedLast = editForm.lastName || '';
+
+      if (derivedFirst || derivedMiddle || derivedLast) {
+        setEditFormFields({ firstName: derivedFirst, middleName: derivedMiddle, lastName: derivedLast });
+        return;
+      }
+
+      const nameParts = editForm.name.split(' ').filter(Boolean);
       let firstName = '';
       let middleName = '';
       let lastName = '';
-      
+
       if (nameParts.length === 1) {
         lastName = nameParts[0];
       } else if (nameParts.length === 2) {
         firstName = nameParts[1];
         lastName = nameParts[0];
       } else if (nameParts.length >= 3) {
-        firstName = nameParts[nameParts.length - 1]; // Last part is first name
-        lastName = nameParts[0]; // First part is last name
-        middleName = nameParts.slice(1, nameParts.length - 1).join(' '); // Everything in between is middle name
+        firstName = nameParts[nameParts.length - 1];
+        lastName = nameParts[0];
+        middleName = nameParts.slice(1, nameParts.length - 1).join(' ');
       }
-      
-      setEditFormFields({
-        firstName,
-        middleName,
-        lastName,
-      });
+
+      setEditFormFields({ firstName, middleName, lastName });
     }
   }, [editForm]);
 
@@ -231,6 +263,9 @@ const ProgramHeadEnrollment: React.FC = () => {
         return {
           id: String(student.student_id || student.id),
           name: fullName,
+          firstName,
+          middleName,
+          lastName,
           studentType: (student.student_type as Student['studentType']) || 'Freshman',
           yearLevel: Number(student.year_level) || 1,
           currentSubjects: [],
@@ -395,14 +430,14 @@ const ProgramHeadEnrollment: React.FC = () => {
     code: string;
     name: string;
     units: number;
-    year_level?: number;
+    year_level?: string;
   }>) => {
     const categories: Record<string, Record<string, Array<{
       id: string;
       code: string;
       name: string;
       units: number;
-      year_level?: number;
+      year_level?: string;
     }>>> = {};
     courses.forEach((course) => {
       if (course.code.startsWith('IT')) {
@@ -434,7 +469,7 @@ const ProgramHeadEnrollment: React.FC = () => {
     if (courseSearch.trim() !== '') {
       const search = courseSearch.trim().toLowerCase();
       filteredCourses = courses.filter(
-        (c: { id: string; code: string; name: string; units: number; yearLevel?: number; status?: string }) =>
+        (c: { id: string; code: string; name: string; units: number; year_level?: string; status?: string }) =>
           c.code.toLowerCase().includes(search) || c.name.toLowerCase().includes(search)
       );
     }
@@ -457,7 +492,7 @@ const ProgramHeadEnrollment: React.FC = () => {
       code: string;
       name: string;
       units: number;
-      year_level?: number;
+      year_level?: string;
     }>>> = {};
     if (categorized['Major'] && categorized['Major'][yearLabel]) {
       filtered['Major'] = { [yearLabel]: categorized['Major'][yearLabel] };
@@ -606,6 +641,84 @@ const ProgramHeadEnrollment: React.FC = () => {
     setEndSemesterConfirmationError(false);
   };
 
+  // Handler to open prospectus modal
+  const handleOpenProspectusModal = (student: Student) => {
+    setSelectedStudentForProspectus(student);
+    setIsProspectusModalOpen(true);
+    // Fetch student grades when opening the modal
+    fetchStudentGrades(student.id);
+    fetchStudentEnrollments(student.id);
+  };
+
+  // Handler to close prospectus modal
+  const handleCloseProspectusModal = () => {
+    setIsProspectusModalOpen(false);
+    setSelectedStudentForProspectus(null);
+    setStudentGrades([]);
+  };
+
+  // Function to fetch student grades
+  const fetchStudentGrades = async (studentId: string) => {
+    try {
+      setLoadingGrades(true);
+      const { data: gradesData, error: gradesError } = await supabase
+        .from('grades')
+        .select(`
+          *,
+          course:courses (code, name)
+        `)
+        .eq('student_id', studentId);
+
+      if (gradesError) {
+        console.error('Error fetching grades:', gradesError);
+        return;
+      }
+
+      const grades = (gradesData || []).map(grade => ({
+        id: grade.id,
+        student_id: grade.student_id,
+        subject_code: grade.course?.code || '',
+        subject_name: grade.course?.name || '',
+        prelim_grade: grade.prelim_grade,
+        midterm_grade: grade.midterm_grade,
+        final_grade: grade.final_grade,
+        remarks: grade.remarks,
+        year_level: grade.year_level,
+        semester: grade.semester,
+        academic_year: grade.academic_year,
+      }));
+
+      setStudentGrades(grades);
+    } catch (error) {
+      console.error('Error fetching student grades:', error);
+    } finally {
+      setLoadingGrades(false);
+    }
+  };
+
+  // Helper function to get grades for a specific subject
+  const getSubjectGrades = (subjectCode: string) => {
+    return studentGrades.find(grade => grade.subject_code === subjectCode);
+  };
+
+  // Fetch enrollment selections to compute enrollment status per subject
+  const [studentEnrollments, setStudentEnrollments] = useState<Array<{ subject_id: string; status: string }>>([]);
+  const fetchStudentEnrollments = async (studentId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('enrollcourse')
+        .select('subject_id, status')
+        .eq('student_id', studentId);
+      if (!error && data) setStudentEnrollments(data as any);
+    } catch (e) {
+      console.error('Error fetching enrollments', e);
+    }
+  };
+  const getEnrollmentStatus = (courseId: string) => {
+    const rec = studentEnrollments.find(e => e.subject_id === courseId);
+    return rec?.status || 'not enrolled';
+  };
+
   // Helper to reset the new student form
   const flushNewStudentForm = () => {
     setCreateForm({
@@ -625,6 +738,41 @@ const ProgramHeadEnrollment: React.FC = () => {
 
     
     setAllowMixedCourses(false);
+  };
+
+  // Print handler
+  const handlePrintProspectus = () => {
+    if (prospectusContentRef.current) {
+      const printContents = prospectusContentRef.current.innerHTML;
+      const printWindow = window.open('', '', 'height=800,width=1000');
+      if (printWindow) {
+        printWindow.document.write('<html><head><title>Student Prospectus</title>');
+        printWindow.document.write('<style>body{font-family:sans-serif;} table{width:100%;border-collapse:collapse;} th,td{border:1px solid #ccc;padding:8px;} th{background:#f9fafb;}</style>');
+        printWindow.document.write('</head><body >');
+        printWindow.document.write(printContents);
+        printWindow.document.write('</body></html>');
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => {
+          printWindow.print();
+          printWindow.close();
+        }, 500);
+      }
+    }
+  };
+
+  // PDF handler
+  const handleDownloadPDF = async () => {
+    if (prospectusContentRef.current) {
+      const element = prospectusContentRef.current;
+      const canvas = await html2canvas(element, { scale: 2 });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save('student_prospectus.pdf');
+    }
   };
 
   if (loading) {
@@ -664,31 +812,6 @@ const ProgramHeadEnrollment: React.FC = () => {
         gap: 1.5
       }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Box sx={{ 
-            p: 1, 
-            borderRadius: 2, 
-            backgroundColor: 'rgba(255, 255, 255, 0.2)',
-            backdropFilter: 'blur(8px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}>
-            <svg 
-              xmlns="http://www.w3.org/2000/svg" 
-              width="24" 
-              height="24" 
-              viewBox="0 0 24 24" 
-              fill="none" 
-              stroke="currentColor" 
-              strokeWidth="2" 
-              strokeLinecap="round" 
-              strokeLinejoin="round"
-              style={{ color: 'white' }}
-            >
-              <path d="M5 12h14"></path>
-              <path d="M12 5v14"></path>
-            </svg>
-          </Box>
           <Box>
             <Typography variant="h4" sx={{ 
               fontWeight: 700, 
@@ -1254,30 +1377,58 @@ const ProgramHeadEnrollment: React.FC = () => {
                       background: idx % 2 === 0 ? '#f9fafb' : '#ffffff',
                       zIndex: 1
                     }}>
-                      <Button
-                        variant="contained"
-                        size="small"
-                        onClick={() => { setEditForm(student); }}
-                        title="Review and Edit Student"
-                        sx={{
-                          borderRadius: 2,
-                          px: 2,
-                          py: 0.5,
-                          fontWeight: 600,
-                          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                          '&:hover': {
-                            background: 'linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%)',
-                            transform: 'translateY(-1px)',
-                            boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)'
-                          },
-                          transition: 'all 0.2s ease'
-                        }}
-                      >
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                          <Box sx={{ fontSize: '0.8rem' }}>✏️</Box>
-                          Review
-                        </Box>
-                      </Button>
+                      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                        <Button
+                          variant="contained"
+                          size="small"
+                          onClick={() => { setEditForm(student); }}
+                          title="Review and Edit Student"
+                          sx={{
+                            borderRadius: 2,
+                            px: 2,
+                            py: 0.5,
+                            fontWeight: 600,
+                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                            '&:hover': {
+                              background: 'linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%)',
+                              transform: 'translateY(-1px)',
+                              boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)'
+                            },
+                            transition: 'all 0.2s ease'
+                          }}
+                        >
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <Box sx={{ fontSize: '0.8rem' }}>✏️</Box>
+                            Review
+                          </Box>
+                        </Button>
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          onClick={() => handleOpenProspectusModal(student)}
+                          title="View Prospectus"
+                          sx={{
+                            borderRadius: 2,
+                            px: 2,
+                            py: 0.5,
+                            fontWeight: 600,
+                            borderColor: '#10b981',
+                            color: '#10b981',
+                            '&:hover': {
+                              borderColor: '#059669',
+                              backgroundColor: '#f0fdf4',
+                              transform: 'translateY(-1px)',
+                              boxShadow: '0 4px 12px rgba(16, 185, 129, 0.2)'
+                            },
+                            transition: 'all 0.2s ease'
+                          }}
+                        >
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <Box sx={{ fontSize: '0.8rem' }}>📋</Box>
+                            Prospectus
+                          </Box>
+                        </Button>
+                      </Box>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -1497,10 +1648,10 @@ const ProgramHeadEnrollment: React.FC = () => {
                             }
                           }}
                         >
-                          <MenuItem value="1st Year">1st Year</MenuItem>
-                          <MenuItem value="2nd Year">2nd Year</MenuItem>
-                          <MenuItem value="3rd Year">3rd Year</MenuItem>
-                          <MenuItem value="4th Year">4th Year</MenuItem>
+                          <MenuItem value={1}>1st Year</MenuItem>
+                          <MenuItem value={2}>2nd Year</MenuItem>
+                          <MenuItem value={3}>3rd Year</MenuItem>
+                          <MenuItem value={4}>4th Year</MenuItem>
                         </Select>
                       </FormControl>
                     </Grid>
@@ -2029,10 +2180,10 @@ const ProgramHeadEnrollment: React.FC = () => {
                             }
                           }}
                         >
-                          <MenuItem value="1st Year">1st Year</MenuItem>
-                          <MenuItem value="2nd Year">2nd Year</MenuItem>
-                          <MenuItem value="3rd Year">3rd Year</MenuItem>
-                          <MenuItem value="4th Year">4th Year</MenuItem>
+                          <MenuItem value={1}>1st Year</MenuItem>
+                          <MenuItem value={2}>2nd Year</MenuItem>
+                          <MenuItem value={3}>3rd Year</MenuItem>
+                          <MenuItem value={4}>4th Year</MenuItem>
                         </Select>
                       </FormControl>
                     </Grid>
@@ -2342,12 +2493,13 @@ const ProgramHeadEnrollment: React.FC = () => {
       </Dialog>
 
       {/* Edit Student Modal */}
-      <Dialog open={!!editForm} onClose={() => { setEditForm(null); }} maxWidth="md" fullWidth
+      <Dialog open={!!editForm} onClose={() => { setEditForm(null); }} maxWidth="md" fullWidth scroll="paper"
         PaperProps={{
           sx: {
             borderRadius: 3,
             boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)',
-            overflow: 'hidden'
+            overflow: 'hidden',
+            maxHeight: '90vh'
           }
         }}
       >
@@ -2384,11 +2536,13 @@ const ProgramHeadEnrollment: React.FC = () => {
         </DialogTitle>
         <DialogContent
           sx={{
-            minWidth: { xs: 0, sm: 600, md: 800 },
-            background: 'linear-gradient(135deg, #f8fafc 0%, #e0e7ef 100%)',
+            minWidth: { xs: 0, sm: 700, md: 900 },
+            background: '#ffffff',
             borderRadius: 0,
             p: { xs: 2, sm: 4 },
             position: 'relative',
+            maxHeight: '70vh',
+            overflowY: 'auto',
             '&::before': {
               content: '""',
               position: 'absolute',
@@ -2401,41 +2555,47 @@ const ProgramHeadEnrollment: React.FC = () => {
           }}
         >
           {editForm && (
-            <Grid container spacing={3} alignItems="flex-start">
-              <Grid item xs={12} sm={4}>
+            <Grid container spacing={2} alignItems="flex-start" sx={{ mt: 1 }}>
+              <Grid item xs={12} md={4}>
                 <TextField 
                   label="First Name" 
                   value={editFormFields.firstName} 
                   onChange={e => setEditFormFields(f => ({ ...f, firstName: e.target.value }))} 
+                  size="small"
+                  variant="outlined"
                   fullWidth 
                   required 
                 />
               </Grid>
-              <Grid item xs={12} sm={4}>
+              <Grid item xs={12} md={4}>
                 <TextField 
                   label="Middle Name" 
                   value={editFormFields.middleName} 
                   onChange={e => setEditFormFields(f => ({ ...f, middleName: e.target.value }))} 
+                  size="small"
+                  variant="outlined"
                   fullWidth 
                 />
               </Grid>
-              <Grid item xs={12} sm={4}>
+              <Grid item xs={12} md={4}>
                 <TextField 
                   label="Last Name" 
                   value={editFormFields.lastName} 
                   onChange={e => setEditFormFields(f => ({ ...f, lastName: e.target.value }))} 
+                  size="small"
+                  variant="outlined"
                   fullWidth 
                   required 
                 />
               </Grid>
-              <Grid item xs={12} sm={6}>
+              <Grid item xs={12} md={6}>
                 <FormControl fullWidth>
                   <InputLabel>Student Type</InputLabel>
                   <Select
                     value={editForm.studentType}
                     label="Student Type"
                     onChange={e => setEditForm((f: Student | null) => f ? { ...f, studentType: e.target.value as Student['studentType'] } : null)}
-                    required
+                    size="small" required
                   >
                     <MenuItem value="Freshman">Freshman</MenuItem>
                     <MenuItem value="Regular">Regular</MenuItem>
@@ -2444,33 +2604,33 @@ const ProgramHeadEnrollment: React.FC = () => {
                   </Select>
                 </FormControl>
                 </Grid>
-                <Grid item xs={12} sm={6}>
+                <Grid item xs={12} md={6}>
                 <FormControl fullWidth>
                   <InputLabel>Year Level</InputLabel>
                   <Select
                     value={editForm.yearLevel}
                     label="Year Level"
                     onChange={e => setEditForm((f: Student | null) => f ? { ...f, yearLevel: e.target.value as Student['yearLevel'] } : null)}
-                    required
+                    size="small" required
                   >
-                    <MenuItem value="1st Year">1st Year</MenuItem>
-                    <MenuItem value="2nd Year">2nd Year</MenuItem>
-                    <MenuItem value="3rd Year">3rd Year</MenuItem>
-                    <MenuItem value="4th Year">4th Year</MenuItem>
+                    <MenuItem value={1}>1st Year</MenuItem>
+                    <MenuItem value={2}>2nd Year</MenuItem>
+                    <MenuItem value={3}>3rd Year</MenuItem>
+                    <MenuItem value={4}>4th Year</MenuItem>
                   </Select>
                 </FormControl>
               </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField label="School Year" value={editForm.schoolYear} onChange={e => setEditForm((f: Student | null) => f ? { ...f, schoolYear: e.target.value as Student['schoolYear'] } : null)} fullWidth required />
+              <Grid item xs={12} md={6}>
+                <TextField label="School Year" value={editForm.schoolYear} onChange={e => setEditForm((f: Student | null) => f ? { ...f, schoolYear: e.target.value as Student['schoolYear'] } : null)} fullWidth size="small" variant="outlined" required />
               </Grid>
-              <Grid item xs={12} sm={6}>
+              <Grid item xs={12} md={6}>
                 <FormControl fullWidth>
                   <InputLabel>Semester</InputLabel>
                   <Select
                     value={editForm.semester}
                     label="Semester"
                     onChange={e => setEditForm((f: Student | null) => f ? { ...f, semester: e.target.value as Student['semester'] } : null)}
-                    required
+                    size="small" required
                   >
                     <MenuItem value="1st Semester">1st Semester</MenuItem>
                     <MenuItem value="2nd Semester">2nd Semester</MenuItem>
@@ -2478,17 +2638,17 @@ const ProgramHeadEnrollment: React.FC = () => {
                   </Select>
                 </FormControl>
                 </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField label="Student ID" value={editForm.id} fullWidth required disabled />
+              <Grid item xs={12} md={6}>
+                <TextField label="Student ID" value={editForm.id} fullWidth size="small" variant="outlined" required disabled />
               </Grid>
-              <Grid item xs={12} sm={6}>
+              <Grid item xs={12} md={6}>
                 <FormControl fullWidth>
                   <InputLabel>Department</InputLabel>
                 <Select
                     value={editForm.department}
                     label="Department"
                     onChange={e => setEditForm((f: Student | null) => f ? { ...f, department: e.target.value as Student['department'] } : null)}
-                    required
+                    size="small" required
                   >
                     <MenuItem value="BSIT">BSIT</MenuItem>
                     {/* Add more departments here if needed */}
@@ -3127,6 +3287,533 @@ const ProgramHeadEnrollment: React.FC = () => {
                 }
               </Box>
             )}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Prospectus Modal */}
+      <Dialog
+        open={isProspectusModalOpen}
+        onClose={handleCloseProspectusModal}
+        maxWidth="lg"
+        fullWidth
+        scroll="paper"
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
+            background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+            border: '1px solid #e5e7eb'
+          }
+        }}
+      >
+        <DialogTitle sx={{ display: 'none' }} />
+        
+        <DialogContent sx={{ p: 0 }}>
+          <Box ref={prospectusContentRef}>
+            {/* Header area moved into scrollable content with white background */}
+            <Box sx={{ background: 'white', p: 3, borderBottom: '1px solid #e5e7eb' }}>
+              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, width: '100%' }}>
+                <Box sx={{ 
+                  width: 50, height: 50, borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  border: '2px solid #1e40af', position: 'relative' }}>
+                  <Box sx={{ fontSize: '1.25rem', color: 'white', fontWeight: 'bold', textAlign: 'center', lineHeight: 1 }}>M</Box>
+                  <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: '1rem', color: 'white', fontWeight: 'bold' }}>✝</Box>
+                </Box>
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 700, color: '#1f2937', mb: 0.25, fontSize: '1.125rem' }}>
+                    St. Mary's College of Bansalan, Inc.
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: '#6b7280', fontStyle: 'italic', mb: 0.25, fontSize: '0.75rem' }}>
+                    (Formerly: Holy Cross of Bansalan College, Inc.)
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: '#374151', mb: 0.5, fontSize: '0.75rem' }}>
+                    Dahlia Street, Poblacion Uno, Bansalan, Davao del Sur, 8005 Philippines
+                  </Typography>
+                  <Typography variant="body1" sx={{ fontWeight: 700, color: '#1e40af', mb: 0.25, fontSize: '1rem' }}>
+                    BACHELOR OF SCIENCE IN INFORMATION TECHNOLOGY (BSIT)
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: '#374151', fontSize: '0.75rem' }}>
+                    Effective SY 2020 - 2021
+                  </Typography>
+                </Box>
+              </Box>
+              <Box sx={{ textAlign: 'center', mt: 2 }}>
+                <Typography variant="h5" sx={{ fontWeight: 700, fontSize: '1.5rem', color: '#1e40af' }}>
+                  STUDENT PROSPECTUS
+                </Typography>
+              </Box>
+            </Box>
+
+            {/* Body content */}
+            <Box sx={{ p: 3 }}>
+            {/* Student Name - Above the highlighted card */}
+            <Typography variant="h5" sx={{ 
+              fontWeight: 700,
+              fontSize: '1.5rem',
+              color: '#1f2937',
+              textAlign: 'center',
+              mb: 2
+            }}>
+              {selectedStudentForProspectus?.name}
+            </Typography>
+
+            {/* Student Information */}
+            <Card sx={{ 
+              mb: 3, 
+              borderRadius: 2, 
+              background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+              border: '1px solid #bae6fd'
+            }}>
+              <CardContent sx={{ p: 2.5 }}>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
+                      Student ID
+                    </Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 600, fontFamily: 'monospace' }}>
+                      {selectedStudentForProspectus?.id}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
+                      Student Type
+                    </Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                      {selectedStudentForProspectus?.studentType}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
+                      Current Year Level
+                    </Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                      {selectedStudentForProspectus?.yearLevel}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
+                      Department
+                    </Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                      {selectedStudentForProspectus?.department}
+                    </Typography>
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+
+            {/* Available Subjects by Year Level */}
+            <Typography variant="h6" sx={{ 
+              fontWeight: 600, 
+              color: '#374151',
+              mb: 2,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1
+            }}>
+              <Box sx={{ fontSize: '1.2rem' }}>📚</Box>
+              Subjects
+            </Typography>
+
+            {/* Show all subjects from 1st to 4th year */}
+            {[1, 2, 3, 4].map((yearLevel) => {
+              const yearSubjects = courses.filter(course => {
+                // Handle string year_level formats
+                const courseYearLevel = course.year_level;
+                if (courseYearLevel) {
+                  // Check for various string formats
+                  const matches = courseYearLevel.includes(String(yearLevel)) || 
+                         courseYearLevel.toLowerCase().includes(`${yearLevel}st`) ||
+                         courseYearLevel.toLowerCase().includes(`${yearLevel}nd`) ||
+                         courseYearLevel.toLowerCase().includes(`${yearLevel}rd`) ||
+                         courseYearLevel.toLowerCase().includes(`${yearLevel}th`);
+                  if (matches) {
+                    console.log(`Course ${course.code} (${courseYearLevel}) matches year ${yearLevel}`);
+                  }
+                  return matches;
+                }
+                return false;
+              });
+              console.log(`Year ${yearLevel}: ${yearSubjects.length} subjects found`);
+              const categorizedSubjects = categorizeCourses(yearSubjects);
+              const totalUnits = yearSubjects.reduce((sum, subj) => sum + (subj.units || 0), 0);
+              
+              return (
+                <Card key={yearLevel} sx={{ 
+                  mb: 2, 
+                  borderRadius: 2, 
+                  border: '1px solid #e5e7eb',
+                  overflow: 'hidden'
+                }}>
+                  <Box sx={{ 
+                    background: 'linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%)',
+                    p: 2,
+                    borderBottom: '1px solid #e5e7eb'
+                  }}>
+                    <Typography variant="h6" sx={{ 
+                      fontWeight: 600, 
+                      color: '#374151',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1
+                    }}>
+                      <Box sx={{ 
+                        width: 24, 
+                        height: 24, 
+                        borderRadius: '50%', 
+                        background: '#667eea',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '0.8rem',
+                        color: 'white',
+                        fontWeight: 600
+                      }}>
+                        {yearLevel}
+                      </Box>
+                      {getYearLabel(String(yearLevel))} Subjects
+                      <Box sx={{ 
+                        ml: 1, 
+                        px: 1.5, 
+                        py: 0.3, 
+                        borderRadius: 1, 
+                        background: '#e0e7ef',
+                        fontSize: '0.75rem',
+                        color: '#374151',
+                        fontWeight: 500
+                      }}>
+                        {yearSubjects.length} subjects
+                      </Box>
+                      <Box sx={{ 
+                        ml: 1, 
+                        px: 1.5, 
+                        py: 0.3, 
+                        borderRadius: 1, 
+                        background: '#e0e7ef',
+                        fontSize: '0.75rem',
+                        color: '#374151',
+                        fontWeight: 500
+                      }}>
+                        {totalUnits} units
+                      </Box>
+                    </Typography>
+                  </Box>
+                  
+                  <CardContent sx={{ p: 0 }}>
+                    {yearSubjects.length > 0 ? (
+                      <TableContainer>
+                        <Table size="small" sx={{ tableLayout: 'fixed', width: '100%' }}>
+                          <colgroup>
+                            <col style={{ width: '16%' }} />
+                            <col style={{ width: '36%' }} />
+                            <col style={{ width: '12%' }} />
+                            <col style={{ width: '8%' }} />
+                            <col style={{ width: '12%' }} />
+                            <col style={{ width: '8%' }} />
+                            <col style={{ width: '8%' }} />
+                          </colgroup>
+                          <TableHead>
+                             <TableRow sx={{ background: '#f9fafb' }}>
+                               <TableCell sx={{ 
+                                 fontWeight: 600, 
+                                 color: '#374151',
+                                 fontSize: '0.875rem',
+                                 borderBottom: '2px solid #e5e7eb'
+                               }}>
+                                 Subject Code
+                               </TableCell>
+                                <TableCell sx={{ 
+                                 fontWeight: 600, 
+                                 color: '#374151',
+                                 fontSize: '0.875rem',
+                                 borderBottom: '2px solid #e5e7eb'
+                               }}>
+                                 Subject Name
+                               </TableCell>
+                                <TableCell sx={{ 
+                                  fontWeight: 600, 
+                                  color: '#374151',
+                                  fontSize: '0.875rem',
+                                  borderBottom: '2px solid #e5e7eb',
+                                  textAlign: 'center'
+                                }}>
+                                  Enrollment Status
+                                </TableCell>
+                               <TableCell sx={{ 
+                                 fontWeight: 600, 
+                                 color: '#374151',
+                                 fontSize: '0.875rem',
+                                 borderBottom: '2px solid #e5e7eb',
+                                 textAlign: 'center'
+                               }}>
+                                 Units
+                               </TableCell>
+                               <TableCell sx={{ 
+                                 fontWeight: 600, 
+                                 color: '#374151',
+                                 fontSize: '0.875rem',
+                                 borderBottom: '2px solid #e5e7eb',
+                                 textAlign: 'center'
+                               }}>
+                                 Type
+                               </TableCell>
+                               <TableCell sx={{ 
+                                 fontWeight: 600, 
+                                 color: '#374151',
+                                 fontSize: '0.875rem',
+                                 borderBottom: '2px solid #e5e7eb',
+                                 textAlign: 'center'
+                               }}>
+                                 Grades
+                               </TableCell>
+                                <TableCell sx={{ 
+                                  fontWeight: 600, 
+                                  color: '#374151',
+                                  fontSize: '0.875rem',
+                                  borderBottom: '2px solid #e5e7eb',
+                                  textAlign: 'center'
+                                }}>
+                                  Status
+                                </TableCell>
+                             </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {yearSubjects.map((subject, idx) => (
+                              <TableRow 
+                                key={subject.id} 
+                                sx={{ 
+                                  background: idx % 2 === 0 ? '#f9fafb' : '#ffffff',
+                                  '&:hover': {
+                                    background: '#f0f9ff',
+                                    transition: 'background-color 0.2s ease'
+                                  }
+                                }}
+                              >
+                                <TableCell sx={{ 
+                                  fontWeight: 600,
+                                  fontFamily: 'monospace',
+                                  fontSize: '0.875rem',
+                                  color: '#1f2937'
+                                }}>
+                                  {subject.code}
+                                </TableCell>
+                                  <TableCell sx={{ 
+                                   fontSize: '0.875rem',
+                                   color: '#374151',
+                                   whiteSpace: 'nowrap',
+                                   overflow: 'hidden',
+                                   textOverflow: 'ellipsis'
+                                }}>
+                                  {subject.name}
+                                </TableCell>
+                                  <TableCell sx={{ textAlign: 'center' }}>
+                                    <Box sx={{ 
+                                      display: 'inline-block',
+                                      px: 1.5,
+                                      py: 0.5,
+                                      borderRadius: 1,
+                                      fontSize: '0.75rem',
+                                      fontWeight: 500,
+                                      background: getEnrollmentStatus(subject.id) === 'active' ? '#dcfce7' : '#f3f4f6',
+                                      color: getEnrollmentStatus(subject.id) === 'active' ? '#166534' : '#374151',
+                                      textTransform: 'capitalize'
+                                    }}>
+                                      {getEnrollmentStatus(subject.id) === 'active' ? 'Enrolled' : 'Not enrolled'}
+                                    </Box>
+                                  </TableCell>
+                                <TableCell sx={{ 
+                                  textAlign: 'center',
+                                  fontWeight: 600,
+                                  fontSize: '0.875rem',
+                                  color: '#059669'
+                                }}>
+                                  {subject.units}
+                                </TableCell>
+                                                               <TableCell sx={{ textAlign: 'center' }}>
+                                 <Box sx={{ 
+                                   display: 'inline-block',
+                                   px: 1.5,
+                                   py: 0.5,
+                                   borderRadius: 1,
+                                   fontSize: '0.75rem',
+                                   fontWeight: 500,
+                                   background: subject.code.startsWith('IT') ? '#dbeafe' : '#fef3c7',
+                                   color: subject.code.startsWith('IT') ? '#1e40af' : '#92400e',
+                                   textTransform: 'uppercase',
+                                   letterSpacing: '0.05em'
+                                 }}>
+                                   {subject.code.startsWith('IT') ? 'Major' : 'Minor'}
+                                 </Box>
+                               </TableCell>
+                               <TableCell sx={{ textAlign: 'center' }}>
+                                 {(() => {
+                                   const subjectGrades = getSubjectGrades(subject.code);
+                                   if (loadingGrades) {
+                                     return (
+                                       <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+                                         <CircularProgress size={16} />
+                                       </Box>
+                                     );
+                                   }
+                                   if (subjectGrades) {
+                                     const hasGrades = subjectGrades.prelim_grade !== null || 
+                                                     subjectGrades.midterm_grade !== null || 
+                                                     subjectGrades.final_grade !== null;
+                                     if (hasGrades) {
+                                       return (
+                                         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                                           {subjectGrades.prelim_grade !== null && (
+                                             <Box sx={{ 
+                                               fontSize: '0.75rem',
+                                               fontWeight: 600,
+                                               color: '#059669'
+                                             }}>
+                                               Prelim: {subjectGrades.prelim_grade}
+                                             </Box>
+                                           )}
+                                           {subjectGrades.midterm_grade !== null && (
+                                             <Box sx={{ 
+                                               fontSize: '0.75rem',
+                                               fontWeight: 600,
+                                               color: '#059669'
+                                             }}>
+                                               Midterm: {subjectGrades.midterm_grade}
+                                             </Box>
+                                           )}
+                                           {subjectGrades.final_grade !== null && (
+                                             <Box sx={{ 
+                                               fontSize: '0.75rem',
+                                               fontWeight: 600,
+                                               color: '#059669'
+                                             }}>
+                                               Final: {subjectGrades.final_grade}
+                                             </Box>
+                                           )}
+                                         </Box>
+                                       );
+                                     }
+                                   }
+                                   return (
+                                     <Box sx={{ 
+                                       fontSize: '0.75rem',
+                                       color: '#6b7280',
+                                       fontStyle: 'italic'
+                                     }}>
+                                       No grades
+                                     </Box>
+                                   );
+                                 })()}
+                               </TableCell>
+                                <TableCell sx={{ textAlign: 'center' }}>
+                                  <Box sx={{ 
+                                    display: 'inline-block',
+                                    px: 1.5,
+                                    py: 0.5,
+                                    borderRadius: 1,
+                                    fontSize: '0.75rem',
+                                    fontWeight: 500,
+                                    background: '#e5e7eb',
+                                    color: '#374151',
+                                    textTransform: 'capitalize'
+                                  }}>
+                                    Pending
+                                  </Box>
+                                </TableCell>
+                             </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    ) : (
+                      <Box sx={{ 
+                        p: 3, 
+                        textAlign: 'center',
+                        color: '#6b7280'
+                      }}>
+                        <Typography variant="body2">
+                          No subjects available for {getYearLabel(String(yearLevel))}
+                        </Typography>
+                      </Box>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+            </Box>
+          </Box>
+        </DialogContent>
+        
+        <DialogActions sx={{ 
+          p: 3, 
+          background: '#f8fafc',
+          borderTop: '1px solid #e5e7eb',
+          gap: 2
+        }}>
+          <Button 
+            onClick={handlePrintProspectus}
+            variant="outlined"
+            sx={{
+              borderRadius: 2,
+              px: 3,
+              py: 1.5,
+              fontWeight: 600,
+              borderColor: '#d1d5db',
+              color: '#374151',
+              '&:hover': {
+                borderColor: '#9ca3af',
+                background: '#f9fafb'
+              }
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ fontSize: '1rem' }}>🖨️</Box>
+              Print
+            </Box>
+          </Button>
+          <Button 
+            onClick={handleDownloadPDF}
+            variant="outlined"
+            sx={{
+              borderRadius: 2,
+              px: 3,
+              py: 1.5,
+              fontWeight: 600,
+              borderColor: '#d1d5db',
+              color: '#374151',
+              '&:hover': {
+                borderColor: '#9ca3af',
+                background: '#f9fafb'
+              }
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ fontSize: '1rem' }}>⬇️</Box>
+              Download PDF
+            </Box>
+          </Button>
+          <Button 
+            onClick={handleCloseProspectusModal}
+            variant="outlined"
+            sx={{
+              borderRadius: 2,
+              px: 3,
+              py: 1.5,
+              fontWeight: 600,
+              borderColor: '#d1d5db',
+              color: '#374151',
+              '&:hover': {
+                borderColor: '#9ca3af',
+                background: '#f9fafb'
+              }
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ fontSize: '1rem' }}>✕</Box>
+              Close
+            </Box>
           </Button>
         </DialogActions>
       </Dialog>
