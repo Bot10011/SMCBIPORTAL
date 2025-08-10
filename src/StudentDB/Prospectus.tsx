@@ -22,6 +22,18 @@ type CourseRow = {
   year_level?: string | null;
 };
 
+type GradeRow = {
+  id?: string;
+  student_id?: string;
+  prelim_grade?: number | null;
+  midterm_grade?: number | null;
+  final_grade?: number | null;
+  year_level?: string | null;
+  semester?: string | null;
+  subject_id?: string | null;
+  academic_year?: string | null;
+};
+
 const Prospectus: React.FC = () => {
   const { user } = useAuth();
   const [isDownloading, setIsDownloading] = useState(false);
@@ -37,6 +49,8 @@ const Prospectus: React.FC = () => {
       prerequisite?: string;
     };
   }>>([]);
+  const [gradesByKey, setGradesByKey] = useState<Record<string, number>>({});
+  const [gradesBySubjectId, setGradesBySubjectId] = useState<Record<string, number>>({});
 
   const frontCardRef = useRef<HTMLDivElement>(null);
   const backCardRef = useRef<HTMLDivElement>(null);
@@ -217,6 +231,34 @@ const Prospectus: React.FC = () => {
           }));
           setSubjects(transformedCourses);
         }
+
+        // Fetch grades for the current student
+        const { data: gradeData, error: gradeError } = await supabase
+          .from('grades')
+          .select('id, student_id, prelim_grade, midterm_grade, final_grade, year_level, semester, subject_id, academic_year')
+          .eq('student_id', user.id);
+
+        if (gradeError) {
+          console.error('Error fetching grades:', gradeError);
+        } else if (Array.isArray(gradeData)) {
+          const byKey: Record<string, number> = {};
+          const bySubjectId: Record<string, number> = {};
+          (gradeData as GradeRow[]).forEach((g) => {
+            const gaParts: number[] = [];
+            if (typeof g.prelim_grade === 'number') gaParts.push(g.prelim_grade);
+            if (typeof g.midterm_grade === 'number') gaParts.push(g.midterm_grade);
+            if (typeof g.final_grade === 'number') gaParts.push(g.final_grade);
+            if (gaParts.length === 0) return;
+            const ga = gaParts.reduce((a, b) => a + b, 0) / gaParts.length;
+            const key = `${normalizeYear(g.year_level || '')}|${normalizeSemester(g.semester || '')}|${g.subject_id || ''}`;
+            byKey[key] = ga;
+            if (g.subject_id) {
+              bySubjectId[g.subject_id] = ga;
+            }
+          });
+          setGradesByKey(byKey);
+          setGradesBySubjectId(bySubjectId);
+        }
       } catch (error) {
         console.error('Error fetching subjects:', error);
       }
@@ -291,32 +333,35 @@ const Prospectus: React.FC = () => {
     return v;
   };
 
-  const getSectionItems = useCallback((yearTitle: string, semesterTitle: string) => {
-    const desiredYear = (yearTitle || '').toUpperCase();
-    const desiredSem = (semesterTitle || '').toUpperCase();
-    const isSummerSection = desiredSem === 'SUMMER REQUIRED';
-    const isFirstSemSection = desiredSem === 'FIRST SEMESTER';
-    const isSecondSemSection = desiredSem === 'SECOND SEMESTER';
+  const makeSectionKey = (year: string, sem: string) => `${normalizeYear(year)}|${normalizeSemester(sem)}`;
 
-    return subjects.filter((item: SubjectEntry) => {
-      const itemYear = normalizeYear(item.school_year);
-      const itemSem = normalizeSemester(item.semester);
+  const sectionMap = useMemo(() => {
+    const map: Record<string, SubjectEntry[]> = {};
+    for (const item of subjects) {
+      const key = makeSectionKey(item.school_year, item.semester);
+      if (!map[key]) map[key] = [];
+      map[key].push(item);
+    }
+    return map;
+  }, [subjects, makeSectionKey]);
 
-      if (isSummerSection) {
-        return itemSem === 'SUMMER REQUIRED';
-      }
-
-      if (isFirstSemSection) {
-        return itemYear === desiredYear && itemSem === 'FIRST SEMESTER';
-      }
-
-      if (isSecondSemSection) {
-        return itemYear === desiredYear && itemSem === 'SECOND SEMESTER';
-      }
-
-      return itemYear === desiredYear && itemSem === desiredSem;
+  const totalByKey = useMemo(() => {
+    const totals: Record<string, number> = {};
+    Object.entries(sectionMap).forEach(([key, entries]) => {
+      totals[key] = entries.reduce((sum, it) => sum + (it.subject.units || 0), 0);
     });
-  }, [subjects]);
+    return totals;
+  }, [sectionMap]);
+
+  const getSectionItems = useCallback((yearTitle: string, semesterTitle: string) => {
+    const key = makeSectionKey(yearTitle, semesterTitle);
+    return sectionMap[key] || [];
+  }, [sectionMap, makeSectionKey]);
+
+  const getTotalFor = useCallback((yearTitle: string, semesterTitle: string) => {
+    const key = makeSectionKey(yearTitle, semesterTitle);
+    return totalByKey[key] || 0;
+  }, [totalByKey, makeSectionKey]);
 
   const renderRowsForSection = useCallback((items: SubjectEntry[]) => {
     if (!items.length) {
@@ -330,7 +375,15 @@ const Prospectus: React.FC = () => {
     }
     return items.map((entry) => (
       <tr key={entry.subject.id}>
-        <td></td>
+        <td>{
+          (() => {
+            const key = `${normalizeYear(entry.school_year)}|${normalizeSemester(entry.semester)}|${entry.subject.id}`;
+            const ga = gradesByKey[key];
+            const gaFallback = gradesBySubjectId[entry.subject.id];
+            const value = (ga || ga === 0) ? ga : ((gaFallback || gaFallback === 0) ? gaFallback : undefined);
+            return (value || value === 0) ? value.toFixed(2) : '';
+          })()
+        }</td>
         <td>{entry.subject.code}</td>
         <td>{entry.subject.name}</td>
         <td>{Math.floor(entry.subject.units * 0.7)}</td>
@@ -340,7 +393,7 @@ const Prospectus: React.FC = () => {
         <td>{entry.subject.units}</td>
       </tr>
     ));
-  }, []);
+  }, [gradesByKey, gradesBySubjectId]);
 
 
 
@@ -429,7 +482,7 @@ const Prospectus: React.FC = () => {
               </div>
               
               {/* Fixed Front Page Sections (populate based on headers) */}
-              <div>
+                <div>
                   <h4 className="year-header"><strong>FIRST YEAR - FIRST SEMESTER</strong></h4>
                   <table className="prospectus-table">
                     <thead>
@@ -456,7 +509,7 @@ const Prospectus: React.FC = () => {
                       {renderRowsForSection(getSectionItems('FIRST YEAR', 'FIRST SEMESTER'))}
                       <tr className="total-row">
                         <td colSpan={5}><strong>TOTAL</strong></td>
-                        <td><strong>{getSectionItems('FIRST YEAR', 'FIRST SEMESTER').reduce((sum, it) => sum + (it.subject.units || 0), 0)}</strong></td>
+                        <td><strong>{getTotalFor('FIRST YEAR', 'FIRST SEMESTER')}</strong></td>
                         <td></td>
                         <td></td>
                       </tr>
@@ -489,7 +542,7 @@ const Prospectus: React.FC = () => {
                       {renderRowsForSection(getSectionItems('FIRST YEAR', 'SECOND SEMESTER'))}
                       <tr className="total-row">
                         <td colSpan={5}><strong>TOTAL</strong></td>
-                        <td><strong>{getSectionItems('FIRST YEAR', 'SECOND SEMESTER').reduce((sum, it) => sum + (it.subject.units || 0), 0)}</strong></td>
+                        <td><strong>{getTotalFor('FIRST YEAR', 'SECOND SEMESTER')}</strong></td>
                         <td></td>
                         <td></td>
                       </tr>
@@ -522,7 +575,7 @@ const Prospectus: React.FC = () => {
                       {renderRowsForSection(getSectionItems('FIRST YEAR', 'SUMMER REQUIRED'))}
                       <tr className="total-row">
                         <td colSpan={5}><strong>TOTAL</strong></td>
-                        <td><strong>{getSectionItems('FIRST YEAR', 'SUMMER REQUIRED').reduce((sum, it) => sum + (it.subject.units || 0), 0)}</strong></td>
+                        <td><strong>{getTotalFor('FIRST YEAR', 'SUMMER REQUIRED')}</strong></td>
                         <td></td>
                         <td></td>
                       </tr>
@@ -555,7 +608,7 @@ const Prospectus: React.FC = () => {
                       {renderRowsForSection(getSectionItems('SECOND YEAR', 'FIRST SEMESTER'))}
                       <tr className="total-row">
                         <td colSpan={5}><strong>TOTAL</strong></td>
-                        <td><strong>{getSectionItems('SECOND YEAR', 'FIRST SEMESTER').reduce((sum, it) => sum + (it.subject.units || 0), 0)}</strong></td>
+                        <td><strong>{getTotalFor('SECOND YEAR', 'FIRST SEMESTER')}</strong></td>
                         <td></td>
                         <td></td>
                       </tr>
@@ -588,7 +641,7 @@ const Prospectus: React.FC = () => {
                       {renderRowsForSection(getSectionItems('SECOND YEAR', 'SECOND SEMESTER'))}
                       <tr className="total-row">
                         <td colSpan={5}><strong>TOTAL</strong></td>
-                        <td><strong>{getSectionItems('SECOND YEAR', 'SECOND SEMESTER').reduce((sum, it) => sum + (it.subject.units || 0), 0)}</strong></td>
+                        <td><strong>{getTotalFor('SECOND YEAR', 'SECOND SEMESTER')}</strong></td>
                         <td></td>
                         <td></td>
                       </tr>
@@ -662,7 +715,7 @@ const Prospectus: React.FC = () => {
                       {renderRowsForSection(getSectionItems('SUMMER REQUIRED', 'SUMMER REQUIRED'))}
                       <tr className="total-row">
                         <td colSpan={5}><strong>TOTAL</strong></td>
-                        <td><strong>{getSectionItems('SUMMER REQUIRED', 'SUMMER REQUIRED').reduce((sum, it) => sum + (it.subject.units || 0), 0)}</strong></td>
+                        <td><strong>{getTotalFor('SUMMER REQUIRED', 'SUMMER REQUIRED')}</strong></td>
                         <td></td>
                         <td></td>
                       </tr>
@@ -695,7 +748,7 @@ const Prospectus: React.FC = () => {
                       {renderRowsForSection(getSectionItems('THIRD YEAR', 'FIRST SEMESTER'))}
                       <tr className="total-row">
                         <td colSpan={5}><strong>TOTAL</strong></td>
-                        <td><strong>{getSectionItems('THIRD YEAR', 'FIRST SEMESTER').reduce((sum, it) => sum + (it.subject.units || 0), 0)}</strong></td>
+                        <td><strong>{getTotalFor('THIRD YEAR', 'FIRST SEMESTER')}</strong></td>
                         <td></td>
                         <td></td>
                       </tr>
@@ -728,7 +781,7 @@ const Prospectus: React.FC = () => {
                       {renderRowsForSection(getSectionItems('THIRD YEAR', 'SECOND SEMESTER'))}
                       <tr className="total-row">
                         <td colSpan={5}><strong>TOTAL</strong></td>
-                        <td><strong>{getSectionItems('THIRD YEAR', 'SECOND SEMESTER').reduce((sum, it) => sum + (it.subject.units || 0), 0)}</strong></td>
+                        <td><strong>{getTotalFor('THIRD YEAR', 'SECOND SEMESTER')}</strong></td>
                         <td></td>
                         <td></td>
                       </tr>
@@ -761,7 +814,7 @@ const Prospectus: React.FC = () => {
                       {renderRowsForSection(getSectionItems('SUMMER REQUIRED', 'SUMMER REQUIRED'))}
                       <tr className="total-row">
                         <td colSpan={5}><strong>TOTAL</strong></td>
-                        <td><strong>{getSectionItems('SUMMER REQUIRED', 'SUMMER REQUIRED').reduce((sum, it) => sum + (it.subject.units || 0), 0)}</strong></td>
+                        <td><strong>{getTotalFor('SUMMER REQUIRED', 'SUMMER REQUIRED')}</strong></td>
                         <td></td>
                         <td></td>
                       </tr>
@@ -794,7 +847,7 @@ const Prospectus: React.FC = () => {
                       {renderRowsForSection(getSectionItems('FOURTH YEAR', 'FIRST SEMESTER'))}
                       <tr className="total-row">
                         <td colSpan={5}><strong>TOTAL</strong></td>
-                        <td><strong>{getSectionItems('FOURTH YEAR', 'FIRST SEMESTER').reduce((sum, it) => sum + (it.subject.units || 0), 0)}</strong></td>
+                        <td><strong>{getTotalFor('FOURTH YEAR', 'FIRST SEMESTER')}</strong></td>
                         <td></td>
                         <td></td>
                       </tr>
@@ -827,7 +880,7 @@ const Prospectus: React.FC = () => {
                       {renderRowsForSection(getSectionItems('FOURTH YEAR', 'SECOND SEMESTER'))}
                       <tr className="total-row">
                         <td colSpan={5}><strong>TOTAL</strong></td>
-                        <td><strong>{getSectionItems('FOURTH YEAR', 'SECOND SEMESTER').reduce((sum, it) => sum + (it.subject.units || 0), 0)}</strong></td>
+                        <td><strong>{getTotalFor('FOURTH YEAR', 'SECOND SEMESTER')}</strong></td>
                         <td></td>
                         <td></td>
                       </tr>
