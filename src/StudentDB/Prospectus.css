@@ -292,12 +292,10 @@
 
 .prospectus-table th:nth-child(2) {
   width: 12%;
-  border-right: none !important;
 }
 
 .prospectus-table th:nth-child(3) {
   width: 20%;
-  border-left: none !important;
 }
 
 .prospectus-table th:nth-child(4),
@@ -308,12 +306,10 @@
 
 .prospectus-table th:nth-child(7) {
   width: 15%;
-  border-right: none !important;
 }
 
 .prospectus-table th:last-child {
   width: 12%;
-  border-left: none !important;
 }
 
 .prospectus-table td {
@@ -325,20 +321,23 @@
   line-height: 1.2;
 }
 
+.prospectus-table td:nth-child(2) {
+  border-right: 1px solid #c9a27a !important;
+}
+
 .prospectus-table td:nth-child(3) {
   text-align: left;
   font-size: 0.6rem;
   padding-left: 0.4rem;
   padding-right: 0.4rem;
+  border-left: 1px solid #c9a27a !important;
 }
 
 .prospectus-table td:nth-child(7) {
   font-size: 0.6rem;
-  border-left: none !important;
 }
 
 .prospectus-table td:last-child {
-  border-left: none !important;
 }
 
 .prospectus-table tr:nth-child(even) {
@@ -795,3 +794,21 @@
   white-space: normal;
   border-left: none !important;
 } 
+
+/* Ensure a clear vertical divider between Subject CODE and DESCRIPTION in data rows */
+.prospectus-table tbody td:nth-child(2) {
+  border-right: 1px solid #ddd !important;
+}
+.prospectus-table tbody td:nth-child(3) {
+  border-left: 1px solid #ddd !important;
+}
+
+/* Print: keep the same vertical divider */
+@media print, screen {
+  .prospectus-table tbody td:nth-child(2) {
+    border-right: 1px solid #ddd !important;
+  }
+  .prospectus-table tbody td:nth-child(3) {
+    border-left: 1px solid #ddd !important;
+  }
+}
