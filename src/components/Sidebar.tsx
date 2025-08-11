@@ -537,15 +537,12 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           style={{
             filter: (shouldBlur() || showLogoutConfirm) ? 'blur(4px)' : 'none',
             pointerEvents: showLogoutConfirm ? 'none' : 'auto',
-            borderRight: '2px solid rgba(255, 255, 255, 0.3)',
-            boxShadow: '2px 0 8px rgba(0, 0, 0, 0.3)'
           }}
         >
           {/* Header, nav, and footer as before */}
           <div className="p-2 flex items-center justify-center border-b-2 border-white/10">
             {/* Logo container with Google Classroom style */}
-            <div className="flex items-center justify-center w-full">
-              {/* Logo stays centered */}
+            <div className="flex items-center justify-center">
               <div 
                 className="relative flex items-center justify-center w-12 h-12"
               >
@@ -566,19 +563,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                   />
                 </div>
               </div>
-              {/* School name text - only visible when expanded, positioned to the right */}
-              {!isCollapsed && (
-                <motion.span
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -10 }}
-                  transition={{ duration: 0.2, ease: "easeInOut" as const }}
-                  className="ml-3 text-white font-bold text-lg tracking-wide"
-                  style={{ whiteSpace: 'nowrap' }}
-                >
-                  SMCBI
-                </motion.span>
-              )}
             </div>
           </div>
           <nav className="flex-1 py-4 space-y-1 nav-item-spacing">
