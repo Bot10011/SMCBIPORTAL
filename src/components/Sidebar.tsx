@@ -531,16 +531,17 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           initial={isMobile ? 'hidden' : (isCollapsed ? 'collapsed' : 'expanded')}
           animate={isMobile ? 'visible' : (isCollapsed ? 'collapsed' : 'expanded')}
           exit={isMobile ? 'hidden' : undefined}
-          className={`fixed top-0 left-0 h-screen ${isCollapsed ? 'w-16' : 'w-64'} flex flex-col bg-[#2a2a2b] backdrop-blur-xl border-r-2 border-white/30 z-[40] sidebar-blur shadow-lg shadow-black/40 ${isMobile && isCollapsed ? 'hidden' : ''}`}
+          className={`fixed top-0 left-0 h-screen ${isCollapsed ? 'w-16' : 'w-64'} flex flex-col bg-[#1c1c1d] backdrop-blur-xl z-[40] sidebar-blur border-r border-white/20 ${isMobile && isCollapsed ? 'hidden' : ''}`}
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
           style={{
             filter: (shouldBlur() || showLogoutConfirm) ? 'blur(4px)' : 'none',
             pointerEvents: showLogoutConfirm ? 'none' : 'auto',
+            borderRight: '1px solid rgba(255, 255, 255, 0.2)'
           }}
         >
           {/* Header, nav, and footer as before */}
-          <div className="p-2 flex items-center justify-center border-b-2 border-white/10">
+          <div className="p-2 flex items-center justify-center">
             {/* Logo container with Google Classroom style */}
             <div className="flex items-center justify-center">
               <div 
@@ -615,7 +616,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
               </div>
             ))}
           </nav>
-          <div className="sticky bottom-0 bg-[#2a2a2b] p-4 border-t-2 border-white/20">
+          <div className="sticky bottom-0 bg-[#1c1c1d] p-4">
             {!isCollapsed && (
               <div 
                 className="profile-section flex items-center gap-3 mb-3 overflow-hidden"
@@ -745,15 +746,22 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
       <main
         style={{
           marginLeft: isMobile ? '0' : (isCollapsed ? '5rem' : '17rem'),
-          width: isMobile ? '100%' : (isCollapsed ? 'calc(100% - 5rem)' : 'calc(100% - 17rem)')
+          width: 'auto',
+          minWidth: 'none',
+          maxWidth: 'none',
+          backgroundColor: '#1c1c1d'
         }}
         data-modal="true"
-        className={`min-h-screen bg-[#2a2a2b] ${shouldBlur() ? 'pointer-events-none [&:not(.course-modal):not(.subject-modal)]' : ''} z-[30] ${mainContentScrollLock}`}
+        className={`min-h-screen ${shouldBlur() ? 'pointer-events-none [&:not(.course-modal):not(.subject-modal)]' : ''} z-[30] ${mainContentScrollLock}`}
       >
-        <div className="h-full lg:pt-0">
-          <div className={`bg-[#2a2a2b] rounded-l-lg border-l-2 border-white/30 p-3 sm:p-4 md:p-6 w-full h-full relative ${shouldBlur() ? 'opacity-80' : ''}`}
+        <div className="h-full lg:pt-0" style={{ width: 'auto', minWidth: 'none', maxWidth: 'none', backgroundColor: '#1c1c1d' }}>
+          <div className={`rounded-l-lg p-3 sm:p-4 md:p-6 h-full relative ${shouldBlur() ? 'opacity-80' : ''}`}
             style={{
               paddingBottom: 0,
+              width: 'auto',
+              minWidth: 'none',
+              maxWidth: 'none',
+              backgroundColor: '#1c1c1d'
             }}
           >
             {/* Hamburger button for mobile/tablet */}
@@ -769,7 +777,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                   </div>
               </button>
             )}
-            <div className="h-full">
+            <div className="h-full" style={{ width: 'auto', minWidth: 'none', maxWidth: 'none' }}>
               {children}
             </div>
           </div>
