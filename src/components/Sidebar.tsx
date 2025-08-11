@@ -500,11 +500,11 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const sidebarVariants = {
     collapsed: {
       width: '4rem',
-      transition: { duration: 0.2, ease: "easeInOut" as const }
+      transition: { duration: 0.6, ease: "easeOut" as const }
     },
     expanded: {
       width: '16rem',
-      transition: { duration: 0.2, ease: "easeInOut" as const }
+      transition: { duration: 0.6, ease: "easeOut" as const }
     }
   };
 
@@ -512,12 +512,12 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
     hidden: {
       x: '-100%',
       opacity: 0,
-      transition: { duration: 0.2, ease: "easeInOut" as const }
+      transition: { duration: 0.6, ease: "easeOut" as const }
     },
     visible: {
       x: 0,
       opacity: 1,
-      transition: { duration: 0.2, ease: "easeInOut" as const }
+      transition: { duration: 0.6, ease: "easeOut" as const }
     }
   };
 
@@ -742,19 +742,17 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
       {typeof window !== 'undefined' && createPortal(sidebarJSX, document.body)}
 
       {/* Main Content (scrolls independently, margin for sidebar) */}
-      <motion.main
-        animate={{
-          marginLeft: isMobile ? '0' : (isCollapsed ? '4rem' : '16rem'),
-          width: isMobile ? '100%' : (isCollapsed ? 'calc(100% - 4rem)' : 'calc(100% - 16rem)')
+      <main
+        style={{
+          marginLeft: isMobile ? '0' : (isCollapsed ? '5rem' : '17rem'),
+          width: isMobile ? '100%' : (isCollapsed ? 'calc(100% - 5rem)' : 'calc(100% - 17rem)')
         }}
-        transition={{ duration: 0.2, ease: "easeInOut" as const }}
         data-modal="true"
         className={`min-h-screen bg-[#2a2a2b] ${shouldBlur() ? 'pointer-events-none [&:not(.course-modal):not(.subject-modal)]' : ''} z-[30] ${mainContentScrollLock}`}
       >
         <div className="h-full lg:pt-0">
-          <div className={`bg-[#2a2a2b] rounded-l-lg border-l-2 border-white/30 p-4 sm:p-6 md:p-8 w-full h-full relative ${shouldBlur() ? 'opacity-80' : ''}`}
+          <div className={`bg-[#2a2a2b] rounded-l-lg border-l-2 border-white/30 p-3 sm:p-4 md:p-6 w-full h-full relative ${shouldBlur() ? 'opacity-80' : ''}`}
             style={{
-              boxShadow: 'inset 0 2px 12px 0 rgba(0,0,0,0.1)',
               paddingBottom: 0,
             }}
           >
@@ -762,7 +760,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
             {isMobile && isCollapsed && (
               <button
                 onClick={handleHamburgerClick}
-                className="absolute top-4 right-4 z-30 p-2 rounded-lg bg-[#ffffff] text-gray-300 shadow-lg border border-gray-600 hover:bg-[#ffffff] active:scale-95"
+                className="absolute top-3 right-3 z-30 p-2 rounded-lg bg-[#ffffff] text-gray-300 shadow-lg border border-gray-600 hover:bg-[#ffffff] active:scale-95"
               >
                                   <div className="w-5 h-5 flex flex-col justify-center items-center">
                     <div className="w-4 h-0.5 bg-gray-400 rounded-sm mb-1"></div>
@@ -776,7 +774,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
             </div>
           </div>
         </div>
-      </motion.main>
+      </main>
       {/* Enhanced Overlay for mobile */}
       <AnimatePresence>
         {isMobile && !isCollapsed && (
