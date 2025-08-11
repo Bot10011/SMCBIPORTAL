@@ -501,78 +501,78 @@ export default function CourseManagement() {
     return (
       <div className="coursemanagement-skeleton min-h-screen from-blue-50 via-white to-indigo-50">
         <div className="max-w-7xl mx-auto px-6 py-8">
-          {/* Header Skeleton */}
-          <div className="mb-8 animate-pulse">
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-              <div>
-                <div className="h-10 bg-gray-200 rounded w-80 mb-2"></div>
-                <div className="h-4 bg-gray-200 rounded w-96"></div>
-              </div>
-              <div className="flex gap-3">
-                <div className="h-12 w-40 bg-gray-200 rounded-xl"></div>
-                <div className="h-12 w-48 bg-gray-200 rounded-xl"></div>
-              </div>
+                  {/* Header Skeleton */}
+        <div className="mb-8 animate-pulse">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+            <div>
+              <div className="h-10 bg-gray-700 rounded w-80 mb-2"></div>
+              <div className="h-4 bg-gray-700 rounded w-96"></div>
+            </div>
+            <div className="flex gap-3">
+              <div className="h-12 w-40 bg-gray-700 rounded-xl"></div>
+              <div className="h-12 w-48 bg-gray-700 rounded-xl"></div>
             </div>
           </div>
+        </div>
 
-          {/* Stats Cards Skeleton */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 animate-pulse">
+        {/* Stats Cards Skeleton */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="bg-[#252728] rounded-xl p-6 shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300 animate-pulse">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="h-4 bg-gray-700 rounded w-24 mb-2"></div>
+                  <div className="h-8 bg-gray-700 rounded w-16"></div>
+                </div>
+                <div className="w-12 h-12 bg-gray-700 rounded-xl"></div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Search and Filter Skeleton */}
+        <div className="bg-[#252728] rounded-xl p-6 shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300 mb-8 animate-pulse">
+          <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
+            <div className="flex-1 max-w-md">
+              <div className="h-12 bg-gray-700 rounded-xl"></div>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="h-12 w-32 bg-gray-700 rounded-xl"></div>
+              <div className="h-10 w-20 bg-gray-700 rounded-xl"></div>
+              <div className="h-12 w-32 bg-gray-700 rounded-xl"></div>
+            </div>
+          </div>
+        </div>
+
+        {/* Courses Grid Skeleton */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[1, 2, 3, 4, 5, 6].map(i => (
+            <div key={i} className="bg-[#252728] rounded-xl shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300 overflow-hidden animate-pulse">
+              <div className="h-48 bg-gray-700"></div>
+              <div className="p-6">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="h-6 bg-gray-700 rounded-full w-16"></div>
+                  <div className="h-6 bg-gray-700 rounded-full w-20"></div>
+                </div>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="h-6 bg-gray-700 rounded-full w-20"></div>
+                  <div className="h-6 bg-gray-700 rounded-full w-16"></div>
+                </div>
+                <div className="h-5 bg-gray-700 rounded w-full mb-2"></div>
                 <div className="flex items-center justify-between">
-                  <div>
-                    <div className="h-4 bg-gray-200 rounded w-24 mb-2"></div>
-                    <div className="h-8 bg-gray-200 rounded w-16"></div>
-                  </div>
-                  <div className="w-12 h-12 bg-gray-200 rounded-xl"></div>
+                  <div className="h-4 bg-gray-700 rounded w-32"></div>
                 </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Search and Filter Skeleton */}
-          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 mb-8 animate-pulse">
-            <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
-              <div className="flex-1 max-w-md">
-                <div className="h-12 bg-gray-200 rounded-xl"></div>
-              </div>
-              <div className="flex items-center gap-4">
-                <div className="h-12 w-32 bg-gray-200 rounded-xl"></div>
-                <div className="h-10 w-20 bg-gray-200 rounded-xl"></div>
-                <div className="h-12 w-32 bg-gray-200 rounded-xl"></div>
               </div>
             </div>
-          </div>
-
-          {/* Courses Grid Skeleton */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[1, 2, 3, 4, 5, 6].map(i => (
-              <div key={i} className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden animate-pulse">
-                <div className="h-48 bg-gray-200"></div>
-                <div className="p-6">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="h-6 bg-gray-200 rounded-full w-16"></div>
-                    <div className="h-6 bg-gray-200 rounded-full w-20"></div>
-                  </div>
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="h-6 bg-gray-200 rounded-full w-20"></div>
-                    <div className="h-6 bg-gray-200 rounded-full w-16"></div>
-                  </div>
-                  <div className="h-5 bg-gray-200 rounded w-full mb-2"></div>
-                  <div className="flex items-center justify-between">
-                    <div className="h-4 bg-gray-200 rounded w-32"></div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+          ))}
+        </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen from-blue-50 via-white to-indigo-50">
+    <div className="p-6 min-h-screen bg-gradient-to-br  to-gray-200">
       {/* Crop Modal */}
       {showCropModal && selectedImage && createPortal(
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm">
@@ -580,7 +580,7 @@ export default function CourseManagement() {
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9 }}
-            className="bg-white rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl relative"
+            className="bg-white rounded-2xl p-6 w-full max-w-lg max-h-[80vh] overflow-y-auto shadow-2xl relative"
           >
             <div className="relative mb-6">
               {/* Modern Header Background */}
@@ -689,7 +689,7 @@ export default function CourseManagement() {
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9 }}
-            className="bg-white rounded-2xl p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl relative"
+            className="bg-white rounded-2xl p-6 w-full max-w-lg max-h-[80vh] overflow-y-auto shadow-2xl relative"
           >
             <div className="relative mb-6">
               {/* Modern Header Background */}
@@ -735,38 +735,38 @@ export default function CourseManagement() {
               <div className="absolute bottom-0 left-0 w-12 h-12 bg-white/5 rounded-full translate-y-6 -translate-x-6"></div>
             </div>
             
-            <form onSubmit={handleAddCourse} className="space-y-6">
+            <form onSubmit={handleAddCourse} className="space-y-3">
               {/* First row: Subject Code, Units, Year Level */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Subject Code</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Subject Code</label>
                   <input
                     type="text"
                     value={courseForm.code}
                     onChange={(e) => setCourseForm({ ...courseForm, code: e.target.value })}
-                    className="w-full px-4 py-3 border border-gray-300 bg-white rounded-xl shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                    className="w-full px-3 py-2 border border-gray-300 bg-white rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-sm"
                     placeholder="e.g., CS101"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Units</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Units</label>
                   <input
                     type="number"
                     value={courseForm.units}
                     onChange={(e) => setCourseForm({ ...courseForm, units: parseInt(e.target.value) })}
-                    className="w-full px-4 py-3 border border-gray-300 bg-white rounded-xl shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                    className="w-full px-3 py-2 border border-gray-300 bg-white rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-sm"
                     min="1"
                     max="6"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Year Level</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Year Level</label>
                   <select
                     value={courseForm.year_level}
                     onChange={e => setCourseForm({ ...courseForm, year_level: e.target.value })}
-                    className="w-full px-4 py-3 border border-gray-300 bg-white rounded-xl shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                    className="w-full px-3 py-2 border border-gray-300 bg-white rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-sm"
                     required
                   >
                     <option value="">Select year level</option>
@@ -779,24 +779,24 @@ export default function CourseManagement() {
               </div>
 
               {/* Second row: Subject Name, Summer (as select) */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Subject Name</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Subject Name</label>
                   <input
                     type="text"
                     value={courseForm.name}
                     onChange={(e) => setCourseForm({ ...courseForm, name: e.target.value })}
-                    className="w-full px-4 py-3 border border-gray-300 bg-white rounded-xl shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                    className="w-full px-3 py-2 border border-gray-300 bg-white rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-sm"
                     placeholder="e.g., Introduction to Computer Science"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Type</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Type</label>
                   <select
                     value={courseForm.summer ? 'Summer' : 'Regular'}
                     onChange={e => setCourseForm({ ...courseForm, summer: e.target.value === 'Summer' })}
-                    className="w-full px-4 py-3 border border-gray-300 bg-white rounded-xl shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                    className="w-full px-3 py-2 border border-gray-300 bg-white rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-sm"
                     required
                   >
                     <option value="Regular">Regular</option>
@@ -807,8 +807,8 @@ export default function CourseManagement() {
 
               {/* Subject Image */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Subject Image</label>
-                <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center hover:border-blue-300 transition-all duration-300 hover:shadow-lg bg-gradient-to-br from-gray-50 to-white">
+                <label className="block text-xs font-medium text-gray-700 mb-1">Subject Image</label>
+                <div className="border-2 border-dashed border-gray-200 rounded-lg p-3 text-center hover:border-blue-300 transition-all duration-300 hover:shadow-lg bg-gradient-to-br from-gray-50 to-white">
                   <input
                     type="file"
                     accept="image/*"
@@ -819,14 +819,14 @@ export default function CourseManagement() {
                   {imageFile ? (
                     <div className="relative w-full group">
                       {/* Show cropped image preview */}
-                      <div className="relative w-full overflow-hidden rounded-xl">
+                      <div className="relative w-full overflow-hidden rounded-lg">
                         <img 
                           src={URL.createObjectURL(imageFile)} 
                           alt="Cropped preview" 
-                          className="w-full h-48 object-cover rounded-xl border-2 border-blue-200 shadow-lg transition-transform duration-300 group-hover:scale-105" 
+                          className="w-full h-32 object-cover rounded-lg border-2 border-blue-200 shadow-lg transition-transform duration-300 group-hover:scale-105" 
                         />
                         {/* Success indicator */}
-                        <div className="absolute top-3 right-3 bg-green-500 text-white text-xs px-2 py-1 rounded-full shadow-lg flex items-center gap-1">
+                        <div className="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full shadow-lg flex items-center gap-1">
                           <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                             <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                           </svg>
@@ -834,20 +834,20 @@ export default function CourseManagement() {
                         </div>
                       </div>
                       {/* Modern centered buttons overlay */}
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-all duration-300 rounded-xl backdrop-blur-sm">
-                        <div className="flex gap-3">
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-all duration-300 rounded-lg backdrop-blur-sm">
+                        <div className="flex gap-2">
                           <button
                             type="button"
                             onClick={() => {
                               // Only trigger file input, don't clear current image yet
                               document.getElementById('course-image')?.click();
                             }}
-                            className="px-4 py-2 text-sm bg-white/90 backdrop-blur-sm text-blue-700 rounded-lg hover:bg-white transition-all duration-200 font-medium shadow-lg border border-white/20 hover:shadow-xl transform hover:scale-105"
+                            className="px-3 py-1 text-xs bg-white/90 backdrop-blur-sm text-blue-700 rounded-lg hover:bg-white transition-all duration-200 font-medium shadow-lg border border-white/20 hover:shadow-xl transform hover:scale-105"
                           >
-                            <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                             </svg>
-                            Change Image
+                            Change
                           </button>
                           <button
                             type="button"
@@ -855,9 +855,9 @@ export default function CourseManagement() {
                               setSelectedImage(URL.createObjectURL(imageFile));
                               setShowCropModal(true);
                             }}
-                            className="px-4 py-2 text-sm bg-white/90 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white transition-all duration-200 font-medium shadow-lg border border-white/20 hover:shadow-xl transform hover:scale-105"
+                            className="px-3 py-1 text-xs bg-white/90 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white transition-all duration-200 font-medium shadow-lg border border-white/20 hover:shadow-xl transform hover:scale-105"
                           >
-                            <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4a2 2 0 012-2h2a2 2 0 012 2v4m-6 0h8m-8 0l-2 8h12l-2-8m-6 4v4m0 0h.01" />
                             </svg>
                             Re-crop
@@ -866,17 +866,17 @@ export default function CourseManagement() {
                       </div>
                     </div>
                   ) : (
-                    <label htmlFor="course-image" className="cursor-pointer group w-full h-48 flex items-center justify-center">
-                      <div className="flex flex-col items-center gap-3">
-                        <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-lg">
-                          <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <label htmlFor="course-image" className="cursor-pointer group w-full h-32 flex items-center justify-center">
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="w-10 h-10 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-lg">
+                          <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                           </svg>
                         </div>
                         <div className="text-center">
-                          <p className="text-base font-semibold text-gray-700 mb-1">Upload Subject Image</p>
-                          <p className="text-xs text-gray-500 mb-2">Drag and drop or click to browse</p>
-                          <div className="flex items-center justify-center gap-3 text-xs text-gray-400">
+                          <p className="text-sm font-medium text-gray-700 mb-1">Upload Subject Image</p>
+                          <p className="text-xs text-gray-500 mb-1">Drag and drop or click to browse</p>
+                          <div className="flex items-center justify-center gap-2 text-xs text-gray-400">
                             <span className="flex items-center gap-1">
                               <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                                 <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
@@ -897,7 +897,7 @@ export default function CourseManagement() {
                 </div>
               </div>
               
-              <div className="flex justify-end gap-4 pt-4">
+              <div className="flex justify-end gap-3 pt-3">
                 <button
                   type="button"
                   onClick={() => {
@@ -905,13 +905,13 @@ export default function CourseManagement() {
                     setImageFile(null);
                     setSelectedCourse(null);
                   }}
-                  className="px-6 py-3 text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition-all duration-200 font-medium"
+                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-all duration-200 font-medium text-sm"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 font-medium"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 font-medium text-sm"
                 >
                   {selectedCourse ? 'Update Course' : 'Add Subject'}
                 </button>
@@ -929,7 +929,7 @@ export default function CourseManagement() {
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9 }}
-            className="bg-white rounded-2xl p-8 w-full max-w-2xl shadow-2xl"
+            className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl"
           >
             <div className="relative mb-6">
               {/* Modern Header Background */}
@@ -1104,36 +1104,36 @@ export default function CourseManagement() {
           transition={{ delay: 0.1 }}
           className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8"
         >
-          <div className="coursemanagement-stats-card bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+          <div className="coursemanagement-stats-card bg-[#252728] rounded-xl p-6 shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 text-sm font-medium">Total Courses</p>
-                <p className="text-3xl font-bold text-gray-900">{courseStats.total}</p>
+                <p className="text-gray-300 text-sm font-medium">Total Courses</p>
+                <p className="text-3xl font-bold text-white">{courseStats.total}</p>
               </div>
-              <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                <BookOpen className="w-6 h-6 text-blue-600" />
+              <div className="w-12 h-12 bg-blue-900/30 rounded-xl flex items-center justify-center border border-blue-700/50">
+                <BookOpen className="w-6 h-6 text-blue-400" />
               </div>
             </div>
           </div>
-          <div className="coursemanagement-stats-card bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+          <div className="coursemanagement-stats-card bg-[#252728] rounded-xl p-6 shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 text-sm font-medium">Average Units</p>
-                <p className="text-3xl font-bold text-gray-900">{courseStats.averageUnits}</p>
+                <p className="text-gray-300 text-sm font-medium">Average Units</p>
+                <p className="text-3xl font-bold text-white">{courseStats.averageUnits}</p>
               </div>
-              <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                <GraduationCap className="w-6 h-6 text-green-600" />
+              <div className="w-12 h-12 bg-green-900/30 rounded-xl flex items-center justify-center border border-green-700/50">
+                <GraduationCap className="w-6 h-6 text-green-400" />
               </div>
             </div>
           </div>
-          <div className="coursemanagement-stats-card bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+          <div className="coursemanagement-stats-card bg-[#252728] rounded-xl p-6 shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 text-sm font-medium">Active Courses</p>
-                <p className="text-3xl font-bold text-gray-900">{courseStats.active}</p>
+                <p className="text-gray-300 text-sm font-medium">Active Courses</p>
+                <p className="text-3xl font-bold text-white">{courseStats.active}</p>
               </div>
-              <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-                <Users className="w-6 h-6 text-purple-600" />
+              <div className="w-12 h-12 bg-purple-900/30 rounded-xl flex items-center justify-center border border-purple-700/50">
+                <Users className="w-6 h-6 text-purple-400" />
               </div>
             </div>
           </div>
@@ -1144,7 +1144,7 @@ export default function CourseManagement() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="coursemanagement-controls bg-white rounded-2xl p-6 shadow-lg border border-gray-100 mb-8"
+          className="coursemanagement-controls bg-[#252728] rounded-xl p-6 shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300 mb-8"
         >
           <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
             <div className="flex-1 max-w-md">
@@ -1155,17 +1155,17 @@ export default function CourseManagement() {
                   placeholder="Search subject by name, code, or year level..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  className="w-full pl-10 pr-4 py-3 bg-gray-800 border border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-white placeholder-gray-400 transition-all duration-200 shadow-[inset_2px_2px_4px_rgba(0,0,0,0.3),inset_-1px_-1px_2px_rgba(255,255,255,0.05)]"
                 />
               </div>
             </div>
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
-                <Filter className="w-5 h-5 text-gray-500" />
+                <Filter className="w-5 h-5 text-gray-400" />
                 <select
                   value={filterUnits}
                   onChange={(e) => setFilterUnits(e.target.value)}
-                  className="border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  className="bg-gray-800 border border-gray-600 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-white transition-all duration-200 shadow-[inset_2px_2px_4px_rgba(0,0,0,0.3),inset_-1px_-1px_2px_rgba(255,255,255,0.05)]"
                 >
                   <option value="all">All Units</option>
                   <option value="1">1 Unit</option>
@@ -1176,11 +1176,11 @@ export default function CourseManagement() {
                   <option value="6">6 Units</option>
                 </select>
               </div>
-              <div className="flex items-center gap-2 bg-gray-100 rounded-xl p-1">
+              <div className="flex items-center gap-2 bg-gray-700 rounded-xl p-1">
                 <button
                   onClick={() => setViewMode('grid')}
                   className={`p-2 rounded-lg transition-all duration-200 ${
-                    viewMode === 'grid' ? 'bg-white shadow-sm' : 'text-gray-500'
+                    viewMode === 'grid' ? 'bg-gray-600 text-white shadow-sm' : 'text-gray-400'
                   }`}
                 >
                   <Grid className="w-5 h-5" />
@@ -1188,16 +1188,16 @@ export default function CourseManagement() {
                 <button
                   onClick={() => setViewMode('list')}
                   className={`p-2 rounded-lg transition-all duration-200 ${
-                    viewMode === 'list' ? 'bg-white shadow-sm' : 'text-gray-500'
+                    viewMode === 'list' ? 'bg-gray-600 text-white shadow-sm' : 'text-gray-400'
                   }`}
                 >
                   <List className="w-5 h-5" />
                 </button>
               </div>
               <div className="flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-filter w-5 h-5 text-gray-500"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-filter w-5 h-5 text-gray-400"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
                 <select
-                  className="border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  className="bg-gray-800 border border-gray-600 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-white transition-all duration-200 shadow-[inset_2px_2px_4px_rgba(0,0,0,0.3),inset_-1px_-1px_2px_rgba(255,255,255,0.05)]"
                   value={filterYearLevel}
                   onChange={e => setFilterYearLevel(e.target.value)}
                 >
@@ -1219,10 +1219,10 @@ export default function CourseManagement() {
           transition={{ delay: 0.3 }}
         >
           {filteredCourses.length === 0 ? (
-            <div className="bg-white rounded-2xl p-12 text-center shadow-lg border border-gray-100">
-              <BookOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-gray-600 mb-2">No courses found</h3>
-              <p className="text-gray-500 mb-6">
+            <div className="bg-[#252728] rounded-xl p-12 text-center shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300">
+              <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-white mb-2">No courses found</h3>
+              <p className="text-gray-300 mb-6">
                 {searchTerm || filterUnits !== 'all' 
                   ? 'Try adjusting your search or filter criteria.'
                   : 'Get started by adding your first course.'
@@ -1233,7 +1233,7 @@ export default function CourseManagement() {
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={() => setShowAddModal(true)}
-                  className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-xl shadow-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 font-semibold flex items-center gap-2 mx-auto"
+                  className="bg-blue-600 text-white px-6 py-3 rounded-xl shadow-[2px_2px_4px_rgba(0,0,0,0.2),-1px_-1px_3px_rgba(255,255,255,0.15)] hover:bg-blue-700 transition-all duration-300 font-semibold flex items-center gap-2 mx-auto"
                 >
                   <Plus className="w-5 h-5" />
                   Add Your First Course
@@ -1248,7 +1248,7 @@ export default function CourseManagement() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: idx * 0.1 }}
-                  className="coursemanagement-card bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden hover:shadow-xl transition-all duration-300 group"
+                  className="coursemanagement-card bg-[#252728] rounded-xl shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300 overflow-hidden transition-all duration-300 group"
                 >
                     {/* Subject Image */}
                     <div className="relative h-48 bg-gradient-to-br from-blue-50 to-indigo-50 overflow-hidden">
@@ -1345,30 +1345,30 @@ export default function CourseManagement() {
                       )}
                     </div>
                     {/* Subject Name with Code */}
-                    <h3 className="text-xl font-bold text-gray-900 mb-2 line-clamp-2">
-                      <span className="text-blue-600">{course.code}</span> - {course.name}
+                    <h3 className="text-xl font-bold text-white mb-2 line-clamp-2">
+                      <span className="text-blue-400">{course.code}</span> - {course.name}
                     </h3>
                   </div>
                 </motion.div>
               ))}
             </div>
           ) : (
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+            <div className="bg-[#252728] rounded-xl shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300 overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="min-w-full">
-                  <thead className="bg-gradient-to-r from-blue-50 to-indigo-50">
+                  <thead className="bg-gradient-to-r from-blue-600 to-indigo-600">
                     <tr>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">Units</th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">Year Level</th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">Subject Name</th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">Subject Image</th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">Summer</th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
+                        <th className="px-6 py-4 text-left text-sm font-semibold text-white uppercase tracking-wider">Units</th>
+                        <th className="px-6 py-4 text-left text-sm font-semibold text-white uppercase tracking-wider">Year Level</th>
+                        <th className="px-6 py-4 text-left text-sm font-semibold text-white uppercase tracking-wider">Subject Name</th>
+                        <th className="px-6 py-4 text-left text-sm font-semibold text-white uppercase tracking-wider">Subject Image</th>
+                        <th className="px-6 py-4 text-left text-sm font-semibold text-white uppercase tracking-wider">Summer</th>
+                        <th className="px-6 py-4 text-left text-sm font-semibold text-white uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-gray-600">
                     {filteredCourses.map((course) => (
-                      <tr key={course.id} className="hover:bg-gray-50 transition-colors duration-200">
+                      <tr key={course.id} className="hover:bg-gray-700/50 transition-colors duration-200">
                           {/* Units */}
                           <td className="px-6 py-4">
                             <span className="bg-green-100 text-green-800 text-sm font-semibold px-3 py-1 rounded-full">
@@ -1376,10 +1376,10 @@ export default function CourseManagement() {
                             </span>
                           </td>
                           {/* Year Level */}
-                          <td className="px-6 py-4 text-gray-700 max-w-xs truncate">{course.year_level}</td>
+                          <td className="px-6 py-4 text-gray-300 max-w-xs truncate">{course.year_level}</td>
                           {/* Subject Name with Code */}
-                          <td className="px-6 py-4 font-semibold text-gray-900">
-                            <span className="text-blue-600">{course.code}</span> - {course.name}
+                          <td className="px-6 py-4 font-semibold text-white">
+                            <span className="text-blue-400">{course.code}</span> - {course.name}
                           </td>
                           {/* Subject Image */}
                           <td className="px-6 py-4">
