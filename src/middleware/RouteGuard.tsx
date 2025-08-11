@@ -38,7 +38,7 @@ const RouteGuard: React.FC<RouteGuardProps> = ({
   // Memoize role path patterns for better performance
   const rolePathPatterns = useMemo(() => ({
     student: ['/dashboard'],
-    teacher: ['/dashboard'],
+    instructor: ['/dashboard'],
     program_head: ['/dashboard'],
     registrar: ['/dashboard'],
     admin: ['/dashboard'],
