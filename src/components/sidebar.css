@@ -176,12 +176,17 @@
 
 /* Ensure consistent background color */
 html, body {
-  background-color: #2a2a2b !important;
+  background-color: #1c1c1d !important;
+}
+
+/* Sidebar right border for visual separation */
+.sidebar-blur {
+  border-right: 0.5px solid rgba(255, 255, 255, 0.2) !important;
 }
 
 /* Optimized sidebar gap fix */
 .sidebar-gap-fix {
-  background-color: #2a2a2b;
+  background-color: #1c1c1d;
   position: fixed;
   top: 0;
   left: 0;
