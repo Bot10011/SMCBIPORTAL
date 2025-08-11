@@ -576,48 +576,24 @@ body {
   will-change: transform, box-shadow;
   transform: translateZ(0);
   backface-visibility: hidden;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.admindashboard-overview-card:hover {
-  transform: translateY(-2px) translateZ(0);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
 }
 
 .admindashboard-notifications-card {
   will-change: transform, box-shadow;
   transform: translateZ(0);
   backface-visibility: hidden;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.admindashboard-notifications-card:hover {
-  transform: translateY(-2px) translateZ(0);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
 }
 
 .admindashboard-activity-card {
   will-change: transform, box-shadow;
   transform: translateZ(0);
   backface-visibility: hidden;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.admindashboard-activity-card:hover {
-  transform: translateY(-2px) translateZ(0);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
 }
 
 .admindashboard-refresh-button {
   will-change: transform, background-color;
   transform: translateZ(0);
   backface-visibility: hidden;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.admindashboard-refresh-button:hover {
-  transform: translateY(-1px) translateZ(0);
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
 }
 
 /* AdminDashboard Skeleton optimizations */
@@ -637,57 +613,18 @@ body {
   backface-visibility: hidden;
 }
 
-/* Dashboard Card optimizations */
-.card-hover-effect {
-  will-change: transform, box-shadow;
-  transform: translateZ(0);
-  backface-visibility: hidden;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
 
-.card-hover-effect:hover {
-  transform: translateY(-4px) translateZ(0);
-  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
-}
 
 /* System Overview Grid optimizations */
 .admindashboard-overview-card .grid > div {
   will-change: transform, background-color;
   transform: translateZ(0);
   backface-visibility: hidden;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.admindashboard-overview-card .grid > div:hover {
-  transform: scale(1.05) translateZ(0);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
 
-/* Notification item optimizations */
-.admindashboard-notifications-card .space-y-4 > div {
-  will-change: transform, background-color;
-  transform: translateZ(0);
-  backface-visibility: hidden;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
 
-.admindashboard-notifications-card .space-y-4 > div:hover {
-  transform: translateX(4px) translateZ(0);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
 
-/* Activity item optimizations */
-.admindashboard-activity-card .space-y-4 > div {
-  will-change: transform, background-color;
-  transform: translateZ(0);
-  backface-visibility: hidden;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.admindashboard-activity-card .space-y-4 > div:hover {
-  transform: translateX(4px) translateZ(0);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
 
 /* Performance optimizations for Announcement component */
 .announcement-controls {
