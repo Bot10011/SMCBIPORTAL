@@ -1,13 +1,12 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
-import { PlusCircle, Edit, Trash2, X, Search, RefreshCw } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, X, Search, RefreshCw, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import './dashboard.css';
 
 interface Program {
   id: number;
-  code: string;
   name: string;
   description: string;
   major: string;
@@ -16,12 +15,12 @@ interface Program {
   updated_at: string;
 }
 
-const ProgramManagement: React.FC = () => {  const [programs, setPrograms] = useState<Program[]>([]);
+const ProgramManagement: React.FC = () => {
+  const [programs, setPrograms] = useState<Program[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [newProgram, setNewProgram] = useState({ 
     name: '', 
-    code: '', 
     description: '',
     major: '',
     is_active: true
@@ -32,6 +31,143 @@ const ProgramManagement: React.FC = () => {  const [programs, setPrograms] = use
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   
+  // Error logging function
+  const logError = useCallback((error: unknown, context: string, additionalData?: unknown) => {
+    const errorObj = error as { message?: string; code?: string; details?: string; hint?: string };
+    
+    setError(errorObj?.message || 'Unknown error');
+    
+    // Log to console for debugging
+    console.error(`🚨 ProgramManagement Error: ${context}`, {
+      message: errorObj?.message || 'Unknown error',
+      code: errorObj?.code || 'UNKNOWN',
+      details: errorObj?.details || undefined,
+      hint: errorObj?.hint || undefined,
+      timestamp: new Date(),
+      operation: context,
+      userContext: additionalData ? { ...additionalData as object, timestamp: new Date().toISOString() } : undefined
+    });
+  }, []);
+
+  // Get current user info for error context
+  const getCurrentUserInfo = useCallback(async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('id, role, email')
+          .eq('id', user.id)
+          .single();
+        
+        return {
+          id: user.id,
+          email: user.email,
+          role: profile?.role || 'No role assigned',
+          profileId: profile?.id
+        };
+      }
+      return null;
+    } catch (error) {
+      console.error('Error getting user info:', error);
+      return null;
+    }
+  }, []);
+
+  // Clear error
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
+
+  // Fetch programs function
+  const fetchPrograms = useCallback(async () => {
+    try {
+      console.log('🔄 [fetchPrograms] Starting to fetch programs...');
+      setLoading(true);
+      
+      const { data, error } = await supabase
+        .from('programs')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('❌ [fetchPrograms] Supabase error:', error);
+        throw error;
+      }
+
+      console.log('✅ [fetchPrograms] Setting programs data:', data);
+      console.log('📋 [fetchPrograms] First program data structure:', data?.[0]);
+      console.log('🔑 [fetchPrograms] Program data keys:', data?.[0] ? Object.keys(data[0]) : []);
+      
+      setPrograms(data || []);
+    } catch (err: unknown) {
+      console.error('💥 [fetchPrograms] Error caught:', err);
+      logError(err, 'fetchPrograms', { 
+        programsCount: programs.length,
+        timestamp: new Date().toISOString()
+      });
+    } finally {
+      console.log('🏁 [fetchPrograms] Finishing, setting loading to false');
+      setLoading(false);
+    }
+  }, [logError, programs.length]);
+
+  // Submit new program
+  const submitNewProgram = useCallback(async (programData: { name: string; description: string; major: string; is_active: boolean }) => {
+    try {
+      const userInfo = await getCurrentUserInfo();
+      if (!userInfo) {
+        throw new Error('Unable to get user information');
+      }
+
+      const { data, error } = await supabase
+        .from('programs')
+        .insert([programData])
+        .select('*');
+
+      if (error) {
+        logError(error, 'submitNewProgram', { programData, timestamp: new Date().toISOString() });
+        throw error;
+      }
+
+      return data;
+    } catch (error: unknown) {
+      logError(error, 'submitNewProgram', { programData, timestamp: new Date().toISOString() });
+      throw error;
+    }
+  }, [logError, getCurrentUserInfo]);
+
+  // Handle submit new program
+  const handleSubmitNew = useCallback(async () => {
+    try {
+      // Validation
+      if (!newProgram.name.trim()) {
+        const error = { message: 'Program name is required', code: 'VALIDATION_ERROR' };
+        logError(error, 'validation', { field: 'name', value: newProgram.name });
+        return;
+      }
+      
+      if (!newProgram.description.trim()) {
+        const error = { message: 'Program description is required', code: 'VALIDATION_ERROR' };
+        logError(error, 'validation', { field: 'description', value: newProgram.description });
+        return;
+      }
+
+      const data = await submitNewProgram(newProgram);
+      setPrograms([...(data || []), ...programs]);
+      setIsAddingNew(false);
+      setNewProgram({ name: '', description: '', major: '', is_active: true });
+      clearError();
+      fetchPrograms(); // Refresh the list
+    } catch (err: unknown) {
+      console.error('💥 [handleSubmitNew] Error caught:', err);
+      logError(err, 'submitNewProgram', { 
+        programData: newProgram,
+        timestamp: new Date().toISOString()
+      });
+    }
+  }, [newProgram, programs, fetchPrograms, clearError, logError, submitNewProgram]);
+
   useEffect(() => {
     fetchPrograms();
   }, []);
@@ -49,17 +185,6 @@ const ProgramManagement: React.FC = () => {  const [programs, setPrograms] = use
     };
   }, [isAddingNew, isEditing]);
 
-  // Auto-generate program code when name changes
-  useEffect(() => {
-    if (newProgram.name.trim()) {
-      const generatedCode = generateProgramCode(newProgram.name);
-      console.log('Generating code for:', newProgram.name, '→', generatedCode);
-      setNewProgram(prev => ({ ...prev, code: generatedCode }));
-    } else {
-      setNewProgram(prev => ({ ...prev, code: '' }));
-    }
-  }, [newProgram.name]);
-
   // Memoized filtered programs
   const filteredPrograms = useMemo(() => {
     if (searchQuery.trim() === '') {
@@ -69,7 +194,6 @@ const ProgramManagement: React.FC = () => {  const [programs, setPrograms] = use
     const lowercaseQuery = searchQuery.toLowerCase();
     return programs.filter(
       program => 
-        program.code.toLowerCase().includes(lowercaseQuery) ||
         program.name.toLowerCase().includes(lowercaseQuery) ||
         program.description.toLowerCase().includes(lowercaseQuery)
     );
@@ -92,143 +216,94 @@ const ProgramManagement: React.FC = () => {  const [programs, setPrograms] = use
     };
   }, [programs]);
 
-  // Memoized database operations
-  const fetchPrograms = useCallback(async () => {
-    try {
-      console.log('Starting to fetch programs...');
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('programs')
-        .select('id, code, name, description, major, is_active, created_at, updated_at')
-        .order('code', { ascending: true });
-
-      console.log('Supabase response:', { data, error });
-
-      if (error) {
-        console.error('Supabase error:', error);
-        throw error;
-      }
-      
-      console.log('Setting programs data:', data);
-      console.log('First program data structure:', data?.[0]);
-      console.log('Program data keys:', data?.[0] ? Object.keys(data[0]) : 'No data');
-      setPrograms(data || []);
-    } catch (err: Error | unknown) {
-      console.error('Error in fetchPrograms:', err);
-      setError(err instanceof Error ? err.message : 'An unknown error occurred');
-    } finally {
-      console.log('Finishing fetchPrograms, setting loading to false');
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
-
   const handleRefresh = useCallback(() => {
+    console.log('🔄 [handleRefresh] Manual refresh triggered');
     setRefreshing(true);
     fetchPrograms();
   }, [fetchPrograms]);
 
   const handleAddNew = useCallback(() => {
+    console.log('➕ [handleAddNew] Opening add new program modal');
     setIsAddingNew(true);
-    setNewProgram({ name: '', code: '', description: '', major: '', is_active: true });
-  }, []);
+    setNewProgram({ name: '', description: '', major: '', is_active: true });
+    clearError();
+  }, [clearError]);
 
   const handleCancelAdd = useCallback(() => {
+    console.log('❌ [handleCancelAdd] Cancelling add new program');
     setIsAddingNew(false);
-  }, []);
+    clearError();
+  }, [clearError]);
 
   const handleEdit = useCallback((program: Program) => {
+    console.log('✏️ [handleEdit] Editing program:', { id: program.id, name: program.name });
     setEditingProgram(program);
     setIsEditing(true);
-  }, []);
+    clearError();
+  }, [clearError]);
 
   const handleCancelEdit = useCallback(() => {
+    console.log('❌ [handleCancelEdit] Cancelling edit');
     setEditingProgram(null);
     setIsEditing(false);
-  }, []);
+    clearError();
+  }, [clearError]);
 
   const handleDelete = useCallback(async (program: Program) => {
     if (!confirm(`Are you sure you want to delete the program "${program.name}"?`)) {
+      console.log('❌ [handleDelete] User cancelled deletion');
       return;
     }
 
     try {
+      console.log('🗑️ [handleDelete] Deleting program:', { id: program.id, name: program.name });
+      
       const { error } = await supabase
         .from('programs')
         .delete()
         .eq('id', program.id);
 
-      if (error) throw error;
-
-      setPrograms(prev => prev.filter(p => p.id !== program.id));
-      alert('Program deleted successfully!');
-    } catch (error) {
-      console.error('Error deleting program:', error);
-      alert('Error deleting program. Please try again.');
-    }
-  }, []);
-
-  const handleSubmitNew = useCallback(async () => {
-    if (!newProgram.name.trim()) {
-      setError('Program name is required');
-      return;
-    }
-    
-    if (!newProgram.description.trim()) {
-      setError('Program description is required');
-      return;
-    }
-
-    try {
-      // Generate program code if not already generated
-      let programCode = newProgram.code;
-      if (!programCode.trim()) {
-        programCode = generateProgramCode(newProgram.name);
-      }
-
-      const { data, error } = await supabase
-        .from('programs')
-        .insert([
-          {
-            name: newProgram.name,
-            code: programCode,
-            description: newProgram.description,
-            major: newProgram.major,
-            is_active: newProgram.is_active,
-          },
-        ])
-        .select();
-
       if (error) {
-        console.error('Supabase error:', error);
+        console.error('❌ [handleDelete] Supabase error:', error);
         throw error;
       }
 
-      console.log('Successfully inserted program:', data);
-      setPrograms([...(data || []), ...programs]);
-      setIsAddingNew(false);
-      setNewProgram({ name: '', code: '', description: '', major: '', is_active: true });
-      fetchPrograms(); // Refresh the list
-    } catch (err: Error | unknown) {
-      console.error('Error in handleSubmitNew:', err);
-      setError(err instanceof Error ? err.message : 'An unknown error occurred');
+      console.log('✅ [handleDelete] Program deleted successfully');
+      setPrograms(prev => prev.filter(p => p.id !== program.id));
+      alert('Program deleted successfully!');
+    } catch (error: unknown) {
+      console.error('💥 [handleDelete] Error caught:', error);
+      logError(error, 'deleteProgram', { 
+        programId: program.id, 
+        programName: program.name,
+        timestamp: new Date().toISOString()
+      });
+      alert('Error deleting program. Please try again.');
     }
-  }, [newProgram, programs, fetchPrograms]);
+  }, [logError]);
 
   const handleUpdateProgram = useCallback(async () => {
-    if (!editingProgram) return;
-
-    if (!editingProgram.name.trim()) {
-      setError('Program name is required');
-      return;
-    }
-    
-    if (!editingProgram.description.trim()) {
-      setError('Program description is required');
+    if (!editingProgram) {
+      console.warn('⚠️ [handleUpdateProgram] No editing program set');
       return;
     }
 
     try {
+      console.log('💾 [handleUpdateProgram] Starting to update program:', { id: editingProgram.id, name: editingProgram.name });
+      
+      // Validation
+      if (!editingProgram.name.trim()) {
+        const error = { message: 'Program name is required', code: 'VALIDATION_ERROR' };
+        logError(error, 'validation', { field: 'name', value: editingProgram.name });
+        return;
+      }
+      
+      if (!editingProgram.description.trim()) {
+        const error = { message: 'Program description is required', code: 'VALIDATION_ERROR' };
+        logError(error, 'validation', { field: 'description', value: editingProgram.description });
+        return;
+      }
+
       const { error } = await supabase
         .from('programs')
         .update({
@@ -239,81 +314,79 @@ const ProgramManagement: React.FC = () => {  const [programs, setPrograms] = use
         })
         .eq('id', editingProgram.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ [handleUpdateProgram] Supabase error:', error);
+        throw error;
+      }
 
+      console.log('✅ [handleUpdateProgram] Program updated successfully');
       setPrograms(prev => prev.map(p => p.id === editingProgram.id ? editingProgram : p));
       setIsEditing(false);
       setEditingProgram(null);
+      clearError();
       alert('Program updated successfully!');
-    } catch (error) {
-      console.error('Error updating program:', error);
+    } catch (error: unknown) {
+      console.error('💥 [handleUpdateProgram] Error caught:', error);
+      logError(error, 'updateProgram', { 
+        programId: editingProgram.id,
+        programData: editingProgram,
+        timestamp: new Date().toISOString()
+      });
       alert('Error updating program. Please try again.');
     }
-  }, [editingProgram]);
-
-
-
-  // Function to generate program code from name, using PREFIX-###### format
-  const generateProgramCode = (name: string): string => {
-    if (!name) return '';
-    const prefix = name.trim().toUpperCase();
-    const timestamp = Date.now().toString().slice(-6); // Get last 6 digits of timestamp
-    const result = `${prefix}-${timestamp}`;
-    console.log('generateProgramCode input:', name, 'prefix:', prefix, 'result:', result);
-    return result;
-  };
+  }, [editingProgram, clearError, logError]);
 
   if (loading && !refreshing) {
-    console.log('Rendering loading state');
+    console.log('🔄 Rendering loading state');
     return (
       <div className="programmanagement-skeleton container mx-auto p-6">
         {/* Header Skeleton */}
         <div className="mb-8 animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-80 mb-2"></div>
-          <div className="h-4 bg-gray-200 rounded w-96"></div>
+          <div className="h-8 bg-gray-700 rounded w-80 mb-2"></div>
+          <div className="h-4 bg-gray-700 rounded w-96"></div>
         </div>
 
-                  {/* Stats Cards Skeleton */}
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-            {[1, 2, 3, 4, 5].map(i => (
-            <div key={i} className="bg-white rounded-lg p-4 shadow-sm border border-gray-100 animate-pulse">
+        {/* Stats Cards Skeleton */}
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+          {[1, 2, 3, 4, 5].map(i => (
+            <div key={i} className="bg-[#252728] rounded-xl p-4 shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300 animate-pulse">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="h-4 bg-gray-200 rounded w-20 mb-2"></div>
-                  <div className="h-6 bg-gray-200 rounded w-12"></div>
+                  <div className="h-4 bg-gray-700 rounded w-20 mb-2"></div>
+                  <div className="h-6 bg-gray-700 rounded w-12"></div>
                 </div>
-                <div className="w-10 h-10 bg-gray-200 rounded-lg"></div>
+                <div className="w-10 h-10 bg-gray-700 rounded-lg"></div>
               </div>
             </div>
           ))}
         </div>
 
         {/* Search and Controls Skeleton */}
-        <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 animate-pulse">
-          <div className="relative w-full md:w-1/3">
-            <div className="h-12 bg-gray-200 rounded-lg"></div>
-          </div>
-          <div className="flex gap-3 w-full md:w-auto">
-            <div className="h-10 w-24 bg-gray-200 rounded-lg"></div>
-            <div className="h-10 w-40 bg-gray-200 rounded-lg"></div>
+        <div className="bg-[#252728] rounded-xl shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300 p-6 mb-6 animate-pulse">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+            <div className="relative w-full md:w-1/3">
+              <div className="h-12 bg-gray-700 rounded-lg"></div>
+            </div>
+            <div className="flex gap-3 w-full md:w-auto">
+              <div className="h-10 w-24 bg-gray-700 rounded-lg"></div>
+              <div className="h-10 w-40 bg-gray-700 rounded-lg"></div>
+            </div>
           </div>
         </div>
 
         {/* Table Skeleton */}
-        <div className="bg-white shadow-lg rounded-lg overflow-hidden border border-gray-100 animate-pulse">
-          <div className="h-12 bg-gray-200"></div>
+        <div className="bg-[#252728] rounded-xl shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300 overflow-hidden animate-pulse">
+          <div className="h-12 bg-gray-700"></div>
           <div className="p-6">
             <div className="space-y-4">
               {[1, 2, 3, 4, 5].map(i => (
                 <div key={i} className="flex items-center gap-4">
-                  <div className="h-4 bg-gray-200 rounded w-20"></div>
-                  <div className="h-4 bg-gray-200 rounded w-32"></div>
-                  <div className="h-4 bg-gray-200 rounded w-40"></div>
-                  <div className="h-4 bg-gray-200 rounded w-24"></div>
-                  <div className="h-4 bg-gray-200 rounded w-16"></div>
-                  <div className="h-4 bg-gray-200 rounded w-20"></div>
-                  <div className="h-4 bg-gray-200 rounded w-20"></div>
-                  <div className="h-4 bg-gray-200 rounded w-16"></div>
+                  <div className="h-4 bg-gray-700 rounded w-20"></div>
+                  <div className="h-4 bg-gray-700 rounded w-32"></div>
+                  <div className="h-4 bg-gray-700 rounded w-40"></div>
+                  <div className="h-4 bg-gray-700 rounded w-24"></div>
+                  <div className="h-4 bg-gray-700 rounded w-16"></div>
+                  <div className="h-4 bg-gray-700 rounded w-20"></div>
                 </div>
               ))}
             </div>
@@ -324,20 +397,18 @@ const ProgramManagement: React.FC = () => {  const [programs, setPrograms] = use
   }
 
   if (error) {
-    console.log('Rendering error state:', error);
+    console.log('❌ Rendering error state:', error);
   }
 
   return (
-    <div className="container mx-auto p-6">
-  
-
+    <div className="p-6 min-h-screen bg-gradient-to-br  ">
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
         className="mb-8"
       >
-        <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 rounded-lg">
+        <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 rounded-lg shadow-lg">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
@@ -351,7 +422,7 @@ const ProgramManagement: React.FC = () => {  const [programs, setPrograms] = use
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-white tracking-tight">Program Management</h1>
-                <p className="text-white/80 text-sm font-medium">Create and manage academic programs with auto-generated codes</p>
+                <p className="text-white/80 text-sm font-medium">Create and manage academic programs</p>
                 <div className="flex items-center gap-4 mt-2 text-xs text-white/80"></div>
               </div>
             </div>
@@ -361,117 +432,163 @@ const ProgramManagement: React.FC = () => {  const [programs, setPrograms] = use
 
       {/* Stats Section */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-        <div className="programmanagement-stats-card bg-white rounded-lg p-4 shadow-sm border border-gray-100">
+        <div className="programmanagement-stats-card bg-[#252728] rounded-xl p-4 shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 mb-1">Total Programs</p>
-              <p className="text-2xl font-bold text-gray-900">{programStats.total}</p>
+              <p className="text-sm text-gray-300 mb-1">Total Programs</p>
+              <p className="text-2xl font-bold text-white">{programStats.total}</p>
             </div>
-            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-              <PlusCircle className="w-5 h-5 text-blue-600" />
+            <div className="w-10 h-10 bg-blue-900/30 rounded-lg flex items-center justify-center border border-blue-700/50">
+              <PlusCircle className="w-5 h-5 text-blue-400" />
             </div>
           </div>
         </div>
-        <div className="programmanagement-stats-card bg-white rounded-lg p-4 shadow-sm border border-gray-100">
+        <div className="programmanagement-stats-card bg-[#252728] rounded-xl p-4 shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 mb-1">Active</p>
-              <p className="text-2xl font-bold text-green-600">{programStats.active}</p>
+              <p className="text-sm text-gray-300 mb-1">Active</p>
+              <p className="text-2xl font-bold text-green-400">{programStats.active}</p>
             </div>
-            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-              <div className="w-2 h-2 bg-green-600 rounded-full"></div>
+            <div className="w-10 h-10 bg-green-900/30 rounded-lg flex items-center justify-center border border-green-700/50">
+              <div className="w-2 h-2 bg-green-400 rounded-full"></div>
             </div>
           </div>
         </div>
-        <div className="programmanagement-stats-card bg-white rounded-lg p-4 shadow-sm border border-gray-100">
+        <div className="programmanagement-stats-card bg-[#252728] rounded-xl p-4 shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 mb-1">With Description</p>
-              <p className="text-2xl font-bold text-purple-600">{programStats.withDescription}</p>
+              <p className="text-sm text-gray-300 mb-1">With Description</p>
+              <p className="text-2xl font-bold text-purple-400">{programStats.withDescription}</p>
             </div>
-            <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-              <div className="w-2 h-2 bg-purple-600 rounded-full"></div>
+            <div className="w-10 h-10 bg-purple-900/30 rounded-lg flex items-center justify-center border border-purple-700/50">
+              <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
             </div>
           </div>
         </div>
-        <div className="programmanagement-stats-card bg-white rounded-lg p-4 shadow-sm border border-gray-100">
+        <div className="programmanagement-stats-card bg-[#252728] rounded-xl p-4 shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 mb-1">Without Description</p>
-              <p className="text-2xl font-bold text-orange-600">{programStats.withoutDescription}</p>
+              <p className="text-sm text-gray-300 mb-1">Without Description</p>
+              <p className="text-2xl font-bold text-orange-400">{programStats.withoutDescription}</p>
             </div>
-            <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
-              <div className="w-2 h-2 bg-orange-600 rounded-full"></div>
+            <div className="w-10 h-10 bg-orange-900/30 rounded-lg flex items-center justify-center border border-orange-700/50">
+              <div className="w-2 h-2 bg-orange-400 rounded-full"></div>
             </div>
           </div>
         </div>
-        <div className="programmanagement-stats-card bg-white rounded-lg p-4 shadow-sm border border-gray-100">
+        <div className="programmanagement-stats-card bg-[#252728] rounded-xl p-4 shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 mb-1">Inactive</p>
-              <p className="text-2xl font-bold text-gray-500">{programStats.inactive}</p>
+              <p className="text-sm text-gray-300 mb-1">Inactive</p>
+              <p className="text-2xl font-bold text-gray-400">{programStats.inactive}</p>
             </div>
-            <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-              <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
+            <div className="w-10 h-10 bg-gray-700/50 rounded-lg flex items-center justify-center border border-gray-600/50">
+              <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
             </div>
           </div>
         </div>
       </div>
 
-              <div className="programmanagement-controls flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-        <div className="relative w-full md:w-1/3">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="h-5 w-5 text-gray-400" />
+      <div className="programmanagement-controls bg-[#252728] rounded-xl shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300 p-6 mb-6">
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+          <div className="relative w-full md:w-1/3">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Search className="h-5 w-5 text-gray-400" />
+            </div>
+            <input
+              type="text"
+              className="pl-10 pr-4 py-3 w-full bg-gray-800 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-white placeholder-gray-400 shadow-[inset_2px_2px_4px_rgba(0,0,0,0.3),inset_-1px_-1px_2px_rgba(255,255,255,0.05)]"
+              placeholder="Search by name or description..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
           </div>
-          <input
-            type="text"
-            className="pl-10 pr-4 py-3 w-full border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            placeholder="Search by code, name or description..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
-        
-        <div className="flex gap-3 w-full md:w-auto">
-          <motion.button
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={handleRefresh}
-            className="programmanagement-refresh-button flex items-center gap-2 bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors"
-          >
-            <RefreshCw size={18} className={refreshing ? "animate-spin" : ""} />
-            Refresh
-          </motion.button>
           
-          <motion.button
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={handleAddNew}
-            className="programmanagement-add-button flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-blue-500 text-white px-4 py-2 rounded-lg hover:from-indigo-700 hover:to-blue-600 transition-all shadow-md"
-          >
-            <PlusCircle size={18} />
-            Add New Program
-          </motion.button>
+          <div className="flex gap-3 w-full md:w-auto">
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={handleRefresh}
+              className="programmanagement-refresh-button flex items-center gap-2 bg-gray-700 text-gray-200 px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors shadow-[2px_2px_4px_rgba(0,0,0,0.2),-1px_-1px_3px_rgba(255,255,255,0.15)]"
+            >
+              <RefreshCw size={18} className={refreshing ? "animate-spin" : ""} />
+              Refresh
+            </motion.button>
+            
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={handleAddNew}
+              className="programmanagement-add-button flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-all shadow-[2px_2px_4px_rgba(0,0,0,0.2),-1px_-1px_3px_rgba(255,255,255,0.15)]"
+            >
+              <PlusCircle size={18} />
+              Add New Program
+            </motion.button>
+          </div>
         </div>
       </div>
 
+      {/* Enhanced Error Display */}
       <AnimatePresence>
         {error && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, height: 0 }}
-            className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded mb-6 flex justify-between items-center"
+            className="bg-red-50 border-l-4 border-red-500 text-red-700 p-4 rounded mb-6"
           >
-            <div className="flex items-center">
-              <span className="font-medium">{error}</span>
+            <div className="flex items-start justify-between">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <h3 className="font-medium text-red-800">Error Occurred</h3>
+                  <p className="text-red-700 mt-1">{error}</p>
+                  
+                  {/* Debug Information (only shown in debug mode) */}
+                  {/* {debugMode && errorDetails && (
+                    <div className="mt-3 p-3 bg-red-100 rounded border border-red-200">
+                      <h4 className="font-medium text-red-800 text-sm mb-2">Debug Information:</h4>
+                      <div className="text-xs text-red-700 space-y-1">
+                        <div><strong>Operation:</strong> {errorDetails.operation}</div>
+                        <div><strong>Error Code:</strong> {errorDetails.code || 'N/A'}</div>
+                        <div><strong>Timestamp:</strong> {errorDetails.timestamp.toLocaleString()}</div>
+                        {errorDetails.details && (
+                          <div><strong>Details:</strong> {errorDetails.details}</div>
+                        )}
+                        {errorDetails.hint && (
+                          <div><strong>Hint:</strong> {errorDetails.hint}</div>
+                        )}
+                        {errorDetails.userContext ? (
+                          <div><strong>Context:</strong> {JSON.stringify(errorDetails.userContext, null, 2)}</div>
+                        ) : null}
+                      </div>
+                    </div>
+                  )} */}
+                </div>
+              </div>
+              <div className="flex gap-2">
+                {/* {debugMode && (
+                  <button
+                    onClick={() => {
+                      console.log('🔍 Full error details:', errorDetails);
+                      console.log('🔍 Current programs state:', programs);
+                      console.log('🔍 Current user context:', getCurrentUserInfo());
+                    }}
+                    className="text-red-600 hover:text-red-800 text-sm font-medium"
+                    title="Log debug info to console"
+                  >
+                    <Info className="h-4 w-4" />
+                  </button>
+                )} */}
+                <button
+                  onClick={clearError}
+                  className="text-red-700 hover:text-red-900"
+                  title="Dismiss error"
+                >
+                  <X size={18} />
+                </button>
+              </div>
             </div>
-            <button
-              className="text-red-700 hover:text-red-900"
-              onClick={() => setError(null)}
-            >
-              <X size={18} />
-            </button>
           </motion.div>
         )}
       </AnimatePresence>
@@ -507,24 +624,6 @@ const ProgramManagement: React.FC = () => {  const [programs, setPrograms] = use
               
               <form onSubmit={(e) => { e.preventDefault(); handleSubmitNew(); }} className="programmanagement-modal space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>                
-                    <label className="block text-sm font-medium mb-2 text-gray-700">
-                      Program Code * <span className="text-xs text-gray-500">(Auto-generated)</span>
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={newProgram.code}
-                        className="w-full p-3 pl-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-gray-50 text-gray-600"
-                        placeholder={newProgram.name ? `Will generate: ${newProgram.name.toUpperCase()}-######` : "Enter program name first"}
-                        readOnly
-                        onChange={(e) => console.log('Code field value:', e.target.value)}
-                      />
-                      <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                        <span className="text-xs text-green-600 bg-green-100 py-1 px-2 rounded-full font-medium">Auto</span>
-                      </div>
-                    </div>
-                  </div>
                   <div>
                     <label className="block text-sm font-medium mb-2 text-gray-700">
                       Program Name *
@@ -555,8 +654,6 @@ const ProgramManagement: React.FC = () => {  const [programs, setPrograms] = use
                     rows={3}
                   />
                 </div>
-                
-
                 
                 <div className="flex items-center gap-3">
                   <input
@@ -630,22 +727,6 @@ const ProgramManagement: React.FC = () => {  const [programs, setPrograms] = use
               
               <form onSubmit={(e) => { e.preventDefault(); handleUpdateProgram(); }} className="programmanagement-modal space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>                
-                    <label className="block text-sm font-medium mb-2 text-gray-700">
-                      Program Code <span className="text-xs text-gray-500">(Read-only)</span>
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={editingProgram.code}
-                        className="w-full p-3 pl-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-gray-50 text-gray-600"
-                        readOnly
-                      />
-                      <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                        <span className="text-xs text-gray-600 bg-gray-100 py-1 px-2 rounded-full font-medium">Fixed</span>
-                      </div>
-                    </div>
-                  </div>
                   <div>
                     <label className="block text-sm font-medium mb-2 text-gray-700">
                       Program Name *
@@ -718,117 +799,105 @@ const ProgramManagement: React.FC = () => {  const [programs, setPrograms] = use
         document.body
       )}
 
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, delay: 0.2 }}
-        className="programmanagement-table bg-white shadow-lg rounded-lg overflow-hidden border border-gray-100"
-      >
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gradient-to-r from-indigo-600 to-blue-500">
-            <tr>
-              <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">
-                Program Code
-              </th>
-              <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">
-                Program Name
-              </th>
-              <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">
-                Description
-              </th>
-
-              <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">
-                Active
-              </th>
-              <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">
-                Created At
-              </th>
-              <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">
-                Updated At
-              </th>
-              <th className="px-6 py-4 text-right text-xs font-medium text-white uppercase tracking-wider">
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {filteredPrograms.length === 0 ? (
+      {/* TABLE - COMPACT AND ZOOM-FRIENDLY */}
+      <div className="bg-[#252728] rounded-xl shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300 overflow-hidden">
+        <div className="w-full overflow-x-auto">
+          <table className="w-full min-w-full divide-y divide-gray-600">
+            <thead className="bg-gradient-to-r from-indigo-600 to-blue-500">
               <tr>
-                <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
-                  {searchQuery ? 
-                    <div className="flex flex-col items-center">
-                      <Search className="h-8 w-8 text-gray-400 mb-2" />
-                      <p>No programs match your search criteria.</p>
-                      <button 
-                        onClick={() => setSearchQuery('')}
-                        className="mt-2 text-indigo-600 hover:text-indigo-800"
-                      >
-                        Clear search
-                      </button>
-                    </div> : 
-                    <div className="flex flex-col items-center">
-                      <PlusCircle className="h-8 w-8 text-gray-400 mb-2" />
-                      <p>No programs found. Add a new program to get started.</p>
-                    </div>
-                  }
-                </td>
+                <th className="px-4 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">
+                  Program Name
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">
+                  Description
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">
+                  Active
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">
+                  Created At
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">
+                  Updated At
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-white uppercase tracking-wider">
+                  Actions
+                </th>
               </tr>
-            ) : (
-              filteredPrograms.map((program, index) => (
-                <tr key={program.id || index} className="programmanagement-table-row hover:bg-indigo-50 transition-colors duration-150">
-                  <td className="px-6 py-4 whitespace-nowrap font-medium text-indigo-700">
-                    <span className="bg-indigo-100 text-indigo-800 py-1 px-3 rounded-full text-xs font-semibold">
-                      {program.code || 'N/A'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="font-medium text-gray-900">{program.name || 'N/A'}</span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="text-gray-700">{program.description || 'N/A'}</span>
-                  </td>
-
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-gray-700">{program.is_active ? 'Yes' : 'No'}</span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-gray-500">
-                    {program.created_at ? new Date(program.created_at).toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric'
-                    }) : 'N/A'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-gray-500">
-                    {program.updated_at ? new Date(program.updated_at).toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric'
-                    }) : 'N/A'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <div className="flex justify-end gap-2">
-                      <button 
-                        onClick={() => handleEdit(program)}
-                        className="programmanagement-action-button p-1 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 transition-colors duration-200"
-                        title="Edit Program"
-                      >
-                        <Edit size={18} />
-                      </button>
-                      <button 
-                        onClick={() => handleDelete(program)}
-                        className="programmanagement-action-button p-1 rounded-full bg-red-100 text-red-600 hover:bg-red-200 transition-colors duration-200"
-                        title="Delete Program"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                    </div>
+            </thead>
+            <tbody className="bg-[#252728] divide-y divide-gray-600">
+              {filteredPrograms.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-6 text-center text-gray-400">
+                    {searchQuery ? 
+                      <div className="flex flex-col items-center">
+                        <Search className="h-8 w-8 text-gray-400 mb-2" />
+                        <p className="text-white">No programs match your search criteria.</p>
+                        <button 
+                          onClick={() => setSearchQuery('')}
+                          className="mt-2 text-blue-400 hover:text-blue-300"
+                        >
+                          Clear search
+                        </button>
+                      </div> : 
+                      <div className="flex flex-col items-center">
+                        <PlusCircle className="h-8 w-8 text-gray-400 mb-2" />
+                        <p className="text-white">No programs found. Add a new program to get started.</p>
+                      </div>
+                    }
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </motion.div>
+              ) : (
+                filteredPrograms.map((program, index) => (
+                  <tr key={program.id || index} className="programmanagement-table-row hover:bg-gray-700/50 transition-colors duration-150">
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className="font-medium text-white">{program.name || 'N/A'}</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="text-gray-300 break-words">{program.description || 'N/A'}</span>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className="text-gray-300">{program.is_active ? 'Yes' : 'No'}</span>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className="text-gray-400">{program.created_at ? new Date(program.created_at).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric'
+                      }) : 'N/A'}</span>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className="text-gray-400">{program.updated_at ? new Date(program.updated_at).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric'
+                      }) : 'N/A'}</span>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
+                      <div className="flex justify-end gap-2">
+                        <button 
+                          onClick={() => handleEdit(program)}
+                          className="programmanagement-action-button p-1 rounded-full bg-blue-900/30 text-blue-400 hover:bg-blue-800/50 transition-colors duration-200 border border-blue-700/50"
+                          title="Edit Program"
+                        >
+                          <Edit size={16} />
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(program)}
+                          className="programmanagement-action-button p-1 rounded-full bg-red-900/30 text-red-400 hover:bg-red-800/50 transition-colors duration-200 border border-red-700/50"
+                          title="Delete Program"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 };
