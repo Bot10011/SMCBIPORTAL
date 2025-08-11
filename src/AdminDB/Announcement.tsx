@@ -4,7 +4,7 @@ import {
   Plus, 
   Edit, 
   Trash2, 
-  Search, 
+  Search,
   Calendar,
   CheckCircle,
   Clock,
@@ -39,20 +39,12 @@ interface Announcement {
 // ============================================================================
 
 const PRIORITY_OPTIONS = [
-  { value: 'high', label: 'High', color: 'text-red-600 bg-red-50 border-red-200' },
-  { value: 'medium', label: 'Medium', color: 'text-yellow-600 bg-yellow-50 border-yellow-200' },
-  { value: 'low', label: 'Low', color: 'text-green-600 bg-green-50 border-green-200' }
+  { value: 'high', label: 'High', color: 'text-red-400 bg-red-900/30 border-red-700/50' },
+  { value: 'medium', label: 'Medium', color: 'text-yellow-400 bg-yellow-900/30 border-yellow-700/50' },
+  { value: 'low', label: 'Low', color: 'text-green-400 bg-green-900/30 border-green-700/50' }
 ];
 
-const CATEGORY_OPTIONS = [
-  'General',
-  'Enrollment',
-  'Academic',
-  'Services',
-  'Events',
-  'System',
-  'Emergency'
-];
+
 
 // ============================================================================
 // MAIN COMPONENT
@@ -66,8 +58,6 @@ const Announcement: React.FC = () => {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterPriority, setFilterPriority] = useState<string>('all');
-  const [filterCategory, setFilterCategory] = useState<string>('all');
   const [showModal, setShowModal] = useState(false);
   const [editingAnnouncement, setEditingAnnouncement] = useState<Announcement | null>(null);
 
@@ -81,12 +71,10 @@ const Announcement: React.FC = () => {
       const matchesSearch = announcement.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            announcement.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            announcement.author.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesPriority = filterPriority === 'all' || announcement.priority === filterPriority;
-      const matchesCategory = filterCategory === 'all' || announcement.category === filterCategory;
       
-      return matchesSearch && matchesPriority && matchesCategory;
+      return matchesSearch;
     });
-  }, [announcements, searchTerm, filterPriority, filterCategory]);
+  }, [announcements, searchTerm]);
 
   // Memoized announcement statistics
   const announcementStats = useMemo(() => {
@@ -245,7 +233,7 @@ const Announcement: React.FC = () => {
   
   const getPriorityColor = (priority: string): string => {
     const priorityOption = PRIORITY_OPTIONS.find(option => option.value === priority);
-    return priorityOption?.color || 'text-gray-600 bg-gray-50 border-gray-200';
+    return priorityOption?.color || 'text-gray-400 bg-gray-800/30 border-gray-600/50';
   };
 
   const formatDate = (dateString: string): string => {
@@ -261,10 +249,10 @@ const Announcement: React.FC = () => {
   // ============================================================================
   
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
+    <div className="p-6 min-h-screen bg-gradient-to-br ">
       {/* Header */}
       <div className="mb-8">
-        <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 rounded-lg">
+        <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 rounded-lg shadow-lg">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
@@ -285,67 +273,45 @@ const Announcement: React.FC = () => {
 
       {/* Stats Section */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-          <div className="text-sm text-gray-600 mb-1">Total</div>
-          <div className="text-2xl font-bold text-gray-900">{announcementStats.total}</div>
+        <div className="bg-[#252728] rounded-xl shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300 p-4">
+          <div className="text-sm text-gray-300 mb-1">Total</div>
+          <div className="text-2xl font-bold text-white">{announcementStats.total}</div>
         </div>
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-          <div className="text-sm text-gray-600 mb-1">Active</div>
-          <div className="text-2xl font-bold text-green-600">{announcementStats.active}</div>
+        <div className="bg-[#252728] rounded-xl shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300 p-4">
+          <div className="text-sm text-gray-300 mb-1">Active</div>
+          <div className="text-2xl font-bold text-green-400">{announcementStats.active}</div>
         </div>
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-          <div className="text-sm text-gray-600 mb-1">High Priority</div>
-          <div className="text-2xl font-bold text-red-600">{announcementStats.highPriority}</div>
+        <div className="bg-[#252728] rounded-xl shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300 p-4">
+          <div className="text-sm text-gray-300 mb-1">High Priority</div>
+          <div className="text-2xl font-bold text-red-400">{announcementStats.highPriority}</div>
         </div>
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-          <div className="text-sm text-gray-600 mb-1">Inactive</div>
-          <div className="text-2xl font-bold text-gray-500">{announcementStats.inactive}</div>
+        <div className="bg-[#252728] rounded-xl shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300 p-4">
+          <div className="text-sm text-gray-300 mb-1">Inactive</div>
+          <div className="text-2xl font-bold text-gray-400">{announcementStats.inactive}</div>
         </div>
       </div>
 
       {/* Controls */}
-      <div className="announcement-controls bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-        <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
-          {/* Search and Filters */}
-          <div className="flex flex-col sm:flex-row gap-4 flex-1">
-            <div className="relative flex-1 max-w-md">
+      <div className="announcement-controls bg-[#252728] rounded-xl shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300 p-6 mb-6">
+                <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
+          {/* Search */}
+          <div className="flex-1 max-w-md">
+            <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               <input
                 type="text"
                 placeholder="Search announcements..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full pl-10 pr-4 py-2 bg-gray-800 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-white placeholder-gray-400 shadow-[inset_2px_2px_4px_rgba(0,0,0,0.3),inset_-1px_-1px_2px_rgba(255,255,255,0.05)]"
               />
             </div>
-            
-            <select
-              value={filterPriority}
-              onChange={(e) => setFilterPriority(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="all">All Priorities</option>
-              {PRIORITY_OPTIONS.map(option => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
-            
-            <select
-              value={filterCategory}
-              onChange={(e) => setFilterCategory(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="all">All Categories</option>
-              {CATEGORY_OPTIONS.map(category => (
-                <option key={category} value={category}>{category}</option>
-              ))}
-            </select>
           </div>
 
           {/* Create Button */}
           <button
             onClick={() => setShowModal(true)}
-            className="announcement-create-button bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg flex items-center gap-2 transition-colors duration-200"
+            className="announcement-create-button bg-blue-600 text-white px-6 py-2 rounded-lg flex items-center gap-2 transition-all duration-200 shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)]"
           >
             <Plus className="w-4 h-4" />
             Create Announcement
@@ -358,28 +324,28 @@ const Announcement: React.FC = () => {
         <div className="announcement-skeleton">
           {/* Header Skeleton */}
           <div className="mb-8 animate-pulse">
-            <div className="h-8 bg-gray-200 rounded w-80 mb-2"></div>
-            <div className="h-4 bg-gray-200 rounded w-96"></div>
+            <div className="h-8 bg-gray-700 rounded w-80 mb-2"></div>
+            <div className="h-4 bg-gray-700 rounded w-96"></div>
           </div>
 
           {/* Controls Skeleton */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6 animate-pulse">
+          <div className="bg-[#252728] rounded-xl shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300 p-6 mb-6 animate-pulse">
             <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
               <div className="flex flex-col sm:flex-row gap-4 flex-1">
-                <div className="h-10 bg-gray-200 rounded-lg flex-1 max-w-md"></div>
-                <div className="h-10 bg-gray-200 rounded-lg w-32"></div>
-                <div className="h-10 bg-gray-200 rounded-lg w-32"></div>
+                <div className="h-10 bg-gray-700 rounded-lg flex-1 max-w-md"></div>
+                <div className="h-10 bg-gray-700 rounded-lg w-32"></div>
+                <div className="h-10 bg-gray-700 rounded-lg w-32"></div>
               </div>
-              <div className="h-10 w-48 bg-gray-200 rounded-lg"></div>
+              <div className="h-10 w-48 bg-gray-700 rounded-lg"></div>
             </div>
           </div>
 
           {/* Stats Skeleton */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             {[1, 2, 3, 4].map(i => (
-              <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 animate-pulse">
-                <div className="h-4 bg-gray-200 rounded w-20 mb-2"></div>
-                <div className="h-6 bg-gray-200 rounded w-12"></div>
+              <div key={i} className="bg-[#252728] rounded-xl shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300 p-4 animate-pulse">
+                <div className="h-4 bg-gray-700 rounded w-20 mb-2"></div>
+                <div className="h-6 bg-gray-700 rounded w-12"></div>
               </div>
             ))}
           </div>
@@ -387,32 +353,32 @@ const Announcement: React.FC = () => {
           {/* Announcements Grid Skeleton */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[1, 2, 3, 4, 5, 6].map(i => (
-              <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-pulse">
-                <div className="h-48 bg-gray-200"></div>
+              <div key={i} className="bg-[#252728] rounded-xl shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300 overflow-hidden animate-pulse">
+                <div className="h-48 bg-gray-700"></div>
                 <div className="p-6">
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
-                        <div className="h-6 bg-gray-200 rounded-full w-16"></div>
-                        <div className="h-6 bg-gray-200 rounded-full w-20"></div>
+                        <div className="h-6 bg-gray-700 rounded-full w-16"></div>
+                        <div className="h-6 bg-gray-700 rounded-full w-20"></div>
                       </div>
-                      <div className="h-5 bg-gray-200 rounded w-full mb-2"></div>
+                      <div className="h-5 bg-gray-700 rounded w-full mb-2"></div>
                     </div>
                   </div>
                   <div className="flex items-center gap-4 mb-4">
-                    <div className="h-4 bg-gray-200 rounded w-24"></div>
-                    <div className="h-4 bg-gray-200 rounded w-20"></div>
+                    <div className="h-4 bg-gray-700 rounded w-24"></div>
+                    <div className="h-4 bg-gray-700 rounded w-20"></div>
                   </div>
                   <div className="space-y-2 mb-4">
-                    <div className="h-3 bg-gray-200 rounded w-full"></div>
-                    <div className="h-3 bg-gray-200 rounded w-3/4"></div>
-                    <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                    <div className="h-3 bg-gray-700 rounded w-full"></div>
+                    <div className="h-3 bg-gray-700 rounded w-3/4"></div>
+                    <div className="h-3 bg-gray-700 rounded w-1/2"></div>
                   </div>
-                  <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+                  <div className="flex items-center justify-between pt-4 border-t border-gray-600">
                     <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 bg-gray-200 rounded"></div>
-                      <div className="w-8 h-8 bg-gray-200 rounded"></div>
-                      <div className="w-8 h-8 bg-gray-200 rounded"></div>
+                      <div className="w-8 h-8 bg-gray-700 rounded"></div>
+                      <div className="w-8 h-8 bg-gray-700 rounded"></div>
+                      <div className="w-8 h-8 bg-gray-700 rounded"></div>
                     </div>
                   </div>
                 </div>
@@ -427,11 +393,11 @@ const Announcement: React.FC = () => {
               key={announcement.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="announcement-card bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow duration-200"
+              className="announcement-card bg-[#252728] rounded-xl shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300 overflow-hidden transition-all duration-200"
             >
               {/* Banner Image */}
               {announcement.image && (
-                <div className="h-48 bg-gradient-to-br from-blue-50 to-indigo-100">
+                <div className="h-48 bg-gradient-to-br from-gray-800 to-gray-900">
                   <img
                     src={announcement.image}
                     alt={announcement.title}
@@ -445,8 +411,8 @@ const Announcement: React.FC = () => {
                       const parent = target.parentElement;
                       if (parent) {
                         parent.innerHTML = `
-                          <div class="flex items-center justify-center h-full bg-gray-100">
-                            <svg class="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <div class="flex items-center justify-center h-full bg-gray-800">
+                            <svg class="w-12 h-12 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
                             </svg>
                           </div>
@@ -467,23 +433,23 @@ const Announcement: React.FC = () => {
                       <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getPriorityColor(announcement.priority)}`}>
                         {announcement.priority.toUpperCase()}
                       </span>
-                      <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium">
+                      <span className="px-2 py-1 bg-gray-700/50 text-gray-200 rounded-full text-xs font-medium border border-gray-600">
                         {announcement.category}
                       </span>
                       {!announcement.is_active && (
-                        <span className="px-2 py-1 bg-gray-100 text-gray-500 rounded-full text-xs font-medium">
+                        <span className="px-2 py-1 bg-gray-700/50 text-gray-400 rounded-full text-xs font-medium border border-gray-600">
                           INACTIVE
                         </span>
                       )}
                     </div>
-                    <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2">
+                    <h3 className="text-lg font-bold text-white mb-2 line-clamp-2">
                       {announcement.title}
                     </h3>
                   </div>
                 </div>
 
                 {/* Meta Info */}
-                <div className="flex items-center gap-4 text-sm text-gray-500 mb-4">
+                <div className="flex items-center gap-4 text-sm text-gray-300 mb-4">
                   <div className="flex items-center gap-1">
                     <User className="w-4 h-4" />
                     <span>{announcement.author}</span>
@@ -495,26 +461,26 @@ const Announcement: React.FC = () => {
                 </div>
 
                 {/* Content Preview */}
-                <p className="text-gray-600 text-sm line-clamp-3 mb-4">
+                <p className="text-gray-300 text-sm line-clamp-3 mb-4">
                   {announcement.content}
                 </p>
 
                 {/* Actions */}
-                <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+                <div className="flex items-center justify-between pt-4 border-t border-gray-600">
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => handleEdit(announcement)}
-                      className="announcement-action-button p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200"
+                      className="announcement-action-button p-2 text-blue-400 rounded-lg transition-colors duration-200 shadow-[2px_2px_4px_rgba(0,0,0,0.2),-1px_-1px_3px_rgba(255,255,255,0.15)]"
                       title="Edit"
                     >
                       <Edit className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => toggleAnnouncementStatus(announcement.id, announcement.is_active)}
-                      className={`announcement-action-button p-2 rounded-lg transition-colors duration-200 ${
+                      className={`announcement-action-button p-2 rounded-lg transition-colors duration-200 shadow-[2px_2px_4px_rgba(0,0,0,0.2),-1px_-1px_3px_rgba(255,255,255,0.15)] ${
                         announcement.is_active 
-                          ? 'text-green-600 hover:bg-green-50' 
-                          : 'text-yellow-600 hover:bg-yellow-50'
+                          ? 'text-green-400' 
+                          : 'text-yellow-400'
                       }`}
                       title={announcement.is_active ? 'Deactivate' : 'Activate'}
                     >
@@ -522,7 +488,7 @@ const Announcement: React.FC = () => {
                     </button>
                     <button
                       onClick={() => handleDelete(announcement.id)}
-                      className="announcement-action-button p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200"
+                      className="announcement-action-button p-2 text-red-400 rounded-lg transition-colors duration-200 shadow-[2px_2px_4px_rgba(0,0,0,0.2),-1px_-1px_3px_rgba(255,255,255,0.15)]"
                       title="Delete"
                     >
                       <Trash2 className="w-4 h-4" />
