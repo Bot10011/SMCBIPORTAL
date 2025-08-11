@@ -1,4 +1,4 @@
-export type UserRole = 'superadmin' | 'admin' | 'registrar' | 'program_head' | 'teacher' | 'instructor' | 'student';
+export type UserRole = 'superadmin' | 'admin' | 'registrar' | 'program_head' | 'instructor' | 'student';
 export type StudentStatus = 'regular' | 'irregular' | 'transferee';
 
 export interface User {
@@ -22,7 +22,7 @@ export interface RolePermissions {
 
 export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
   superadmin: {
-    canCreateUsers: ['admin', 'registrar', 'program_head', 'teacher', 'student'],
+    canCreateUsers: ['admin', 'registrar', 'program_head', 'instructor', 'student'],
     canManageCurriculum: true,
     canManageGrades: true,
     canViewAllData: true,
@@ -30,7 +30,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canManageSubjects: true,
   },
   admin: {
-    canCreateUsers: ['registrar', 'program_head', 'teacher', 'student'],
+    canCreateUsers: ['registrar', 'program_head', 'instructor', 'student'],
     canManageCurriculum: true,
     canManageGrades: true,
     canViewAllData: true,
@@ -38,7 +38,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canManageSubjects: true,
   },
   registrar: {
-    canCreateUsers: ['program_head', 'teacher', 'student'],
+    canCreateUsers: ['program_head', 'instructor', 'student'],
     canManageCurriculum: false,
     canManageGrades: false,
     canViewAllData: true,
@@ -46,20 +46,12 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canManageSubjects: false,
   },
   program_head: {
-    canCreateUsers: ['teacher', 'student'],
+    canCreateUsers: ['instructor', 'student'],
     canManageCurriculum: true,
     canManageGrades: false,
     canViewAllData: false,
     canManageEnrollment: false,
     canManageSubjects: true,
-  },
-  teacher: {
-    canCreateUsers: [],
-    canManageCurriculum: false,
-    canManageGrades: true,
-    canViewAllData: false,
-    canManageEnrollment: false,
-    canManageSubjects: false,
   },
   instructor: {
     canCreateUsers: [],
