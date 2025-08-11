@@ -1,27 +1,28 @@
-/* Custom animations and styles for the sidebar */
+/* Optimized sidebar CSS for better performance on low-end devices */
 
-/* Gradient animation */
+/* Use hardware-accelerated properties for smooth animations */
+.sidebar-container {
+  transform: translateZ(0);
+  will-change: width, transform;
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
+/* Simplified gradient animation - reduced complexity */
 @keyframes gradient-x {
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
-  }
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
 }
 
 .animate-gradient-x {
-  animation: gradient-x 3s ease infinite;
+  animation: gradient-x 4s ease infinite;
 }
 
-/* Lightweight fade-in animation for navigation items */
+/* Optimized fade-in animation - reduced transform complexity */
 @keyframes fadeInUp {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -29,85 +30,81 @@
   }
 }
 
-/* Simple fade-in animation for main content */
+/* Simple fade-in for main content */
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
-/* Custom scrollbar styling for light theme */
+/* Hardware-accelerated scrollbar styling */
 .custom-scrollbar::-webkit-scrollbar {
   width: 4px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.05);
+  background: rgba(255, 255, 255, 0.05);
   border-radius: 4px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(255, 255, 255, 0.2);
   border-radius: 4px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(255, 255, 255, 0.3);
 }
 
-/* Smooth transitions for sidebar elements */
+/* Optimized transitions using transform and opacity only */
 .sidebar-transition {
-  transition: all 0.2s ease-in-out;
+  transition: transform 0.2s ease-out, opacity 0.2s ease-out;
+  will-change: transform, opacity;
 }
 
-/* Optimized hover effects */
+/* Simplified hover effects - reduced property changes */
 .nav-item-hover {
-  transition: background-color 0.15s ease-in-out, color 0.15s ease-in-out;
+  transition: background-color 0.15s ease-out;
 }
 
-/* Button press effect */
+/* Optimized button press effect */
 .button-press {
-  transition: transform 0.1s ease-in-out;
+  transition: transform 0.1s ease-out;
+  will-change: transform;
 }
 
 .button-press:active {
-  transform: scale(0.95);
+  transform: scale(0.98);
 }
 
-/* Text transition for collapsed state */
+/* Simplified text transition */
 .text-transition {
-  transition: opacity 0.2s ease-in-out, width 0.2s ease-in-out;
+  transition: opacity 0.2s ease-out;
+  will-change: opacity;
 }
 
-/* Logo transition */
+/* Logo transition optimization */
 .logo-transition {
-  transition: width 0.2s ease-in-out, height 0.2s ease-in-out;
+  transition: width 0.2s ease-out, height 0.2s ease-out;
+  will-change: width, height;
 }
 
-/* Mobile menu button transition */
+/* Mobile menu optimization */
 .mobile-menu-transition {
-  transition: all 0.15s ease-in-out;
+  transition: transform 0.15s ease-out, opacity 0.15s ease-out;
+  will-change: transform, opacity;
 }
 
-/* Content area transition */
+/* Content area transition optimization */
 .content-transition {
-  transition: margin-left 0.3s ease-in-out, width 0.3s ease-in-out;
+  transition: margin-left 0.2s ease-out;
+  will-change: margin-left;
 }
 
-/* Background page styling */
-.bg-gradient-to-br {
-  position: relative;
-  overflow: hidden;
-}
-
-/* Hover effect for sidebar items */
+/* Simplified hover effect for sidebar items */
 .sidebar-item-hover {
   position: relative;
-  transition: all 0.3s ease;
-  overflow: hidden;
+  transition: background-color 0.2s ease-out;
+  will-change: background-color;
 }
 
 .sidebar-item-hover::before {
@@ -117,98 +114,123 @@
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(45deg, rgba(255,255,255,0.1), rgba(255,255,255,0));
+  background: rgba(255, 255, 255, 0.05);
   opacity: 0;
-  transition: opacity 0.3s ease;
+  transition: opacity 0.2s ease-out;
+  will-change: opacity;
 }
 
 .sidebar-item-hover:hover::before {
   opacity: 1;
 }
 
-/* Mobile menu animation */
+/* Optimized mobile menu animation */
 @keyframes slide-in {
-  0% {
-    transform: translateX(-100%);
-  }
-  100% {
-    transform: translateX(0);
-  }
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
 }
 
 .slide-in {
-  animation: slide-in 0.3s forwards;
+  animation: slide-in 0.25s ease-out forwards;
+  will-change: transform;
 }
 
-/* Subtle floating animation for decorative elements */
+/* Simplified floating animation */
 @keyframes float {
-  0% {
-    transform: translateY(0px);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
-  100% {
-    transform: translateY(0px);
-  }
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-5px); }
 }
 
 .animate-float {
-  animation: float 6s ease-in-out infinite;
+  animation: float 4s ease-in-out infinite;
+  will-change: transform;
 }
 
-/* Background blur style */
+/* Optimized backdrop blur */
 .backdrop-blur-custom {
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }
 
-/* Smooth content width transition */
+/* Simplified width transition */
 @keyframes width-grow {
   from { width: 0; }
   to { width: auto; }
 }
 
 .animate-width {
-  animation: width-grow 0.5s ease-in-out forwards;
+  animation: width-grow 0.3s ease-out forwards;
+  will-change: width;
 }
 
-/* Smooth height transition */
+/* Optimized sidebar transitions */
+.sidebar-transition * {
+  transition: transform 0.2s ease-out, opacity 0.2s ease-out;
+}
+
+/* Simplified nav item transitions */
+.nav-item, .sidebar-item {
+  transition: background-color 0.2s ease-out, color 0.2s ease-out;
+  will-change: background-color, color;
+}
+
+/* Ensure consistent background color */
+html, body {
+  background-color: #2a2a2b !important;
+}
+
+/* Optimized sidebar gap fix */
+.sidebar-gap-fix {
+  background-color: #2a2a2b;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  transform: translateZ(0);
+}
+
+/* Simplified height transition */
 @keyframes height-grow {
-  from { height: 0; overflow: hidden; }
-  to { height: auto; overflow: visible; }
+  from { height: 0; }
+  to { height: auto; }
 }
 
 .animate-height {
-  animation: height-grow 0.5s ease-in-out forwards;
+  animation: height-grow 0.3s ease-out forwards;
+  will-change: height;
 }
 
-/* Text fade-in effect */
+/* Optimized text fade effect */
 @keyframes text-fade {
-  from { opacity: 0; transform: translateX(-10px); }
+  from { opacity: 0; transform: translateX(-5px); }
   to { opacity: 1; transform: translateX(0); }
 }
 
 .animate-text-fade {
-  animation: text-fade 0.4s ease-in-out forwards;
+  animation: text-fade 0.3s ease-out forwards;
+  will-change: opacity, transform;
 }
 
-/* Button transition effect */
+/* Simplified button transition */
 .button-transition {
-  transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: all 0.2s ease-out;
+  will-change: transform, background-color;
 }
 
-/* Icon rotation animation */
+/* Simplified icon rotation */
 @keyframes rotate-icon {
   from { transform: rotate(0deg); }
   to { transform: rotate(180deg); }
 }
 
 .animate-rotate {
-  animation: rotate-icon 0.4s ease-in-out forwards;
+  animation: rotate-icon 0.3s ease-out forwards;
+  will-change: transform;
 }
 
-/* Sidebar item hover effect */
+/* Optimized sidebar item hover effect */
 .nav-item-hover {
   position: relative;
   overflow: hidden;
@@ -221,10 +243,158 @@
   bottom: 0;
   width: 0;
   height: 2px;
-  background: linear-gradient(to right, #ffffff, rgba(255, 255, 255, 0.5));
-  transition: width 0.3s ease-in-out;
+  background: #3b82f6;
+  transition: width 0.2s ease-out;
+  will-change: width;
 }
 
 .nav-item-hover:hover::after {
   width: 100%;
+}
+
+/* Navigation text positioning for smooth expand/collapse */
+.nav-text-transition {
+  transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+  will-change: opacity, transform;
+}
+
+.nav-item-container {
+  position: relative;
+  overflow: hidden;
+  height: 2.5rem;
+  min-height: 2.5rem;
+  max-height: 2.5rem;
+}
+
+.nav-item-container a {
+  height: 2.5rem;
+  min-height: 2.5rem;
+  max-height: 2.5rem;
+  width: 100%;
+  position: relative;
+}
+
+/* Ensure icons stay in fixed position */
+.nav-icon-fixed {
+  position: relative;
+  z-index: 2;
+  flex-shrink: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Smooth text fade and slide */
+.nav-text-slide {
+  transition: all 0.2s ease-out;
+  will-change: opacity, transform;
+  position: absolute;
+  left: 2.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1;
+}
+
+/* Fixed navigation item heights */
+.nav-item-fixed-height {
+  height: 2.5rem !important;
+  min-height: 2.5rem !important;
+  max-height: 2.5rem !important;
+}
+
+/* Consistent spacing for collapsed and expanded states */
+.nav-item-spacing {
+  padding-left: 0.5rem !important;
+  padding-right: 0.5rem !important;
+  margin: 0 !important;
+}
+
+/* Profile section positioning */
+.profile-section {
+  position: absolute;
+  transition: all 0.2s ease-out;
+  will-change: opacity, transform;
+}
+
+.profile-section-enter {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.profile-section-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.profile-section-exit {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.profile-section-exit-active {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+/* Logout button positioning */
+.logout-button-container {
+  position: relative;
+  z-index: 3;
+}
+
+.logout-button-container button {
+  height: 2.5rem !important;
+  min-height: 2.5rem !important;
+  max-height: 2.5rem !important;
+}
+
+/* Ensure consistent sidebar spacing */
+.sidebar-consistent-spacing {
+  padding: 0.5rem !important;
+  margin: 0 !important;
+}
+
+/* Fixed heights for all interactive elements */
+.sidebar-fixed-height {
+  height: 2.5rem !important;
+  min-height: 2.5rem !important;
+  max-height: 2.5rem !important;
+}
+
+/* Performance optimizations for low-end devices */
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-transition,
+  .nav-item-hover,
+  .button-press,
+  .text-transition,
+  .logo-transition,
+  .mobile-menu-transition,
+  .content-transition,
+  .sidebar-item-hover,
+  .button-transition,
+  .nav-text-transition,
+  .nav-text-slide {
+    transition: none !important;
+    animation: none !important;
+  }
+  
+  .animate-float,
+  .animate-gradient-x,
+  .animate-width,
+  .animate-height,
+  .animate-text-fade,
+  .animate-rotate {
+    animation: none !important;
+  }
+}
+
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
