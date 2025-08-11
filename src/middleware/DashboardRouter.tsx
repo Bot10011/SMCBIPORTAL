@@ -19,12 +19,13 @@ const DashboardRouter: React.FC = () => {
     case 'superadmin':
       return <SuperadminDashboard />;
     case 'admin':
+      
       return <AdminDashboard />;
     case 'registrar':
       return <RegistrarDashboard />;
     case 'program_head':
       return <ProgramHeadDashboard />;
-    case 'teacher':
+    case 'instructor':
       return <TeacherDashboard />;
     case 'student':
       return <StudentDashboard />;
