@@ -201,25 +201,25 @@ const sidebarItems: SidebarItem[] = [
     label: 'Dashboard',
     path: '/dashboard',
     icon: <LayoutDashboard className="w-5 h-5" />, 
-    roles: ['teacher'],
+    roles: ['instructor'],
   },
   {
     label: 'Class Management',
     path: '/dashboard/class-management',
     icon: <Users2 className="w-5 h-5" />, 
-    roles: ['teacher'],
+    roles: ['instructor'],
   },
   {
     label: 'Grade Input',
     path: '/dashboard/grade-input',
     icon: <ClipboardList className="w-5 h-5" />,
-    roles: ['teacher'],
+    roles: ['instructor'],
   },
   {
     label: 'My Profile',
     path: '/dashboard/profile',
     icon: <User className="w-5 h-5" />,
-    roles: ['teacher'],
+    roles: ['instructor'],
   },
   // Student
   {
