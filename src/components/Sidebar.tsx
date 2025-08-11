@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -297,6 +297,54 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   // Ref for the modal
   const modalRef = useRef<HTMLDivElement>(null);
 
+  // Memoize filtered sidebar items to prevent unnecessary re-renders
+  const filteredSidebarItems = useMemo(() => 
+    sidebarItems.filter(item => item.roles.includes(user?.role || 'student')),
+    [user?.role]
+  );
+
+  // Memoize the shouldBlur function
+  const shouldBlur = useCallback(() => {
+    return isModalOpen || showUserLocationModal;
+  }, [isModalOpen, showUserLocationModal]);
+
+  // Memoize the exact path matching function
+  const isExactPathActive = useCallback((path: string) => {
+    if (!user) return false;
+    const currentPath = location.pathname;
+    // For dashboard items, check exact match
+    if (path.endsWith('/dashboard')) {
+      return currentPath === path;
+    }
+    // For other items, check if it's the exact section
+    const pathParts = currentPath.split('/');
+    const itemPathParts = path.split('/');
+    return pathParts.length === itemPathParts.length && 
+           pathParts.every((part, i) => part === itemPathParts[i]);
+  }, [location.pathname, user]);
+
+  // Optimized resize handler with debouncing
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    
+    const handleResize = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        const newIsMobile = window.innerWidth < 768;
+        setIsMobile(newIsMobile);
+        if (newIsMobile) {
+          setIsCollapsed(true);
+        }
+      }, 100); // Debounce resize events
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      clearTimeout(timeoutId);
+    };
+  }, []);
+
   // Focus trap for modal accessibility
   useEffect(() => {
     if (showLogoutConfirm && modalRef.current) {
@@ -338,18 +386,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
     }
   }, [showLogoutConfirm]);
 
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < 768);
-      if (window.innerWidth < 768) {
-        setIsCollapsed(true);
-      }
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
   // Prevent background scroll when logout modal is open (html, body, and events)
   useEffect(() => {
     const preventScroll = (e: Event) => {
@@ -382,30 +418,28 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
     }
   }, [showLogoutConfirm]);
 
-  // Handle hamburger click with animation
-  const handleHamburgerClick = () => {
+  // Optimized handlers with useCallback
+  const handleHamburgerClick = useCallback(() => {
     setIsCollapsed(!isCollapsed);
-  };
+  }, [isCollapsed]);
 
-  // Handle navigation click
-  const handleNavigationClick = () => {
+  const handleNavigationClick = useCallback(() => {
     if (isMobile) {
       setIsCollapsed(true);
     }
-  };
+  }, [isMobile]);
 
-  // Handle hover state
-  const handleMouseEnter = () => {
+  const handleMouseEnter = useCallback(() => {
     if (!isMobile) {
       setIsCollapsed(false);
     }
-  };
+  }, [isMobile]);
 
-  const handleMouseLeave = () => {
+  const handleMouseLeave = useCallback(() => {
     if (!isMobile) {
       setIsCollapsed(true);
     }
-  };
+  }, [isMobile]);
 
   // useEffect for fetching profile (not conditional)
   useEffect(() => {
@@ -440,95 +474,82 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
     fetchProfile();
   }, [user?.id]);
 
-  if (!user) {
-    navigate('/');
-    return null;
-  }
-
-  const filteredSidebarItems = sidebarItems.filter(item => 
-    item.roles.includes(user.role)
-  );
-
-  const handleLogoutClick = () => {
+  const handleLogoutClick = useCallback(() => {
     setShowLogoutConfirm(true);
-  };
+  }, []);
 
-  const handleLogoutConfirm = async () => {
+  const handleLogoutConfirm = useCallback(async () => {
     try {
       await logout();
       setShowLogoutConfirm(false);
     } catch (error) {
       console.error('Logout failed:', error);
     }
-  };
+  }, [logout]);
 
-  const handleLogoutCancel = () => {
+  const handleLogoutCancel = useCallback(() => {
     setShowLogoutConfirm(false);
-  };
+  }, []);
 
-  // Add a function to check if we should blur
-  const shouldBlur = () => {
-    return isModalOpen || showUserLocationModal;
-  };
+  if (!user) {
+    navigate('/');
+    return null;
+  }
 
-  // Add this function for exact path matching
-  const isExactPathActive = (path: string) => {
-    if (!user) return false;
-    const currentPath = location.pathname;
-    // For dashboard items, check exact match
-    if (path.endsWith('/dashboard')) {
-      return currentPath === path;
+  // Optimized animation variants for better performance
+  const sidebarVariants = {
+    collapsed: {
+      width: '4rem',
+      transition: { duration: 0.2, ease: "easeInOut" as const }
+    },
+    expanded: {
+      width: '16rem',
+      transition: { duration: 0.2, ease: "easeInOut" as const }
     }
-    // For other items, check if it's the exact section
-    const pathParts = currentPath.split('/');
-    const itemPathParts = path.split('/');
-    return pathParts.length === itemPathParts.length && 
-           pathParts.every((part, i) => part === itemPathParts[i]);
+  };
+
+  const mobileVariants = {
+    hidden: {
+      x: '-100%',
+      opacity: 0,
+      transition: { duration: 0.2, ease: "easeInOut" as const }
+    },
+    visible: {
+      x: 0,
+      opacity: 1,
+      transition: { duration: 0.2, ease: "easeInOut" as const }
+    }
   };
 
   // Sidebar JSX
   const sidebarJSX = (
-    <AnimatePresence>
+    <AnimatePresence mode="wait">
       {(!isMobile || !isCollapsed) && (
         <motion.aside
-          initial={{
-            x: isMobile ? '-100%' : 0,
-            opacity: 0,
-          }}
-          animate={{
-            width: isCollapsed ? '4rem' : '16rem',
-            x: 0,
-            opacity: 1,
-            // Blur and disable pointer events if logout modal is open
-            filter: (shouldBlur() || showLogoutConfirm) ? 'blur(4px)' : 'none',
-            pointerEvents: showLogoutConfirm ? 'none' : 'auto',
-          }}
-          exit={{
-            x: isMobile ? '-100%' : 0,
-            opacity: 0,
-          }}
-          transition={{
-            type: 'tween',
-            duration: 0.3,
-            ease: 'easeInOut',
-          }}
-          className={`fixed top-0 left-0 h-screen ${isCollapsed ? 'w-16' : 'w-64'} flex flex-col bg-white/80 backdrop-blur-xl border-r border-white/20 z-[40] sidebar-blur shadow-lg shadow-gray-200/40 rounded-r-2xl ${isMobile && isCollapsed ? 'hidden' : ''}`}
+          key={isCollapsed ? 'collapsed' : 'expanded'}
+          variants={isMobile ? mobileVariants : sidebarVariants}
+          initial={isMobile ? 'hidden' : (isCollapsed ? 'collapsed' : 'expanded')}
+          animate={isMobile ? 'visible' : (isCollapsed ? 'collapsed' : 'expanded')}
+          exit={isMobile ? 'hidden' : undefined}
+          className={`fixed top-0 left-0 h-screen ${isCollapsed ? 'w-16' : 'w-64'} flex flex-col bg-[#2a2a2b] backdrop-blur-xl border-r-2 border-white/30 z-[40] sidebar-blur shadow-lg shadow-black/40 ${isMobile && isCollapsed ? 'hidden' : ''}`}
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
           style={{
-            willChange: 'width, transform',
-            // pointerEvents and filter handled above
+            filter: (shouldBlur() || showLogoutConfirm) ? 'blur(4px)' : 'none',
+            pointerEvents: showLogoutConfirm ? 'none' : 'auto',
+            borderRight: '2px solid rgba(255, 255, 255, 0.3)',
+            boxShadow: '2px 0 8px rgba(0, 0, 0, 0.3)'
           }}
         >
           {/* Header, nav, and footer as before */}
-          <div className="p-4 flex items-center justify-center">
+          <div className="p-2 flex items-center justify-center border-b-2 border-white/10">
             {/* Logo container with Google Classroom style */}
-            <div className="flex items-center justify-center">
+            <div className="flex items-center justify-center w-full">
+              {/* Logo stays centered */}
               <div 
-                className={`relative flex items-center justify-center transition-all duration-200 ease-in-out
-                  ${isCollapsed ? 'w-12 h-12' : 'w-16 h-16'}`}
+                className="relative flex items-center justify-center w-12 h-12"
               >
-                {/* Logo image with enhanced transitions and perfect centering */}
+                {/* Logo image with perfect centering */}
                 <div 
                   className="absolute inset-0 flex items-center justify-center"
                   style={{
@@ -538,61 +559,70 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                   <img
                     src="/img/logo1.png"
                     alt="School Logo"
-                    className="w-[95%] h-[95%] object-contain drop-shadow-sm transition-all duration-200"
+                    className="w-[95%] h-[95%] object-contain drop-shadow-sm"
                     style={{
-                      transformOrigin: "center center",
-                      willChange: "transform"
+                      transformOrigin: "center center"
                     }}
                   />
                 </div>
               </div>
+              {/* School name text - only visible when expanded, positioned to the right */}
+              {!isCollapsed && (
+                <motion.span
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  transition={{ duration: 0.2, ease: "easeInOut" as const }}
+                  className="ml-3 text-white font-bold text-lg tracking-wide"
+                  style={{ whiteSpace: 'nowrap' }}
+                >
+                  SMCBI
+                </motion.span>
+              )}
             </div>
           </div>
-          <nav className="flex-1 py-4 px-2 space-y-1">
-            {filteredSidebarItems.map((item, index) => (
+          <nav className="flex-1 py-4 space-y-1 nav-item-spacing">
+            {filteredSidebarItems.map((item) => (
               <div
                 key={item.path}
-                style={{
-                  animationDelay: `${index * 0.05}s`,
-                  animation: 'fadeInUp 0.3s ease-out forwards',
-                  opacity: 0,
-                }}
+                className="nav-item-container nav-item-fixed-height"
               >
                 <Link
                   to={item.path}
-                  onClick={() => {
-                    if (isMobile) {
-                      handleNavigationClick();
-                    }
-                  }}
-                  className={`group flex items-center gap-3 px-2 py-2 rounded-md transition-all duration-150 ease-in-out
+                  onClick={handleNavigationClick}
+                  className={`group flex items-center px-2 py-2 rounded-md relative nav-item-fixed-height
                     ${isExactPathActive(item.path)
-                      ? 'text-gray-900 font-medium'
-                      : 'text-gray-600'}
-                    ${isCollapsed ? 'justify-center' : ''}`}
+                      ? 'text-white font-medium'
+                      : 'text-gray-300'}
+                    ${isCollapsed ? 'justify-center' : 'justify-start'}`}
                   style={{
-                    backgroundColor: isExactPathActive(item.path) ? '#c2e7ff' : 'transparent',
-                    border: isExactPathActive(item.path) ? '1px solid #c2e7ff' : 'none'
+                    backgroundColor: isExactPathActive(item.path) ? '#3b82f6' : 'transparent',
+                    border: isExactPathActive(item.path) ? '1px solid #3b82f6' : 'none'
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = '#f3f4f6';
+                    e.currentTarget.style.backgroundColor = isExactPathActive(item.path) ? '#3b82f6' : '#374151';
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = isExactPathActive(item.path) ? '#c2e7ff' : 'transparent';
+                    e.currentTarget.style.backgroundColor = isExactPathActive(item.path) ? '#3b82f6' : 'transparent';
                   }}
                   title={isCollapsed ? item.label : undefined}
                 >
-                  <div 
-                    className={`p-1 rounded-sm transition-all duration-150 
-                    ${isExactPathActive(item.path)
-                      ? 'text-gray-900' 
-                      : 'text-gray-500 group-hover:text-gray-700'}`}
-                  >
-                    {item.icon}
+                  <div className="nav-icon-fixed">
+                    <div 
+                      className={`p-1 rounded-sm
+                      ${isExactPathActive(item.path)
+                        ? 'text-white' 
+                        : 'text-gray-400 group-hover:text-gray-200'}`}
+                    >
+                      {item.icon}
+                    </div>
                   </div>
                   {!isCollapsed && (
                     <span 
-                      className={`text-sm font-medium overflow-hidden whitespace-nowrap transition-all duration-200 ${isExactPathActive(item.path) ? 'text-gray-900' : 'text-gray-700'}`}
+                      className={`text-sm font-medium overflow-hidden whitespace-nowrap ${isExactPathActive(item.path) ? 'text-white' : 'text-gray-300'}`}
+                      style={{
+                        marginLeft: '0.5rem'
+                      }}
                     >
                       {item.label}
                     </span>
@@ -601,49 +631,57 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
               </div>
             ))}
           </nav>
-          <div className="sticky bottom-0 bg-white p-4">
-            <AnimatePresence>
-              {!isCollapsed && (
-                <div 
-                  className="flex items-center gap-3 mb-3 overflow-hidden transition-all duration-200"
-                >
-                  <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center overflow-hidden">
-                    {profilePictureUrl ? (
-                      <img src={profilePictureUrl} alt="Profile" className="w-full h-full object-cover" />
-                    ) : profile ? (
-                      <span className="text-white font-bold text-lg">
-                        {`${(profile.first_name?.[0] || '')}${(profile.last_name?.[0] || '')}`.toUpperCase()}
-                      </span>
-                    ) : (
-                      <User className="w-4 h-4 text-white" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0 overflow-hidden">
-                    <p className="text-sm font-medium text-gray-900 truncate">
-                      {profile ? [profile.first_name, profile.middle_name, profile.last_name].filter(Boolean).join(' ') : user.email?.split('@')[0]}
-                    </p>
-                    <p className="text-xs text-gray-500 truncate">
-                      {user.email}
-                    </p>
-                  </div>
+          <div className="sticky bottom-0 bg-[#2a2a2b] p-4 border-t-2 border-white/20">
+            {!isCollapsed && (
+              <div 
+                className="profile-section flex items-center gap-3 mb-3 overflow-hidden"
+                style={{
+                  position: 'absolute',
+                  bottom: '3rem',
+                  left: '1rem',
+                  right: '1rem'
+                }}
+              >
+                <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center overflow-hidden">
+                  {profilePictureUrl ? (
+                    <img src={profilePictureUrl} alt="Profile" className="w-full h-full object-cover" />
+                  ) : profile ? (
+                    <span className="text-white font-bold text-lg">
+                      {`${(profile.first_name?.[0] || '')}${(profile.last_name?.[0] || '')}`.toUpperCase()}
+                    </span>
+                  ) : (
+                    <User className="w-4 h-4 text-white" />
+                  )}
                 </div>
-              )}
-            </AnimatePresence>
-            <div className={`${isCollapsed ? 'flex justify-center' : 'w-full'} transition-all duration-200 ease-in-out`}>
+                <div className="flex-1 min-w-0 overflow-hidden">
+                  <p className="text-sm font-medium text-white truncate">
+                    {profile ? [profile.first_name, profile.middle_name, profile.last_name].filter(Boolean).join(' ') : user.email?.split('@')[0]}
+                  </p>
+                  <p className="text-xs text-gray-400 truncate">
+                    {user.email}
+                  </p>
+                </div>
+              </div>
+            )}
+            <div className={`logout-button-container ${isCollapsed ? 'flex justify-center' : 'flex justify-start w-full'}`}>
               <button
                 ref={logoutButtonRef}
                 onClick={handleLogoutClick}
-                className={`flex items-center justify-center text-sm font-medium text-gray-700 
-                  bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400
-                  transition-all duration-150 ease-in-out shadow-sm active:scale-95
+                className={`flex items-center text-sm font-medium text-gray-200 
+                  bg-[#374151] border border-gray-600 rounded-lg hover:bg-[#2a2a2b] hover:border-gray-500
+                  shadow-sm active:scale-95
                   ${isCollapsed 
-                    ? 'w-8 h-8 p-1.5 rounded-md' 
-                    : 'w-full px-3 py-2 gap-2'}`}
+                    ? 'w-8 h-8 p-1.5 rounded-md justify-center' 
+                    : 'w-full px-3 py-2 gap-2 justify-start'}`}
+                style={{
+                  height: '2.5rem',
+                  minHeight: '2.5rem'
+                }}
                 title={isCollapsed ? 'Logout' : undefined}
               >
                 <LogOut className="w-4 h-4" />
                 {!isCollapsed && (
-                  <span className="transition-all duration-200">
+                  <span>
                     Logout
                   </span>
                 )}
@@ -695,7 +733,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                 <button
                   onClick={handleLogoutCancel}
                   className="px-7 py-3 text-sm font-medium text-gray-700 bg-gray-100 rounded-2xl hover:bg-gray-200 \
-                    transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500
+                    transition-all duration-200 ease-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500
                     shadow-md shadow-gray-200/50 border border-gray-200"
                 >
                   Cancel
@@ -703,7 +741,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                 <button
                   onClick={handleLogoutConfirm}
                   className="px-7 py-3 text-sm font-medium text-white bg-gradient-to-r from-red-500 to-red-600 \
-                    rounded-2xl hover:from-red-600 hover:to-red-700 transition-all duration-300 \
+                    rounded-2xl hover:from-red-600 hover:to-red-700 \
                     focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500
                     shadow-lg shadow-red-500/30"
                 >
@@ -720,20 +758,19 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
       {typeof window !== 'undefined' && createPortal(sidebarJSX, document.body)}
 
       {/* Main Content (scrolls independently, margin for sidebar) */}
-      <main
-        style={{
+      <motion.main
+        animate={{
           marginLeft: isMobile ? '0' : (isCollapsed ? '4rem' : '16rem'),
-          width: isMobile ? '100%' : (isCollapsed ? 'calc(100% - 4rem)' : 'calc(100% - 16rem)'),
-          transition: 'margin-left 0.3s ease-in-out, width 0.3s ease-in-out',
+          width: isMobile ? '100%' : (isCollapsed ? 'calc(100% - 4rem)' : 'calc(100% - 16rem)')
         }}
+        transition={{ duration: 0.2, ease: "easeInOut" as const }}
         data-modal="true"
-        className={`min-h-screen bg-gray-50 ${shouldBlur() ? 'pointer-events-none [&:not(.course-modal):not(.subject-modal)]' : ''} z-[30] ${mainContentScrollLock}`}
+        className={`min-h-screen bg-[#2a2a2b] ${shouldBlur() ? 'pointer-events-none [&:not(.course-modal):not(.subject-modal)]' : ''} z-[30] ${mainContentScrollLock}`}
       >
         <div className="h-full lg:pt-0">
-          <div className={`bg-white rounded-l-lg border border-gray-200 p-4 sm:p-6 md:p-8 w-full h-full relative ${shouldBlur() ? 'opacity-80' : ''}`.replace(/`$/, '"')}
+          <div className={`bg-[#2a2a2b] rounded-l-lg border-l-2 border-white/30 p-4 sm:p-6 md:p-8 w-full h-full relative ${shouldBlur() ? 'opacity-80' : ''}`}
             style={{
-              animation: 'fadeIn 0.3s ease-out',
-              boxShadow: 'inset 0 2px 12px 0 rgba(0,0,0,0.06)',
+              boxShadow: 'inset 0 2px 12px 0 rgba(0,0,0,0.1)',
               paddingBottom: 0,
             }}
           >
@@ -741,13 +778,13 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
             {isMobile && isCollapsed && (
               <button
                 onClick={handleHamburgerClick}
-                className="absolute top-4 right-4 z-30 p-2 rounded-lg bg-white text-gray-700 shadow-lg border border-gray-200 hover:bg-gray-50 transition-all duration-150 active:scale-95"
+                className="absolute top-4 right-4 z-30 p-2 rounded-lg bg-[#ffffff] text-gray-300 shadow-lg border border-gray-600 hover:bg-[#ffffff] active:scale-95"
               >
-                <div className="w-5 h-5 flex flex-col justify-center items-center">
-                  <div className="w-4 h-0.5 bg-gray-600 rounded-sm mb-1"></div>
-                  <div className="w-4 h-0.5 bg-gray-600 rounded-sm mb-1"></div>
-                  <div className="w-4 h-0.5 bg-gray-600 rounded-sm"></div>
-                </div>
+                                  <div className="w-5 h-5 flex flex-col justify-center items-center">
+                    <div className="w-4 h-0.5 bg-gray-400 rounded-sm mb-1"></div>
+                    <div className="w-4 h-0.5 bg-gray-400 rounded-sm mb-1"></div>
+                    <div className="w-4 h-0.5 bg-gray-400 rounded-sm"></div>
+                  </div>
               </button>
             )}
             <div className="h-full">
@@ -755,7 +792,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
             </div>
           </div>
         </div>
-      </main>
+      </motion.main>
       {/* Enhanced Overlay for mobile */}
       <AnimatePresence>
         {isMobile && !isCollapsed && (
@@ -763,8 +800,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
-            className="fixed inset-0 bg-indigo-900/30 backdrop-blur-md z-[35]"
+            transition={{ duration: 0.2, ease: "easeInOut" as const }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-md z-[35]"
             onClick={() => setIsCollapsed(true)}
           />
         )}
