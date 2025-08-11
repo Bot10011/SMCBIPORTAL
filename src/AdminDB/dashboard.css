@@ -1,14 +1,6 @@
 /* Admin Dashboard Animations and Effects */
 
-/* Card hover animation */
-.card-hover-effect {
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
 
-.card-hover-effect:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
-}
 
 /* Progress bar animation */
 @keyframes progressAnimation {
@@ -38,6 +30,20 @@
   background: linear-gradient(90deg, #f0f0f0 8%, #f8f8f8 18%, #f0f0f0 33%);
   background-size: 1000px 100%;
   animation: shimmer 1.8s infinite linear;
+}
+
+/* Modern skeleton shimmer animation */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 1.5s infinite;
 }
 
 /* Dashboard indicators pulse effect */
@@ -178,4 +184,116 @@
 
 .custom-dashboard-scrollbar::-webkit-scrollbar-thumb:hover {
   background: rgba(79, 70, 229, 0.3);
+}
+
+/* Course Management Skeleton Animations */
+@keyframes skeleton-pulse {
+  0%, 100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.skeleton-pulse {
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+/* Enhanced shimmer for course images */
+@keyframes enhanced-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.enhanced-shimmer {
+  background: linear-gradient(
+    90deg,
+    #f0f0f0 25%,
+    #e0e0e0 50%,
+    #f0f0f0 75%
+  );
+  background-size: 200% 100%;
+  animation: enhanced-shimmer 2s infinite;
+}
+
+/* Course card skeleton animation */
+.course-skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: enhanced-shimmer 2s infinite;
+}
+
+/* Smooth transition for image loading */
+.image-loading-transition {
+  transition: opacity 0.3s ease-in-out;
+}
+
+/* Error state animation */
+@keyframes error-pulse {
+  0%, 100% {
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.error-pulse {
+  animation: error-pulse 2s ease-in-out infinite;
+}
+
+/* Pop-in animation for modal elements */
+@keyframes pop-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.8) rotate(-10deg);
+  }
+  50% {
+    transform: scale(1.05) rotate(5deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+.animate-pop-in {
+  animation: pop-in 0.3s ease-out forwards;
+}
+
+/* Neumorphic style for dark containers */
+.neumorphic-dark {
+  background: #252728;
+  border-radius: 16px;
+  box-shadow:
+    4px 4px 8px rgba(0, 0, 0, 0.35),
+    -4px -4px 8px rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  transition: box-shadow 200ms ease, transform 200ms ease;
+}
+
+/* Soft convex neumorphism for colored/gradient headers (keeps existing color) */
+.neumorphic-soft {
+  position: relative;
+  border-radius: 16px;
+  box-shadow:
+    6px 6px 12px rgba(0, 0, 0, 0.22),
+    -6px -6px 12px rgba(255, 255, 255, 0.1);
+  transition: box-shadow 200ms ease, transform 200ms ease;
+}
+
+.neumorphic-soft::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow:
+    inset 1px 1px 2px rgba(255, 255, 255, 0.08),
+    inset -1px -1px 2px rgba(0, 0, 0, 0.06);
+  pointer-events: none;
 }
