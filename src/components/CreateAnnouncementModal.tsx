@@ -427,7 +427,7 @@ const CreateAnnouncementModal: React.FC<CreateAnnouncementModalProps> = ({
           onClick={handleModalClose}
         >
           <motion.div
-            className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl w-full max-w-3xl mx-4 max-h-[95vh] overflow-hidden border border-white/20"
+            className="bg-white/95 backdrop-blur-xl rounded-xl shadow-lg w-full max-w-lg mx-4 max-h-[80vh] overflow-hidden border border-white/20"
             initial={{ scale: 0.8, opacity: 0, y: 30, rotateX: -15 }}
             animate={{ scale: 1, opacity: 1, y: 0, rotateX: 0 }}
             exit={{ scale: 0.8, opacity: 0, y: 30, rotateX: -15 }}
@@ -446,7 +446,7 @@ const CreateAnnouncementModal: React.FC<CreateAnnouncementModalProps> = ({
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-200/50 bg-gradient-to-r from-gray-50 to-white">
+                         <div className="flex items-center justify-between p-3 border-b border-gray-200/50 bg-gradient-to-r from-gray-50 to-white">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-blue-100 rounded-xl">
                   <Upload className="w-6 h-6 text-blue-600" />
@@ -469,105 +469,88 @@ const CreateAnnouncementModal: React.FC<CreateAnnouncementModalProps> = ({
             </div>
 
             {/* Modal Content */}
-            <form onSubmit={handleSubmit} className="p-6 space-y-6">
-              {/* Progress Indicator */}
-              <div className="mb-6">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-gray-700">Form Progress</span>
-                  <span className="text-sm text-gray-500">
-                    {Math.round((Object.values(formData).filter(Boolean).length / 6) * 100)}% Complete
-                  </span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div
-                    className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full transition-all duration-300"
-                    style={{ 
-                      width: `${Math.round((Object.values(formData).filter(Boolean).length / 6) * 100)}%` 
-                    }}
-                  />
-                </div>
-              </div>
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="relative">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Title *
-                      {formData.title && (
-                        <span className="ml-2 text-green-500">✓</span>
-                      )}
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.title}
-                      onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-                      placeholder="Enter announcement title"
-                    />
-                  </div>
+                                                                             <form onSubmit={handleSubmit} className="p-3 space-y-3">
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                     <div className="relative">
+                                           <label className="block text-xs font-medium text-gray-700 mb-0.5">
+                        Title *
+                        {formData.title && (
+                          <span className="ml-2 text-green-500">✓</span>
+                        )}
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={formData.title}
+                        onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                        className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-sm"
+                        placeholder="Enter announcement title"
+                      />
+                   </div>
 
-                  <div className="relative">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Author *
-                      {formData.author && (
-                        <span className="ml-2 text-green-500">✓</span>
-                      )}
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.author}
-                      onChange={(e) => setFormData({ ...formData, author: e.target.value })}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-                      placeholder="Enter author name"
-                    />
-                  </div>
+                                     <div className="relative">
+                                           <label className="block text-xs font-medium text-gray-700 mb-0.5">
+                        Author *
+                        {formData.author && (
+                          <span className="ml-2 text-green-500">✓</span>
+                        )}
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={formData.author}
+                        onChange={(e) => setFormData({ ...formData, author: e.target.value })}
+                        className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-sm"
+                        placeholder="Enter author name"
+                      />
+                   </div>
                 </div>
 
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="relative">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Priority *
-                      {formData.priority && (
-                        <span className="ml-2 text-green-500">✓</span>
-                      )}
-                    </label>
-                    <select
-                      required
-                      value={formData.priority}
-                      onChange={(e) => setFormData({ ...formData, priority: e.target.value as 'low' | 'medium' | 'high' })}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-                    >
-                      {PRIORITY_OPTIONS.map(option => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
-                      ))}
-                    </select>
-                  </div>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                     <div className="relative">
+                                           <label className="block text-xs font-medium text-gray-700 mb-0.5">
+                        Priority *
+                        {formData.priority && (
+                          <span className="ml-2 text-green-500">✓</span>
+                        )}
+                      </label>
+                      <select
+                        required
+                        value={formData.priority}
+                        onChange={(e) => setFormData({ ...formData, priority: e.target.value as 'low' | 'medium' | 'high' })}
+                        className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-sm"
+                      >
+                       {PRIORITY_OPTIONS.map(option => (
+                         <option key={option.value} value={option.value}>{option.label}</option>
+                       ))}
+                     </select>
+                   </div>
 
-                  <div className="relative">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Category *
-                      {formData.category && (
-                        <span className="ml-2 text-green-500">✓</span>
-                      )}
-                    </label>
-                    <select
-                      required
-                      value={formData.category}
-                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-                    >
-                      {CATEGORY_OPTIONS.map(category => (
-                        <option key={category} value={category}>{category}</option>
-                      ))}
-                    </select>
-                  </div>
+                                     <div className="relative">
+                                           <label className="block text-xs font-medium text-gray-700 mb-0.5">
+                        Category *
+                        {formData.category && (
+                          <span className="ml-2 text-green-500">✓</span>
+                        )}
+                      </label>
+                      <select
+                        required
+                        value={formData.category}
+                        onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                        className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-sm"
+                      >
+                       {CATEGORY_OPTIONS.map(category => (
+                         <option key={category} value={category}>{category}</option>
+                       ))}
+                     </select>
+                   </div>
                 </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Banner Image (Optional)
-                </label>
-                <div className="space-y-3">
+                             <div>
+                                   <label className="block text-xs font-medium text-gray-700 mb-0.5">
+                    Banner Image (Optional)
+                  </label>
+                 <div className="space-y-1">
                   {/* Image Upload Area */}
                   <div className="relative">
                     <input
@@ -577,10 +560,10 @@ const CreateAnnouncementModal: React.FC<CreateAnnouncementModalProps> = ({
                       className="hidden"
                       id="image-upload"
                     />
-                    <label
-                      htmlFor="image-upload"
-                      className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors duration-200"
-                    >
+                                         <label
+                       htmlFor="image-upload"
+                       className="flex flex-col items-center justify-center w-full h-16 border-2 border-dashed border-gray-300 rounded-md cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors duration-200"
+                     >
                       {imagePreview ? (
                         <div className="relative w-full h-full">
                           <img
@@ -620,25 +603,25 @@ const CreateAnnouncementModal: React.FC<CreateAnnouncementModalProps> = ({
                 </div>
               </div>
 
-                              <div className="relative">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Content *
-                    {formData.content && (
-                      <span className="ml-2 text-green-500">✓</span>
-                    )}
-                  </label>
-                  <textarea
-                    required
-                    rows={6}
-                    value={formData.content}
-                    onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none transition-all duration-200"
-                    placeholder="Enter announcement content"
-                  />
-                  <div className="absolute bottom-2 right-2 text-xs text-gray-400">
-                    {formData.content.length} characters
-                  </div>
-                </div>
+                                                             <div className="relative">
+                                       <label className="block text-xs font-medium text-gray-700 mb-0.5">
+                      Content *
+                      {formData.content && (
+                        <span className="ml-2 text-green-500">✓</span>
+                      )}
+                    </label>
+                    <textarea
+                      required
+                      rows={2}
+                      value={formData.content}
+                      onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                      className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none transition-all duration-200 text-sm"
+                      placeholder="Enter announcement content"
+                    />
+                   <div className="absolute bottom-2 right-2 text-xs text-gray-400">
+                     {formData.content.length} characters
+                   </div>
+                 </div>
 
               <div className="flex items-center gap-2">
                 <input
@@ -648,23 +631,23 @@ const CreateAnnouncementModal: React.FC<CreateAnnouncementModalProps> = ({
                   onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
                   className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                 />
-                <label htmlFor="is_active" className="text-sm text-gray-700">
+                <label htmlFor="is_active" className="text-xs text-gray-700">
                   Active (visible to users)
                 </label>
               </div>
 
-                              {/* Modal Actions */}
-                <div className="flex justify-end gap-3 pt-6 border-t border-gray-200/50">
+                                                             {/* Modal Actions */}
+                                   <div className="flex justify-end gap-3 pt-3 border-t border-gray-200/50">
                   <button
                     type="button"
                     onClick={handleModalClose}
-                    className="px-6 py-3 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-xl transition-all duration-200 hover:scale-105"
+                    className="px-4 py-2 text-xs font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-all duration-200 hover:scale-105"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-6 py-3 text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 rounded-xl transition-all duration-200 flex items-center gap-2 hover:scale-105 shadow-lg hover:shadow-xl"
+                    className="px-4 py-2 text-xs font-medium text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 rounded-lg transition-all duration-200 flex items-center gap-2 hover:scale-105 shadow-md hover:shadow-lg"
                   >
                     <Save className="w-4 h-4" />
                     {editingAnnouncement ? 'Update Announcement' : 'Create Announcement'}
