@@ -229,7 +229,7 @@ const SubjectAssignment: React.FC = () => {
       const { data, error } = await supabase
         .from('user_profiles')
         .select('id, first_name, last_name, email, role, department, is_active')
-        .eq('role', 'teacher')
+        .eq('role', 'instructor')
         .eq('is_active', true)
         .order('first_name');
 
@@ -243,8 +243,8 @@ const SubjectAssignment: React.FC = () => {
         setTeachers(formattedTeachers);
       }
     } catch (error) {
-      console.error('Error fetching teachers:', error);
-      toast.error('Failed to fetch teachers');
+      console.error('Error fetching instructorS:', error);
+      toast.error('Failed to fetch instructorS');
     }
   };
 
@@ -289,7 +289,7 @@ const SubjectAssignment: React.FC = () => {
     try {
       // Validate form
       const errors: Record<string, string> = {};
-      if (!newAssignment.teacher_id) errors.teacher_id = 'Please select a teacher';
+      if (!newAssignment.teacher_id) errors.teacher_id = 'Please select a instructor';
       if (!newAssignment.section) errors.section = 'Please enter a section';
       if (!newAssignment.academic_year) errors.academic_year = 'Please enter an academic year';
       if (!newAssignment.year_level) errors.year_level = 'Please select a year level';
@@ -348,7 +348,7 @@ const SubjectAssignment: React.FC = () => {
         const existingCount = existingAssignments.filter(item => item.exists).length;
 
         if (newAssignments.length === 0) {
-          return { success: false, message: 'All assignments already exist for this teacher, subject, and section combination' };
+          return { success: false, message: 'All assignments already exist for this Instructor, subject, and section combination' };
         }
 
         // Insert only new assignments
@@ -479,7 +479,7 @@ const SubjectAssignment: React.FC = () => {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-white tracking-tight">Subject Assignments</h1>
-              <p className="text-white/80 text-sm font-medium">Manage subject assignments for teachers</p>
+              <p className="text-white/80 text-sm font-medium">Manage subject assignments for Instructor</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -594,7 +594,7 @@ const SubjectAssignment: React.FC = () => {
             </svg>
           </div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">No Subject Assignments</h3>
-          <p className="text-gray-500 mb-4">Get started by assigning subjects to teachers.</p>
+          <p className="text-gray-500 mb-4">Get started by assigning subjects to Instructor.</p>
           <button
             onClick={() => {
               setModalState({
@@ -710,7 +710,7 @@ const SubjectAssignment: React.FC = () => {
                                   </div>
                                   <div>
                                     <p className="font-medium text-gray-900 text-sm">{assignment.teacher_name}</p>
-                                    <p className="text-gray-500 text-xs">Teacher</p>
+                                    <p className="text-gray-500 text-xs">Instructor</p>
                                   </div>
                                 </div>
                                 <div className="flex space-x-1">
@@ -819,7 +819,7 @@ const SubjectAssignment: React.FC = () => {
               <thead className="bg-gray-50">
                 <tr>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Teacher
+                   Instructor
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Course Code
