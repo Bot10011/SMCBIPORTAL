@@ -269,7 +269,7 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
               {/* Teacher Selection */}
               <div>
                 <label htmlFor="teacher_id" className="block text-sm font-medium text-gray-700 mb-1">
-                  Teacher <span className="text-red-500">*</span>
+                  Instructor <span className="text-red-500">*</span>
                 </label>
                 <select
                   id="teacher_id"
@@ -282,7 +282,7 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
                       : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
                   } focus:ring-2 focus:ring-opacity-50 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm`}
                 >
-                  <option value="">Select a teacher</option>
+                  <option value="">Select a instructor</option>
                   {teachers.map(teacher => (
                     <option key={teacher.id} value={teacher.id}>
                       {teacher.full_name} {teacher.department ? `(${teacher.department})` : ''}
@@ -291,7 +291,7 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
                 </select>
                 {(formErrors.teacher_id || (!assignment.teacher_id && !isFormValid())) && (
                   <p className="mt-1 text-sm text-red-600">
-                    {formErrors.teacher_id || 'Please select a teacher'}
+                    {formErrors.teacher_id || 'Please select a instructor'}
                   </p>
                 )}
               </div>
@@ -608,7 +608,7 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
             <div className="bg-blue-50 rounded-lg p-4 mb-6">
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between">
-                  <span className="font-medium text-gray-700">Teacher:</span>
+                  <span className="font-medium text-gray-700">Instructor:</span>
                   <span className="text-gray-900">{selectedTeacher?.full_name}</span>
                 </div>
                 <div className="flex justify-between">
