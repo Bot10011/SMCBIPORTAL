@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion'; 
 import { Plus, Check, X, AlertCircle, FileEdit, Trash2, Users } from 'lucide-react';
 import SubjectAssignmentModal from './SubjectAssignmentModal';
 import { toast } from 'react-hot-toast';
