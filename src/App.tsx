@@ -11,6 +11,7 @@ import EditUserModal from './components/EditUserModal';
 import GoogleClassroomCallback from './components/GoogleClassroomCallback';
 import { useModal } from './contexts/ModalContext';
 import NotFoundOrHome from './middleware/NotFoundOrHome';
+import ResetPassword from './components/ResetPassword';
 
 // Import public components (not lazy loaded for immediate access)
 import LandingPage from './LandingPage';
@@ -216,6 +217,7 @@ const App: React.FC = () => {
               {/* Public routes - no lazy loading for immediate access */}
               <Route path="/" element={<LandingPage />} />
               <Route path="/login" element={<Login />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/test-redirect" element={<Navigate to="/" replace />} />
 
               {/* Google Classroom OAuth Callback */}
@@ -225,7 +227,7 @@ const App: React.FC = () => {
               <Route path="/admin/dashboard/*" element={<Navigate to="/dashboard" replace />} />
               <Route path="/student/dashboard/*" element={<Navigate to="/dashboard" replace />} />
               <Route path="/superadmin/dashboard/*" element={<Navigate to="/dashboard" replace />} />
-              <Route path="/teacher/dashboard/*" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/instructor/dashboard/*" element={<Navigate to="/dashboard" replace />} />
               <Route path="/program_head/dashboard/*" element={<Navigate to="/dashboard" replace />} />
               <Route path="/registrar/dashboard/*" element={<Navigate to="/dashboard" replace />} />
 
