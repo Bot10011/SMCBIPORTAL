@@ -263,6 +263,6 @@ const App: React.FC = () => {
       </ModalProvider>
     </AuthProvider>
   );
-}; 
+};
 
 export default App; 
