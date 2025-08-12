@@ -3,21 +3,13 @@ import { supabase } from '../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UserPlus, Users, Edit, Trash2, Power } from 'lucide-react';
 import toast from 'react-hot-toast';
-// import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContext';
 // import { useModal } from '../contexts/ModalContext';
 import { useModal } from '../contexts/ModalContext';
 import ConfirmationDialog from '../components/ConfirmationDialog';
 import CreateUserModal from '../components/CreateUserModal';
 
 import { createPortal } from 'react-dom';
-
-interface Program {
-  id: number;
-  code: string;
-  name: string;
-  description?: string;
-  department?: string;
-}
 
 interface UserProfile {
   id: string;
@@ -39,13 +31,13 @@ interface UserProfile {
 
 export default function UserManagement() {
   const [users, setUsers] = useState<UserProfile[]>([]);
-  const [programs, setPrograms] = useState<Program[]>([]);
   const [loading, setLoading] = useState(true);
   const [profilePictureUrls, setProfilePictureUrls] = useState<Record<string, string | null>>({});
+  const { user: currentUser } = useAuth();
   
   // Add back the search and filter state
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState<'all' | 'students' | 'teachers' | 'registrars' | 'program_heads'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'students' | 'instructors' | 'registrars' | 'program_heads'>('all');
   
   // Add modal state
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
@@ -64,7 +56,7 @@ export default function UserManagement() {
       const matchesTab = 
         activeTab === 'all' ? true :
         activeTab === 'students' ? user.role === 'student' :
-        activeTab === 'teachers' ? user.role === 'teacher' :
+        activeTab === 'instructors' ? user.role === 'instructor' :
         activeTab === 'registrars' ? user.role === 'registrar' :
         activeTab === 'program_heads' ? user.role === 'program_head' : true;
       
@@ -82,7 +74,7 @@ export default function UserManagement() {
   // Memoized user statistics
   const userStats = useMemo(() => {
     const students = users.filter(u => u.role === 'student');
-    const teachers = users.filter(u => u.role === 'teacher');
+    const instructors = users.filter(u => u.role === 'instructor');
     const admins = users.filter(u => u.role === 'admin');
     const registrars = users.filter(u => u.role === 'registrar');
     const program_heads = users.filter(u => u.role === 'program_head');
@@ -90,7 +82,7 @@ export default function UserManagement() {
     return {
       total: users.length,
       students: students.length,
-      teachers: teachers.length,
+      instructors: instructors.length,
       admins: admins.length,
       registrars: registrars.length,
       program_heads: program_heads.length,
@@ -102,25 +94,31 @@ export default function UserManagement() {
   const fetchUsers = useCallback(async () => {
     try {
       setLoading(true);
-      const { data: users, error } = await supabase
+      let query = supabase
         .from('user_profiles')
         .select('*')
         .neq('role', 'superadmin') // Exclude superadmin users
         .order('created_at', { ascending: false });
 
+      if (currentUser?.id) {
+        query = query.neq('id', currentUser.id); // Exclude the currently logged-in user
+      }
+
+      const { data: users, error } = await query;
+
       if (error) throw error;
-      setUsers(users || []);
+      const sanitized = (users || []).filter(u => (currentUser?.id ? u.id !== currentUser.id : true));
+      setUsers(sanitized);
     } catch (error) {
       console.error('Error fetching users:', error);
       toast.error('Failed to load users');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentUser?.id]);
 
   useEffect(() => {
     fetchUsers();
-    fetchPrograms();
   }, [fetchUsers]);
 
   // Resolve signed URLs for user profile pictures
@@ -159,15 +157,6 @@ export default function UserManagement() {
     loadProfilePictures();
     return () => { isCancelled = true; };
   }, [users]);
-
-  async function fetchPrograms() {
-    const { data, error } = await supabase.from('programs').select('*').order('name');
-    if (error) {
-      toast.error('Failed to load programs: ' + error.message);
-    } else {
-      setPrograms(data || []);
-    }
-  }
 
   // Add TeacherSubject interface
   interface TeacherSubject {
@@ -231,11 +220,11 @@ export default function UserManagement() {
 
   // Add useEffect to fetch teacher subjects when viewing teachers
   useEffect(() => {
-    if (activeTab === 'teachers') {
-      const teachers = users.filter(user => user.role === 'teacher');
-      teachers.forEach(teacher => {
-        if (!teacherSubjects[teacher.id]) {
-          fetchTeacherSubjects(teacher.id);
+    if (activeTab === 'instructors') {
+      const instructors = users.filter(user => user.role === 'instructor');
+      instructors.forEach(instructor => {
+        if (!teacherSubjects[instructor.id]) {
+          fetchTeacherSubjects(instructor.id);
         }
       });
     }
@@ -258,6 +247,15 @@ export default function UserManagement() {
 
     try {
       setActionLoading(true);
+      try {
+        await fetch('/api/delete-auth-user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: selectedUserForAction.id })
+        });
+      } catch (e) {
+        console.warn('Auth user delete API failed:', e);
+      }
       const { error } = await supabase
         .from('user_profiles')
         .delete()
@@ -312,8 +310,8 @@ export default function UserManagement() {
   };
 
   return (
-    <div className="min-h-screen from-blue-50 via-white to-indigo-50">
-      <div className="max-w-7xl mx-auto px-6 py-8">
+    <div className="min-h-screen from-blue-50 via-white to-indigo-50 w-full">
+      <div className="w-full px-6 py-8">
         {/* Header Section */}
         <motion.div 
           initial={{ opacity: 0, y: -20 }}
@@ -362,10 +360,10 @@ export default function UserManagement() {
           transition={{ delay: 0.3 }}
           className="usermanagement-tabs mb-6"
         >
-          <div className="bg-white rounded-2xl shadow-lg p-2 border border-gray-100 max-w-full">
+          <div className="bg-[#252728] rounded-2xl shadow-lg p-2 border border-gray-700 max-w-full">
             <div className="flex items-center gap-2 md:gap-3 flex-nowrap overflow-x-auto whitespace-nowrap pr-1">
           <div className="flex-1 min-w-[8rem] sm:min-w-[10rem] md:min-w-[14rem] lg:min-w-[16rem] xl:min-w-[20rem] max-w-[28rem]">
-            <div className="relative overflow-hidden rounded-xl bg-white/60 backdrop-blur-md border border-white/60 shadow-[inset_0_2px_8px_rgba(0,0,0,0.08)] before:content-[''] before:absolute before:inset-0 before:rounded-xl before:bg-gradient-to-b before:from-white/70 before:to-white/10 before:pointer-events-none focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-inset transition-shadow">
+            <div className="relative overflow-hidden rounded-xl bg-[#252728] border border-gray-600 shadow-[inset_4px_4px_8px_rgba(0,0,0,0.3),inset_-4px_-4px_8px_rgba(255,255,255,0.05)] focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-inset transition-all duration-200">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
               </svg>
@@ -374,7 +372,7 @@ export default function UserManagement() {
                 placeholder="Search users by full name..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-3 py-2 bg-transparent rounded-xl outline-none transition-all duration-200 text-xs sm:text-sm placeholder-gray-500"
+                className="w-full pl-10 pr-3 py-2 bg-[#1c1c1d] rounded-xl outline-none transition-all duration-200 text-xs sm:text-sm placeholder-gray-400 text-white border-0 focus:ring-0 focus:outline-none"
               />
             </div>
           </div>
@@ -382,14 +380,14 @@ export default function UserManagement() {
             onClick={() => setActiveTab('all')}
             className={`flex-none shrink-0 px-3 md:px-5 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-medium transition-all duration-200 md:ml-2 ${
               activeTab === 'all'
-                ? 'bg-blue-50 text-blue-700 shadow-sm'
-                : 'text-gray-600 hover:bg-gray-50'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-white hover:bg-[#2f3133]'
             }`}
           >
             <div className="flex items-center justify-center gap-2">
               <Users className="w-4 h-4" />
               <span>All Users</span>
-              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-gray-100 text-gray-600 hidden xl:inline-flex">
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-white/20 text-white hidden xl:inline-flex">
                 {userStats.total}
               </span>
             </div>
@@ -398,31 +396,31 @@ export default function UserManagement() {
             onClick={() => setActiveTab('students')}
             className={`flex-none shrink-0 px-3 md:px-5 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-medium transition-all duration-200 ${
               activeTab === 'students'
-                ? 'bg-green-50 text-green-700 shadow-sm'
-                : 'text-gray-600 hover:bg-gray-50'
+                ? 'bg-green-600 text-white shadow-sm'
+                : 'text-white hover:bg-[#2f3133]'
             }`}
           >
             <div className="flex items-center justify-center gap-2">
               <Users className="w-4 h-4" />
               <span>Students</span>
-              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-gray-100 text-gray-600 hidden xl:inline-flex">
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-white/20 text-white hidden xl:inline-flex">
                 {userStats.students}
               </span>
             </div>
           </button>
           <button
-            onClick={() => setActiveTab('teachers')}
+            onClick={() => setActiveTab('instructors')}
             className={`flex-none shrink-0 px-3 md:px-5 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-medium transition-all duration-200 ${
-              activeTab === 'teachers'
-                ? 'bg-indigo-50 text-indigo-700 shadow-sm'
-                : 'text-gray-600 hover:bg-gray-50'
+              activeTab === 'instructors'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-indigo-600 hover:bg-[#2f3133]'
             }`}
           >
             <div className="flex items-center justify-center gap-2">
               <Users className="w-4 h-4" />
               <span>Instructor</span>
-              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-gray-100 text-gray-600 hidden xl:inline-flex">
-                {userStats.teachers}
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-white/20 text-white hidden xl:inline-flex">
+                {userStats.instructors}
               </span>
             </div>
           </button>
@@ -430,14 +428,14 @@ export default function UserManagement() {
             onClick={() => setActiveTab('registrars')}
             className={`flex-none shrink-0 px-3 md:px-5 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-medium transition-all duration-200 ${
               activeTab === 'registrars'
-                ? 'bg-orange-50 text-orange-700 shadow-sm'
-                : 'text-gray-600 hover:bg-gray-50'
+                ? 'bg-orange-600 text-white shadow-sm'
+                : 'text-orange-400 hover:bg-[#2f3133]'
             }`}
           >
             <div className="flex items-center justify-center gap-2">
               <Users className="w-4 h-4" />
               <span>Registrars</span>
-              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-gray-100 text-gray-600 hidden xl:inline-flex">
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-white/20 text-white hidden xl:inline-flex">
                 {userStats.registrars}
               </span>
             </div>
@@ -446,14 +444,14 @@ export default function UserManagement() {
             onClick={() => setActiveTab('program_heads')}
             className={`flex-none shrink-0 px-3 md:px-5 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-medium transition-all duration-200 ${
               activeTab === 'program_heads'
-                ? 'bg-purple-50 text-purple-700 shadow-sm'
-                : 'text-gray-600 hover:bg-gray-50'
+                ? 'bg-purple-600 text-white shadow-sm'
+                : 'text-purple-400 hover:bg-[#2f3133]'
             }`}
           >
             <div className="flex items-center justify-center gap-2">
               <Users className="w-4 h-4" />
               <span>Program Heads</span>
-              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-gray-100 text-gray-600 hidden xl:inline-flex">
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-white/20 text-white hidden xl:inline-flex">
                 {userStats.program_heads}
               </span>
             </div>
@@ -467,9 +465,9 @@ export default function UserManagement() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
-          className="usermanagement-table"
+          className="usermanagement-table w-full"
         >
-      <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100">
+      <div className="bg-[#252728] rounded-2xl shadow-lg overflow-hidden border border-gray-700 w-full">
         {loading ? (
           <div className="usermanagement-skeleton">
             {/* Header Skeleton */}
@@ -479,13 +477,13 @@ export default function UserManagement() {
             </div>
             
             {/* Search Bar Skeleton */}
-            <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 mb-8 animate-pulse">
+            <div className="bg-[#252728] rounded-2xl p-6 shadow-lg border border-gray-700 mb-8 animate-pulse">
               <div className="h-12 bg-gray-200 rounded-xl w-full"></div>
             </div>
             
             {/* Tabs Skeleton */}
             <div className="mb-6 animate-pulse">
-              <div className="bg-white rounded-2xl shadow-lg p-1 border border-gray-100">
+              <div className="bg-[#252728] rounded-2xl shadow-lg p-1 border border-gray-700">
                 <div className="flex gap-2">
                   {[1, 2, 3].map(i => (
                     <div key={i} className="flex-1 h-12 bg-gray-200 rounded-xl"></div>
@@ -495,7 +493,7 @@ export default function UserManagement() {
             </div>
             
             {/* Table Skeleton */}
-            <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100">
+            <div className="bg-[#252728] rounded-2xl shadow-lg overflow-hidden border border-gray-700">
               <div className="p-6">
                 <div className="space-y-4">
                   {[1, 2, 3, 4, 5].map(i => (
@@ -530,58 +528,58 @@ export default function UserManagement() {
                 exit={{ opacity: 0 }} 
                 className="text-center py-20 text-gray-500"
               >
-                <div className="w-20 h-20 mx-auto mb-4 bg-gray-50 rounded-full flex items-center justify-center border-2 border-dashed border-gray-200">
+                <div className="w-20 h-20 mx-auto mb-4 bg-[#2f3133] rounded-full flex items-center justify-center border-2 border-dashed border-gray-600">
                   <Users className="w-10 h-10 text-gray-400" />
                 </div>
-                <p className="text-lg font-medium text-gray-700">
+                <p className="text-lg font-medium text-white">
                   {activeTab === 'students' ? 'No students found' : 'No users found'}
                 </p>
-                <p className="text-sm text-gray-400 mt-1">
+                <p className="text-sm text-gray-300 mt-1">
                   {activeTab === 'students' 
                     ? 'Add a new student to get started' 
                     : 'Add a new user to get started'}
                 </p>
               </motion.div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto w-full">
                 <motion.table 
                   key={activeTab}
                   initial={{ opacity: 0 }} 
                   animate={{ opacity: 1 }} 
                   exit={{ opacity: 0 }} 
-                  className="min-w-full divide-y divide-gray-200"
+                  className="w-full divide-y divide-gray-200"
                 >
-                  <thead className="bg-gray-50">
+                  <thead className="bg-[#2f3133]">
                     <tr>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">User Information</th>
-                      {activeTab === 'all' && (
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Role & Status</th>
-                      )}
-                      {activeTab === 'students' && (
-                        <>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Academic Info</th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
-                        </>
-                      )}
-                      {activeTab === 'teachers' && (
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Department & Subjects</th>
-                      )}
-                      {activeTab === 'registrars' && (
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Department & Status</th>
-                      )}
-                      {activeTab === 'program_heads' && (
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Department & Status</th>
-                      )}
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
+                                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">User Information</th>
+                  {activeTab === 'all' && (
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">Role & Status</th>
+                  )}
+                  {activeTab === 'students' && (
+                    <>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">Academic Info</th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">Status</th>
+                    </>
+                  )}
+                  {activeTab === 'instructors' && (
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">Department & Subjects</th>
+                  )}
+                  {activeTab === 'registrars' && (
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">Status</th>
+                  )}
+                  {activeTab === 'program_heads' && (
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">Department & Status</th>
+                  )}
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className="bg-[#252728] divide-y divide-gray-700">
                     {filteredUsers.map((user: UserProfile) => (
                       <motion.tr 
                         key={user.id} 
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="hover:bg-gray-50/50 transition-colors duration-200"
+                        className="hover:bg-[#2f3133]/50 transition-colors duration-200"
                       >
                         <td className="px-6 py-5">
                           <div className="flex items-center gap-4">
@@ -603,10 +601,10 @@ export default function UserManagement() {
                               )}
                             </div>
                             <div>
-                              <div className="font-semibold text-gray-900">
+                              <div className="font-semibold text-white">
                                 {[user.first_name, user.middle_name, user.last_name, user.suffix].filter(Boolean).join(' ')}
                               </div>
-                              <div className="text-sm text-gray-500 mt-0.5">{user.email}</div>
+                              <div className="text-sm text-gray-300 mt-0.5">{user.email}</div>
                               {user.role === 'student' && (
                                 <div className="text-xs text-gray-400 mt-1">ID: {user.student_id}</div>
                               )}
@@ -618,7 +616,7 @@ export default function UserManagement() {
                             <div className="flex flex-col gap-2">
                               <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold w-fit
                                 ${user.role === 'admin' ? 'bg-purple-100 text-purple-700' :
-                                  user.role === 'teacher' ? 'bg-blue-100 text-blue-700' :
+                                  user.role === 'instructor' ? 'bg-blue-100 text-blue-700' :
                                   user.role === 'student' ? 'bg-green-100 text-green-700' :
                                   user.role === 'registrar' ? 'bg-orange-100 text-orange-700' :
                                   'bg-gray-100 text-gray-700'}`}>
@@ -632,18 +630,10 @@ export default function UserManagement() {
                             <td className="px-6 py-5">
                               <div className="flex flex-col gap-1">
                                 <div className="text-sm">
-                                  <span className="text-gray-500">Program:</span>{' '}
-                                  <span className="font-medium text-gray-900">
-                                    {programs.find(p => p.id.toString() === user.program_id?.toString())?.name || 'N/A'}
+                                  <span className="text-gray-400">Program:</span>{' '}
+                                  <span className="font-medium text-white">
+                                    {user.department ? `${user.department} ${user.year_level || 'N/A'}-${user.section || 'N/A'}` : 'N/A'}
                                   </span>
-                                </div>
-                                <div className="text-sm">
-                                  <span className="text-gray-500">Year Level:</span>{' '}
-                                  <span className="font-medium text-gray-900">{user.year_level || 'N/A'}</span>
-                                </div>
-                                <div className="text-sm">
-                                  <span className="text-gray-500">Section:</span>{' '}
-                                  <span className="font-medium text-gray-900">{user.section || 'N/A'}</span>
                                 </div>
                               </div>
                             </td>
@@ -668,30 +658,30 @@ export default function UserManagement() {
                             </td>
                           </>
                         )}
-                        {activeTab === 'teachers' && user.role === 'teacher' && (
+                        {activeTab === 'instructors' && user.role === 'instructor' && (
                           <td className="px-6 py-5">
                             <div className="flex flex-col gap-1">
                               <div className="text-xs mb-1">
-                                <span className="text-gray-500">Department:</span>{' '}
-                                <span className="font-semibold text-gray-900">{user.department || 'N/A'}</span>
+                                <span className="text-gray-400">Department:</span>{' '}
+                                <span className="font-semibold text-white">{user.department || 'N/A'}</span>
                               </div>
                               <div className="text-xs">
-                                <span className="text-gray-500">Assigned Subjects:</span>
+                                <span className="text-gray-400">Assigned Subjects:</span>
                                 {teacherSubjects[user.id] && teacherSubjects[user.id].length > 0 ? (
                                   <div className="mt-0.5 space-y-0.5">
                                     {teacherSubjects[user.id].map((subject) => (
-                                      <div
-                                        key={subject.id}
-                                        className="flex flex-col gap-0.5 text-[11px] bg-gray-100 rounded mb-0.5 shadow-inner border border-gray-200"
-                                        style={{ padding: '4px 8px', lineHeight: 1.15 }}
-                                      >
+                                                                              <div
+                                          key={subject.id}
+                                          className="flex flex-col gap-0.5 text-[11px] bg-[#2f3133] rounded mb-0.5 shadow-[inset_2px_2px_4px_rgba(0,0,0,0.4),inset_-2px_-2px_4px_rgba(255,255,255,0.08)] border border-gray-600"
+                                          style={{ padding: '4px 8px', lineHeight: 1.15 }}
+                                        >
                                         <div className="flex items-center gap-1.5">
-                                          <span className="font-semibold text-gray-900">{subject.courses?.code}</span>
-                                          <span className="text-gray-500">-</span>
-                                          <span className="text-gray-700 truncate max-w-[80px]">{subject.courses?.name}</span>
+                                          <span className="font-semibold text-white">{subject.courses?.code}</span>
+                                          <span className="text-gray-400">-</span>
+                                          <span className="text-gray-300 truncate max-w-[80px]">{subject.courses?.name}</span>
                                           <span className="text-gray-400">({subject.courses?.units}u)</span>
                                         </div>
-                                        <div className="flex items-center gap-1 text-[10px] text-gray-500">
+                                        <div className="flex items-center gap-1 text-[10px] text-gray-400">
                                           <span>Sec: {subject.section}</span>
                                           <span>•</span>
                                           <span>{subject.academic_year}</span>
@@ -711,10 +701,6 @@ export default function UserManagement() {
                         {activeTab === 'registrars' && user.role === 'registrar' && (
                           <td className="px-6 py-5">
                             <div className="flex flex-col gap-1">
-                              <div className="text-sm">
-                                <span className="text-gray-500">Department:</span>{' '}
-                                <span className="font-medium text-gray-900">{user.department || 'N/A'}</span>
-                              </div>
                               <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold w-fit ${
                                 user.is_active 
                                   ? 'bg-emerald-100 text-emerald-700' 
@@ -732,8 +718,8 @@ export default function UserManagement() {
                           <td className="px-6 py-5">
                             <div className="flex flex-col gap-1">
                               <div className="text-sm">
-                                <span className="text-gray-500">Department:</span>{' '}
-                                <span className="font-medium text-gray-900">{user.department || 'N/A'}</span>
+                                <span className="text-gray-400">Department:</span>{' '}
+                                <span className="font-medium text-white">{user.department || 'N/A'}</span>
                               </div>
                               <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold w-fit ${
                                 user.is_active 
