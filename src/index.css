@@ -85,6 +85,24 @@ body {
   border-right-color: #3b82f6 !important;
 }
 
+/* Dark override for grades table when wrapped in .dark-table */
+.dark-table .grades-table,
+.dark-table .grades-table thead,
+.dark-table .grades-table tbody,
+.dark-table .grades-table tr,
+.dark-table .grades-table th,
+.dark-table .grades-table td {
+  background: #252728 !important;
+  color: #ffffff !important;
+  border-color: #444 !important;
+}
+
+.dark-table .grades-table tr:hover td {
+  background: #2b2d2f !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
 /* Shimmer animation for skeleton loading */
 @keyframes shimmer {
   0% {
