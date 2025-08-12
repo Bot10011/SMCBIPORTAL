@@ -18,7 +18,7 @@ VALUES
   ('admin', true, 'Access Restricted', 'Admin dashboard is currently under maintenance.'),
   ('registrar', true, 'Access Restricted', 'Registrar dashboard is currently restricted.'),
   ('program_head', true, 'Access Restricted', 'Program Head dashboard is currently restricted.'),
-  ('teacher', true, 'Access Restricted', 'Teacher dashboard is currently restricted.'),
+  ('instructor', true, 'Access Restricted', 'Instructor dashboard is currently restricted.'),
   ('student', true, 'Access Restricted', 'Student dashboard is currently restricted.');
 
 -- Create function to update timestamp on record update
