@@ -30,10 +30,10 @@ const Login: React.FC<LoginProps> = ({ onClose }) => {
     console.log('Username input changed:', value); // Debug log
     
     // Development shortcut: Auto-fill password for specific usernames
-    if (value === 'admin' || value === 'teacher' || value === 'student' || value === 'registrar' || value === 'program_head') {
+    if (value === 'admin' || value === 'instructor' || value === 'student' || value === 'registrar' || value === 'programhead') {
       setFormData({ 
         username: value, 
-        password: 'Admin123!' // Development password
+        password: 'TempPass@123' // Development password
       });
     } else {
       setFormData({ ...formData, username: value });
