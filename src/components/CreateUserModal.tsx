@@ -5,21 +5,22 @@ import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
 import { sanitizeTextInput } from '../utils/validation';
 import { createPortal } from 'react-dom';
+import { createClient } from '@supabase/supabase-js';
+import { useAuth } from '../contexts/AuthContext';
 
 interface Program {
   id: number;
-  code: string;
   name: string;
   description?: string;
 }
 
 interface Department {
-  code: string;
+  name: string; 
 }
 
 interface CreateUserForm {
   email: string;
-  role: 'teacher' | 'student' | 'registrar' | 'program_head';
+  role: 'instructor' | 'student' | 'registrar' | 'program_head';
   first_name: string;
   middle_name?: string;
   last_name: string;
@@ -67,7 +68,7 @@ const roleRequirements: Record<CreateUserForm['role'], RoleRequirements> = {
     ],
     optionalFields: ['middle_name', 'suffix']
   },
-  teacher: {
+  instructor: {
     requiredFields: [
       'email', 'role', 'first_name', 'last_name', 'password',
       'gender', 'birthdate', 'phone', 'address', 'department'
@@ -119,6 +120,21 @@ interface UserProfile {
   created_at: string;
   updated_at: string;
 }
+
+// Isolated Supabase client for user creation that won't affect the main auth session
+const createUserClient = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY,
+  {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+      // Use a unique storage key to avoid cross-client broadcast collisions
+      storageKey: 'sb-create-user-client'
+    }
+  }
+);
 
 const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUserCreated }) => {
   // Form state
@@ -200,6 +216,8 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
   // Add state for confirmation dialog
   const [showConfirmation, setShowConfirmation] = useState(false);
 
+  const { setCreatingUserFlag } = useAuth();
+
   // Reset form function
   const resetForm = () => {
     setForm({
@@ -261,7 +279,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
     try {
       const { data, error } = await supabase
         .from('programs')
-        .select('id, code, name, description')
+        .select('id, name, description')
         .order('name');
       
       if (error) throw error;
@@ -277,14 +295,14 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
       setIsLoadingDepartments(true);
       const { data, error } = await supabase
         .from('programs')
-        .select('code')
-        .order('code');
+        .select('name')
+        .order('name');
       
       if (error) throw error;
       
-      // Get unique department codes and filter out any null/undefined values
-      const uniqueDepartments = Array.from(new Set(data?.filter(program => program.code).map(program => program.code) || []))
-        .map(code => ({ code }));
+      // Get unique department names and filter out any null/undefined values
+      const uniqueDepartments = Array.from(new Set(data?.filter(program => program.name).map(program => program.name) || []))
+        .map(name => ({ name }));
       
       setDepartments(uniqueDepartments);
     } catch (error) {
@@ -496,6 +514,8 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
     }
 
     setCreating(true);
+    setCreatingUserFlag(true); // Set flag to ignore auth state changes
+    
     try {
       // Additional check for student ID uniqueness
       if (form.role === 'student') {
@@ -506,11 +526,12 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
           .eq('student_id', form.student_id);
 
         if (idError) {
-                  toast.error('Error checking student ID.');
-        setCreating(false);
-        resetForm();
-        if (onUserCreated) onUserCreated(); else onClose();
-        return;
+          toast.error('Error checking student ID.');
+          setCreating(false);
+          setCreatingUserFlag(false); // Reset flag
+          resetForm();
+          if (onUserCreated) onUserCreated(); else onClose();
+          return;
         }
 
         if (idCount && idCount > 0) {
@@ -527,11 +548,12 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
           .ilike('email', `${form.email.toLowerCase()}@smcbi.edu.ph`);
 
         if (emailError) {
-                  toast.error('Error checking email.');
-        setCreating(false);
-        resetForm();
-        if (onUserCreated) onUserCreated(); else onClose();
-        return;
+          toast.error('Error checking email.');
+          setCreating(false);
+          setCreatingUserFlag(false); // Reset flag
+          resetForm();
+          if (onUserCreated) onUserCreated(); else onClose();
+          return;
         }
 
         if (emailCount && emailCount > 0) {
@@ -541,8 +563,8 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
         }
       }
 
-      // Create auth user with email confirmation
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      // Create auth user using isolated client so admin session is not affected
+      const { data: authData, error: authError } = await createUserClient.auth.signUp({
         email: `${form.email}@smcbi.edu.ph`,
         password: form.password,
         options: {
@@ -556,16 +578,27 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
       });
 
       if (authError) {
-              toast.error(authError.message || 'Error creating auth user.');
-      setCreating(false);
-      resetForm();
-      if (onUserCreated) onUserCreated(); else onClose();
-      return;
+        toast.error(authError.message || 'Error creating auth user.');
+        setCreating(false);
+        setCreatingUserFlag(false); // Reset flag
+        resetForm();
+        if (onUserCreated) onUserCreated(); else onClose();
+        return;
+      }
+
+      const newUserId = authData.user?.id || '';
+      if (!newUserId) {
+        toast.error('Failed to get new user ID.');
+        setCreating(false);
+        setCreatingUserFlag(false); // Reset flag
+        resetForm();
+        if (onUserCreated) onUserCreated(); else onClose();
+        return;
       }
 
       // Prepare the user profile object with proper typing
       const userProfile: UserProfile = {
-        id: authData.user?.id || '',
+        id: newUserId,
         email: `${form.email}@smcbi.edu.ph`,
         role: form.role,
         first_name: form.first_name,
@@ -575,7 +608,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
         suffix: form.suffix || null,
         department: form.department || null,
         program_id: form.program_id ? Number(form.program_id) : null,
-        student_id: form.student_id || null,
+        student_id: form.role === 'student' ? (form.student_id || null) : null,
         year_level: form.year_level || null,
         section: form.section || null,
         semester: form.semester || null,
@@ -600,7 +633,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
         }
       });
 
-      // Insert user profile
+      // Insert user profile using admin's session
       const { error: profileError } = await supabase
         .from('user_profiles')
         .insert([userProfile]);
@@ -608,6 +641,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
       if (profileError) {
         toast.error(profileError.message || 'Error saving user profile.');
         setCreating(false);
+        setCreatingUserFlag(false); // Reset flag
         resetForm();
         if (onUserCreated) onUserCreated(); else onClose();
         return;
@@ -617,6 +651,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
       resetForm();
       if (onUserCreated) onUserCreated();
       else onClose();
+      
     } catch (error: unknown) {
       console.error('Error creating user:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to create user';
@@ -625,6 +660,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
       if (onUserCreated) onUserCreated(); else onClose();
     } finally {
       setCreating(false);
+      setCreatingUserFlag(false); // Reset flag
     }
   };
 
@@ -851,7 +887,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
                         required
                       >
                         <option value="student">Student</option>
-                        <option value="teacher">Teacher</option>
+                        <option value="instructor">Instructor</option>
                         {/* Admin role temporarily disabled */}
                         {/* <option value="admin">Admin</option> */}
                         <option value="registrar">Registrar</option>
@@ -863,7 +899,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
 
                     {/* Update the department selection dropdown */}
 
-                    {(form.role === 'teacher' || form.role === 'program_head') && (
+                    {(form.role === 'instructor' || form.role === 'program_head') && (
 
                   
 
@@ -873,10 +909,8 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
                           Department <span className="text-red-500">*</span>
                         </label>
                         <select
-                          className={`w-full max-w-xs mx-auto border-2 rounded-lg px-3 py-2 text-center appearance-none bg-white shadow-sm ${
-                            form.department ? 'border-green-500 bg-green-50' : 'border-gray-500'
-                          } ${isLoadingDepartments ? 'opacity-50 cursor-not-allowed' : ''}`}
-                          style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: form.department ? '#10b981' : '#6b7280 !important' }}
+                          className="w-full border-2 border-gray-500 rounded-lg px-3 py-2 mt-1 bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200 shadow-sm text-gray-500"
+                          style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
                           value={form.department}
                           onChange={e => setForm(prev => ({ ...prev, department: e.target.value }))}
                           required
@@ -884,8 +918,8 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
                         >
                           <option value="">Select Department</option>
                           {departments.map(dept => (
-                            <option key={dept.code} value={dept.code}>
-                              {dept.code}
+                            <option key={dept.name} value={dept.name}>
+                              {dept.name}
                             </option>
                           ))}
                         </select>
@@ -1379,7 +1413,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
                       <h5 className="font-medium text-gray-900 mb-2">Basic Information</h5>
                       <div className="grid grid-cols-2 gap-4">
 
-                        {(form.role === 'teacher' || form.role === 'program_head') && (
+                        {(form.role === 'instructor' || form.role === 'program_head') && (
 
                        
                           <div>
