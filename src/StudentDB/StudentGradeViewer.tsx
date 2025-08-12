@@ -365,99 +365,99 @@ export const StudentGradeViewer: React.FC = () => {
 
   return (
     <div className="w-full space-y-8 p-4 sm:p-6">
-      {/* Premium Header Section */}
-      <motion.div 
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 via-white to-purple-50 shadow-inner shadow-inner-strong border border-blue-100"
-      >
-        <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
-                <Award className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-white tracking-tight">Academic Grades</h1>
-                <p className="text-white/80 text-sm font-medium">Track your academic performance</p>
-              </div>
+    {/* Premium Header Section */}
+    <motion.div 
+      initial={{ opacity: 0, y: 24 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+      className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 via-white to-purple-50 shadow-inner shadow-inner-strong border border-blue-100"
+    >
+      <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
+              <Award className="w-6 h-6 text-white" />
             </div>
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
-              className="mt-4 flex justify-center sm:justify-start w-full sm:w-auto"
-            >
-              {overallGPA ? (
-                <div className={`w-auto px-4 h-10 rounded-xl shadow-[inset_0_2px_4px_0_rgba(0,0,0,0.1),inset_0_1px_2px_0_rgba(0,0,0,0.06)] backdrop-blur-sm flex items-center justify-center gap-2 border transition-all duration-300 ${
-                  overallGPA.status === 'excellent' 
-                    ? 'bg-gradient-to-r from-emerald-50 to-green-50 border-emerald-200 shadow-emerald-100' 
-                    : overallGPA.status === 'very-good'
-                    ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 shadow-blue-100'
-                    : overallGPA.status === 'good'
-                    ? 'bg-gradient-to-r from-purple-50 to-violet-50 border-purple-200 shadow-purple-100'
-                    : overallGPA.status === 'passing'
-                    ? 'bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-200 shadow-yellow-100'
-                    : 'bg-gradient-to-r from-red-50 to-pink-50 border-red-200 shadow-red-100'
-                }`}>
-                  <div className={`p-1 rounded-full ${
-                    overallGPA.status === 'excellent' ? 'bg-emerald-100' 
-                    : overallGPA.status === 'very-good' ? 'bg-blue-100'
-                    : overallGPA.status === 'good' ? 'bg-purple-100'
-                    : overallGPA.status === 'passing' ? 'bg-yellow-100'
-                    : 'bg-red-100'
-                  }`}>
-                    <CheckCircle2 className={`w-4 h-4 ${
-                      overallGPA.status === 'excellent' ? 'text-emerald-600' 
-                      : overallGPA.status === 'very-good' ? 'text-blue-600'
-                      : overallGPA.status === 'good' ? 'text-purple-600'
-                      : overallGPA.status === 'passing' ? 'text-yellow-600'
-                      : 'text-red-600'
-                    }`} />
-                  </div>
-                  <span className={`text-base font-bold tracking-wide ${
-                    overallGPA.status === 'excellent' ? 'text-emerald-800' 
-                    : overallGPA.status === 'very-good' ? 'text-blue-800'
-                    : overallGPA.status === 'good' ? 'text-purple-800'
-                    : overallGPA.status === 'passing' ? 'text-yellow-800'
-                    : 'text-red-800'
-                  }`}>
-                    GPA: {overallGPA.value}
-                  </span>
-                </div>
-              ) : (
-                <div className="w-auto px-4 h-10 rounded-xl shadow-[inset_0_2px_4px_0_rgba(0,0,0,0.1),inset_0_1px_2px_0_rgba(0,0,0,0.06)] backdrop-blur-sm flex items-center justify-center gap-2 border border-gray-200 bg-gray-50 transition-all duration-300">
-                  <div className="p-1 rounded-full bg-gray-100">
-                    <Clock className="w-4 h-4 text-gray-600" />
-                  </div>
-                  <span className="text-base font-semibold text-gray-700 tracking-wide">
-                    No grades available
-                  </span>
-                </div>
-              )}
-            </motion.div>
+            <div>
+              <h1 className="text-2xl font-bold text-white tracking-tight">Academic Grades</h1>
+              <p className="text-white/80 text-sm font-medium">Track your academic performance</p>
+            </div>
           </div>
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="mt-4 flex justify-center sm:justify-start w-full sm:w-auto"
+          >
+            {overallGPA ? (
+              <div className={`w-auto px-4 h-10 rounded-xl shadow-[inset_0_2px_4px_0_rgba(0,0,0,0.1),inset_0_1px_2px_0_rgba(0,0,0,0.06)] backdrop-blur-sm flex items-center justify-center gap-2 border transition-all duration-300 ${
+                overallGPA.status === 'excellent' 
+                  ? 'bg-gradient-to-r from-emerald-50 to-green-50 border-emerald-200 shadow-emerald-100' 
+                  : overallGPA.status === 'very-good'
+                  ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 shadow-blue-100'
+                  : overallGPA.status === 'good'
+                  ? 'bg-gradient-to-r from-purple-50 to-violet-50 border-purple-200 shadow-purple-100'
+                  : overallGPA.status === 'passing'
+                  ? 'bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-200 shadow-yellow-100'
+                  : 'bg-gradient-to-r from-red-50 to-pink-50 border-red-200 shadow-red-100'
+              }`}>
+                <div className={`p-1 rounded-full ${
+                  overallGPA.status === 'excellent' ? 'bg-emerald-100' 
+                  : overallGPA.status === 'very-good' ? 'bg-blue-100'
+                  : overallGPA.status === 'good' ? 'bg-purple-100'
+                  : overallGPA.status === 'passing' ? 'bg-yellow-100'
+                  : 'bg-red-100'
+                }`}>
+                  <CheckCircle2 className={`w-4 h-4 ${
+                    overallGPA.status === 'excellent' ? 'text-emerald-600' 
+                    : overallGPA.status === 'very-good' ? 'text-blue-600'
+                    : overallGPA.status === 'good' ? 'text-purple-600'
+                    : overallGPA.status === 'passing' ? 'text-yellow-600'
+                    : 'text-red-600'
+                  }`} />
+                </div>
+                <span className={`text-base font-bold tracking-wide ${
+                  overallGPA.status === 'excellent' ? 'text-emerald-800' 
+                  : overallGPA.status === 'very-good' ? 'text-blue-800'
+                  : overallGPA.status === 'good' ? 'text-purple-800'
+                  : overallGPA.status === 'passing' ? 'text-yellow-800'
+                  : 'text-red-800'
+                }`}>
+                  GPA: {overallGPA.value}
+                </span>
+              </div>
+            ) : (
+              <div className="w-auto px-4 h-10 rounded-xl shadow-[inset_0_2px_4px_0_rgba(0,0,0,0.1),inset_0_1px_2px_0_rgba(0,0,0,0.06)] backdrop-blur-sm flex items-center justify-center gap-2 border border-gray-200 bg-gray-50 transition-all duration-300">
+                <div className="p-1 rounded-full bg-gray-100">
+                  <Clock className="w-4 h-4 text-gray-600" />
+                </div>
+                <span className="text-base font-semibold text-gray-700 tracking-wide">
+                  No grades available
+                </span>
+              </div>
+            )}
+          </motion.div>
         </div>
-      </motion.div>
+      </div>
+    </motion.div>
 
       {/* Search and Stats Section */}
       <motion.div 
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
-        className="bg-white rounded-2xl shadow-inner shadow-inner-strong border border-blue-100 p-6"
+        className="bg-[#252728] rounded-2xl shadow-inner shadow-inner-strong border border-gray-700 p-6"
       >
         <div className="flex flex-col gap-3 w-full sm:flex-row sm:items-center sm:justify-between">
           {/* Search Bar */}
           <div className="relative flex-1 max-w-md flex-shrink-0 mb-2 sm:mb-0">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-300 w-4 h-4" />
             <input
               type="text"
               placeholder="Search subjects..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-sm font-medium text-gray-900 placeholder-gray-500 transition-all duration-200"
+              className="w-full pl-9 pr-4 py-3 border border-[#444] rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-[#333334] text-sm font-medium text-white placeholder-gray-300 transition-all duration-200"
             />
           </div>
           {/* Stats and Year Level Dropdown in one line on mobile/tablet */}
@@ -478,7 +478,7 @@ export const StudentGradeViewer: React.FC = () => {
                 </span>
               </div>
             </div>
-            <div className="relative flex items-center justify-center px-3 py-2 bg-white rounded-xl border border-gray-200 w-full sm:w-44 h-10 mt-2 sm:mt-0 shadow-sm">
+            <div className="relative flex items-center justify-center px-3 py-2 bg-[#333334] rounded-xl border border-[#444] w-full sm:w-44 h-10 mt-2 sm:mt-0 shadow-sm">
               <select
                 id="year-level-select"
                 value={selectedYear || ''}
@@ -486,13 +486,13 @@ export const StudentGradeViewer: React.FC = () => {
                 onFocus={() => setIsDropdownOpen(true)}
                 onBlur={() => setIsDropdownOpen(false)}
                 style={{ textAlign: 'center', textAlignLast: 'center' }}
-                className="w-full appearance-none pl-4 pr-6 py-2 bg-white text-gray-800 rounded-lg border-0 focus:ring-2 focus:ring-blue-500 focus:outline-none hover:bg-gray-50 transition font-semibold text-xs sm:text-sm cursor-pointer whitespace-nowrap"
+                className="w-full appearance-none pl-4 pr-6 py-2 bg-[#333334] text-white rounded-lg border-0 focus:ring-2 focus:ring-blue-500 focus:outline-none transition font-semibold text-xs sm:text-sm cursor-pointer whitespace-nowrap"
               >
                 {yearOptions.map(year => (
                   <option key={year} value={year}>{year}</option>
                 ))}
               </select>
-              <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-gray-500">
+              <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-gray-200">
                 <ChevronDown className={`w-5 h-5 transition-transform duration-200 ease-in-out transform ${isDropdownOpen ? 'rotate-180' : 'rotate-0'}`} />
               </span>
             </div>
@@ -508,12 +508,12 @@ export const StudentGradeViewer: React.FC = () => {
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.3 + index * 0.1 }}
-            className={`bg-white shadow-inner shadow-inner-strong border border-blue-100 overflow-hidden ${
+            className={`bg-[#252728] shadow-inner shadow-inner-strong border border-gray-700 overflow-hidden ${
               openSections[year] ? 'rounded-t-2xl' : 'rounded-2xl'
             }`}
           >
             <button
-              className="w-full flex items-center justify-between p-3 sm:p-4 hover:bg-blue-50 transition-colors duration-200 focus:outline-none"
+              className="w-full flex items-center justify-between p-3 sm:p-4 bg-[#252728] focus:outline-none"
               onClick={() => toggleSection(year)}
             >
               <div className="flex items-center min-w-0 flex-1">
@@ -523,7 +523,7 @@ export const StudentGradeViewer: React.FC = () => {
                     {YEAR_ICONS[year]}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-800 tracking-tight truncate">{year} Grades</h2>
+                      <h2 className="text-base sm:text-lg lg:text-xl font-bold text-white tracking-tight truncate">{year} Grades</h2>
                   </div>
                 </div>
               </div>
@@ -544,7 +544,7 @@ export const StudentGradeViewer: React.FC = () => {
                   transition={{ duration: 0.3, ease: "easeInOut" }}
                   className="overflow-hidden"
                 >
-                  <div className="border-t border-blue-100">
+                  <div className="border-t border-[#444]">
                     {gradesByYear[year].length === 0 ? (
                       <div className="px-6 py-12 text-center">
                         <div className="flex flex-col items-center gap-3">
@@ -579,43 +579,37 @@ export const StudentGradeViewer: React.FC = () => {
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.3 }}
-                                className="p-6 rounded-xl border border-gray-200 bg-white shadow-lg hover:shadow-xl transition-all duration-300"
+                                className="p-6 rounded-xl border border-[#444] bg-[#252728] shadow-lg transition-all duration-300"
                               >
                                 <div className="flex items-center justify-between mb-4">
                                   <div>
-                                    <div className="font-bold text-gray-900 text-lg mb-1">{grade.subject_code}</div>
-                                    <div className="text-sm text-gray-600">{grade.subject_name}</div>
+                                    <div className="font-bold text-white text-lg mb-1">{grade.subject_code}</div>
+                                    <div className="text-sm text-gray-300">{grade.subject_name}</div>
                                   </div>
                                   <div className="flex items-center">
-                                    <div className="p-2 rounded-full bg-blue-50 mr-2">
+                                    <div className="p-2 rounded-full bg-[#2b2d2f] mr-2">
                                       <Users className="w-4 h-4 text-blue-600" />
                                     </div>
-                                    <span className="text-sm text-gray-700 font-medium">{grade.teacher_name || 'TBA'}</span>
+                                    <span className="text-sm text-gray-200 font-medium">{grade.teacher_name || 'TBA'}</span>
                                   </div>
                                 </div>
                                 <div className="grid grid-cols-3 gap-3 text-sm">
-                                  <div className="text-center p-3 rounded-lg bg-gray-50 border border-gray-200">
-                                    <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Prelim</div>
-                                    <div className="font-bold text-gray-900 text-lg">{grade.prelim_grade ?? 'N/A'}</div>
+                                  <div className="text-center p-3 rounded-lg bg-[#333334] border border-[#444]">
+                                    <div className="text-xs text-gray-300 uppercase tracking-wider mb-1">Prelim</div>
+                                    <div className="font-bold text-white text-lg">{grade.prelim_grade ?? 'N/A'}</div>
                                   </div>
-                                  <div className="text-center p-3 rounded-lg bg-gray-50 border border-gray-200">
-                                    <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Midterm</div>
-                                    <div className="font-bold text-gray-900 text-lg">{grade.midterm_grade ?? 'N/A'}</div>
+                                  <div className="text-center p-3 rounded-lg bg-[#333334] border border-[#444]">
+                                    <div className="text-xs text-gray-300 uppercase tracking-wider mb-1">Midterm</div>
+                                    <div className="font-bold text-white text-lg">{grade.midterm_grade ?? 'N/A'}</div>
                                   </div>
-                                  <div className="text-center p-3 rounded-lg bg-gray-50 border border-gray-200">
-                                    <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Final</div>
-                                    <div className="font-bold text-gray-900 text-lg">{grade.final_grade ?? 'N/A'}</div>
+                                  <div className="text-center p-3 rounded-lg bg-[#333334] border border-[#444]">
+                                    <div className="text-xs text-gray-300 uppercase tracking-wider mb-1">Final</div>
+                                    <div className="font-bold text-white text-lg">{grade.final_grade ?? 'N/A'}</div>
                                   </div>
                                 </div>
-                                <div className={`mt-4 p-4 rounded-lg text-center ${
-                                  isPassed 
-                                    ? 'bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200' 
-                                    : 'bg-gradient-to-r from-red-50 to-pink-50 border border-red-200'
-                                }`}>
-                                  <div className="text-xs text-gray-600 uppercase tracking-wider mb-1">Grade Average</div>
-                                  <div className={`font-bold text-2xl ${
-                                    isPassed ? 'text-green-800' : 'text-red-800'
-                                  }`}>
+                                <div className={`mt-4 p-4 rounded-lg text-center bg-[#333334] border ${isPassed ? 'border-emerald-600' : 'border-red-600'}`}>
+                                  <div className="text-xs text-gray-300 uppercase tracking-wider mb-1">Grade Average</div>
+                                  <div className={`font-bold text-2xl ${isPassed ? 'text-emerald-400' : 'text-red-400'}`}>
                                     {ga !== null ? ga.toFixed(2) : 'N/A'}
                                   </div>
                                 </div>
@@ -624,19 +618,19 @@ export const StudentGradeViewer: React.FC = () => {
                           })}
                         </div>
                         {/* Desktop/Tablet Table View */}
-                        <div className="hidden sm:block overflow-x-auto rounded-none">
-                          <table className="grades-table min-w-full" style={{ borderCollapse: 'collapse' }}>
-                            <thead>
+                        <div className="hidden sm:block overflow-x-auto rounded-none bg-[#252728] dark-table">
+                          <table className="grades-table min-w-full bg-[#252728] text-white" style={{ borderCollapse: 'collapse' }}>
+                            <thead className="bg-[#252728]">
                               <tr>
-                                <th className="px-6 py-4 text-left text-xs font-semibold tracking-wider">SUBJECT</th>
-                                <th className="px-6 py-4 text-left text-xs font-semibold tracking-wider">TEACHER</th>
-                                <th className="px-6 py-4 text-center text-xs font-semibold tracking-wider">PRELIM</th>
-                                <th className="px-6 py-4 text-center text-xs font-semibold tracking-wider">MIDTERM</th>
-                                <th className="px-6 py-4 text-center text-xs font-semibold tracking-wider">FINAL</th>
-                                <th className="px-6 py-4 text-center text-xs font-semibold tracking-wider">GA</th>
+                                <th className="px-6 py-4 text-left text-xs font-semibold tracking-wider text-gray-200">SUBJECT</th>
+                                <th className="px-6 py-4 text-left text-xs font-semibold tracking-wider text-gray-200">TEACHER</th>
+                                <th className="px-6 py-4 text-center text-xs font-semibold tracking-wider text-gray-200">PRELIM</th>
+                                <th className="px-6 py-4 text-center text-xs font-semibold tracking-wider text-gray-200">MIDTERM</th>
+                                <th className="px-6 py-4 text-center text-xs font-semibold tracking-wider text-gray-200">FINAL</th>
+                                <th className="px-6 py-4 text-center text-xs font-semibold tracking-wider text-gray-200">GA</th>
                               </tr>
                             </thead>
-                            <tbody>
+                            <tbody className="bg-[#252728]">
                               {gradesByYear[year].map((grades, gradesIndex) => {
                                 const ga = grades.prelim_grade !== undefined && grades.prelim_grade !== null &&
                                           grades.midterm_grade !== undefined && grades.midterm_grade !== null &&
@@ -647,47 +641,41 @@ export const StudentGradeViewer: React.FC = () => {
                                 const isPassed = ga !== null && ga >= 75;
                                 
                                                                 return (
-                                  <motion.tr 
+                              <motion.tr 
                                     key={grades.id}
                                     initial={{ opacity: 0, y: 10 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ duration: 0.3, delay: gradesIndex * 0.05 }}
-                                    className="group"
+                                className="group bg-[#252728]"
                                   >
                                     <td className="px-6 py-4">
-                                      <span className="text-sm font-semibold text-gray-900">{grades.subject_code}</span>
+                                      <span className="text-sm font-semibold text-white">{grades.subject_code}</span>
                                     </td>
                                     <td className="px-6 py-4">
                                       <div className="flex items-center">
-                                        <div className="p-1.5 rounded-full bg-blue-50 mr-3">
+                                        <div className="p-1.5 rounded-full bg-[#2b2d2f] mr-3">
                                           <Users className="w-3.5 h-3.5 text-blue-600" />
                                         </div>
-                                        <span className="text-sm text-gray-700">{grades.teacher_name || 'TBA'}</span>
+                                        <span className="text-sm text-gray-200">{grades.teacher_name || 'TBA'}</span>
                                       </div>
                                     </td>
                                     <td className="px-6 py-4 text-center">
-                                      <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-semibold bg-gray-50 text-gray-700 border border-gray-200">
+                                      <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-semibold bg-[#333334] text-white border border-[#444]">
                                         {grades.prelim_grade ?? 'N/A'}
                                       </span>
                                     </td>
                                     <td className="px-6 py-4 text-center">
-                                      <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-semibold bg-gray-50 text-gray-700 border border-gray-200">
+                                      <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-semibold bg-[#333334] text-white border border-[#444]">
                                         {grades.midterm_grade ?? 'N/A'}
                                       </span>
                                     </td>
                                     <td className="px-6 py-4 text-center">
-                                      <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-semibold bg-gray-50 text-gray-700 border border-gray-200">
+                                      <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-semibold bg-[#333334] text-white border border-[#444]">
                                         {grades.final_grade ?? 'N/A'}
                                       </span>
                                     </td>
-                                    <td className={`px-6 py-4 text-center ${
-                                      isPassed ? 'bg-gradient-to-r from-green-50 to-emerald-50' : 'bg-gradient-to-r from-red-50 to-pink-50'
-                                    }`}>
-                                      <span className={`inline-flex items-center px-4 py-2 rounded-lg text-sm font-bold shadow-sm ${
-                                        isPassed 
-                                          ? 'bg-green-100 text-green-800 border border-green-200' 
-                                          : 'bg-red-100 text-red-800 border border-red-200'
-                                      }`}>
+                                    <td className="px-6 py-4 text-center">
+                                      <span className={`inline-flex items-center px-4 py-2 rounded-lg text-sm font-bold shadow-sm border ${isPassed ? 'border-emerald-600 text-emerald-400 bg-[#333334]' : 'border-red-600 text-red-400 bg-[#333334]' }`}>
                                         {ga !== null ? ga.toFixed(2) : 'N/A'}
                                       </span>
                                     </td>
