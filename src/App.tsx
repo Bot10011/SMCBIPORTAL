@@ -227,7 +227,7 @@ const App: React.FC = () => {
               <Route path="/admin/dashboard/*" element={<Navigate to="/dashboard" replace />} />
               <Route path="/student/dashboard/*" element={<Navigate to="/dashboard" replace />} />
               <Route path="/superadmin/dashboard/*" element={<Navigate to="/dashboard" replace />} />
-              <Route path="/teacher/dashboard/*" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/instructor/dashboard/*" element={<Navigate to="/dashboard" replace />} />
               <Route path="/program_head/dashboard/*" element={<Navigate to="/dashboard" replace />} />
               <Route path="/registrar/dashboard/*" element={<Navigate to="/dashboard" replace />} />
 
