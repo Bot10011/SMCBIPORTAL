@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { UserRole } from '../types/auth';
+import { UserRole } from '../types/auth'; 
 import toast from 'react-hot-toast';
 
 interface DashboardAccess {
