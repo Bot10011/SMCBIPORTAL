@@ -11,6 +11,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   hasPermission: (permission: PermissionKey) => boolean;
   canCreateUser: (role: UserRole) => boolean;
+  setCreatingUserFlag: (creating: boolean) => void; // Add this to the interface
 }
 
 const AuthContext = createContext<AuthContextType & { loading: boolean } | undefined>(undefined);
@@ -18,6 +19,7 @@ const AuthContext = createContext<AuthContextType & { loading: boolean } | undef
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isCreatingUser, setIsCreatingUser] = useState(false); // Add this flag
 
   useEffect(() => {
     const checkSession = async () => {
@@ -58,6 +60,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     checkSession();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // If we're in the middle of creating a user, ignore the auto sign-in
+      if (isCreatingUser && event === 'SIGNED_IN') {
+        return;
+      }
+
       if (event === 'SIGNED_OUT') {
         setUser(null);
         localStorage.removeItem('user');
@@ -93,7 +100,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => {
       subscription.unsubscribe();
     };
-  }, []);
+  }, [isCreatingUser]); // Add isCreatingUser to dependencies
 
   const login = (userData: User) => {
     setUser(userData);
@@ -123,8 +130,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return ROLE_PERMISSIONS[user.role].canCreateUsers.includes(role);
   };
 
+  // Add function to set the creating user flag
+  const setCreatingUserFlag = (creating: boolean) => {
+    setIsCreatingUser(creating);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, hasPermission, canCreateUser, loading }}>
+    <AuthContext.Provider value={{ user, login, logout, hasPermission, canCreateUser, loading, setCreatingUserFlag }}>
       {loading ? (
         <div className="flex items-center justify-center h-screen">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
