@@ -2,7 +2,7 @@
 // This will be used in a stored procedure to create the dashboard_access table
 export const createDashboardAccessTable = `
 -- Create dashboard_access table for SuperAdmin access control
-CREATE TABLE IF NOT EXISTS dashboard_access (
+CREATE TABLE IF NOT EXISTS dashboard_access ( 
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   role TEXT NOT NULL,
   has_access BOOLEAN NOT NULL DEFAULT TRUE,
