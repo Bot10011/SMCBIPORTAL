@@ -16,7 +16,7 @@ const AccessControl: React.FC = () => {
     { role: 'admin', has_access: true, restriction_heading: 'Access Restricted', restriction_subtext: 'You do not have access to this dashboard.' },
     { role: 'registrar', has_access: true, restriction_heading: 'Access Restricted', restriction_subtext: 'You do not have access to this dashboard.' },
     { role: 'program_head', has_access: true, restriction_heading: 'Access Restricted', restriction_subtext: 'You do not have access to this dashboard.' },
-    { role: 'teacher', has_access: true, restriction_heading: 'Access Restricted', restriction_subtext: 'You do not have access to this dashboard.' },
+    { role: 'instructor', has_access: true, restriction_heading: 'Access Restricted', restriction_subtext: 'You do not have access to this dashboard.' },
     { role: 'student', has_access: true, restriction_heading: 'Access Restricted', restriction_subtext: 'You do not have access to this dashboard.' },
   ]);const [loading, setLoading] = useState(false);
   // Function to fetch current access settings from the database
