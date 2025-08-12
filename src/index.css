@@ -1403,3 +1403,34 @@ html, body, #root, .app-container {
   overflow: visible !important;
   height: auto !important;
 } 
+
+/* Premium form control side shadows for better field visibility */
+.premium-form input,
+.premium-form select,
+.premium-form textarea {
+  box-shadow: none !important;
+  transition: color 0.2s ease, border-color 0.2s ease;
+  color: #999999 !important; /* text color inside fields */
+  border-color: #999999 !important; /* border color */
+}
+
+.premium-form input:focus,
+.premium-form select:focus,
+.premium-form textarea:focus {
+  box-shadow: none !important;
+  border-color: #999999 !important;
+}
+
+/* Placeholder color */
+.premium-form input::placeholder,
+.premium-form textarea::placeholder {
+  color: #999999 !important;
+  opacity: 1;
+}
+
+/* Ensure override against Tailwind text utility on controls */
+.premium-form input.text-gray-500,
+.premium-form select.text-gray-500,
+.premium-form textarea.text-gray-500 {
+  color: #999999 !important;
+}
