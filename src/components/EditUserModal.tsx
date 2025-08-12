@@ -394,7 +394,7 @@ export default function EditUserModal() {
                     Role: <span className="font-medium text-blue-600 capitalize">{user.role}</span>
                   </p>
                 )}
-                {(user && (user.role === 'instructor' || user.role === 'teacher' || user.role === 'program_head')) && (
+                {(user && (user.role === 'instructor' || user.role === 'program_head')) && (
                   <p className="text-sm text-gray-500 mt-0.5">
                     Department: <span className="font-medium text-gray-900">{(formData.department || '').trim() || 'Not set'}</span>
                   </p>
@@ -439,7 +439,7 @@ export default function EditUserModal() {
                             type="text"
                             value={formData.first_name || ''}
                             onChange={(e) => setFormData({ ...formData, first_name: sanitizeTextInput(e.target.value) })}
-                              className="w-full px-3 py-1.5 rounded-lg border-2 border-blue-400 bg-blue-50 text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm"
+                              className="w-full px-3 py-1.5 rounded-lg border-2 bg-white transition-all duration-200 shadow-sm"
                             style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
                           />
                         </div>
@@ -451,7 +451,7 @@ export default function EditUserModal() {
                             type="text"
                             value={formData.middle_name || ''}
                             onChange={(e) => setFormData({ ...formData, middle_name: sanitizeTextInput(e.target.value) })}
-                            className="w-full px-3 py-1.5 rounded-lg border-2 border-blue-400 bg-blue-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-900 placeholder-gray-400"
+                            className="w-full px-3 py-1.5 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
                             style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
                           />
                         </div>
@@ -463,7 +463,7 @@ export default function EditUserModal() {
                             type="text"
                             value={formData.last_name || ''}
                             onChange={(e) => setFormData({ ...formData, last_name: sanitizeTextInput(e.target.value) })}
-                            className="w-full px-3 py-1.5 rounded-lg border-2 border-blue-400 bg-blue-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-900 placeholder-gray-400"
+                            className="w-full px-3 py-1.5 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
                             style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
                           />
                         </div>
@@ -475,7 +475,7 @@ export default function EditUserModal() {
                             type="text"
                             value={formData.suffix || ''}
                             onChange={(e) => setFormData({ ...formData, suffix: e.target.value })}
-                            className="w-full px-3 py-1.5 rounded-lg border-2 border-blue-400 bg-blue-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-900 placeholder-gray-400"
+                            className="w-full px-3 py-1.5 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
                             style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
                             placeholder="e.g., Jr., Sr., III"
                           />
@@ -491,7 +491,7 @@ export default function EditUserModal() {
                           <select
                             value={formData.gender || ''}
                             onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                            className="w-full px-3 py-1.5 rounded-lg border-2 border-blue-400 bg-blue-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-900"
+                            className="w-full px-3 py-1.5 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
                             style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
                           >
                             <option value="">Select Gender</option>
@@ -507,7 +507,7 @@ export default function EditUserModal() {
                             type="date"
                             value={formData.birthdate || ''}
                             onChange={(e) => setFormData({ ...formData, birthdate: e.target.value })}
-                            className="w-full px-3 py-1.5 rounded-lg border-2 border-blue-400 bg-blue-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-900"
+                            className="w-full px-3 py-1.5 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
                             style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
                           />
                         </div>
@@ -519,7 +519,7 @@ export default function EditUserModal() {
                             type="tel"
                             value={formData.phone || ''}
                             onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                            className="w-full px-3 py-1.5 rounded-lg border-2 border-blue-400 bg-blue-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-900"
+                            className="w-full px-3 py-1.5 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
                             style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
                             maxLength={11}
                           />
@@ -533,7 +533,7 @@ export default function EditUserModal() {
                             value={emailInput}
                             onChange={(e) => setEmailInput(e.target.value)}
                             ref={emailInputRef}
-                            className={`w-full px-3 py-1.5 rounded-lg border-2 border-blue-400 bg-blue-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-900 ${getEmailFontSizeClass()}`}
+                            className={`w-full px-3 py-1.5 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500 ${getEmailFontSizeClass()}`}
                             placeholder="user@email.com"
                             style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
                           />
@@ -549,7 +549,7 @@ export default function EditUserModal() {
                           value={formData.address || ''}
                           onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                           rows={3}
-                          className="w-full px-3 py-1.5 rounded-lg border-2 border-blue-400 bg-blue-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-900 resize-none placeholder-gray-400"
+                          className="w-full px-3 py-1.5 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500 resize-none"
                           style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
                           placeholder="Enter complete address"
                         />
@@ -580,7 +580,7 @@ export default function EditUserModal() {
                               type="text"
                               value={formData.student_id || ''}
                               readOnly
-                            className="w-full px-3 py-1.5 rounded-lg border-2 border-blue-300 bg-blue-50 text-gray-900 cursor-not-allowed focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200 shadow-sm"
+                              className="w-full px-3 py-1.5 rounded-lg border-2 border-gray-500 bg-gray-100 text-gray-500 cursor-not-allowed focus:border-gray-600 focus:ring-2 focus:ring-gray-600/20 transition-all duration-200 shadow-sm"
                               placeholder={isGeneratingId ? "Generating..." : "Loading..."}
                               style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
                             />
@@ -593,7 +593,7 @@ export default function EditUserModal() {
                               type="text"
                               value={formData.school_year || ''}
                               readOnly
-                            className="w-full px-3 py-1.5 rounded-lg border-2 border-blue-300 bg-blue-50 text-gray-900 cursor-not-allowed focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200 shadow-sm"
+                              className="w-full px-3 py-1.5 rounded-lg border-2 border-gray-500 bg-gray-100 text-gray-500 cursor-not-allowed focus:border-gray-600 focus:ring-2 focus:ring-gray-600/20 transition-all duration-200 shadow-sm"
                               placeholder="2024-2025"
                               style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
                             />
@@ -605,7 +605,7 @@ export default function EditUserModal() {
 <select
   value={formData.department || ''}
   onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-  className="w-full px-3 py-1.5 rounded-lg border-2 border-blue-400 bg-blue-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-900"
+  className="w-full px-3 py-1.5 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
   style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
 >
   <option value="">Select Program</option>
@@ -623,7 +623,7 @@ export default function EditUserModal() {
                             <select
                               value={normalizeYearLevel(formData.year_level)}
                               onChange={(e) => setFormData({ ...formData, year_level: e.target.value })}
-                            className="w-full px-3 py-1.5 rounded-lg border-2 border-blue-400 bg-blue-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-900"
+                              className="w-full px-3 py-1.5 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
                               style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
                             >
                               <option value="">Select Year Level</option>
@@ -640,7 +640,7 @@ export default function EditUserModal() {
                             <select
                               value={formData.student_type || ''}
                               onChange={(e) => setFormData({ ...formData, student_type: e.target.value })}
-                            className="w-full px-3 py-1.5 rounded-lg border-2 border-blue-400 bg-blue-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-900"
+                              className="w-full px-3 py-1.5 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
                               style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
                             >
                               <option value="">Select Type</option>
@@ -657,7 +657,7 @@ export default function EditUserModal() {
                             <select
                               value={formData.enrollment_status || ''}
                               onChange={(e) => setFormData({ ...formData, enrollment_status: e.target.value })}
-                            className="w-full px-3 py-1.5 rounded-lg border-2 border-blue-400 bg-blue-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-900"
+                              className="w-full px-3 py-1.5 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
                               style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
                             >
                               <option value="">Select Status</option>
@@ -677,7 +677,7 @@ export default function EditUserModal() {
                             <select
                               value={formData.section || ''}
                               onChange={(e) => setFormData({ ...formData, section: e.target.value })}
-                            className="w-full px-3 py-1.5 rounded-lg border-2 border-blue-400 bg-blue-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-900"
+                              className="w-full px-3 py-1.5 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
                               style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
                             >
                               <option value="">Select Section</option>
@@ -694,7 +694,7 @@ export default function EditUserModal() {
                             <select
                               value={formData.semester || ''}
                               onChange={(e) => setFormData({ ...formData, semester: e.target.value })}
-                            className="w-full px-3 py-1.5 rounded-lg border-2 border-blue-400 bg-blue-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-900"
+                              className="w-full px-3 py-1.5 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
                               style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
                             >
                               <option value="">Select Semester</option>
@@ -709,7 +709,7 @@ export default function EditUserModal() {
                             <select
                                value={formData.student_status || ''}
                               onChange={(e) => setFormData({ ...formData, student_status: e.target.value })}
-                            className="w-full px-3 py-1.5 rounded-lg border-2 border-blue-400 bg-blue-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-900"
+                              className="w-full px-3 py-1.5 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
                               style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
                             >
                               <option value="">Select Status</option>
@@ -740,7 +740,7 @@ export default function EditUserModal() {
                               type="text"
                               value={formData.emergency_contact_name || ''}
                               onChange={(e) => setFormData({ ...formData, emergency_contact_name: e.target.value })}
-                              className="w-full px-3 py-1.5 rounded-lg border-2 border-blue-400 bg-blue-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-900 placeholder-gray-400"
+                              className="w-full px-3 py-1.5 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
                               style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
                             />
                           </div>
@@ -752,7 +752,7 @@ export default function EditUserModal() {
                               type="text"
                               value={formData.emergency_contact_relationship || ''}
                               onChange={(e) => setFormData({ ...formData, emergency_contact_relationship: e.target.value })}
-                              className="w-full px-3 py-1.5 rounded-lg border-2 border-blue-400 bg-blue-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-900 placeholder-gray-400"
+                              className="w-full px-3 py-1.5 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
                               style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
                               placeholder="e.g., Parent, Sibling, Guardian"
                             />
@@ -765,7 +765,7 @@ export default function EditUserModal() {
                               type="tel"
                               value={formData.emergency_contact_phone || ''}
                               onChange={(e) => setFormData({ ...formData, emergency_contact_phone: e.target.value })}
-                              className="w-full px-3 py-1.5 rounded-lg border-2 border-blue-400 bg-blue-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-900 placeholder-gray-400"
+                              className="w-full px-3 py-1.5 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
                               style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
                               maxLength={11}
                             />
