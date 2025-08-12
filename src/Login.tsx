@@ -341,7 +341,7 @@ To request an account, please approach your adviser or visit the Program Head's 
         </div>
       )}
     </div>
-  );
+  ); 
 };
 
 export default Login;
