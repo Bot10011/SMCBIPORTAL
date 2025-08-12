@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { Database } from '../types/supabase';
@@ -25,10 +26,7 @@ type UserProfile = Database['public']['Tables']['user_profiles']['Row'] & {
   department?: string; // ensure department is included
 };
 
-// Type for style objects
-type StyleObj = {
-  [key: string]: string | number | undefined;
-};
+
 
 // Utility to detect touch device
 const isTouchDevice = () => {
@@ -43,7 +41,7 @@ function clamp(val: number, min: number, max: number) {
   return Math.max(min, Math.min(val, max));
 }
 
-// Simple modal for cropping
+// Facebook-style profile picture crop modal
 const CropModal: React.FC<{
   image: string;
   onCancel: () => void;
@@ -52,18 +50,22 @@ const CropModal: React.FC<{
 }> = ({ image, onCancel, onCrop, isUploading }) => {
   const imgRef = useRef<HTMLImageElement>(null);
   const [imgDims, setImgDims] = useState({ width: 0, height: 0 });
-  // Crop rect: {x, y, w, h} in image coordinates
   const [cropRect, setCropRect] = useState<{ x: number, y: number, w: number, h: number } | null>(null);
-  // Drag state
-  const [dragMode, setDragMode] = useState<null | 'draw' | 'move' | 'resize-nw' | 'resize-ne' | 'resize-sw' | 'resize-se' | 'resize-n' | 'resize-s' | 'resize-e' | 'resize-w'>(null);
-  const [dragStart, setDragStart] = useState<{ x: number, y: number, rect: { x: number, y: number, w: number, h: number } | null }>({ x: 0, y: 0, rect: null });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragMode, setDragMode] = useState<'move' | 'resize' | null>(null);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0, rect: { x: 0, y: 0, w: 0, h: 0 } });
 
   useEffect(() => {
     if (imgRef.current) {
       imgRef.current.onload = () => {
-        setImgDims({ width: imgRef.current!.naturalWidth, height: imgRef.current!.naturalHeight });
-        // No initial crop rect; user draws it
-        setCropRect(null);
+        const { naturalWidth, naturalHeight } = imgRef.current!;
+        setImgDims({ width: naturalWidth, height: naturalHeight });
+        
+        // Create initial centered square crop (Facebook style)
+        const size = Math.min(naturalWidth, naturalHeight) * 0.8; // 80% of smaller dimension
+        const x = (naturalWidth - size) / 2;
+        const y = (naturalHeight - size) / 2;
+        setCropRect({ x, y, w: size, h: size });
       };
     }
     // Prevent background scroll when modal is open
@@ -73,16 +75,11 @@ const CropModal: React.FC<{
     };
   }, [image]);
 
-  // Convert clientX/Y to image coordinates
-  const clientToImg = (clientX: number, clientY: number, imgRect: DOMRect) => {
-    const x = clamp((clientX - imgRect.left) * (imgDims.width / imgRect.width), 0, imgDims.width);
-    const y = clamp((clientY - imgRect.top) * (imgDims.height / imgRect.height), 0, imgDims.height);
-    return { x, y };
-  };
 
-  // Mouse/touch handlers for drawing, moving, resizing
+
+  // Handle pointer down for moving and resizing
   const handlePointerDown = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!imgRef.current) return;
+    if (!imgRef.current || !cropRect) return;
     const imgRect = imgRef.current.getBoundingClientRect();
     let clientX: number, clientY: number;
     if ('touches' in e) {
@@ -92,59 +89,48 @@ const CropModal: React.FC<{
       clientX = e.clientX;
       clientY = e.clientY;
     }
-    // If cropRect exists, check if pointer is on edge/corner or inside
-    if (cropRect) {
-      // Check corners/edges (8px tolerance)
-      const px = (val: number) => (val / imgDims.width) * imgRect.width + imgRect.left;
-      const py = (val: number) => (val / imgDims.height) * imgRect.height + imgRect.top;
-      const tol = 16;
-      const corners = [
-        { mode: 'resize-nw', x: cropRect.x, y: cropRect.y },
-        { mode: 'resize-ne', x: cropRect.x + cropRect.w, y: cropRect.y },
-        { mode: 'resize-sw', x: cropRect.x, y: cropRect.y + cropRect.h },
-        { mode: 'resize-se', x: cropRect.x + cropRect.w, y: cropRect.y + cropRect.h },
-      ];
-      for (const c of corners) {
-        if (Math.abs(clientX - px(c.x)) < tol && Math.abs(clientY - py(c.y)) < tol) {
-          setDragMode(c.mode as typeof dragMode);
-          setDragStart({ x: clientX, y: clientY, rect: { ...cropRect } });
-          return;
-        }
-      }
-      // Edges
-      const edges = [
-        { mode: 'resize-n', x1: cropRect.x, y1: cropRect.y, x2: cropRect.x + cropRect.w, y2: cropRect.y },
-        { mode: 'resize-s', x1: cropRect.x, y1: cropRect.y + cropRect.h, x2: cropRect.x + cropRect.w, y2: cropRect.y + cropRect.h },
-        { mode: 'resize-w', x1: cropRect.x, y1: cropRect.y, x2: cropRect.x, y2: cropRect.y + cropRect.h },
-        { mode: 'resize-e', x1: cropRect.x + cropRect.w, y1: cropRect.y, x2: cropRect.x + cropRect.w, y2: cropRect.y + cropRect.h },
-      ];
-      for (const e_ of edges) {
-        if (clientX >= px(e_.x1) - tol && clientX <= px(e_.x2) + tol && clientY >= py(e_.y1) - tol && clientY <= py(e_.y2) + tol) {
-          setDragMode(e_.mode as typeof dragMode);
-          setDragStart({ x: clientX, y: clientY, rect: { ...cropRect } });
-          return;
-        }
-      }
-      // Inside rect
-      const left = px(cropRect.x), top = py(cropRect.y), right = px(cropRect.x + cropRect.w), bottom = py(cropRect.y + cropRect.h);
-      if (clientX > left && clientX < right && clientY > top && clientY < bottom) {
-        setDragMode('move');
+    
+
+    
+    // Check if click is on corner handles (for resizing)
+    const handleSize = 20;
+    const corners = [
+      { x: cropRect.x, y: cropRect.y }, // top-left
+      { x: cropRect.x + cropRect.w, y: cropRect.y }, // top-right
+      { x: cropRect.x, y: cropRect.y + cropRect.h }, // bottom-left
+      { x: cropRect.x + cropRect.w, y: cropRect.y + cropRect.h } // bottom-right
+    ];
+    
+    for (const corner of corners) {
+      const cornerX = (corner.x / imgDims.width) * imgRect.width + imgRect.left;
+      const cornerY = (corner.y / imgDims.height) * imgRect.height + imgRect.top;
+      
+      if (Math.abs(clientX - cornerX) < handleSize && Math.abs(clientY - cornerY) < handleSize) {
+        setIsDragging(true);
+        setDragMode('resize');
         setDragStart({ x: clientX, y: clientY, rect: { ...cropRect } });
         return;
       }
     }
-    // Otherwise, start drawing new rect
-    setDragMode('draw');
-    const { x, y } = clientToImg(clientX, clientY, imgRect);
-    setDragStart({ x: clientX, y: clientY, rect: null });
-    setCropRect({ x, y, w: 0, h: 0 });
+    
+    // Check if click is inside crop area (for moving)
+    const left = (cropRect.x / imgDims.width) * imgRect.width + imgRect.left;
+    const top = (cropRect.y / imgDims.height) * imgRect.height + imgRect.top;
+    const right = ((cropRect.x + cropRect.w) / imgDims.width) * imgRect.width + imgRect.left;
+    const bottom = ((cropRect.y + cropRect.h) / imgDims.height) * imgRect.height + imgRect.top;
+    
+    if (clientX > left && clientX < right && clientY > top && clientY < bottom) {
+      setIsDragging(true);
+      setDragMode('move');
+      setDragStart({ x: clientX, y: clientY, rect: { ...cropRect } });
+    }
   };
 
-  // Mouse/touch move
+  // Handle drag for moving and resizing
   useEffect(() => {
-    if (!dragMode) return;
+    if (!isDragging) return;
     const moveHandler = (e: MouseEvent | TouchEvent) => {
-      if (!imgRef.current) return;
+      if (!imgRef.current || !cropRect) return;
       const imgRect = imgRef.current.getBoundingClientRect();
       let clientX: number, clientY: number;
       if ('touches' in e && e.touches.length > 0) {
@@ -156,47 +142,51 @@ const CropModal: React.FC<{
       } else {
         return;
       }
-      if (dragMode === 'draw' && dragStart) {
-        const { x, y } = clientToImg(clientX, clientY, imgRect);
-        setCropRect(rect => rect && {
-          x: clamp(Math.min(rect.x, x), 0, imgDims.width),
-          y: clamp(Math.min(rect.y, y), 0, imgDims.height),
-          w: Math.abs(x - rect.x),
-          h: Math.abs(y - rect.y)
-        });
-      } else if (dragMode === 'move' && dragStart && dragStart.rect) {
+      
+      if (dragMode === 'move') {
+        // Move the crop area
         const dx = (clientX - dragStart.x) * (imgDims.width / imgRect.width);
         const dy = (clientY - dragStart.y) * (imgDims.height / imgRect.height);
+        
         setCropRect(rect => rect && {
-          x: clamp(dragStart.rect!.x + dx, 0, imgDims.width - rect.w),
-          y: clamp(dragStart.rect!.y + dy, 0, imgDims.height - rect.h),
+          x: clamp(dragStart.rect.x + dx, 0, imgDims.width - rect.w),
+          y: clamp(dragStart.rect.y + dy, 0, imgDims.height - rect.h),
           w: rect.w,
           h: rect.h
         });
-      } else if (dragMode && dragMode.startsWith('resize') && dragStart && dragStart.rect) {
-        let { x, y, w, h } = dragStart.rect;
-        const { x: mx, y: my } = clientToImg(clientX, clientY, imgRect);
-        switch (dragMode) {
-          case 'resize-nw': w += x - mx; h += y - my; x = mx; y = my; break;
-          case 'resize-ne': w = mx - x; h += y - my; y = my; break;
-          case 'resize-sw': w += x - mx; x = mx; h = my - y; break;
-          case 'resize-se': w = mx - x; h = my - y; break;
-          case 'resize-n': h += y - my; y = my; break;
-          case 'resize-s': h = my - y; break;
-          case 'resize-w': w += x - mx; x = mx; break;
-          case 'resize-e': w = mx - x; break;
-        }
-        // Clamp
-        if (w < 10) w = 10;
-        if (h < 10) h = 10;
-        if (x < 0) { w += x; x = 0; }
-        if (y < 0) { h += y; y = 0; }
-        if (x + w > imgDims.width) w = imgDims.width - x;
-        if (y + h > imgDims.height) h = imgDims.height - y;
-        setCropRect({ x, y, w, h });
+      } else if (dragMode === 'resize') {
+        // Resize the crop area (maintain square aspect ratio)
+        const imgX = (clientX - imgRect.left) * (imgDims.width / imgRect.width);
+        const imgY = (clientY - imgRect.top) * (imgDims.height / imgRect.height);
+        
+        // Calculate new size based on distance from center
+        const centerX = dragStart.rect.x + dragStart.rect.w / 2;
+        const centerY = dragStart.rect.y + dragStart.rect.h / 2;
+        const distanceX = Math.abs(imgX - centerX);
+        const distanceY = Math.abs(imgY - centerY);
+        const newSize = Math.max(distanceX, distanceY) * 2;
+        
+        // Ensure minimum size and stay within bounds
+        const minSize = 50;
+        const maxSize = Math.min(imgDims.width, imgDims.height);
+        const clampedSize = clamp(newSize, minSize, maxSize);
+        
+        const newX = centerX - clampedSize / 2;
+        const newY = centerY - clampedSize / 2;
+        
+        setCropRect({
+          x: clamp(newX, 0, imgDims.width - clampedSize),
+          y: clamp(newY, 0, imgDims.height - clampedSize),
+          w: clampedSize,
+          h: clampedSize
+        });
       }
     };
-    const upHandler = () => { setDragMode(null); };
+    
+    const upHandler = () => { 
+      setIsDragging(false); 
+      setDragMode(null);
+    };
     window.addEventListener('mousemove', moveHandler);
     window.addEventListener('touchmove', moveHandler);
     window.addEventListener('mouseup', upHandler);
@@ -209,7 +199,7 @@ const CropModal: React.FC<{
       window.removeEventListener('touchend', upHandler);
       window.removeEventListener('touchcancel', upHandler);
     };
-  }, [dragMode, dragStart, imgDims, cropRect]);
+  }, [isDragging, dragMode, dragStart, imgDims, cropRect]);
 
   const handleCrop = () => {
     if (!imgRef.current || !cropRect) return;
@@ -219,25 +209,57 @@ const CropModal: React.FC<{
     // Center the square inside the selected rectangle
     const squareX = x + (w - side) / 2;
     const squareY = y + (h - side) / 2;
+    
+    // Calculate optimal output size for profile picture
+    // Use 256x256 for better performance and file size
+    const outputSize = 256;
+    
     // Create a canvas for the square crop
     const canvas = document.createElement('canvas');
-    canvas.width = 512;
-    canvas.height = 512;
+    canvas.width = outputSize;
+    canvas.height = outputSize;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+    
+    // Enable image smoothing for better quality
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    
     ctx.drawImage(
       imgRef.current,
       squareX, squareY, side, side,
-      0, 0, 512, 512
+      0, 0, outputSize, outputSize
     );
     canvas.toBlob(blob => {
       if (blob) onCrop(blob);
-    }, 'image/jpeg', 0.95);
+    }, 'image/jpeg', 0.9);
   };
 
-  return (
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-sm user-select-none touch-none">
-      <div className="bg-white rounded-2xl shadow-2xl p-4 w-full max-w-xs sm:max-w-sm flex flex-col items-center relative" style={{ maxHeight: '90vh' }}>
+  const modalContent = (
+    <div 
+      className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm user-select-none touch-none p-4" 
+      style={{ 
+        position: 'fixed', 
+        top: 0, 
+        left: 0, 
+        right: 0, 
+        bottom: 0,
+        zIndex: 99999,
+        width: '100vw',
+        height: '100vh'
+      }}
+    >
+      <div 
+        className="bg-white rounded-3xl shadow-2xl p-4 sm:p-6 md:p-8 w-full max-w-xs sm:max-w-2xl md:max-w-4xl lg:max-w-5xl xl:max-w-6xl flex flex-col items-center relative" 
+        style={{ 
+          maxHeight: '95vh', 
+          position: 'relative',
+          zIndex: 100000,
+          border: '1px solid rgba(0,0,0,0.1)',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255,255,255,0.1)',
+          background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)'
+        }}
+      >
         {/* Uploading overlay */}
         {isUploading && (
           <div className="absolute inset-0 bg-white/70 flex flex-col items-center justify-center z-20 rounded-2xl">
@@ -245,57 +267,75 @@ const CropModal: React.FC<{
             <span className="text-base font-semibold text-blue-700">Uploading...</span>
           </div>
         )}
-        <div className="relative w-full h-64 max-h-[60vw] sm:h-64 sm:max-h-[80vh] bg-gray-100 rounded-xl overflow-hidden flex items-center justify-center select-none touch-none"
+        {/* Instructions for desktop/tablet */}
+        <div className="mb-4 sm:mb-6 text-center w-full">
+          <h3 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-800 mb-2">Crop Your Profile Picture</h3>
+          <p className="text-sm sm:text-base text-gray-600 hidden sm:block">
+            Click and drag to select an area, or use the corner handles to resize
+          </p>
+          <p className="text-sm text-gray-600 sm:hidden">
+            Touch and drag to select an area, or use the corner handles to resize
+          </p>
+        </div>
+        <div className="relative w-full h-64 max-h-[60vw] sm:h-96 md:h-[500px] lg:h-[600px] xl:h-[700px] bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl overflow-hidden flex items-center justify-center select-none touch-none border border-gray-200"
           onMouseDown={handlePointerDown}
           onTouchStart={handlePointerDown}
-          style={{ WebkitUserSelect: 'none', userSelect: 'none', touchAction: 'none' }}
+          style={{ 
+            WebkitUserSelect: 'none', 
+            userSelect: 'none', 
+            touchAction: 'none',
+            boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.1)'
+          }}
         >
           <img ref={imgRef} src={image} alt="Crop preview" className="max-w-full max-h-full object-contain" />
-          {/* Freeform crop rect overlay */}
+          {/* Facebook-style crop overlay with resize handles */}
           {cropRect && (
             <>
+              {/* Semi-transparent overlay outside crop area */}
+              <div 
+                className="absolute inset-0 bg-black/50"
+                style={{ zIndex: 5 }}
+              />
+              {/* Crop area (clear) */}
               <div
-                className="absolute border-2 border-blue-500 bg-blue-500/10 shadow-lg transition-all duration-200"
+                className="absolute border-2 border-white shadow-lg"
                 style={{
                   left: `${(cropRect.x / imgDims.width) * 100}%`,
                   top: `${(cropRect.y / imgDims.height) * 100}%`,
                   width: `${(cropRect.w / imgDims.width) * 100}%`,
                   height: `${(cropRect.h / imgDims.height) * 100}%`,
                   zIndex: 10,
-                  pointerEvents: 'none',
-                  transition: 'all 0.2s cubic-bezier(.4,2,.6,1)',
+                  background: 'transparent',
+                  boxShadow: '0 0 0 9999px rgba(0,0,0,0.5)',
+                  cursor: isDragging ? 'grabbing' : 'grab',
                 }}
               />
-              {/* Corners for resizing */}
-              {(['nw','ne','sw','se'] as const).map(corner => {
-                if (!cropRect) return null;
-                const style: StyleObj = {
-                  position: 'absolute',
-                  width: 16,
-                  height: 16,
-                  background: '#3b82f6',
-                  borderRadius: 8,
-                  zIndex: 20,
-                  border: '2px solid #fff',
-                  boxShadow: '0 2px 8px #0003',
-                  touchAction: 'none',
-                  transition: 'box-shadow 0.2s, background 0.2s',
-                };
-                if (corner==='nw') { style.left= (cropRect.x/imgDims.width)*100+'%'; style.top=(cropRect.y/imgDims.height)*100+'%'; }
-                if (corner==='ne') { style.left= ((cropRect.x+cropRect.w)/imgDims.width)*100+'%'; style.top=(cropRect.y/imgDims.height)*100+'%'; }
-                if (corner==='sw') { style.left= (cropRect.x/imgDims.width)*100+'%'; style.top=((cropRect.y+cropRect.h)/imgDims.height)*100+'%'; }
-                if (corner==='se') { style.left= ((cropRect.x+cropRect.w)/imgDims.width)*100+'%'; style.top=((cropRect.y+cropRect.h)/imgDims.height)*100+'%'; }
-                style.transform = 'translate(-50%,-50%)';
-                return <div key={corner} style={style} onMouseDown={e=>{e.stopPropagation();setDragMode(('resize-'+corner) as typeof dragMode);setDragStart({x:e.clientX,y:e.clientY,rect:{...cropRect}});}} onTouchStart={e=>{e.stopPropagation();setDragMode(('resize-'+corner) as typeof dragMode);setDragStart({x:e.touches[0].clientX,y:e.touches[0].clientY,rect:{...cropRect}});}} />;
-              })}
+              {/* Corner resize handles */}
+              {[
+                { x: cropRect.x, y: cropRect.y }, // top-left
+                { x: cropRect.x + cropRect.w, y: cropRect.y }, // top-right
+                { x: cropRect.x, y: cropRect.y + cropRect.h }, // bottom-left
+                { x: cropRect.x + cropRect.w, y: cropRect.y + cropRect.h } // bottom-right
+              ].map((corner, index) => (
+                <div
+                  key={index}
+                  className="absolute w-5 h-5 bg-white border-2 border-blue-500 rounded-full shadow-lg cursor-nwse-resize"
+                  style={{
+                    left: `${(corner.x / imgDims.width) * 100}%`,
+                    top: `${(corner.y / imgDims.height) * 100}%`,
+                    transform: 'translate(-50%, -50%)',
+                    zIndex: 15,
+                  }}
+                />
+              ))}
             </>
           )}
         </div>
         {/* Live cropped preview */}
         {cropRect && imgRef.current && (
-          <div className="mt-4 flex flex-col items-center">
-            <span className="text-xs text-gray-500 mb-1">Preview</span>
-            <div className="w-20 h-20 rounded-xl overflow-hidden border border-gray-200 bg-gray-50 flex items-center justify-center">
+          <div className="mt-4 sm:mt-6 flex flex-col items-center">
+            <span className="text-sm sm:text-base md:text-lg font-semibold text-gray-700 mb-2 sm:mb-3">Profile Picture Preview</span>
+            <div className="w-20 h-20 sm:w-32 sm:h-32 md:w-40 md:h-40 lg:w-48 lg:h-48 rounded-xl overflow-hidden border-2 border-gray-300 bg-gray-50 flex items-center justify-center shadow-lg">
               <canvas
                 ref={el => {
                   if (el && imgRef.current && cropRect && cropRect.w > 0 && cropRect.h > 0) {
@@ -304,6 +344,9 @@ const CropModal: React.FC<{
                     const ctx = el.getContext('2d');
                     if (ctx) {
                       ctx.clearRect(0, 0, 128, 128);
+                      // Enable image smoothing for better preview quality
+                      ctx.imageSmoothingEnabled = true;
+                      ctx.imageSmoothingQuality = 'high';
                       // Find the largest possible square inside the selected rectangle
                       const { x, y, w, h } = cropRect;
                       const side = Math.min(w, h);
@@ -317,18 +360,41 @@ const CropModal: React.FC<{
                     }
                   }
                 }}
-                style={{ width: 80, height: 80, objectFit: 'cover', background: '#f3f4f6' }}
+                style={{ 
+                  width: '100%', 
+                  height: '100%', 
+                  objectFit: 'cover', 
+                  background: '#f3f4f6',
+                  borderRadius: '12px'
+                }}
               />
             </div>
+            <p className="text-xs sm:text-sm text-gray-500 mt-2 sm:mt-3 text-center">
+              This is how your profile picture will appear
+            </p>
           </div>
         )}
-        <div className="flex gap-4 mt-6">
-          <button onClick={onCancel} className="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium">Cancel</button>
-          <button onClick={handleCrop} disabled={!cropRect || cropRect.w < 10 || cropRect.h < 10} className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold disabled:opacity-50">Crop & Save</button>
+        <div className="flex gap-4 sm:gap-6 mt-6 sm:mt-8 w-full">
+          <button 
+            onClick={onCancel} 
+            className="flex-1 px-6 py-3 sm:px-8 sm:py-4 md:px-10 md:py-4 rounded-xl bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold sm:text-lg transition-all duration-200 shadow-md hover:shadow-lg active:scale-95"
+          >
+            Cancel
+          </button>
+          <button 
+            onClick={handleCrop} 
+            disabled={!cropRect || cropRect.w < 10 || cropRect.h < 10} 
+            className="flex-1 px-6 py-3 sm:px-8 sm:py-4 md:px-10 md:py-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold sm:text-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-md hover:shadow-lg active:scale-95"
+          >
+            Crop & Save
+          </button>
         </div>
       </div>
     </div>
   );
+
+  // Use React Portal to render modal at document body level
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : null;
 };
 
 export const MyProfile: React.FC = () => {
@@ -582,9 +648,10 @@ export const MyProfile: React.FC = () => {
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="profile-card relative overflow-visible rounded-3xl bg-gradient-to-br from-white via-blue-50 to-purple-50 shadow-xl border border-blue-100 p-0"
+          className="profile-card relative overflow-visible rounded-3xl bg-[#252728] p-0"
+          style={{ boxShadow: '-6px -6px 12px rgba(255,255,255,0.03), 6px 6px 12px rgba(0,0,0,0.4)' }}
         >
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-100/20 to-purple-100/20 pointer-events-none rounded-3xl" />
+          
           <div className="relative flex flex-col sm:flex-row items-center gap-8 px-8 sm:px-14 pt-10 sm:pt-14 pb-2">
             {/* Profile Picture Section */}
             <motion.div
@@ -698,7 +765,7 @@ export const MyProfile: React.FC = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
-                className="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-1"
+                className="text-3xl sm:text-4xl font-extrabold text-white mb-1"
               >
                 {processedProfile?.fullName}
               </motion.h1>
@@ -706,7 +773,7 @@ export const MyProfile: React.FC = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
-                className="text-base text-gray-500 font-medium mb-2"
+                className="text-base text-white font-medium mb-2"
               >
                 {profile?.email}
               </motion.p>
@@ -742,36 +809,36 @@ export const MyProfile: React.FC = () => {
             px-8 py-4 min-h-[80px] z-10 mb-3
           ">
             {/* Student ID */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-center items-center justify-center min-w-[130px] min-h-[48px] bg-[#f5f6fa] rounded-xl px-4 py-2 shadow-md shadow-inner" style={{boxShadow: 'inset 0 2px 8px #e0e7ef, 0 1.5px 4px #fff'}}>
-              <span className="flex items-center gap-1 text-[11px] sm:text-xs text-gray-500 mb-0.5 sm:mb-0 sm:mr-1">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-center items-center justify-center min-w-[130px] min-h-[48px] rounded-xl px-4 py-2 bg-[#252728]" style={{ boxShadow: '-4px -4px 8px rgba(255,255,255,0.03), 4px 4px 8px rgba(0,0,0,0.35)' }}>
+              <span className="flex items-center gap-1 text-[11px] sm:text-xs text-gray-300 mb-0.5 sm:mb-0 sm:mr-1">
                 <Hash className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
                 Student ID:
               </span>
-              <span className="text-sm sm:text-base font-bold text-gray-900 truncate">{profile?.student_id ?? 'N/A'}</span>
+              <span className="text-sm sm:text-base font-bold text-gray-100 truncate">{profile?.student_id ?? 'N/A'}</span>
             </div>
             {/* Program */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-center items-center justify-center min-w-[130px] min-h-[48px] bg-[#f5f6fa] rounded-xl px-4 py-2 shadow-md shadow-inner" style={{boxShadow: 'inset 0 2px 8px #e0e7ef, 0 1.5px 4px #fff'}}>
-              <span className="flex items-center gap-1 text-[11px] sm:text-xs text-gray-500 mb-0.5 sm:mb-0 sm:mr-1">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-center items-center justify-center min-w-[130px] min-h-[48px] rounded-xl px-4 py-2 bg-[#252728]" style={{ boxShadow: '-4px -4px 8px rgba(255,255,255,0.03), 4px 4px 8px rgba(0,0,0,0.35)' }}>
+              <span className="flex items-center gap-1 text-[11px] sm:text-xs text-gray-300 mb-0.5 sm:mb-0 sm:mr-1">
                 <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600" />
                 Program:
               </span>
-              <span className="text-sm sm:text-base font-bold text-gray-900 truncate">{profile?.department ?? 'N/A'}</span>
+              <span className="text-sm sm:text-base font-bold text-gray-100 truncate">{profile?.department ?? 'N/A'}</span>
             </div>
             {/* Year Level */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-center items-center justify-center min-w-[130px] min-h-[48px] bg-[#f5f6fa] rounded-xl px-4 py-2 shadow-md shadow-inner" style={{boxShadow: 'inset 0 2px 8px #e0e7ef, 0 1.5px 4px #fff'}}>
-              <span className="flex items-center gap-1 text-[11px] sm:text-xs text-gray-500 mb-0.5 sm:mb-0 sm:mr-1">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-center items-center justify-center min-w-[130px] min-h-[48px] rounded-xl px-4 py-2 bg-[#252728]" style={{ boxShadow: '-4px -4px 8px rgba(255,255,255,0.03), 4px 4px 8px rgba(0,0,0,0.35)' }}>
+              <span className="flex items-center gap-1 text-[11px] sm:text-xs text-gray-300 mb-0.5 sm:mb-0 sm:mr-1">
                 <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-green-600" />
                 Year Level:
               </span>
-              <span className="text-sm sm:text-base font-bold text-gray-900 truncate">{profile?.year_level ?? 'N/A'}</span>
+              <span className="text-sm sm:text-base font-bold text-gray-100 truncate">{profile?.year_level ?? 'N/A'}</span>
             </div>
             {/* Section */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-center items-center justify-center min-w-[130px] min-h-[48px] bg-[#f5f6fa] rounded-xl px-4 py-2 shadow-md shadow-inner" style={{boxShadow: 'inset 0 2px 8px #e0e7ef, 0 1.5px 4px #fff'}}>
-              <span className="flex items-center gap-1 text-[11px] sm:text-xs text-gray-500 mb-0.5 sm:mb-0 sm:mr-1">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-center items-center justify-center min-w-[130px] min-h-[48px] rounded-xl px-4 py-2 bg-[#252728]" style={{ boxShadow: '-4px -4px 8px rgba(255,255,255,0.03), 4px 4px 8px rgba(0,0,0,0.35)' }}>
+              <span className="flex items-center gap-1 text-[11px] sm:text-xs text-gray-300 mb-0.5 sm:mb-0 sm:mr-1">
                 <Users className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-600" />
                 Section:
               </span>
-              <span className="text-sm sm:text-base font-bold text-gray-900 truncate">{profile?.section ?? 'N/A'}</span>
+              <span className="text-sm sm:text-base font-bold text-gray-100 truncate">{profile?.section ?? 'N/A'}</span>
             </div>
           </div>
         </motion.div>
