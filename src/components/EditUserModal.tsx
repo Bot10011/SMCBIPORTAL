@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useModal } from '../contexts/ModalContext';
 import toast from 'react-hot-toast';
 import ConfirmationDialog from './ConfirmationDialog';
-import { sanitizeTextInput } from '../utils/validation';
+import { sanitizeTextInput } from '../utils/validation'; 
 
 import { AnimatePresence, motion } from 'framer-motion';
 
