@@ -12,10 +12,11 @@ import GoogleClassroomCallback from './components/GoogleClassroomCallback';
 import { useModal } from './contexts/ModalContext';
 import NotFoundOrHome from './middleware/NotFoundOrHome';
 import ResetPassword from './components/ResetPassword';
+import SupabaseAuthCallback from './components/SupabaseAuthCallback';
 
 // Import public components (not lazy loaded for immediate access)
 import LandingPage from './LandingPage';
-import Login from './Login';
+// import Login from './Login';
 
 // Lazy load dashboard components for better performance
 // NEW: Import DashboardRouter
@@ -216,8 +217,11 @@ const App: React.FC = () => {
             <Routes>
               {/* Public routes - no lazy loading for immediate access */}
               <Route path="/" element={<LandingPage />} />
-              <Route path="/login" element={<Login />} />
+              {/* Make /login redirect to landing to prevent direct access */}
+              <Route path="/login" element={<Navigate to="/" replace />} />
               <Route path="/reset-password" element={<ResetPassword />} />
+              {/* Supabase OAuth callback endpoint */}
+              <Route path="/auth/callback" element={<SupabaseAuthCallback />} />
               <Route path="/test-redirect" element={<Navigate to="/" replace />} />
 
               {/* Google Classroom OAuth Callback */}
