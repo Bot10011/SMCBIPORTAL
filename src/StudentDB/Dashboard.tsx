@@ -13,12 +13,47 @@ import {
   BookOpen,  
   Bell,
   GraduationCap,
-  ExternalLink
+  ExternalLink,
+  User
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { motion } from 'framer-motion';
-import { toast } from 'react-hot-toast';
+// import { toast } from 'react-hot-toast';
 import { getGoogleClassroomConnectionInfo } from '../lib/services/googleClassroomService';
+
+// Helpers to read display name and avatar from Authentication
+function getAuthDisplayName(u: unknown): string | null {
+  if (!u || typeof u !== 'object') return null;
+  const md = (u as { user_metadata?: Record<string, unknown> }).user_metadata;
+  const candidates = [md && md['full_name'], md && md['name'], md && md['display_name'], md && md['preferred_username']];
+  for (const c of candidates) if (typeof c === 'string' && c.trim()) return c as string;
+  const identities = (u as { identities?: Array<{ identity_data?: Record<string, unknown> }> }).identities;
+  if (Array.isArray(identities)) {
+    for (const id of identities) {
+      const d = id?.identity_data;
+      const n = d && (typeof d['full_name'] === 'string' ? (d['full_name'] as string) : (typeof d['name'] === 'string' ? (d['name'] as string) : null));
+      if (n) return n;
+    }
+  }
+  return null;
+}
+
+function getAuthAvatarUrl(u: unknown): string | null {
+  if (!u || typeof u !== 'object') return null;
+  const keys = ['avatar_url','picture','picture_url','photoURL','photoUrl','avatar','image','image_url','imageUrl','profile_picture','profileImage'];
+  const tryKeys = (o?: Record<string, unknown> | null): string | null => {
+    if (!o) return null;
+    for (const k of keys) { const v = o[k]; if (typeof v === 'string' && /^https?:\/\//i.test(v)) return v; }
+    return null;
+  };
+  const md = (u as { user_metadata?: Record<string, unknown> }).user_metadata;
+  const fromMd = tryKeys(md); if (fromMd) return fromMd;
+  const identities = (u as { identities?: Array<{ identity_data?: Record<string, unknown> }> }).identities;
+  if (Array.isArray(identities)) {
+    for (const id of identities) { const cand = tryKeys(id?.identity_data as Record<string, unknown> | undefined); if (cand) return cand; }
+  }
+  return null;
+}
 
 // Enhanced Loading component with skeleton
 const LoadingSpinner = () => (
@@ -184,58 +219,34 @@ const DashboardOverview = () => {
     const fetchStudentProfile = async () => {
       if (user?.id) {
         try {
-          // Now fetch the full profile
-          const { data, error } = await supabase
-            .from('user_profiles')
-            .select('first_name, last_name, middle_name, profile_picture_url')
-            .eq('id', user.id)
-            .single();
+          // Preferred: display name from Auth (Google), fallback to email prefix
+          const { data: authData } = await supabase.auth.getUser();
+          const displayName = authData?.user ? (getAuthDisplayName(authData.user) || authData.user.email || '') : (user.email || '');
+          setStudentName(displayName);
 
-          if (error) throw error;
-          if (data) {
-            const fullName = [
-              data.first_name,
-              data.middle_name,
-              data.last_name
-            ].filter(Boolean).join(' ');
-            setStudentName(fullName);
-            
-            if (data.profile_picture_url) {
-              try {
-                // First verify the file exists
-                const { data: fileData, error: fileError } = await supabase.storage
-                  .from('avatar')
-                  .download(data.profile_picture_url);
-
-                if (fileError) {
-                  console.error('Error downloading file:', fileError);
-                  setProfilePictureUrl(null);
+          // Avatar priority: Auth metadata/identities → Google userinfo → none
+          const authAvatar = authData?.user ? getAuthAvatarUrl(authData.user) : null;
+          if (authAvatar) {
+            setProfilePictureUrl(authAvatar);
+            return;
+          }
+          const { data: sessionData } = await supabase.auth.getSession();
+          const token = sessionData?.session?.provider_token as string | undefined;
+          if (token) {
+            try {
+              const resp = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', { headers: { Authorization: `Bearer ${token}` } });
+              if (resp.ok) {
+                const json = await resp.json();
+                if (typeof json?.picture === 'string') {
+                  setProfilePictureUrl(json.picture);
                   return;
                 }
-
-                if (!fileData) {
-                  console.error('No file data received');
-                  setProfilePictureUrl(null);
-                  return;
-                }
-
-                // Create a blob URL from the downloaded file
-                const blob = new Blob([fileData], { type: 'image/jpeg' });
-                const blobUrl = URL.createObjectURL(blob);
-                setProfilePictureUrl(blobUrl);
-
-                // Clean up the blob URL when component unmounts
-                return () => {
-                  URL.revokeObjectURL(blobUrl);
-                };
-              } catch (error) {
-                console.error('Error handling profile picture:', error);
-                setProfilePictureUrl(null);
               }
-            } else {
-              setProfilePictureUrl(null);
+            } catch {
+              // ignore network errors; fallback below
             }
           }
+          setProfilePictureUrl(null);
         } catch (error) {
           console.error('Error fetching student profile:', error);
         }
@@ -264,7 +275,7 @@ const DashboardOverview = () => {
 
     fetchStudentProfile();
     fetchEnrolledCourses();
-  }, [user?.id]);
+  }, [user?.id, user?.email]);
 
   // Add cleanup for blob URLs when component unmounts
   useEffect(() => {
@@ -343,21 +354,16 @@ const DashboardOverview = () => {
             <div className="p-6 sm:p-8 md:p-10">
               <div className="flex flex-col sm:flex-row items-center gap-6 sm:gap-8">
                 {/* Profile Circle */}
-                <div className="relative w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-gradient-to-br from-blue-100 to-purple-100 shadow-[4px_4px_8px_rgba(0,0,0,0.1),-4px_-4px_8px_rgba(255,255,255,0.8)] border-2 border-white/50 flex items-center justify-center overflow-hidden">
+                <div className="relative w-24 h-24 sm:w-32 sm:h-32 rounded-full flex items-center justify-center overflow-hidden">
                   {profilePictureUrl ? (
-                    <>
-                      <img 
-                        src={profilePictureUrl} 
-                        alt="Profile" 
-                        className="dashboard-profile-picture w-full h-full object-cover"
-                        onError={handleProfileImageError}
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-br from-blue-50/20 to-purple-50/20"></div>
-                    </>
+                    <img 
+                      src={profilePictureUrl} 
+                      alt="Profile" 
+                      className="dashboard-profile-picture w-full h-full object-cover"
+                      onError={handleProfileImageError}
+                    />
                   ) : (
-                    <span className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                      {processedProfile.initials}
-                    </span>
+                    <User className="w-10 h-10 text-gray-300" />
                   )}
                 </div>
 
@@ -548,9 +554,7 @@ const DashboardOverview = () => {
 
 const StudentDashboard: React.FC = () => {
   const { user } = useAuth();
-  const [showChangePassModal, setShowChangePassModal] = useState(false);
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  // Removed default password change modal state
 
 
   // Centralized data fetching for MyCourse
@@ -568,44 +572,7 @@ const StudentDashboard: React.FC = () => {
     }));
   }, [enrollmentsWithTeacher, courseImages, teacherImageUrls]);
 
-  // Memoized handlers
-  const handlePasswordChange = useCallback(async () => {
-    if (newPassword !== confirmPassword) {
-      toast.error('Passwords do not match');
-      return;
-    }
-    if (newPassword === 'TempPass@123') {
-      toast.error('Please choose a password different from the default.');
-      return;
-    }
-    try {
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
-      if (error) throw error;
-      
-      // Update the user profile to mark password as changed
-      if (user) {
-        const { error: profileError } = await supabase
-          .from('user_profiles')
-          .update({ 
-            password_changed: true,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', user.id);
-        
-        if (profileError) {
-          console.error('Failed to update profile:', profileError);
-        }
-      }
-      
-      toast.success('Password updated! Please log in again.');
-      setShowChangePassModal(false);
-      await supabase.auth.signOut();
-      window.location.reload();
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to update password';
-      toast.error(errorMessage);
-    }
-  }, [newPassword, confirmPassword, user]);
+  // Default password change removed
 
   // Types for centralized data fetching
   interface Teacher {
@@ -781,37 +748,7 @@ const StudentDashboard: React.FC = () => {
     };
   }, [courseImages]);
 
-  useEffect(() => {
-    const checkDefaultPassword = async () => {
-      if (!user) return;
-      // Check if the user is still using the default password
-      // We'll use a more reliable approach by checking if they're a new student
-      // and if they haven't changed password yet
-      try {
-        const { data: profile, error } = await supabase
-          .from('user_profiles')
-          .select('created_at, updated_at, role, password_changed')
-          .eq('id', user.id)
-          .single();
-        
-        if (!error && profile && profile.role === 'student') {
-          // Only check for students
-          const createdTime = new Date(profile.created_at);
-          const now = new Date();
-          const hoursSinceCreation = (now.getTime() - createdTime.getTime()) / (1000 * 60 * 60);
-          
-          // If user was created recently (within last 24 hours) and hasn't changed password yet,
-          // they likely still have default password
-          if (hoursSinceCreation < 24 && !profile.password_changed) {
-            setShowChangePassModal(true);
-          }
-        }
-      } catch {
-        // Ignore errors
-      }
-    };
-    checkDefaultPassword();
-  }, [user]);
+  // Removed default password enforcement check
 
   if (!user) {
     return <Navigate to="/login" replace />;
@@ -819,48 +756,7 @@ const StudentDashboard: React.FC = () => {
 
 
 
-  // Modal for changing default password
-  if (showChangePassModal) {
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-xl shadow-xl p-8 max-w-md w-full">
-          <h2 className="text-xl font-bold mb-4 text-gray-800">Change Your Default Password</h2>
-          <p className="mb-4 text-gray-600">For your security, please set a new password before accessing your account.</p>
-          <div className="mb-4">
-            <label className="block text-sm font-medium mb-1">New Password</label>
-            <input
-              type="password"
-              className="w-full border rounded px-3 py-2"
-              value={newPassword}
-              onChange={e => setNewPassword(e.target.value)}
-              autoFocus
-            />
-          </div>
-          <div className="mb-6">
-            <label className="block text-sm font-medium mb-1">Confirm Password</label>
-            <input
-              type="password"
-              className="w-full border rounded px-3 py-2"
-              value={confirmPassword}
-              onChange={e => setConfirmPassword(e.target.value)}
-            />
-          </div>
-          <button
-            className="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700 transition"
-            disabled={
-              !newPassword ||
-              !confirmPassword ||
-              newPassword !== confirmPassword ||
-              newPassword === 'TempPass@123'
-            }
-            onClick={handlePasswordChange}
-          >
-            Change Password
-          </button>
-        </div>
-      </div>
-    );
-  }
+  // Removed default password modal
 
   return (
     <DashboardLayout>
