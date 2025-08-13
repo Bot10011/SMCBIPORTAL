@@ -281,6 +281,37 @@ interface Profile {
   profile_picture_url?: string;
 }
 
+// Get an avatar URL from Supabase Auth user metadata or provider identity data
+function getAuthAvatarUrl(u: unknown): string | null {
+  if (!u || typeof u !== 'object') return null;
+  const urlKeys = [
+    'avatar_url', 'picture', 'picture_url', 'photoURL', 'photoUrl', 'avatar',
+    'image', 'image_url', 'imageUrl', 'profile_picture', 'profileImage'
+  ];
+
+  const tryKeys = (obj?: Record<string, unknown> | null): string | null => {
+    if (!obj) return null;
+    for (const key of urlKeys) {
+      const val = obj[key];
+      if (typeof val === 'string' && /^https?:\/\//i.test(val)) return val;
+    }
+    return null;
+  };
+
+  const metadata = (u as { user_metadata?: Record<string, unknown> }).user_metadata;
+  const fromMetadata = tryKeys(metadata);
+  if (fromMetadata) return fromMetadata;
+
+  const identities = (u as { identities?: Array<{ identity_data?: Record<string, unknown> }> }).identities;
+  if (Array.isArray(identities)) {
+    for (const id of identities) {
+      const candidate = tryKeys(id?.identity_data as Record<string, unknown> | undefined);
+      if (candidate) return candidate;
+    }
+  }
+  return null;
+}
+
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const { user, logout } = useAuth();
   const { isModalOpen, showUserLocationModal } = useModal();
@@ -452,19 +483,51 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           .single();
         if (!error && data) {
           setProfile(data);
+          // 1) Prefer Google avatar from Authentication
+          try {
+            const { data: authData } = await supabase.auth.getUser();
+            const authAvatar = authData?.user ? getAuthAvatarUrl(authData.user) : null;
+            if (authAvatar) {
+              setProfilePictureUrl(authAvatar);
+              return;
+            }
+          } catch {
+            // ignore; try next strategies
+          }
+
+          // 2) Try Google userinfo API with provider access token
+          try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            const token = sessionData?.session?.provider_token as string | undefined;
+            if (token) {
+              const resp = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                headers: { Authorization: `Bearer ${token}` }
+              });
+              if (resp.ok) {
+                const json = await resp.json();
+                if (typeof json?.picture === 'string') {
+                  setProfilePictureUrl(json.picture);
+                  return;
+                }
+              }
+            }
+          } catch {
+            // ignore; try next strategy
+          }
+
+          // 3) Fallback to storage bucket URL if present
           if (data.profile_picture_url) {
-            const { data: signedUrlData, error: signedUrlError } = await supabase
+            const { data: signedUrlData } = await supabase
               .storage
               .from('avatar')
               .createSignedUrl(data.profile_picture_url, 60 * 60);
-            if (!signedUrlError && signedUrlData?.signedUrl) {
+            if (signedUrlData?.signedUrl) {
               setProfilePictureUrl(signedUrlData.signedUrl);
-            } else {
-              setProfilePictureUrl(null);
+              return;
             }
-          } else {
-            setProfilePictureUrl(null);
           }
+          // 4) Final fallback: show no image; UI will render initials/icon
+          setProfilePictureUrl(null);
         }
       } else {
         setProfile(null);
