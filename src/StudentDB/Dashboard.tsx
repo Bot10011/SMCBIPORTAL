@@ -337,9 +337,9 @@ const DashboardOverview = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="relative"
+            className="relative bg-[#252728] rounded-2xl"
           >
-            <div className="absolute inset-0 bg-gradient-to-r from-blue-50/50 via-transparent to-purple-50/50 rounded-2xl -z-10"></div>
+            <div className="absolute inset-0 bg-[#252728] rounded-2xl -z-10"></div>
             <div className="p-6 sm:p-8 md:p-10">
               <div className="flex flex-col sm:flex-row items-center gap-6 sm:gap-8">
                 {/* Profile Circle */}
@@ -363,17 +363,17 @@ const DashboardOverview = () => {
 
                 {/* Welcome Text */}
                 <div className="flex-1 flex flex-col items-center text-center sm:items-start sm:text-left sm:block">
-                  <h1 className="text-4xl sm:text-3xl md:text-4xl font-black tracking-tighter bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 bg-clip-text text-transparent">
+                  <h1 className="text-4xl sm:text-3xl md:text-4xl font-black tracking-tighter text-white">
                     Welcome back
                   </h1>
                   <div className="mt-2 sm:mt-0 sm:inline-block">
-                    <span className="inline-block px-3 py-1.5 sm:px-0 sm:py-0 sm:ml-2 bg-blue-50 rounded-lg sm:bg-transparent sm:rounded-none">
-                      <span className="text-sm sm:text-2xl md:text-3xl font-bold tracking-wide bg-gradient-to-r from-blue-600 to-blue-700 bg-clip-text text-transparent">
+                    <span className="inline-block sm:ml-2">
+                      <span className="text-sm sm:text-2xl md:text-3xl font-bold tracking-wide text-white">
                         {processedProfile.fullName}
                       </span>
                     </span>
                   </div>
-                  <p className="mt-3 text-sm sm:text-base text-gray-600 max-w-2xl sm:text-left text-center">
+                  <p className="mt-3 text-sm sm:text-base text-white max-w-2xl sm:text-left text-center">
                     Here's what's happening with your academic progress. Stay updated with your courses, grades, and important announcements.
                   </p>
                 </div>
@@ -388,18 +388,18 @@ const DashboardOverview = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.1 }}
-              className="dashboard-stat-card group relative bg-gray-100/80 backdrop-blur-sm rounded-xl p-4 xs:p-3 sm:p-6 md:p-8 border border-gray-200/50 transition-all duration-300 shadow-[inset_4px_4px_8px_rgba(0,0,0,0.1),inset_-4px_-4px_8px_rgba(255,255,255,0.8)] hover:shadow-[inset_6px_6px_12px_rgba(0,0,0,0.12),inset_-6px_-6px_12px_rgba(255,255,255,0.9)]"
+              className="dashboard-stat-card group relative bg-[#252728] rounded-xl p-4 xs:p-3 sm:p-6 md:p-8 border border-[#444] transition-all duration-300"
             >
               <div className="absolute inset-0 bg-gradient-to-br from-blue-50/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-xl"></div>
               <div className="relative flex flex-col xs:flex-row xs:items-center justify-between h-full">
                 <div className="space-y-1 xs:space-y-0.5 sm:space-y-1 text-center xs:text-left">
-                  <p className="text-sm xs:text-xs sm:text-sm font-medium text-gray-600">Enrolled Courses</p>
-                  <p className="text-2xl xs:text-xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-blue-600 to-blue-700 bg-clip-text text-transparent">
+                  <p className="text-sm xs:text-xs sm:text-sm font-medium text-white">Enrolled Courses</p>
+                  <p className="text-2xl xs:text-xl sm:text-3xl md:text-4xl font-bold text-white">
                     {stats.enrolledCourses}
                   </p>
-                  <p className="text-sm xs:text-xs sm:text-sm text-gray-500">Active courses</p>
+                  <p className="text-sm xs:text-xs sm:text-sm text-gray-300">Active courses</p>
                 </div>
-                <div className="p-3 xs:p-2 sm:p-4 rounded-xl bg-gray-200/80 group-hover:bg-gray-300/80 transition-colors duration-300 shadow-[inset_2px_2px_4px_rgba(0,0,0,0.1),inset_-2px_-2px_4px_rgba(255,255,255,0.8)] mx-auto xs:mx-0 mt-3 xs:mt-0">
+                <div className="p-3 xs:p-2 sm:p-4 rounded-xl bg-[#2b2d2f] transition-colors duration-300 mx-auto xs:mx-0 mt-3 xs:mt-0">
                   <BookOpen className="w-6 h-6 xs:w-5 xs:h-5 sm:w-7 sm:h-7 text-blue-600" />
                 </div>
               </div>
@@ -410,18 +410,18 @@ const DashboardOverview = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.2 }}
-              className="dashboard-stat-card group relative bg-gray-100/80 backdrop-blur-sm rounded-xl p-4 xs:p-3 sm:p-6 md:p-8 border border-gray-200/50 transition-all duration-300 shadow-[inset_4px_4px_8px_rgba(0,0,0,0.1),inset_-4px_-4px_8px_rgba(255,255,255,0.8)] hover:shadow-[inset_6px_6px_12px_rgba(0,0,0,0.12),inset_-6px_-6px_12px_rgba(255,255,255,0.9)]"
+              className="dashboard-stat-card group relative bg-[#252728] rounded-xl p-4 xs:p-3 sm:p-6 md:p-8 border border-[#444] transition-all duration-300"
             >
               <div className="absolute inset-0 bg-gradient-to-br from-green-50/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-xl"></div>
               <div className="relative flex flex-col xs:flex-row xs:items-center justify-between h-full">
                 <div className="space-y-1 xs:space-y-0.5 sm:space-y-1 text-center xs:text-left">
-                  <p className="text-sm xs:text-xs sm:text-sm font-medium text-gray-600">Current GPA</p>
-                  <p className="text-2xl xs:text-xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-green-600 to-green-700 bg-clip-text text-transparent">
+                  <p className="text-sm xs:text-xs sm:text-sm font-medium text-white">Current GPA</p>
+                  <p className="text-2xl xs:text-xl sm:text-3xl md:text-4xl font-bold text-white">
                     {stats.gpa.toFixed(2)}
                   </p>
-                  <p className="text-sm xs:text-xs sm:text-sm text-gray-500">This semester</p>
+                  <p className="text-sm xs:text-xs sm:text-sm text-gray-300">This semester</p>
                 </div>
-                <div className="p-3 xs:p-2 sm:p-4 rounded-xl bg-gray-200/80 group-hover:bg-gray-300/80 transition-colors duration-300 shadow-[inset_2px_2px_4px_rgba(0,0,0,0.1),inset_-2px_-2px_4px_rgba(255,255,255,0.8)] mx-auto xs:mx-0 mt-3 xs:mt-0">
+                <div className="p-3 xs:p-2 sm:p-4 rounded-xl bg-[#2b2d2f] transition-colors duration-300 mx-auto xs:mx-0 mt-3 xs:mt-0">
                   <GraduationCap className="w-6 h-6 xs:w-5 xs:h-5 sm:w-7 sm:h-7 text-green-600" />
                 </div>
               </div>
@@ -433,14 +433,14 @@ const DashboardOverview = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.3 }}
               onClick={() => navigate('/dashboard/google-classroom')}
-              className="dashboard-stat-card group relative bg-gray-100/80 backdrop-blur-sm rounded-xl p-4 xs:p-3 sm:p-6 md:p-8 border border-gray-200/50 transition-all duration-300 shadow-[inset_4px_4px_8px_rgba(0,0,0,0.1),inset_-4px_-4px_8px_rgba(255,255,255,0.8)] hover:shadow-[inset_6px_6px_12px_rgba(0,0,0,0.12),inset_-6px_-6px_12px_rgba(255,255,255,0.9)] cursor-pointer"
+              className="dashboard-stat-card group relative bg-[#252728] rounded-xl p-4 xs:p-3 sm:p-6 md:p-8 border border-[#444] transition-all duration-300 cursor-pointer"
             >
               <div className="absolute inset-0 bg-gradient-to-br from-purple-50/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-xl"></div>
               <div className="relative flex flex-col xs:flex-row xs:items-center justify-between h-full">
                 <div className="space-y-1 xs:space-y-0.5 sm:space-y-1 text-center xs:text-left">
-                  <p className="text-sm xs:text-xs sm:text-sm font-medium text-gray-600">Google Classroom</p>
+                  <p className="text-sm xs:text-xs sm:text-sm font-medium text-white">Google Classroom</p>
                   <div className="flex flex-col xs:flex-row xs:items-center gap-1 xs:gap-2">
-                    <p className="text-lg xs:text-lg sm:text-xl md:text-2xl font-bold bg-gradient-to-r from-purple-600 to-purple-700 bg-clip-text text-transparent">
+                    <p className="text-lg xs:text-lg sm:text-xl md:text-2xl font-bold text-white">
                       {googleClassroomStatus === 'checking' ? 'Checking...' : 
                        googleClassroomStatus === 'connected' ? 'Connected' : 'Not Connected'}
                     </p>
@@ -454,12 +454,12 @@ const DashboardOverview = () => {
                       <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse mx-auto xs:mx-0"></div>
                     )}
                   </div>
-                  <p className="text-sm xs:text-xs sm:text-sm text-gray-500">
+                  <p className="text-sm xs:text-xs sm:text-sm text-gray-300">
                     {googleClassroomStatus === 'connected' ? 'Access assignments' : 
                      googleClassroomStatus === 'disconnected' ? 'Connect to sync' : 'Verifying connection'}
                   </p>
                 </div>
-                <div className="p-3 xs:p-2 sm:p-4 rounded-xl bg-gray-200/80 group-hover:bg-gray-300/80 transition-colors duration-300 shadow-[inset_2px_2px_4px_rgba(0,0,0,0.1),inset_-2px_-2px_4px_rgba(255,255,255,0.8)] mx-auto xs:mx-0 mt-3 xs:mt-0">
+                <div className="p-3 xs:p-2 sm:p-4 rounded-xl bg-[#2b2d2f] transition-colors duration-300 mx-auto xs:mx-0 mt-3 xs:mt-0">
                   <ExternalLink className="w-6 h-6 xs:w-5 xs:h-5 sm:w-7 sm:h-7 text-purple-600" />
                 </div>
               </div>
@@ -471,23 +471,23 @@ const DashboardOverview = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.3 }}
-            className="dashboard-announcements bg-gray-100/80 backdrop-blur-sm rounded-xl border border-gray-200/50 overflow-hidden shadow-[inset_4px_4px_8px_rgba(0,0,0,0.1),inset_-4px_-4px_8px_rgba(255,255,255,0.8)]"
+            className="dashboard-announcements bg-[#252728] rounded-xl border border-[#444] overflow-hidden"
           >
-            <div className="p-5 sm:p-6 md:p-8 border-b border-gray-200/50 bg-gradient-to-r from-gray-50/50 to-transparent shadow-[inset_0_2px_4px_rgba(0,0,0,0.05)]">
-              <h2 className="text-lg sm:text-xl md:text-2xl font-semibold text-gray-900 flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-gray-200/80 shadow-[inset_2px_2px_4px_rgba(0,0,0,0.1),inset_-2px_-2px_4px_rgba(255,255,255,0.8)]">
+            <div className="p-5 sm:p-6 md:p-8 border-b border-[#444] bg-[#1e1f21]">
+              <h2 className="text-lg sm:text-xl md:text-2xl font-semibold text-white flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-[#2b2d2f]">
                   <Bell className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-600" />
                 </div>
                 Announcements
               </h2>
             </div>
-            <div className="divide-y divide-gray-200/50">
+            <div className="divide-y divide-[#444]">
               {loadingAnnouncements ? (
                 <div className="flex justify-center items-center h-32">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
                 </div>
               ) : announcements.length === 0 ? (
-                <div className="p-6 text-center text-gray-500">No announcements available.</div>
+                <div className="p-6 text-center text-gray-300">No announcements available.</div>
               ) : (
                 announcements.map((announcement, index) => (
                   <motion.div
@@ -495,11 +495,11 @@ const DashboardOverview = () => {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.3, delay: 0.4 + index * 0.1 }}
-                    className="dashboard-announcement-item group flex flex-col sm:flex-row items-stretch gap-6 p-6 md:p-8 bg-white rounded-xl shadow-lg border border-gray-200 my-4 mx-2 sm:mx-4 hover:shadow-xl transition-all duration-200"
+                    className="dashboard-announcement-item group flex flex-col sm:flex-row items-stretch gap-6 p-6 md:p-8 bg-[#333334] rounded-xl shadow-lg border border-[#444] my-4 mx-2 sm:mx-4 transition-all duration-200"
                   >
                     {/* Image section */}
                     {announcement.image && (
-                      <div className="flex-shrink-0 flex items-center justify-center w-full sm:w-40 md:w-48 h-40 bg-gray-50 rounded-lg overflow-hidden border border-gray-100 shadow-sm mb-4 sm:mb-0">
+                      <div className="flex-shrink-0 flex items-center justify-center w-full sm:w-40 md:w-48 h-40 bg-[#252728] rounded-lg overflow-hidden border border-[#444] shadow-sm mb-4 sm:mb-0">
                         <img
                           src={announcement.image}
                           alt="Announcement"
@@ -511,18 +511,18 @@ const DashboardOverview = () => {
                     {/* Content section */}
                     <div className="flex-1 flex flex-col justify-between min-w-0">
                       <div>
-                        <h3 className="text-xl md:text-2xl font-bold text-gray-900 mb-2 group-hover:text-blue-700 transition-colors truncate">
+                        <h3 className="text-xl md:text-2xl font-bold text-white mb-2 truncate">
                           {announcement.title}
                         </h3>
-                        <p className="text-gray-600 text-sm md:text-base mb-3 whitespace-pre-line line-clamp-4">
+                        <p className="text-gray-300 text-sm md:text-base mb-3 whitespace-pre-line line-clamp-4">
                           {announcement.content}
                         </p>
                       </div>
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between mt-4 gap-2">
-                        <div className="flex items-center gap-3 text-xs text-gray-500">
-                          <span>By <span className="font-semibold text-gray-700">{announcement.author}</span></span>
+                        <div className="flex items-center gap-3 text-xs text-gray-400">
+                          <span>By <span className="font-semibold text-white">{announcement.author}</span></span>
                           <span className="hidden sm:inline">•</span>
-                          <span>{new Date(announcement.created_at).toLocaleString()}</span>
+                          <span className="text-gray-300">{new Date(announcement.created_at).toLocaleString()}</span>
                         </div>
                         <span className={`px-4 py-1.5 text-xs font-semibold rounded-full transition-colors border border-gray-200 shadow-sm ${
                           announcement.category === 'academic' 
