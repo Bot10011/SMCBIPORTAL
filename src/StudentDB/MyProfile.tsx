@@ -1,9 +1,8 @@
-import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { Database } from '../types/supabase';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { 
   UserCircle, 
   Hash,
@@ -13,7 +12,7 @@ import {
   CheckCircle2,
   XCircle
 } from 'lucide-react';
-import toast from 'react-hot-toast';
+ 
 
 type UserProfile = Database['public']['Tables']['user_profiles']['Row'] & {
   course?: string;
@@ -26,387 +25,82 @@ type UserProfile = Database['public']['Tables']['user_profiles']['Row'] & {
   department?: string; // ensure department is included
 };
 
+// Get a display name from Supabase Auth user metadata/identities
+function getAuthDisplayName(u: unknown): string | null {
+  if (!u || typeof u !== 'object') return null;
+  const metadata = (u as { user_metadata?: Record<string, unknown> }).user_metadata;
+  const fromMetadata = [
+    typeof metadata?.full_name === 'string' ? (metadata.full_name as string) : null,
+    typeof metadata?.name === 'string' ? (metadata.name as string) : null,
+    typeof metadata?.display_name === 'string' ? (metadata.display_name as string) : null,
+    typeof metadata?.preferred_username === 'string' ? (metadata.preferred_username as string) : null,
+  ].find(Boolean) as string | null | undefined;
+  if (fromMetadata) return fromMetadata;
 
-
-// Utility to detect touch device
-const isTouchDevice = () => {
-  return (typeof window !== 'undefined') && (
-    'ontouchstart' in window ||
-    (navigator.maxTouchPoints > 0)
-  );
-};
-
-// Utility to clamp a value between min and max
-function clamp(val: number, min: number, max: number) {
-  return Math.max(min, Math.min(val, max));
+  const identities = (u as { identities?: Array<{ identity_data?: Record<string, unknown> }> }).identities;
+  if (Array.isArray(identities)) {
+    for (const id of identities) {
+      const data = id?.identity_data;
+      const name = typeof data?.full_name === 'string' ? (data.full_name as string)
+        : typeof data?.name === 'string' ? (data.name as string)
+        : null;
+      if (name) return name;
+    }
+  }
+  return null;
 }
 
-// Facebook-style profile picture crop modal
-const CropModal: React.FC<{
-  image: string;
-  onCancel: () => void;
-  onCrop: (croppedBlob: Blob) => void;
-  isUploading?: boolean;
-}> = ({ image, onCancel, onCrop, isUploading }) => {
-  const imgRef = useRef<HTMLImageElement>(null);
-  const [imgDims, setImgDims] = useState({ width: 0, height: 0 });
-  const [cropRect, setCropRect] = useState<{ x: number, y: number, w: number, h: number } | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragMode, setDragMode] = useState<'move' | 'resize' | null>(null);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0, rect: { x: 0, y: 0, w: 0, h: 0 } });
+// Get an avatar URL from Supabase Auth user metadata (e.g., Google)
+function getAuthAvatarUrl(u: unknown): string | null {
+  if (!u || typeof u !== 'object') return null;
+  const urlKeys = [
+    'avatar_url', 'picture', 'picture_url', 'photoURL', 'photoUrl', 'avatar',
+    'image', 'image_url', 'imageUrl', 'profile_picture', 'profileImage'
+  ];
 
-  useEffect(() => {
-    if (imgRef.current) {
-      imgRef.current.onload = () => {
-        const { naturalWidth, naturalHeight } = imgRef.current!;
-        setImgDims({ width: naturalWidth, height: naturalHeight });
-        
-        // Create initial centered square crop (Facebook style)
-        const size = Math.min(naturalWidth, naturalHeight) * 0.8; // 80% of smaller dimension
-        const x = (naturalWidth - size) / 2;
-        const y = (naturalHeight - size) / 2;
-        setCropRect({ x, y, w: size, h: size });
-      };
+  const tryKeys = (obj?: Record<string, unknown> | null): string | null => {
+    if (!obj) return null;
+    for (const key of urlKeys) {
+      const val = obj[key];
+      if (typeof val === 'string' && /^https?:\/\//i.test(val)) return val;
     }
-    // Prevent background scroll when modal is open
-    document.body.classList.add('overflow-hidden');
-    return () => {
-      document.body.classList.remove('overflow-hidden');
-    };
-  }, [image]);
-
-
-
-  // Handle pointer down for moving and resizing
-  const handlePointerDown = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!imgRef.current || !cropRect) return;
-    const imgRect = imgRef.current.getBoundingClientRect();
-    let clientX: number, clientY: number;
-    if ('touches' in e) {
-      clientX = e.touches[0].clientX;
-      clientY = e.touches[0].clientY;
-    } else {
-      clientX = e.clientX;
-      clientY = e.clientY;
-    }
-    
-
-    
-    // Check if click is on corner handles (for resizing)
-    const handleSize = 20;
-    const corners = [
-      { x: cropRect.x, y: cropRect.y }, // top-left
-      { x: cropRect.x + cropRect.w, y: cropRect.y }, // top-right
-      { x: cropRect.x, y: cropRect.y + cropRect.h }, // bottom-left
-      { x: cropRect.x + cropRect.w, y: cropRect.y + cropRect.h } // bottom-right
-    ];
-    
-    for (const corner of corners) {
-      const cornerX = (corner.x / imgDims.width) * imgRect.width + imgRect.left;
-      const cornerY = (corner.y / imgDims.height) * imgRect.height + imgRect.top;
-      
-      if (Math.abs(clientX - cornerX) < handleSize && Math.abs(clientY - cornerY) < handleSize) {
-        setIsDragging(true);
-        setDragMode('resize');
-        setDragStart({ x: clientX, y: clientY, rect: { ...cropRect } });
-        return;
-      }
-    }
-    
-    // Check if click is inside crop area (for moving)
-    const left = (cropRect.x / imgDims.width) * imgRect.width + imgRect.left;
-    const top = (cropRect.y / imgDims.height) * imgRect.height + imgRect.top;
-    const right = ((cropRect.x + cropRect.w) / imgDims.width) * imgRect.width + imgRect.left;
-    const bottom = ((cropRect.y + cropRect.h) / imgDims.height) * imgRect.height + imgRect.top;
-    
-    if (clientX > left && clientX < right && clientY > top && clientY < bottom) {
-      setIsDragging(true);
-      setDragMode('move');
-      setDragStart({ x: clientX, y: clientY, rect: { ...cropRect } });
-    }
+    return null;
   };
 
-  // Handle drag for moving and resizing
-  useEffect(() => {
-    if (!isDragging) return;
-    const moveHandler = (e: MouseEvent | TouchEvent) => {
-      if (!imgRef.current || !cropRect) return;
-      const imgRect = imgRef.current.getBoundingClientRect();
-      let clientX: number, clientY: number;
-      if ('touches' in e && e.touches.length > 0) {
-        clientX = e.touches[0].clientX;
-        clientY = e.touches[0].clientY;
-      } else if ('clientX' in e) {
-        clientX = e.clientX;
-        clientY = e.clientY;
-      } else {
-        return;
-      }
-      
-      if (dragMode === 'move') {
-        // Move the crop area
-        const dx = (clientX - dragStart.x) * (imgDims.width / imgRect.width);
-        const dy = (clientY - dragStart.y) * (imgDims.height / imgRect.height);
-        
-        setCropRect(rect => rect && {
-          x: clamp(dragStart.rect.x + dx, 0, imgDims.width - rect.w),
-          y: clamp(dragStart.rect.y + dy, 0, imgDims.height - rect.h),
-          w: rect.w,
-          h: rect.h
-        });
-      } else if (dragMode === 'resize') {
-        // Resize the crop area (maintain square aspect ratio)
-        const imgX = (clientX - imgRect.left) * (imgDims.width / imgRect.width);
-        const imgY = (clientY - imgRect.top) * (imgDims.height / imgRect.height);
-        
-        // Calculate new size based on distance from center
-        const centerX = dragStart.rect.x + dragStart.rect.w / 2;
-        const centerY = dragStart.rect.y + dragStart.rect.h / 2;
-        const distanceX = Math.abs(imgX - centerX);
-        const distanceY = Math.abs(imgY - centerY);
-        const newSize = Math.max(distanceX, distanceY) * 2;
-        
-        // Ensure minimum size and stay within bounds
-        const minSize = 50;
-        const maxSize = Math.min(imgDims.width, imgDims.height);
-        const clampedSize = clamp(newSize, minSize, maxSize);
-        
-        const newX = centerX - clampedSize / 2;
-        const newY = centerY - clampedSize / 2;
-        
-        setCropRect({
-          x: clamp(newX, 0, imgDims.width - clampedSize),
-          y: clamp(newY, 0, imgDims.height - clampedSize),
-          w: clampedSize,
-          h: clampedSize
-        });
-      }
-    };
-    
-    const upHandler = () => { 
-      setIsDragging(false); 
-      setDragMode(null);
-    };
-    window.addEventListener('mousemove', moveHandler);
-    window.addEventListener('touchmove', moveHandler);
-    window.addEventListener('mouseup', upHandler);
-    window.addEventListener('touchend', upHandler);
-    window.addEventListener('touchcancel', upHandler);
-    return () => {
-      window.removeEventListener('mousemove', moveHandler);
-      window.removeEventListener('touchmove', moveHandler);
-      window.removeEventListener('mouseup', upHandler);
-      window.removeEventListener('touchend', upHandler);
-      window.removeEventListener('touchcancel', upHandler);
-    };
-  }, [isDragging, dragMode, dragStart, imgDims, cropRect]);
+  const metadata = (u as { user_metadata?: Record<string, unknown> }).user_metadata;
+  const fromMetadata = tryKeys(metadata);
+  if (fromMetadata) return fromMetadata;
 
-  const handleCrop = () => {
-    if (!imgRef.current || !cropRect) return;
-    // Find the largest possible square inside the selected rectangle
-    const { x, y, w, h } = cropRect;
-    const side = Math.min(w, h);
-    // Center the square inside the selected rectangle
-    const squareX = x + (w - side) / 2;
-    const squareY = y + (h - side) / 2;
-    
-    // Calculate optimal output size for profile picture
-    // Use 256x256 for better performance and file size
-    const outputSize = 256;
-    
-    // Create a canvas for the square crop
-    const canvas = document.createElement('canvas');
-    canvas.width = outputSize;
-    canvas.height = outputSize;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    
-    // Enable image smoothing for better quality
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    
-    ctx.drawImage(
-      imgRef.current,
-      squareX, squareY, side, side,
-      0, 0, outputSize, outputSize
-    );
-    canvas.toBlob(blob => {
-      if (blob) onCrop(blob);
-    }, 'image/jpeg', 0.9);
-  };
+  const identities = (u as { identities?: Array<{ identity_data?: Record<string, unknown> }> }).identities;
+  if (Array.isArray(identities)) {
+    for (const id of identities) {
+      const candidate = tryKeys(id?.identity_data as Record<string, unknown> | undefined);
+      if (candidate) return candidate;
+    }
+  }
+  return null;
+}
 
-  const modalContent = (
-    <div 
-      className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm user-select-none touch-none p-4" 
-      style={{ 
-        position: 'fixed', 
-        top: 0, 
-        left: 0, 
-        right: 0, 
-        bottom: 0,
-        zIndex: 99999,
-        width: '100vw',
-        height: '100vh'
-      }}
-    >
-      <div 
-        className="bg-white rounded-3xl shadow-2xl p-4 sm:p-6 md:p-8 w-full max-w-xs sm:max-w-2xl md:max-w-4xl lg:max-w-5xl xl:max-w-6xl flex flex-col items-center relative" 
-        style={{ 
-          maxHeight: '95vh', 
-          position: 'relative',
-          zIndex: 100000,
-          border: '1px solid rgba(0,0,0,0.1)',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255,255,255,0.1)',
-          background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)'
-        }}
-      >
-        {/* Uploading overlay */}
-        {isUploading && (
-          <div className="absolute inset-0 bg-white/70 flex flex-col items-center justify-center z-20 rounded-2xl">
-            <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-b-transparent mb-2" />
-            <span className="text-base font-semibold text-blue-700">Uploading...</span>
-          </div>
-        )}
-        {/* Instructions for desktop/tablet */}
-        <div className="mb-4 sm:mb-6 text-center w-full">
-          <h3 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-800 mb-2">Crop Your Profile Picture</h3>
-          <p className="text-sm sm:text-base text-gray-600 hidden sm:block">
-            Click and drag to select an area, or use the corner handles to resize
-          </p>
-          <p className="text-sm text-gray-600 sm:hidden">
-            Touch and drag to select an area, or use the corner handles to resize
-          </p>
-        </div>
-        <div className="relative w-full h-64 max-h-[60vw] sm:h-96 md:h-[500px] lg:h-[600px] xl:h-[700px] bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl overflow-hidden flex items-center justify-center select-none touch-none border border-gray-200"
-          onMouseDown={handlePointerDown}
-          onTouchStart={handlePointerDown}
-          style={{ 
-            WebkitUserSelect: 'none', 
-            userSelect: 'none', 
-            touchAction: 'none',
-            boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.1)'
-          }}
-        >
-          <img ref={imgRef} src={image} alt="Crop preview" className="max-w-full max-h-full object-contain" />
-          {/* Facebook-style crop overlay with resize handles */}
-          {cropRect && (
-            <>
-              {/* Semi-transparent overlay outside crop area */}
-              <div 
-                className="absolute inset-0 bg-black/50"
-                style={{ zIndex: 5 }}
-              />
-              {/* Crop area (clear) */}
-              <div
-                className="absolute border-2 border-white shadow-lg"
-                style={{
-                  left: `${(cropRect.x / imgDims.width) * 100}%`,
-                  top: `${(cropRect.y / imgDims.height) * 100}%`,
-                  width: `${(cropRect.w / imgDims.width) * 100}%`,
-                  height: `${(cropRect.h / imgDims.height) * 100}%`,
-                  zIndex: 10,
-                  background: 'transparent',
-                  boxShadow: '0 0 0 9999px rgba(0,0,0,0.5)',
-                  cursor: isDragging ? 'grabbing' : 'grab',
-                }}
-              />
-              {/* Corner resize handles */}
-              {[
-                { x: cropRect.x, y: cropRect.y }, // top-left
-                { x: cropRect.x + cropRect.w, y: cropRect.y }, // top-right
-                { x: cropRect.x, y: cropRect.y + cropRect.h }, // bottom-left
-                { x: cropRect.x + cropRect.w, y: cropRect.y + cropRect.h } // bottom-right
-              ].map((corner, index) => (
-                <div
-                  key={index}
-                  className="absolute w-5 h-5 bg-white border-2 border-blue-500 rounded-full shadow-lg cursor-nwse-resize"
-                  style={{
-                    left: `${(corner.x / imgDims.width) * 100}%`,
-                    top: `${(corner.y / imgDims.height) * 100}%`,
-                    transform: 'translate(-50%, -50%)',
-                    zIndex: 15,
-                  }}
-                />
-              ))}
-            </>
-          )}
-        </div>
-        {/* Live cropped preview */}
-        {cropRect && imgRef.current && (
-          <div className="mt-4 sm:mt-6 flex flex-col items-center">
-            <span className="text-sm sm:text-base md:text-lg font-semibold text-gray-700 mb-2 sm:mb-3">Profile Picture Preview</span>
-            <div className="w-20 h-20 sm:w-32 sm:h-32 md:w-40 md:h-40 lg:w-48 lg:h-48 rounded-xl overflow-hidden border-2 border-gray-300 bg-gray-50 flex items-center justify-center shadow-lg">
-              <canvas
-                ref={el => {
-                  if (el && imgRef.current && cropRect && cropRect.w > 0 && cropRect.h > 0) {
-                    el.width = 128;
-                    el.height = 128;
-                    const ctx = el.getContext('2d');
-                    if (ctx) {
-                      ctx.clearRect(0, 0, 128, 128);
-                      // Enable image smoothing for better preview quality
-                      ctx.imageSmoothingEnabled = true;
-                      ctx.imageSmoothingQuality = 'high';
-                      // Find the largest possible square inside the selected rectangle
-                      const { x, y, w, h } = cropRect;
-                      const side = Math.min(w, h);
-                      const squareX = x + (w - side) / 2;
-                      const squareY = y + (h - side) / 2;
-                      ctx.drawImage(
-                        imgRef.current,
-                        squareX, squareY, side, side,
-                        0, 0, 128, 128
-                      );
-                    }
-                  }
-                }}
-                style={{ 
-                  width: '100%', 
-                  height: '100%', 
-                  objectFit: 'cover', 
-                  background: '#f3f4f6',
-                  borderRadius: '12px'
-                }}
-              />
-            </div>
-            <p className="text-xs sm:text-sm text-gray-500 mt-2 sm:mt-3 text-center">
-              This is how your profile picture will appear
-            </p>
-          </div>
-        )}
-        <div className="flex gap-4 sm:gap-6 mt-6 sm:mt-8 w-full">
-          <button 
-            onClick={onCancel} 
-            className="flex-1 px-6 py-3 sm:px-8 sm:py-4 md:px-10 md:py-4 rounded-xl bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold sm:text-lg transition-all duration-200 shadow-md hover:shadow-lg active:scale-95"
-          >
-            Cancel
-          </button>
-          <button 
-            onClick={handleCrop} 
-            disabled={!cropRect || cropRect.w < 10 || cropRect.h < 10} 
-            className="flex-1 px-6 py-3 sm:px-8 sm:py-4 md:px-10 md:py-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold sm:text-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-md hover:shadow-lg active:scale-95"
-          >
-            Crop & Save
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+// Lightweight debug logger for profile/auth flows
+function logProfileDebug(label: string, details?: Record<string, unknown>) {
+  const timestamp = new Date().toISOString();
+  if (details) {
+    console.log(`[MyProfile][${timestamp}] ${label}:`, details);
+  } else {
+    console.log(`[MyProfile][${timestamp}] ${label}`);
+  }
+}
 
-  // Use React Portal to render modal at document body level
-  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : null;
-};
-
+ 
 export const MyProfile: React.FC = () => {
   const { user } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [showOverlay, setShowOverlay] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const overlayTimeout = useRef<NodeJS.Timeout | null>(null);
-  const [cropModalImage, setCropModalImage] = useState<string | null>(null);
+  const [authDisplayName, setAuthDisplayName] = useState<string>('');
+  const [imageDebug, setImageDebug] = useState<
+    { status: 'idle' | 'loading' | 'ok' | 'missing_url' | 'download_error' | 'no_file_data' | 'image_failed'; message?: string }
+  >({ status: 'idle' });
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
 
   useEffect(() => {
@@ -420,166 +114,134 @@ export const MyProfile: React.FC = () => {
     };
   }, []);
 
-  const handleProfileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file || !user?.id) return;
+  // No local upload/crop; avatar is from Supabase or Google metadata
 
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      toast.error('Please upload an image file');
-      return;
-    }
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('File size must be less than 5MB');
-      return;
-    }
-    // Show crop modal with preview
-    const previewUrl = URL.createObjectURL(file);
-    setCropModalImage(previewUrl);
-  }, [user?.id]);
-
-  // Handle crop and upload
-  const handleCropAndUpload = useCallback(async (croppedBlob: Blob) => {
-    if (!user?.id) return;
-    setIsUploading(true);
-    setCropModalImage(null);
-    try {
-      // Get the current image path from the profile
-      const oldImagePath = profile?.profile_picture_url;
-      // Create a unique file name
-      const fileName = `${Date.now()}.jpg`;
-      const filePath = `profile-pictures/${user.id}/${fileName}`;
-      // Show preview immediately
-      const previewUrl = URL.createObjectURL(croppedBlob);
-      setProfilePictureUrl(previewUrl);
-      // Upload image to Supabase Storage
-      const { error: uploadError } = await supabase.storage
-        .from('avatar')
-        .upload(filePath, croppedBlob, {
-          cacheControl: '3600',
-          upsert: true
-        });
-      if (uploadError) {
-        console.error('Upload error:', uploadError);
-        toast.error('Failed to upload profile picture');
-        throw uploadError;
-      }
-      // Download the file to create a blob URL
-      const { data: fileData, error: downloadError } = await supabase.storage
-        .from('avatar')
-        .download(filePath);
-      if (downloadError) {
-        console.error('Download error:', downloadError);
-        toast.error('Failed to download uploaded image');
-        throw downloadError;
-      }
-      if (!fileData) {
-        throw new Error('No file data received after upload');
-      }
-      // Create a blob URL from the downloaded file
-      const blob = new Blob([fileData], { type: 'image/jpeg' });
-      const blobUrl = URL.createObjectURL(blob);
-      // Update user profile with the file path
-      const { error: updateError } = await supabase
-        .from('user_profiles')
-        .update({ profile_picture_url: filePath })
-        .eq('id', user.id);
-      if (updateError) {
-        console.error('Update profile error:', updateError);
-        toast.error('Failed to update profile with new image');
-        throw updateError;
-      }
-      // Delete the old image from storage if it exists and is different from the new one
-      if (oldImagePath && oldImagePath !== filePath) {
-        await supabase.storage.from('avatar').remove([oldImagePath]);
-      }
-      // Update local state with the blob URL
-      setProfilePictureUrl(blobUrl);
-      // Clean up the old blob URL if it exists
-      if (profilePictureUrl?.startsWith('blob:')) {
-        URL.revokeObjectURL(profilePictureUrl);
-      }
-      toast.success('Profile picture updated!');
-    } catch (error) {
-      console.error('Error uploading profile picture:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to upload profile picture');
-    } finally {
-      setIsUploading(false);
-    }
-  }, [user?.id, profile?.profile_picture_url, profilePictureUrl]);
-
-  // Add cleanup for blob URLs when component unmounts
   useEffect(() => {
-    return () => {
-      if (profilePictureUrl?.startsWith('blob:')) {
-        URL.revokeObjectURL(profilePictureUrl);
+    // Fetch display name directly from Supabase Auth user (Google)
+    const fetchAuthDisplayName = async () => {
+      try {
+        const { data } = await supabase.auth.getUser();
+        if (data?.user) {
+          logProfileDebug('Auth user fetched', {
+            authUserId: data.user.id,
+            email: data.user.email,
+            nameFromMetadata: getAuthDisplayName(data.user),
+          });
+          const name = getAuthDisplayName(data.user) || data.user.email || '';
+          setAuthDisplayName(name);
+        } else {
+          logProfileDebug('No auth user in getUser(), fallback to stored', { storedUserId: user?.id, storedEmail: user?.email });
+          setAuthDisplayName(user?.email || '');
+        }
+      } catch (err) {
+        logProfileDebug('Error fetching auth user', { error: err instanceof Error ? err.message : String(err) });
+        setAuthDisplayName(user?.email || '');
       }
     };
-  }, [profilePictureUrl]);
+    fetchAuthDisplayName();
+  }, [user?.id, user?.email]);
 
   useEffect(() => {
     const fetchProfile = async () => {
       try {
         if (user?.id) {
-          const { data, error } = await supabase
+          logProfileDebug('Begin profile fetch', { authUserId: user.id, authEmail: user.email });
+          const { data: byIdData, error: byIdError } = await supabase
             .from('user_profiles')
             .select('*')
             .eq('id', user.id)
             .single();
 
-          if (error) throw error;
-          setProfile(data);
-          
-          if (data?.profile_picture_url) {
-            try {
-              // First verify the file exists
-              const { data: fileData, error: fileError } = await supabase.storage
-                .from('avatar')
-                .download(data.profile_picture_url);
-
-              if (fileError) {
-                console.error('Error downloading file:', fileError);
-                setProfilePictureUrl(null);
-                return;
-              }
-
-              if (!fileData) {
-                console.error('No file data received');
-                setProfilePictureUrl(null);
-                return;
-              }
-
-              // Create a blob URL from the downloaded file
-              const blob = new Blob([fileData], { type: 'image/jpeg' });
-              const blobUrl = URL.createObjectURL(blob);
-              setProfilePictureUrl(blobUrl);
-
-            } catch (error) {
-              console.error('Error handling profile picture:', error);
-              setProfilePictureUrl(null);
+          let data = byIdData;
+          if (byIdError || !data) {
+            logProfileDebug('Profile by id not found, falling back to email', { byIdError: byIdError ? (byIdError as unknown as { message?: string }).message : undefined });
+            // Fallback: match by email (handles Google logins where profile row not yet keyed by auth id)
+            const { data: byEmail, error: emailErr } = await supabase
+              .from('user_profiles')
+              .select('*')
+              .ilike('email', user.email || '')
+              .limit(1)
+              .single();
+            if (emailErr) {
+              logProfileDebug('Profile by email lookup failed', { error: (emailErr as unknown as { message?: string }).message, emailTried: user.email });
+              throw byIdError || emailErr;
             }
+            data = byEmail;
+          }
+
+          setProfile(data);
+          logProfileDebug('Profile fetched', { profileId: data?.id, email: data?.email });
+          // Always prefer Google avatar from Authentication
+          try {
+            const { data: authData } = await supabase.auth.getUser();
+            const authAvatar = authData?.user ? getAuthAvatarUrl(authData.user) : null;
+            if (authAvatar) {
+              setProfilePictureUrl(authAvatar);
+              logProfileDebug('Using Google avatar', { avatarUrl: authAvatar });
+              setImageDebug({ status: 'ok' });
+            } else {
+              // Try Google Userinfo API using provider access token
+              const { data: sessionData } = await supabase.auth.getSession();
+              const accessToken = sessionData?.session?.provider_token as string | undefined;
+              if (accessToken) {
+                try {
+                  const resp = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                    headers: { Authorization: `Bearer ${accessToken}` }
+                  });
+                  if (resp.ok) {
+                    const json = await resp.json();
+                    const pic = typeof json?.picture === 'string' ? json.picture : undefined;
+                    if (pic) {
+                      setProfilePictureUrl(pic);
+                      logProfileDebug('Using Google userinfo picture', { avatarUrl: pic });
+                      setImageDebug({ status: 'ok' });
+                      return;
+                    }
+                    logProfileDebug('Google userinfo returned no picture', { jsonSample: JSON.stringify(json).slice(0, 200) });
+                  } else {
+                    logProfileDebug('Google userinfo HTTP error', { status: resp.status });
+                  }
+                } catch (e) {
+                  logProfileDebug('Google userinfo fetch failed', { error: e instanceof Error ? e.message : String(e) });
+                }
+              } else {
+                logProfileDebug('No provider access token available for Google userinfo');
+              }
+
+              // Final fallback: generated initials avatar so the UI always shows something
+              const seed = authDisplayName || user?.email || 'User';
+              const generated = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(seed)}&backgroundType=gradientLinear&fontSize=42`;
+              setProfilePictureUrl(generated);
+              logProfileDebug('No Google avatar found; using generated initials avatar', { seed });
+              setImageDebug({ status: 'ok' });
+            }
+          } catch (err) {
+            setProfilePictureUrl(null);
+            logProfileDebug('Error while getting Google avatar', { error: err instanceof Error ? err.message : String(err) });
+            setImageDebug({ status: 'missing_url', message: 'No Google avatar found' });
           }
         }
       } catch (error) {
         console.error('Error fetching profile:', error);
+        logProfileDebug('Profile fetch threw', { error: error instanceof Error ? error.message : String(error) });
       } finally {
         setLoading(false);
       }
     };
 
     fetchProfile();
-  }, [user?.id]);
+  }, [user?.id, user, authDisplayName]);
 
   // Memoized profile data processing
   const processedProfile = useMemo(() => {
     if (!profile) return null;
+    const displayNameFromAuth = authDisplayName;
     return {
       ...profile,
-      fullName: `${profile.last_name} ${profile.middle_name ? profile.middle_name + ' ' : ''}${profile.first_name}`,
+      fullName: displayNameFromAuth,
       enrollmentStatus: profile.enrollment_status === 'enrolled' ? 'enrolled' : 'not_enrolled'
     };
-  }, [profile]);
+  }, [profile, authDisplayName]);
 
   if (loading) {
     if (isOffline) {
@@ -653,55 +315,11 @@ export const MyProfile: React.FC = () => {
         >
           
           <div className="relative flex flex-col sm:flex-row items-center gap-8 px-8 sm:px-14 pt-10 sm:pt-14 pb-2">
-            {/* Profile Picture Section */}
-            <motion.div
-              whileHover={{ scale: 1.04 }}
-              className="profile-interactive relative group flex flex-col items-center"
+            {/* Profile Picture Section (uses Supabase/Google avatar, no upload/crop) */}
+            <div
+              className="profile-picture relative w-36 h-36 sm:w-44 sm:h-44 rounded-full flex items-center justify-center overflow-hidden"
+              aria-label="Profile photo"
             >
-              {/* Crop modal */}
-              {cropModalImage && (
-                <CropModal
-                  image={cropModalImage}
-                  onCancel={() => {
-                    setCropModalImage(null);
-                    setIsUploading(false);
-                  }}
-                  onCrop={handleCropAndUpload}
-                  isUploading={isUploading}
-                />
-              )}
-              <div
-                className="profile-picture relative w-36 h-36 sm:w-44 sm:h-44 rounded-full bg-gradient-to-br from-purple-200 to-blue-200 shadow-lg flex items-center justify-center cursor-pointer group outline-none border-4 border-white ring-4 ring-blue-200 hover:ring-blue-400 focus:ring-blue-400"
-                aria-label="Upload profile photo"
-                tabIndex={0}
-                onMouseEnter={() => {
-                  if (!isTouchDevice()) setShowOverlay(true);
-                }}
-                onMouseLeave={() => {
-                  if (!isTouchDevice()) setShowOverlay(false);
-                }}
-                onFocus={() => {
-                  if (!isTouchDevice()) setShowOverlay(true);
-                }}
-                onBlur={() => {
-                  if (!isTouchDevice()) setShowOverlay(false);
-                }}
-                onClick={() => {
-                  if (!isUploading) fileInputRef.current?.click();
-                  if (isTouchDevice()) {
-                    setShowOverlay(true);
-                    if (overlayTimeout.current) clearTimeout(overlayTimeout.current);
-                    overlayTimeout.current = setTimeout(() => setShowOverlay(false), 1800);
-                  }
-                }}
-                onTouchStart={() => {
-                  if (!isUploading) fileInputRef.current?.click();
-                  setShowOverlay(true);
-                  if (overlayTimeout.current) clearTimeout(overlayTimeout.current);
-                  overlayTimeout.current = setTimeout(() => setShowOverlay(false), 1800);
-                }}
-                style={{ outline: 'none' }}
-              >
                 {/* Profile image or placeholder */}
                 {profilePictureUrl ? (
                   <img
@@ -711,53 +329,22 @@ export const MyProfile: React.FC = () => {
                     style={{ zIndex: 0, objectFit: 'cover', objectPosition: 'center', aspectRatio: '1/1', background: '#f3f4f6' }}
                     onError={() => {
                       setProfilePictureUrl(null);
+                      setImageDebug({ status: 'image_failed', message: 'Image failed to load in browser' });
                     }}
                   />
                 ) : (
                   <UserCircle className="absolute inset-0 w-full h-full text-purple-200" style={{ zIndex: 0 }} />
                 )}
-                {/* Edit icon overlay */}
-               
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleProfileUpload}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                  disabled={isUploading}
-                  tabIndex={-1}
-                  onClick={e => e.stopPropagation()}
-                  aria-label="Choose profile photo"
-                />
-                {/* Overlay always covers the entire area */}
-                <AnimatePresence>
-                  {(showOverlay || isUploading) && (
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      className="absolute inset-0 w-full h-full bg-gradient-to-br from-blue-600/80 to-purple-600/80 backdrop-blur-[6px] flex flex-col items-center justify-center gap-2 z-30 rounded-full"
-                      style={{ cursor: isUploading ? 'not-allowed' : 'pointer', boxShadow: '0 8px 32px 0 rgba(99,102,241,0.15)' }}
-                    >
-                      {isUploading ? (
-                        <>
-                          <div className="flex flex-col items-center justify-center gap-2">
-                            <div className="animate-spin rounded-full h-12 w-12 border-4 border-white border-b-transparent mb-2 shadow-lg" />
-                            <span className="text-base font-semibold text-white drop-shadow">Uploading...</span>
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <span className="text-sm text-white font-medium px-4 py-2 rounded-xl bg-white/20 backdrop-blur-sm shadow">
-                            {profilePictureUrl ? 'Change Photo' : 'Upload Photo'}
-                          </span>
-                        </>
-                      )}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                {/* Debug badge for image status */}
+                {imageDebug.status !== 'idle' && imageDebug.status !== 'ok' && (
+                  <div className={`absolute -bottom-2 left-1/2 -translate-x-1/2 translate-y-full px-2 py-1 rounded-full text-[10px] font-medium shadow ${imageDebug.status === 'missing_url' ? 'bg-gray-700 text-gray-200' : 'bg-red-700 text-white'}`}>
+                    {imageDebug.status === 'missing_url' && 'No image set'}
+                    {imageDebug.status === 'download_error' && 'Image download error'}
+                    {imageDebug.status === 'no_file_data' && 'No file data'}
+                    {imageDebug.status === 'image_failed' && 'Image failed to load'}
+                  </div>
+                )}
               </div>
-            </motion.div>
 
             {/* Profile Info Section */}
             <div className="flex-1 text-center sm:text-left space-y-2">
