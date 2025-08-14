@@ -6,7 +6,7 @@ import {
   Card,
   CardContent,
   Grid,
-  Typography,
+  Typography, 
   Table,
   TableBody,
   TableCell,
