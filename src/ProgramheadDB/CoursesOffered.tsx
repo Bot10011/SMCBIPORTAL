@@ -794,12 +794,13 @@ export default function CourseManagement() {
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Type</label>
                   <select
-                    value={courseForm.summer ? 'Summer' : 'Regular'}
+                    value={courseForm.summer ? 'Summer' : 'First Semester '}
                     onChange={e => setCourseForm({ ...courseForm, summer: e.target.value === 'Summer' })}
                     className="w-full px-4 py-3 border border-gray-300 bg-white rounded-xl shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
                     required
                   >
-                    <option value="Regular">Regular</option>
+                    <option value="First Semester ">First Semester </option>
+                    <option value="Second Semester">Second Semester</option>
                     <option value="Summer">Summer</option>
                   </select>
                 </div>
