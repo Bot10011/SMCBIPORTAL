@@ -1,55 +1,11 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Mail, UserCircle, Briefcase, Camera, Shield, Clock, Edit, Lock, X } from 'lucide-react';
-import Cropper from 'react-easy-crop';
-import { Area } from 'react-easy-crop';
+import { motion } from 'framer-motion';
+import { Mail, UserCircle, Briefcase, Edit, Lock, X } from 'lucide-react';
 import { createPortal } from 'react-dom';
 
-function getCroppedImg(
-  imageSrc: string,
-  crop: { x: number; y: number },
-  zoom: number,
-  aspect: number,
-  croppedAreaPixels: { width: number; height: number; x: number; y: number }
-): Promise<Blob> {
-  // Utility to crop the image using canvas
-  return new Promise((resolve, reject) => {
-    const image = new window.Image();
-    image.crossOrigin = 'anonymous';
-    image.src = imageSrc;
-    image.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = croppedAreaPixels.width;
-      canvas.height = croppedAreaPixels.height;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        reject(new Error('Canvas context is null'));
-        return;
-      }
-      ctx.drawImage(
-        image,
-        croppedAreaPixels.x,
-        croppedAreaPixels.y,
-        croppedAreaPixels.width,
-        croppedAreaPixels.height,
-        0,
-        0,
-        croppedAreaPixels.width,
-        croppedAreaPixels.height
-      );
-      canvas.toBlob((blob) => {
-        if (!blob) {
-          reject(new Error('Canvas is empty'));
-          return;
-        }
-        resolve(blob);
-      }, 'image/jpeg');
-    };
-    image.onerror = (e) => reject(e);
-  });
-}
+// Removed cropping/upload utilities; avatar will be fetched from Google account metadata
 
 interface TeacherProfile {
   id: string;
@@ -69,14 +25,8 @@ const TeacherSettings: React.FC = () => {
   const [profile, setProfile] = useState<TeacherProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(null);
-  const [isHovering, setIsHovering] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  // Cropper state
-  const [showCrop, setShowCrop] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [crop, setCrop] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | undefined>(undefined);
+  const [displayName, setDisplayName] = useState<string>('');
+  
   
   // Edit Profile Modal State
   const [showEditProfile, setShowEditProfile] = useState(false);
@@ -109,19 +59,58 @@ const TeacherSettings: React.FC = () => {
             .single();
           if (error) throw error;
           setProfile(data);
-          if (data?.profile_picture_url) {
-            const { data: signedUrlData, error: signedUrlError } = await supabase
-              .storage
-              .from('avatar')
-              .createSignedUrl(data.profile_picture_url, 60 * 60);
-            if (!signedUrlError && signedUrlData?.signedUrl) {
-              setProfilePictureUrl(signedUrlData.signedUrl);
-            } else {
-              setProfilePictureUrl(null);
+          // Fetch Google avatar and display name from auth user metadata (robust fallbacks)
+          const { data: authUserData } = await supabase.auth.getUser();
+          const authUserUnknown = authUserData?.user;
+          const authUserObj = authUserUnknown && typeof authUserUnknown === 'object'
+            ? (authUserUnknown as {
+                user_metadata?: Record<string, unknown> | null;
+                identities?: Array<{ provider?: string; identity_data?: Record<string, unknown> | null }> | null;
+              })
+            : undefined;
+
+          const identities = Array.isArray(authUserObj?.identities) ? authUserObj?.identities : [];
+          const googleIdentity = identities.find(i => i?.provider === 'google');
+          const identityData = googleIdentity?.identity_data || undefined;
+          const metadata = authUserObj?.user_metadata || undefined;
+
+          const avatarFromIdentity = (identityData?.['avatar_url'] as string | undefined) || (identityData?.['picture'] as string | undefined);
+          const avatarFromMetadata = (metadata?.['avatar_url'] as string | undefined) || (metadata?.['picture'] as string | undefined) || (metadata?.['profile_picture'] as string | undefined);
+          const nameFromMetadata = (metadata?.['full_name'] as string | undefined) || (metadata?.['name'] as string | undefined) || (metadata?.['given_name'] as string | undefined) || (metadata?.['preferred_username'] as string | undefined);
+          const nameFromIdentity = (identityData?.['name'] as string | undefined) || (identityData?.['full_name'] as string | undefined) || (identityData?.['given_name'] as string | undefined);
+
+          const nameFromProfile = `${data?.first_name || ''} ${data?.middle_name ? data.middle_name + ' ' : ''}${data?.last_name || ''}`.trim();
+          const resolvedName = nameFromMetadata || nameFromIdentity || nameFromProfile || data?.username || '';
+          setDisplayName(resolvedName);
+
+          let resolvedAvatar = avatarFromMetadata || avatarFromIdentity || null;
+
+          // Fallback: call Google userinfo endpoint using provider access token
+          if (!resolvedAvatar) {
+            try {
+              const { data: sessionData } = await supabase.auth.getSession();
+              const providerToken = sessionData?.session?.provider_token;
+              if (providerToken) {
+                const resp = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                  headers: { Authorization: `Bearer ${providerToken}` },
+                });
+                if (resp.ok) {
+                  const json = (await resp.json()) as Record<string, unknown>;
+                  const apiPicture = (json['picture'] as string | undefined) || null;
+                  const apiName = (json['name'] as string | undefined) || (json['given_name'] as string | undefined) || undefined;
+                  if (!resolvedName && apiName) setDisplayName(apiName);
+                  if (apiPicture) resolvedAvatar = apiPicture;
+                }
+              }
+            } catch {
+              // ignore network errors; fall back to initials avatar
             }
-          } else {
-            setProfilePictureUrl(null);
           }
+
+          if (!resolvedAvatar && resolvedName) {
+            resolvedAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(resolvedName)}`;
+          }
+          setProfilePictureUrl(resolvedAvatar);
         }
       } catch (error) {
         console.error('Error fetching profile:', error);
@@ -132,65 +121,7 @@ const TeacherSettings: React.FC = () => {
     fetchProfile();
   }, [user?.id]);
 
-  const onCropComplete = useCallback((croppedArea: Area, croppedAreaPixels: Area) => {
-    setCroppedAreaPixels(croppedAreaPixels);
-  }, []);
-
-  const handleProfileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file || !user?.id) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      setSelectedImage(reader.result as string);
-      setShowCrop(true);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleCropSave = async () => {
-    if (!selectedImage || !croppedAreaPixels || !user?.id) return;
-    try {
-      setIsUploading(true);
-      const croppedBlob = await getCroppedImg(selectedImage, crop, zoom, 1, croppedAreaPixels);
-      const fileExt = 'jpeg';
-      const fileName = `${Date.now()}.${fileExt}`;
-      const filePath = `profile-pictures/${user.id}/${fileName}`;
-      const { error: uploadError } = await supabase.storage
-        .from('avatar')
-        .upload(filePath, croppedBlob as Blob, {
-          cacheControl: '3600',
-          upsert: true
-        });
-      if (uploadError) {
-        console.error('Upload error:', uploadError);
-        throw uploadError;
-      }
-      const { data: signedUrlData, error: signedUrlError } = await supabase
-        .storage
-        .from('avatar')
-        .createSignedUrl(filePath, 60 * 60);
-      if (!signedUrlError && signedUrlData?.signedUrl) {
-        setProfilePictureUrl(signedUrlData.signedUrl);
-      } else {
-        setProfilePictureUrl(null);
-      }
-      const { error: updateError } = await supabase
-        .from('user_profiles')
-        .update({ profile_picture_url: filePath })
-        .eq('id', user.id);
-      if (updateError) {
-        console.error('Update profile error:', updateError);
-        throw updateError;
-      }
-      setShowCrop(false);
-      setSelectedImage(null);
-    } catch (error) {
-      console.error('Error uploading profile picture:', error);
-      alert(error instanceof Error ? error.message : 'Failed to upload profile picture');
-    } finally {
-      setIsUploading(false);
-    }
-  };
+  // Removed upload and crop handlers; avatar is sourced from Google metadata
 
   // Initialize edit form when profile loads
   useEffect(() => {
@@ -308,7 +239,7 @@ const TeacherSettings: React.FC = () => {
         initial={{ opacity: 0, scale: 0.95 }} 
         animate={{ opacity: 1, scale: 1 }} 
         transition={{ duration: 0.5 }}
-        className="w-full max-w-2xl mx-auto bg-white rounded-3xl shadow-2xl p-8 border border-gray-100 relative"
+        className="w-full max-w-2xl mx-auto bg-white/80 rounded-3xl shadow-2xl p-8 border border-gray-100 relative"
       >
        
 
@@ -322,7 +253,7 @@ const TeacherSettings: React.FC = () => {
             style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
           >
             <motion.div 
-              className="bg-white rounded-3xl shadow-2xl p-8 w-[95vw] max-w-md mx-4"
+              className="bg-white/80 rounded-3xl shadow-2xl p-8 w-[95vw] max-w-md mx-4"
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
@@ -419,7 +350,7 @@ const TeacherSettings: React.FC = () => {
             style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
           >
             <motion.div 
-              className="bg-white rounded-3xl shadow-2xl p-8 w-[95vw] max-w-md mx-4"
+              className="bg-white/80 rounded-3xl shadow-2xl p-8 w-[95vw] max-w-md mx-4"
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
@@ -495,78 +426,7 @@ const TeacherSettings: React.FC = () => {
           document.body
         )}
 
-        {/* Crop Modal - Using Portal */}
-        {showCrop && createPortal(
-          <motion.div 
-            className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-md" 
-            initial={{ opacity: 0 }} 
-            animate={{ opacity: 1 }} 
-            exit={{ opacity: 0 }}
-            style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
-          >
-            <motion.div 
-              className="bg-white rounded-3xl shadow-2xl p-8 w-[95vw] max-w-xs mx-4"
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            >
-              <div className="text-center mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 mb-1">Crop Profile Picture</h3>
-                <p className="text-gray-600 text-xs">Adjust and crop your image</p>
-              </div>
-              <div className="w-full aspect-square relative bg-gray-100 rounded-2xl overflow-hidden mb-4">
-                <Cropper
-                  image={selectedImage!}
-                  crop={crop}
-                  zoom={zoom}
-                  aspect={1}
-                  onCropChange={setCrop}
-                  onZoomChange={setZoom}
-                  onCropComplete={onCropComplete}
-                  cropShape="round"
-                  showGrid={false}
-                />
-              </div>
-              <div className="flex items-center justify-center gap-2 mb-4">
-                <span className="text-xs text-gray-600 font-medium">Zoom</span>
-                <input
-                  type="range"
-                  min={1}
-                  max={3}
-                  step={0.01}
-                  value={zoom}
-                  onChange={e => setZoom(Number(e.target.value))}
-                  className="w-24 accent-blue-600"
-                />
-                <span className="text-xs text-gray-500 w-8">{zoom.toFixed(1)}x</span>
-              </div>
-              <div className="flex gap-2">
-                <button 
-                  onClick={() => setShowCrop(false)} 
-                  className="flex-1 px-4 py-2 rounded-xl bg-gray-100 text-gray-700 font-medium hover:bg-gray-200 transition-all duration-200 text-xs"
-                >
-                  Cancel
-                </button>
-                <button 
-                  onClick={handleCropSave} 
-                  disabled={isUploading}
-                  className="flex-1 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium shadow-lg hover:from-blue-700 hover:to-indigo-700 focus:ring-2 focus:ring-blue-300 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed text-xs"
-                >
-                  {isUploading ? (
-                    <div className="flex items-center justify-center gap-1">
-                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                      Saving...
-                    </div>
-                  ) : (
-                    'Save'
-                  )}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>,
-          document.body
-        )}
+        {/* Removed crop modal; avatar comes from Google metadata */}
 
         {/* Horizontal Layout: Profile Picture and Details Side by Side */}
         <div className="flex items-start gap-8">
@@ -575,16 +435,7 @@ const TeacherSettings: React.FC = () => {
             <div className="relative group inline-block mb-3">
               <div 
                 className="w-32 h-32 rounded-full bg-gradient-to-br from-blue-50 to-indigo-50 shadow-lg flex items-center justify-center overflow-hidden border-4 border-white transition-all duration-300 hover:scale-105 hover:shadow-xl"
-                onMouseEnter={() => setIsHovering(true)}
-                onMouseLeave={() => setIsHovering(false)}
               >
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleProfileUpload}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                  disabled={isUploading}
-                />
                 {profilePictureUrl ? (
                   <img 
                     src={profilePictureUrl} 
@@ -595,30 +446,6 @@ const TeacherSettings: React.FC = () => {
                 ) : (
                   <UserCircle className="w-20 h-20 text-gray-300" />
                 )}
-                {/* Upload Overlay */}
-                <AnimatePresence>
-                  {isHovering && !showCrop && (
-                    <motion.div 
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center gap-1 rounded-full"
-                    >
-                      {isUploading ? (
-                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
-                      ) : (
-                        <>
-                          <div className="p-1 rounded-full bg-white/20">
-                            <Camera className="w-5 h-5 text-white" />
-                          </div>
-                          <span className="text-xs text-white font-medium">
-                            {profilePictureUrl ? 'Change Photo' : 'Upload Photo'}
-                          </span>
-                        </>
-                      )}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
               </div>
             </div>
             <h2 className="text-xl font-bold text-gray-900 mb-1 text-center">
@@ -636,6 +463,18 @@ const TeacherSettings: React.FC = () => {
 
           {/* Profile Details Section */}
           <div className="flex-1 space-y-3">
+            {/* Display Name */}
+            {displayName && (
+              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-2xl">
+                <div className="w-8 h-8 bg-indigo-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <UserCircle className="w-4 h-4 text-indigo-600" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs font-medium text-gray-600 mb-0.5">Full Name</p>
+                  <p className="text-gray-900 text-sm font-medium">{displayName}</p>
+                </div>
+              </div>
+            )}
             {/* Email */}
             <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-2xl">
               <div className="w-8 h-8 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -658,30 +497,9 @@ const TeacherSettings: React.FC = () => {
                 </div>
               </div>
             )}
-            {/* Account Status */}
-            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-2xl">
-              <div className="w-8 h-8 bg-green-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                <Shield className="w-4 h-4 text-green-600" />
-              </div>
-              <div className="flex-1">
-                <p className="text-xs font-medium text-gray-600 mb-0.5">Account Status</p>
-                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${profile.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                  {profile.is_active ? 'Active' : 'Inactive'}
-                </span>
-              </div>
-            </div>
-            {/* Last Updated */}
-            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-2xl">
-              <div className="w-8 h-8 bg-purple-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                <Clock className="w-4 h-4 text-purple-600" />
-              </div>
-              <div className="flex-1">
-                <p className="text-xs font-medium text-gray-600 mb-0.5">Profile Last Updated</p>
-                <p className="text-gray-900 text-xs font-medium">Recently</p>
-              </div>
-            </div>
           </div>
         </div>
+
 
         {/* Action Buttons */}
         <div className="flex gap-3 pt-6 mt-6 border-t border-gray-100">
@@ -700,6 +518,7 @@ const TeacherSettings: React.FC = () => {
         </div>
       </motion.div>
     </div>
+    
   );
 };
 
