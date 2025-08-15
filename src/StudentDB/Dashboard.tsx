@@ -91,32 +91,6 @@ const LoadingSpinner = () => (
           </div>
         ))}
       </div>
-
-      {/* Announcements Skeleton */}
-      <div className="bg-gray-100/80 backdrop-blur-sm rounded-xl border border-gray-200/50 overflow-hidden">
-        <div className="p-5 sm:p-6 md:p-8 border-b border-gray-200/50">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gray-200 rounded-xl animate-pulse"></div>
-            <div className="h-6 w-32 bg-gray-200 rounded animate-pulse"></div>
-          </div>
-        </div>
-        <div className="p-6">
-          {[1, 2, 3].map(i => (
-            <div key={i} className="flex flex-col sm:flex-row items-stretch gap-6 p-6 bg-white rounded-xl shadow-lg border border-gray-200 my-4">
-              <div className="w-full sm:w-40 h-40 bg-gray-200 rounded-lg animate-pulse"></div>
-              <div className="flex-1 space-y-3">
-                <div className="h-6 w-48 bg-gray-200 rounded animate-pulse"></div>
-                <div className="h-4 w-full bg-gray-200 rounded animate-pulse"></div>
-                <div className="h-4 w-3/4 bg-gray-200 rounded animate-pulse"></div>
-                <div className="flex justify-between items-center">
-                  <div className="h-3 w-32 bg-gray-200 rounded animate-pulse"></div>
-                  <div className="h-6 w-20 bg-gray-200 rounded-full animate-pulse"></div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   </div>
 );
@@ -166,6 +140,7 @@ const DashboardOverview = () => {
     gpa: 0
   });
   const [googleClassroomStatus, setGoogleClassroomStatus] = useState<'connected' | 'disconnected' | 'checking'>('checking');
+  const [notifications, setNotifications] = useState<Array<{ id: string; title: string; message: string; severity: string; created_at: string }>>([]);
 
   // Check Google Classroom connection status
   useEffect(() => {
@@ -190,6 +165,28 @@ const DashboardOverview = () => {
 
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
+  }, [user?.id]);
+
+  // Fetch notifications for students (audience student/all)
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      if (!user?.id) return;
+      try {
+        const { data, error } = await supabase
+          .from('notifications')
+          .select('id, title, message, severity, created_at')
+          .eq('is_active', true)
+          .in('audience', ['student','all'])
+          .order('created_at', { ascending: false })
+          .limit(20);
+        if (error) throw error;
+        setNotifications(data || []);
+      } catch (err) {
+        console.error('Student notifications fetch error:', err);
+        setNotifications([]);
+      }
+    };
+    fetchNotifications();
   }, [user?.id]);
 
   // Memoized data processing
@@ -294,51 +291,6 @@ const DashboardOverview = () => {
     }));
   }, []);
 
-  // Remove the dummy announcements state and add real fetching logic
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-  const [loadingAnnouncements, setLoadingAnnouncements] = useState(true);
-
-  // Announcement type based on LandingPage.tsx
-  interface Announcement {
-    id: string;
-    title: string;
-    content: string;
-    author: string;
-    date: string;
-    priority: 'low' | 'medium' | 'high';
-    category: string;
-    image?: string;
-    is_active: boolean;
-    created_at: string;
-    updated_at: string;
-  }
-
-  useEffect(() => {
-    let isMounted = true;
-    const fetchAnnouncements = async () => {
-      setLoadingAnnouncements(true);
-      try {
-        const { data, error } = await supabase
-          .from('announcements')
-          .select('*')
-          .eq('is_active', true)
-          .order('created_at', { ascending: false })
-          .limit(10);
-        if (error) {
-          console.error('Error fetching announcements:', error);
-        } else if (isMounted) {
-          setAnnouncements(data || []);
-        }
-      } catch (error) {
-        console.error('Error fetching announcements:', error);
-      } finally {
-        setLoadingAnnouncements(false);
-      }
-    };
-    fetchAnnouncements();
-    return () => { isMounted = false; };
-  }, []);
-
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-auto">
@@ -380,7 +332,7 @@ const DashboardOverview = () => {
                     </span>
                   </div>
                   <p className="mt-3 text-sm sm:text-base text-white max-w-2xl sm:text-left text-center">
-                    Here's what's happening with your academic progress. Stay updated with your courses, grades, and important announcements.
+                    Here's what's happening with your academic progress. Stay updated with your courses, grades, and important notifications.
                   </p>
                 </div>
               </div>
@@ -472,79 +424,36 @@ const DashboardOverview = () => {
             </motion.div>
           </div>
 
-          {/* Announcements */}
+       
+
+          {/* Notifications (from DB audience student/all) */}
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
-            className="dashboard-announcements bg-[#252728] rounded-xl border border-[#444] overflow-hidden"
+            transition={{ duration: 0.5, delay: 0.35 }}
+            className="bg-[#252728] rounded-xl border border-[#444] p-6"
           >
-            <div className="p-5 sm:p-6 md:p-8 border-b border-[#444] bg-[#1e1f21]">
-              <h2 className="text-lg sm:text-xl md:text-2xl font-semibold text-white flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-[#2b2d2f]">
-                  <Bell className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-600" />
-                </div>
-                Announcements
-              </h2>
-            </div>
-            <div className="divide-y divide-[#444]">
-              {loadingAnnouncements ? (
-                <div className="flex justify-center items-center h-32">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-                </div>
-              ) : announcements.length === 0 ? (
-                <div className="p-6 text-center text-gray-300">No announcements available.</div>
-              ) : (
-                announcements.map((announcement, index) => (
-                  <motion.div
-                    key={announcement.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3, delay: 0.4 + index * 0.1 }}
-                    className="dashboard-announcement-item group flex flex-col sm:flex-row items-stretch gap-6 p-6 md:p-8 bg-[#333334] rounded-xl shadow-lg border border-[#444] my-4 mx-2 sm:mx-4 transition-all duration-200"
-                  >
-                    {/* Image section */}
-                    {announcement.image && (
-                      <div className="flex-shrink-0 flex items-center justify-center w-full sm:w-40 md:w-48 h-40 bg-[#252728] rounded-lg overflow-hidden border border-[#444] shadow-sm mb-4 sm:mb-0">
-                        <img
-                          src={announcement.image}
-                          alt="Announcement"
-                          className="object-cover w-full h-full"
-                          onError={e => { e.currentTarget.style.display = 'none'; }}
-                        />
-                      </div>
-                    )}
-                    {/* Content section */}
-                    <div className="flex-1 flex flex-col justify-between min-w-0">
-                      <div>
-                        <h3 className="text-xl md:text-2xl font-bold text-white mb-2 truncate">
-                          {announcement.title}
-                        </h3>
-                        <p className="text-gray-300 text-sm md:text-base mb-3 whitespace-pre-line line-clamp-4">
-                          {announcement.content}
-                        </p>
-                      </div>
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between mt-4 gap-2">
-                        <div className="flex items-center gap-3 text-xs text-gray-400">
-                          <span>By <span className="font-semibold text-white">{announcement.author}</span></span>
-                          <span className="hidden sm:inline">•</span>
-                          <span className="text-gray-300">{new Date(announcement.created_at).toLocaleString()}</span>
-                        </div>
-                        <span className={`px-4 py-1.5 text-xs font-semibold rounded-full transition-colors border border-gray-200 shadow-sm ${
-                          announcement.category === 'academic' 
-                            ? 'bg-blue-50 text-blue-700' 
-                            : announcement.category === 'registration' 
-                            ? 'bg-green-50 text-green-700' 
-                            : 'bg-purple-50 text-purple-700'
-                        }`}>
-                          {announcement.category}
-                        </span>
-                      </div>
+            <h2 className="text-lg sm:text-xl md:text-2xl font-semibold text-white flex items-center gap-3 mb-4">
+              <div className="p-2 rounded-xl bg-[#2b2d2f]">
+                <Bell className="w-5 h-5 sm:w-6 sm:h-6 text-blue-500" />
+              </div>
+              Notifications
+            </h2>
+            {notifications.length === 0 ? (
+              <div className="text-gray-300 text-sm">No notifications right now.</div>
+            ) : (
+              <div className="space-y-3">
+                {notifications.map((n) => (
+                  <div key={n.id} className="flex items-start justify-between p-3 bg-[#333334] rounded-lg border border-[#444]">
+                    <div className="pr-4">
+                      <div className="text-white font-medium text-sm">{n.title}</div>
+                      <div className="text-gray-300 text-xs">{n.message}</div>
                     </div>
-                  </motion.div>
-                ))
-              )}
-            </div>
+                    <div className="text-xs text-gray-400 whitespace-nowrap">{new Date(n.created_at).toLocaleString()}</div>
+                  </div>
+                ))}
+              </div>
+            )}
           </motion.div>
         </div>
       </div>
