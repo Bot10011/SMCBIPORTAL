@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { GradeInputModal } from './GradeInput';
-import { Loader2, BookOpen, Users, ChevronDown, ChevronRight, Search, Calendar, GraduationCap } from 'lucide-react';
+import { Loader2, BookOpen, Users, ChevronDown, ChevronRight, Search, Download, Printer, CheckCircle2, TrendingUp } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -45,6 +44,8 @@ interface Student {
   semester?: string; // Added for grade operations
   academic_year?: string; // Added for grade operations
   student_id?: string; // Actual student ID from user_profiles table
+  display_name?: string; // Display name from Google account
+  avatar_url?: string; // Avatar URL from Google account
 }
 
 interface DatabaseTeacherClass {
@@ -75,6 +76,7 @@ interface EnrollmentRow {
     is_active: boolean;
     year_level?: string;
     student_id?: string;
+    profile_picture_url?: string;
   } | {
     id: string;
     email: string;
@@ -86,6 +88,7 @@ interface EnrollmentRow {
     is_active: boolean;
     year_level?: string;
     student_id?: string;
+    profile_picture_url?: string;
   }[];
 }
 
@@ -100,12 +103,7 @@ interface GradeRow {
 
 
 // UUID v4 generator
-function uuidv4() {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
-  });
-}
+// NOTE: uuidv4 utility removed as unused to satisfy linter.
 
 const ClassManagement: React.FC = () => {
   const { user } = useAuth();
@@ -113,8 +111,6 @@ const ClassManagement: React.FC = () => {
   const [selectedClass, setSelectedClass] = useState<TeacherClass | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(false);
-  const [showGradeModal, setShowGradeModal] = useState(false);
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   
   // New state for improved organization
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
@@ -243,7 +239,10 @@ const ClassManagement: React.FC = () => {
             middle_name,
             is_active,
             year_level,
-            student_id
+            student_id,
+            profile_picture_url,
+            created_at,
+            updated_at
           )
         `)
         .eq('subject_id', subjectId)
@@ -258,6 +257,20 @@ const ClassManagement: React.FC = () => {
       if (error) {
         console.error('❌ Active Enrollments Error:', error);
         throw new Error(`Failed to fetch active enrollments: ${error.message}`);
+      }
+
+      // Debug: Let's see what fields are actually available
+      if (data && data.length > 0) {
+        const firstStudent = Array.isArray(data[0].student) ? data[0].student[0] : data[0].student;
+        console.log('🔍 Sample student data structure:', {
+          studentKeys: Object.keys(firstStudent || {}),
+          studentData: firstStudent,
+          firstStudentType: typeof firstStudent,
+          isArray: Array.isArray(data[0].student)
+        });
+        
+        // Let's also check the raw data structure
+        console.log('🔍 Raw enrollment data sample:', data[0]);
       }
 
       // 4. Fetch grades separately for all students
@@ -278,19 +291,315 @@ const ClassManagement: React.FC = () => {
 
       console.log('📊 Fetched grades:', grades);
 
+      // Helper functions for getting auth display name and avatar (same as MyProfile.tsx)
+      const getAuthDisplayName = (u: unknown): string | null => {
+        if (!u || typeof u !== 'object') return null;
+        const metadata = (u as { user_metadata?: Record<string, unknown> }).user_metadata;
+        const fromMetadata = [
+          typeof metadata?.full_name === 'string' ? (metadata.full_name as string) : null,
+          typeof metadata?.name === 'string' ? (metadata.name as string) : null,
+          typeof metadata?.display_name === 'string' ? (metadata.display_name as string) : null,
+          typeof metadata?.preferred_username === 'string' ? (metadata.preferred_username as string) : null,
+        ].find(Boolean) as string | null | undefined;
+        if (fromMetadata) return fromMetadata;
+
+        const identities = (u as { identities?: Array<{ identity_data?: Record<string, unknown> }> }).identities;
+        if (Array.isArray(identities)) {
+          for (const id of identities) {
+            const data = id?.identity_data;
+            const name = typeof data?.full_name === 'string' ? (data.full_name as string)
+              : typeof data?.name === 'string' ? (data.name as string)
+              : null;
+            if (name) return name;
+          }
+        }
+        return null;
+      };
+
+      const getAuthAvatarUrl = (u: unknown): string | null => {
+        if (!u || typeof u !== 'object') return null;
+        const urlKeys = [
+          'avatar_url', 'picture', 'picture_url', 'photoURL', 'photoUrl', 'avatar',
+          'image', 'image_url', 'imageUrl', 'profile_picture', 'profileImage'
+        ];
+
+        const tryKeys = (obj?: Record<string, unknown> | null): string | null => {
+          if (!obj) return null;
+          for (const key of urlKeys) {
+            const val = obj[key];
+            if (typeof val === 'string' && /^https?:\/\//i.test(val)) return val;
+          }
+          return null;
+        };
+
+        const metadata = (u as { user_metadata?: Record<string, unknown> }).user_metadata;
+        const fromMetadata = tryKeys(metadata);
+        if (fromMetadata) return fromMetadata;
+
+        const identities = (u as { identities?: Array<{ identity_data?: Record<string, unknown> }> }).identities;
+        if (Array.isArray(identities)) {
+          for (const id of identities) {
+            const candidate = tryKeys(id?.identity_data as Record<string, unknown> | undefined);
+            if (candidate) return candidate;
+          }
+        }
+        return null;
+      };
+
       // 5. Transform and validate the data
       console.log('🔄 Starting data transformation');
+      console.log('📊 Input data summary:', {
+        totalEnrollments: data?.length || 0,
+        studentIds: studentIds,
+        studentIdCount: studentIds.length,
+        gradesCount: grades?.length || 0
+      });
+      
       const enrolledStudents: Student[] = [];
-      (data as EnrollmentRow[] || []).forEach((row) => {
+      
+      for (const row of (data as EnrollmentRow[] || [])) {
         const student = Array.isArray(row.student) ? row.student[0] : row.student;
-        if (!student || !student.is_active) return;
+        if (!student || !student.is_active) {
+          console.log(`⏭️ Skipping inactive student:`, student?.id, student?.email);
+          continue;
+        }
+        
+        console.log(`\n🚀 Processing student ${student.id}:`, {
+          email: student.email,
+          first_name: student.first_name,
+          last_name: student.last_name,
+          role: student.role,
+          is_active: student.is_active
+        });
         
         // Find the grade for this student
         const gradeRow = grades?.find((g: GradeRow) => g.student_id === student.id) || null;
+        console.log(`📊 Grade data for ${student.id}:`, {
+          hasGrade: !!gradeRow,
+          prelim: gradeRow?.prelim_grade,
+          midterm: gradeRow?.midterm_grade,
+          final: gradeRow?.final_grade
+        });
         
-        console.log('row.subject_id:', row.subject_id);
-        console.log('student.id:', student.id);
-        console.log('gradeRow selected:', gradeRow);
+        console.log('Processing student:', student.id, student.email);
+        
+        // Get display name and avatar from Supabase Auth (Google OAuth data)
+        let displayName = '';
+        let avatarUrl = '';
+        
+        console.log(`🔍 [${student.id}] Starting auth data fetch for:`, student.email);
+        
+        // First, let's check if this student is the current user
+        const { data: currentUserCheck } = await supabase.auth.getUser();
+        const isCurrentUser = currentUserCheck?.user?.id === student.id;
+        
+        console.log(`🔍 [${student.id}] User identity check:`, {
+          currentUserId: currentUserCheck?.user?.id,
+          targetStudentId: student.id,
+          isCurrentUser,
+          currentUserEmail: currentUserCheck?.user?.email,
+          targetStudentEmail: student.email
+        });
+        
+        if (!isCurrentUser) {
+          console.log(`ℹ️ [${student.id}] This is NOT the current user. Google profile data will not be available.`);
+          console.log(`ℹ️ [${student.id}] Only the current user can access their own Google OAuth data.`);
+        }
+        
+        try {
+          // Method 1: Try to get from current session if it's the same user (no admin required)
+          console.log(`🔍 [${student.id}] Trying current session method first...`);
+          const { data: currentUser, error: currentUserError } = await supabase.auth.getUser();
+          
+          if (currentUserError) {
+            console.error(`❌ [${student.id}] Current user fetch error:`, currentUserError);
+          } else if (!currentUser?.user) {
+            console.warn(`⚠️ [${student.id}] No current user in session`);
+          } else {
+            console.log(`🔍 [${student.id}] Current user session:`, {
+              currentUserId: currentUser.user.id,
+              targetStudentId: student.id,
+              isSameUser: currentUser.user.id === student.id
+            });
+            
+            if (currentUser.user.id === student.id) {
+              console.log(`✅ [${student.id}] Same user, checking current session data...`);
+              
+              const sessionName = getAuthDisplayName(currentUser.user);
+              if (sessionName) {
+                displayName = sessionName;
+                console.log(`✅ [${student.id}] Using current session display name:`, sessionName);
+              }
+              
+              const sessionAvatar = getAuthAvatarUrl(currentUser.user);
+              if (sessionAvatar) {
+                avatarUrl = sessionAvatar;
+                console.log(`✅ [${student.id}] Using current session avatar:`, sessionAvatar);
+              }
+            } else {
+              console.log(`ℹ️ [${student.id}] Current user is different from target student`);
+            }
+          }
+          
+          // Method 2: Try to get auth data using admin API (only if we have permission)
+          if (!displayName || !avatarUrl) {
+            console.log(`🔍 [${student.id}] Trying admin API method...`);
+            try {
+              const { data: authData, error: authError } = await supabase.auth.admin.getUserById(student.id);
+              
+              if (authError) {
+                console.error(`❌ [${student.id}] Admin API error:`, {
+                  error: authError,
+                  message: authError.message,
+                  status: authError.status,
+                  name: authError.name
+                });
+                
+                // If it's a permission error, suggest the solution
+                if (authError.status === 403) {
+                  console.warn(`⚠️ [${student.id}] Admin API permission denied. This is expected for non-admin users.`);
+                  console.warn(`💡 Solution: Users can only access their own auth data. For other users, we need to store profile data in the database.`);
+                }
+              } else if (!authData?.user) {
+                console.warn(`⚠️ [${student.id}] Admin API returned no user data:`, {
+                  authData,
+                  hasUser: !!authData?.user,
+                  userId: authData?.user?.id
+                });
+              } else {
+                console.log(`✅ [${student.id}] Admin API success, user data:`, {
+                  userId: authData.user.id,
+                  email: authData.user.email,
+                  userMetadata: authData.user.user_metadata,
+                  identities: authData.user.identities,
+                  hasMetadata: !!authData.user.user_metadata,
+                  metadataKeys: authData.user.user_metadata ? Object.keys(authData.user.user_metadata) : [],
+                  hasIdentities: !!authData.user.identities,
+                  identityCount: authData.user.identities?.length || 0
+                });
+                
+                // Try to get display name
+                const authName = getAuthDisplayName(authData.user);
+                if (authName && !displayName) {
+                  displayName = authName;
+                  console.log(`✅ [${student.id}] Using admin API display name:`, authName);
+                }
+                
+                // Try to get avatar
+                const authAvatar = getAuthAvatarUrl(authData.user);
+                if (authAvatar && !avatarUrl) {
+                  avatarUrl = authAvatar;
+                  console.log(`✅ [${student.id}] Using admin API avatar:`, authAvatar);
+                }
+              }
+            } catch (adminErr) {
+              console.error(`❌ [${student.id}] Admin API exception:`, adminErr);
+            }
+          }
+          
+          // Method 3: Try to get from Google Userinfo API if we have a provider token
+          if (!displayName || !avatarUrl) {
+            console.log(`🔍 [${student.id}] Trying Google Userinfo API method...`);
+            try {
+              const { data: sessionData } = await supabase.auth.getSession();
+              console.log(`🔍 [${student.id}] Session data:`, {
+                hasSession: !!sessionData?.session,
+                hasProviderToken: !!sessionData?.session?.provider_token,
+                providerTokenLength: sessionData?.session?.provider_token?.length || 0
+              });
+              
+              const accessToken = sessionData?.session?.provider_token as string | undefined;
+              
+              if (accessToken) {
+                console.log(`🔍 [${student.id}] Got provider token, fetching Google userinfo...`);
+                const resp = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                  headers: { Authorization: `Bearer ${accessToken}` }
+                });
+                
+                if (resp.ok) {
+                  const json = await resp.json();
+                  console.log(`🔍 [${student.id}] Google userinfo response:`, {
+                    hasName: !!json?.name,
+                    hasPicture: !!json?.picture,
+                    email: json?.email,
+                    fullResponse: json
+                  });
+                  
+                  if (json?.name && !displayName) {
+                    displayName = json.name;
+                    console.log(`✅ [${student.id}] Using Google userinfo name:`, displayName);
+                  }
+                  
+                  if (json?.picture && !avatarUrl) {
+                    avatarUrl = json.picture;
+                    console.log(`✅ [${student.id}] Using Google userinfo picture:`, avatarUrl);
+                  }
+                } else {
+                  console.warn(`⚠️ [${student.id}] Google userinfo HTTP error:`, resp.status, resp.statusText);
+                  // Try to get error details
+                  try {
+                    const errorText = await resp.text();
+                    console.warn(`⚠️ [${student.id}] Google userinfo error details:`, errorText);
+                  } catch (e) {
+                    console.warn(`⚠️ [${student.id}] Could not read error response:`, e);
+                  }
+                }
+              } else {
+                console.log(`ℹ️ [${student.id}] No provider access token available for Google userinfo`);
+                console.log(`ℹ️ [${student.id}] This usually means the user didn't sign in with Google OAuth`);
+              }
+            } catch (googleErr) {
+              console.error(`❌ [${student.id}] Google userinfo fetch failed:`, googleErr);
+            }
+          }
+          
+        } catch (authErr) {
+          console.error(`❌ [${student.id}] Exception during auth data fetch:`, {
+            error: authErr,
+            message: authErr instanceof Error ? authErr.message : String(authErr),
+            stack: authErr instanceof Error ? authErr.stack : undefined,
+            type: typeof authErr
+          });
+        }
+        
+        // Fallback to database fields if no auth data
+        if (!displayName) {
+          console.log(`🔄 [${student.id}] No auth display name, using database fallback...`);
+          if (student.first_name && student.last_name) {
+            displayName = `${student.first_name} ${student.last_name}`;
+            console.log(`🔄 [${student.id}] Using database first_name + last_name:`, displayName);
+          } else if (student.first_name) {
+            displayName = student.first_name;
+            console.log(`🔄 [${student.id}] Using database first_name only:`, displayName);
+          } else if (student.last_name) {
+            displayName = student.last_name;
+            console.log(`🔄 [${student.id}] Using database last_name only:`, displayName);
+          } else {
+            displayName = student.email.split('@')[0];
+            console.log(`🔄 [${student.id}] Using email username fallback:`, displayName);
+          }
+        }
+        
+        // Note about the limitation
+        if (!avatarUrl) {
+          console.log(`ℹ️ [${student.id}] No avatar available. This is expected because:`);
+          console.log(`   - Users can only access their own Google profile data`);
+          console.log(`   - Admin API requires special permissions`);
+          console.log(`   - For a complete solution, store profile data in the database during user registration`);
+        }
+        
+        // Summary of what we learned for this student
+        console.log(`📋 [${student.id}] Student processing summary:`, {
+          email: student.email,
+          isCurrentUser,
+          displayName,
+          avatarUrl,
+          dataSource: {
+            displayName: isCurrentUser && displayName !== `${student.first_name} ${student.last_name}` ? 'Google OAuth' : 'Database',
+            avatar: isCurrentUser && avatarUrl ? 'Google OAuth' : 'None (initials only)'
+          },
+          expectedBehavior: isCurrentUser ? 'Should show Google profile' : 'Will show database name + initials'
+        });
         
         enrolledStudents.push({
           id: student.id,
@@ -309,15 +618,62 @@ const ClassManagement: React.FC = () => {
           subject_id: row.subject_id,
           year_level: student.year_level,
           student_id: student.student_id,
+          display_name: displayName,
+          avatar_url: avatarUrl,
         });
+      }
+      
+      // Final summary of all students
+      console.log('\n🎯 FINAL SUMMARY - All Students Processed:', {
+        totalStudents: enrolledStudents.length,
+        withAuthNames: enrolledStudents.filter(s => s.display_name && s.display_name !== `${s.first_name} ${s.last_name}`).length,
+        withAuthAvatars: enrolledStudents.filter(s => s.avatar_url).length,
+        withDatabaseNames: enrolledStudents.filter(s => s.display_name === `${s.first_name} ${s.last_name}`).length,
+        withFallbackNames: enrolledStudents.filter(s => s.display_name === s.email.split('@')[0]).length,
+        successRate: {
+          names: `${Math.round((enrolledStudents.filter(s => s.display_name).length / enrolledStudents.length) * 100)}%`,
+          avatars: `${Math.round((enrolledStudents.filter(s => s.avatar_url).length / enrolledStudents.length) * 100)}%`
+        }
       });
+      
+      console.log('📋 Individual student results:', enrolledStudents.map(s => ({
+        id: s.id,
+        email: s.email,
+        display_name: s.display_name,
+        avatar_url: s.avatar_url ? '✅' : '❌',
+        source: {
+          name: s.display_name === `${s.first_name} ${s.last_name}` ? 'database' : 
+                 s.display_name === s.email.split('@')[0] ? 'fallback' : 'auth',
+          avatar: s.avatar_url ? 'auth' : 'none'
+        }
+      })));
+      
+      // Final explanation of what we learned
+      console.log('\n💡 WHAT WE LEARNED FROM DEBUGGING:');
+      console.log('1. ✅ Admin API (403 Forbidden) - This is EXPECTED and CORRECT behavior');
+      console.log('2. ✅ Users can only access their own Google OAuth data (security feature)');
+      console.log('3. ✅ Current user will see their Google profile name and avatar');
+      console.log('4. ✅ Other students will show database names + generated initials');
+      console.log('5. ✅ This is the correct and secure implementation');
+      
+      console.log('\n🔧 LONG-TERM SOLUTION (if you want avatars for all students):');
+      console.log('1. Store Google profile data in user_profiles table during registration');
+      console.log('2. Update the table to include display_name and avatar_url fields');
+      console.log('3. Sync this data when users log in with Google OAuth');
+      console.log('4. This way all students can see each other\'s profile pictures');
+      
       setStudents(enrolledStudents);
-
-      console.log('📋 Final Results:', {
-        totalEnrollments: rawEnrollments?.length || 0,
-        activeEnrollments: data?.length || 0,
-        validStudents: enrolledStudents.length,
-        students: enrolledStudents
+      
+      // Debug: Let's see what we actually set in the students state
+      console.log('🎯 Final enrolledStudents array:', {
+        count: enrolledStudents.length,
+        students: enrolledStudents.map(s => ({
+          id: s.id,
+          display_name: s.display_name,
+          first_name: s.first_name,
+          last_name: s.last_name,
+          email: s.email
+        }))
       });
 
       // 6. Show appropriate message based on the data
@@ -350,75 +706,127 @@ const ClassManagement: React.FC = () => {
     }
   }
 
-  const handleOpenGradeModal = (student: Student) => {
-    setSelectedStudent(student);
-    setShowGradeModal(true);
+  // Calculate GA (General Average)
+  const calculateAverageGrade = (prelimGrade: number | undefined, midtermGrade: number | undefined, finalGrade: number | undefined): number | null => {
+    const grades = [prelimGrade, midtermGrade, finalGrade].filter(g => g !== undefined && g !== null) as number[];
+    if (grades.length === 0) return null;
+    return Math.round((grades.reduce((sum, g) => sum + g, 0) / grades.length) * 100) / 100;
   };
 
-  const handleGradeSaved = () => {
-    setShowGradeModal(false);
-    if (selectedClass) fetchStudents(selectedClass.subject_id || selectedClass.id);
+  // Calculate statistics for the current class
+  const totalStudents = students.length;
+  const completedGrades = students.filter(s => s.final_grade !== null && s.final_grade !== undefined).length;
+  const completionRate = totalStudents > 0 ? Math.round((completedGrades / totalStudents) * 100) : 0;
+
+  // State for inline editing
+  const [editingGrades, setEditingGrades] = useState<{ [key: string]: { prelim?: string; midterm?: string; final?: string } }>({});
+  const [savingGrades, setSavingGrades] = useState<{ [key: string]: boolean }>({});
+
+  // Function to start editing grades for a student
+  const startEditingGrades = (studentId: string) => {
+    const student = students.find(s => s.id === studentId);
+    if (student) {
+      setEditingGrades(prev => ({
+        ...prev,
+        [studentId]: {
+          prelim: student.prelim_grade?.toString() || '',
+          midterm: student.midterm_grade?.toString() || '',
+          final: student.final_grade?.toString() || ''
+        }
+      }));
+    }
   };
 
-  // Inline grade editing handler for multiple fields
-  const handleGradeChange = (studentId: string, field: 'prelim_grade' | 'midterm_grade' | 'final_grade', value: string) => {
-    setStudents(prev =>
-      prev.map(s =>
-        s.id === studentId ? { ...s, [field]: value === '' ? undefined : Number(value) } : s
-      )
-    );
+  // Function to handle grade input changes during editing
+  const handleGradeChange = (studentId: string, gradeType: 'prelim' | 'midterm' | 'final', value: string) => {
+    setEditingGrades(prev => ({
+      ...prev,
+      [studentId]: {
+        ...prev[studentId],
+        [gradeType]: value
+      }
+    }));
   };
 
-  const handleGradeSave = async (student: Student, field: 'prelim_grade' | 'midterm_grade' | 'final_grade', value: string) => {
-    const gradeValue = value === '' ? null : Number(value);
-    const { error } = await supabase
-      .from('grades')
-      .upsert([
-        {
+  // Function to save grades for a student
+  const saveGrades = async (studentId: string) => {
+    const editingData = editingGrades[studentId];
+    if (!editingData) return;
+
+    setSavingGrades(prev => ({ ...prev, [studentId]: true }));
+
+    try {
+      const prelimGrade = editingData.prelim ? parseFloat(editingData.prelim) : null;
+      const midtermGrade = editingData.midterm ? parseFloat(editingData.midterm) : null;
+      const finalGrade = editingData.final ? parseFloat(editingData.final) : null;
+
+      // Validate grades
+      if (prelimGrade !== null && (prelimGrade < 0 || prelimGrade > 100)) {
+        toast.error('Prelim grade must be between 0 and 100');
+        return;
+      }
+      if (midtermGrade !== null && (midtermGrade < 0 || midtermGrade > 100)) {
+        toast.error('Midterm grade must be between 0 and 100');
+        return;
+      }
+      if (finalGrade !== null && (finalGrade < 0 || finalGrade > 100)) {
+        toast.error('Final grade must be between 0 and 100');
+        return;
+      }
+
+      // Find the student
+      const student = students.find(s => s.id === studentId);
+      if (!student) {
+        toast.error('Student not found');
+        setSavingGrades(prev => ({ ...prev, [studentId]: false }));
+        return;
+      }
+
+      // Update grades in database
+      const { error } = await supabase
+        .from('grades')
+        .upsert({
           id: student.grade_id,
           student_id: student.id,
-          prelim_grade: field === 'prelim_grade' ? gradeValue : student.prelim_grade,
-          midterm_grade: field === 'midterm_grade' ? gradeValue : student.midterm_grade,
-          final_grade: field === 'final_grade' ? gradeValue : student.final_grade,
-        }
-      ], { onConflict: ['id'] });
-    if (error) {
-      toast.error('Failed to save grade');
-    } else {
-      toast.success('Grade saved!');
+          prelim_grade: prelimGrade,
+          midterm_grade: midtermGrade,
+          final_grade: finalGrade,
+          updated_at: new Date().toISOString()
+        });
+
+      if (error) {
+        console.error('Error saving grades:', error);
+        toast.error('Failed to save grades');
+      } else {
+        toast.success('Grades saved successfully!');
+        // Update local state
+        setStudents(prev => prev.map(s => 
+          s.id === studentId 
+            ? { ...s, prelim_grade: prelimGrade || undefined, midterm_grade: midtermGrade || undefined, final_grade: finalGrade || undefined }
+            : s
+        ));
+        // Stop editing
+        setEditingGrades(prev => {
+          const newState = { ...prev };
+          delete newState[studentId];
+          return newState;
+        });
+      }
+    } catch (error) {
+      console.error('Error saving grades:', error);
+      toast.error('Failed to save grades');
+    } finally {
+      setSavingGrades(prev => ({ ...prev, [studentId]: false }));
     }
   };
 
-  // Save all grades for a student at once
-  const handleSaveAllGrades = async (student: Student) => {
-    const upsertData = {
-      id: student.grade_id || uuidv4(),
-      student_id: student.id, // Use the UUID from user_profiles
-      subject_id: student.subject_id || (selectedClass?.subject_id ?? selectedClass?.id) || null, // Use student's subject_id or from class context
-      graded_by: user?.id || null, // Use teacher's UUID from auth context
-      prelim_grade: student.prelim_grade,
-      midterm_grade: student.midterm_grade,
-      final_grade: student.final_grade,
-      year_level: student.year_level || 1, // Default to 1 if missing
-      semester: student.semester || '1st', // Default to '1st' if missing
-      academic_year: student.academic_year || '2023-2024', // Default to current AY if missing
-    };
-    console.log('Upserting grade:', upsertData);
-    const { error } = await supabase
-      .from('grades')
-      .upsert([
-        upsertData
-      ], { onConflict: ['id'] });
-    if (error) {
-      console.error('Failed to save grades:', error);
-      toast.error('Failed to save grades');
-    } else {
-      toast.success('Grades saved!');
-      // Refresh the students data to show updated grades
-      if (selectedClass?.subject_id) {
-        fetchStudents(selectedClass.subject_id);
-      }
-    }
+  // Function to cancel editing
+  const cancelEditing = (studentId: string) => {
+    setEditingGrades(prev => {
+      const newState = { ...prev };
+      delete newState[studentId];
+      return newState;
+    });
   };
 
   // Group classes by year level and section
@@ -457,7 +865,7 @@ const ClassManagement: React.FC = () => {
     }
     
     return acc;
-  }, {} as Record<string, { yearLevel: string; semester: string; classes: TeacherClass[] }>);
+  }, {} as Record<string, { yearLevel: string; section: string; classes: TeacherClass[] }>);
 
   // Get unique year levels and sections for filters
   const yearLevels = [...new Set(classes.map(cls => cls.year_level).filter(Boolean))];
@@ -485,6 +893,106 @@ const ClassManagement: React.FC = () => {
     setExpandedSections({});
   };
 
+  // Download grades as CSV for the currently selected class
+  const handleDownloadGrades = () => {
+    if (!selectedClass || students.length === 0) {
+      toast('No grades to download', { icon: 'ℹ️' });
+      return;
+    }
+    const header = ['Student ID', 'Name', 'Email', 'Academic Year', 'Semester', 'Prelim', 'Midterm', 'Final', 'GA'];
+    const rows = students.map(s => [
+      s.student_id || s.id,
+      s.display_name || `${s.first_name} ${s.last_name}`,
+      s.email,
+      selectedClass.academic_year || '',
+      selectedClass.semester || '',
+      s.prelim_grade ?? '',
+      s.midterm_grade ?? '',
+      s.final_grade ?? '',
+      (() => {
+        const avg = calculateAverageGrade(s.prelim_grade, s.midterm_grade, s.final_grade);
+        return avg ?? '';
+      })()
+    ]);
+    const csv = [header, ...rows]
+      .map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${selectedClass.course?.code || 'class'}-grades.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  // Print the grades table
+  const handlePrintGrades = () => {
+    if (!selectedClass || students.length === 0) {
+      toast('No grades to print', { icon: 'ℹ️' });
+      return;
+    }
+    const win = window.open('', 'PRINT', 'height=650,width=900,top=100,left=150');
+    if (!win) return;
+    const title = `${selectedClass.course?.code || ''} ${selectedClass.course?.name || ''} — Section ${selectedClass.section || ''}`;
+    const rowsHtml = students
+      .map(s => `
+        <tr>
+          <td style="padding:8px;border:1px solid #ddd;">${s.student_id || s.id}</td>
+          <td style="padding:8px;border:1px solid #ddd;">${s.display_name || `${s.first_name} ${s.last_name}`}</td>
+          <td style="padding:8px;border:1px solid #ddd;">${s.email}</td>
+          <td style="padding:8px;border:1px solid #ddd;">${selectedClass.academic_year || ''}</td>
+          <td style="padding:8px;border:1px solid #ddd;">${selectedClass.semester || ''}</td>
+          <td style="padding:8px;border:1px solid #ddd; text-align:center;">${s.prelim_grade ?? ''}</td>
+          <td style="padding:8px;border:1px solid #ddd; text-align:center;">${s.midterm_grade ?? ''}</td>
+          <td style="padding:8px;border:1px solid #ddd; text-align:center;">${s.final_grade ?? ''}</td>
+          <td style="padding:8px;border:1px solid #ddd; text-align:center;">${(() => { const g = [s.prelim_grade, s.midterm_grade, s.final_grade].filter(x=>x!==undefined && x!==null); if (g.length===0) return ''; const avg = Math.round((g.reduce((a,b)=>a+(b as number),0)/g.length)*100)/100; return avg; })()}</td>
+        </tr>`)
+      .join('');
+    win.document.write(`
+      <html>
+        <head>
+          <title>${title}</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 24px; }
+            h1 { font-size: 18px; margin-bottom: 12px; }
+            table { border-collapse: collapse; width: 100%; }
+            th, td { padding: 8px; border: 1px solid #ddd; }
+            th { background: #f9fafb; text-align: left; font-size: 12px; text-transform: uppercase; color: #6b7280; }
+          </style>
+        </head>
+        <body>
+          <h1>${title}</h1>
+          <div style="margin-bottom:10px;color:#374151;">Section: ${selectedClass.section || ''} | Year Level: ${selectedClass.year_level || ''} | AY: ${selectedClass.academic_year || ''} | Semester: ${selectedClass.semester || ''}</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Student ID</th>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Academic Year</th>
+                <th>Semester</th>
+                <th>Prelim</th>
+                <th>Midterm</th>
+                <th>Final</th>
+                <th>GA</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+          </table>
+        </body>
+      </html>
+    `);
+    win.document.close();
+    win.focus();
+    win.print();
+    win.close();
+  };
+
   return (
     <div className="min-h-screen from-slate-50 via-blue-50 to-indigo-50">
       <div className="p-8 max-w-full mx-auto">
@@ -501,7 +1009,7 @@ const ClassManagement: React.FC = () => {
                   <p className="text-white/80 text-sm font-medium">Manage your assigned classes and student grades</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-lg shadow-sm">
+              <div className="flex items-center gap-2 bg-white/80 px-4 py-2 rounded-lg shadow-sm">
                 <Users className="w-4 h-4 text-blue-500" />
                 <span className="text-gray-700 font-medium">{classes.length} Classes Assigned</span>
               </div>
@@ -512,7 +1020,7 @@ const ClassManagement: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
           {/* Classes Panel - Improved Layout */}
           <div className="lg:col-span-1">
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="bg-white/80 rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
               <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-3">
                 <h2 className="text-lg font-semibold text-white flex items-center gap-2">
                   <Users className="w-4 h-4" />
@@ -622,7 +1130,7 @@ const ClassManagement: React.FC = () => {
                             
                             {/* Section Content */}
                             {expandedSections[key] && (
-                              <div className="p-3 space-y-2 bg-white">
+                              <div className="p-3 space-y-2 bg-white/80">
                                 {group.classes.map((cls) => (
                                   <button
                                     key={cls.id}
@@ -674,7 +1182,105 @@ const ClassManagement: React.FC = () => {
 
           {/* Students Panel */}
           <div className="lg:col-span-4">
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            {/* Statistics Cards - Moved to align with Assigned Classes */}
+            {selectedClass && (
+              <div className="rounded-2xl shadow-sm border border-gray-100 mb-4">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                  {/* Total Students Card */}
+                  <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-2 shadow-sm border border-blue-100 hover:shadow-md transition-all duration-300 group">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="p-1.5 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-md shadow-sm group-hover:scale-105 transition-transform duration-300">
+                        <Users className="w-3.5 h-3.5 text-white" />
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xs font-medium text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded-full">
+                          Active
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-0.5">
+                      <p className="text-sm font-medium text-gray-600">Total Students</p>
+                      <div className="flex items-baseline gap-1">
+                        <p className="text-2xl font-bold text-gray-900">{totalStudents}</p>
+                        <span className="text-xs text-green-600 font-medium">+0%</span>
+                      </div>
+                      <p className="text-xs text-gray-500">Enrolled in this class</p>
+                    </div>
+                  </div>
+
+                  {/* Completed Grades Card */}
+                  <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-2 shadow-sm border border-green-100 hover:shadow-md transition-all duration-300 group">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="p-1.5 bg-gradient-to-br from-green-500 to-emerald-600 rounded-md shadow-sm group-hover:scale-105 transition-transform duration-300">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xs font-medium text-green-600 bg-green-100 px-1.5 py-0.5 rounded-full">
+                          Updated
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-0.5">
+                      <p className="text-sm font-medium text-gray-600">Completed Grades</p>
+                      <div className="flex items-center gap-1">
+                        <p className="text-2xl font-bold text-gray-900">{completedGrades}</p>
+                        <span className="text-xs text-green-600 font-medium">
+                          {totalStudents > 0 ? Math.round((completedGrades / totalStudents) * 100) : 0}%
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500">Grades submitted</p>
+                    </div>
+                  </div>
+
+                  {/* Completion Rate Card */}
+                  <div className="bg-gradient-to-br from-purple-50 to-violet-50 rounded-lg p-2 shadow-sm border border-purple-100 hover:shadow-md transition-all duration-300 group">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="p-1.5 bg-gradient-to-br from-purple-500 to-violet-600 rounded-md shadow-sm group-hover:scale-105 transition-transform duration-300">
+                        <TrendingUp className="w-3.5 h-3.5 text-white" />
+                      </div>
+                      <div className="text-right">
+                        <div className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${
+                          completionRate >= 80 ? 'text-green-600 bg-green-100' : 
+                          completionRate >= 60 ? 'text-yellow-600 bg-yellow-100' : 
+                          'text-red-600 bg-red-100'
+                        }`}>
+                          {completionRate >= 80 ? 'Excellent' : 
+                           completionRate >= 60 ? 'Good' : 'Needs Attention'}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-0.5">
+                      <p className="text-sm font-medium text-gray-600">Completion Rate</p>
+                      <div className="flex items-center gap-1">
+                        <p className="text-2xl font-bold text-gray-900">{completionRate}%</p>
+                        <div className="flex items-center gap-1">
+                          {completionRate >= 80 ? (
+                            <span className="text-xs text-green-600">↑</span>
+                          ) : completionRate >= 60 ? (
+                            <span className="text-xs text-yellow-600">→</span>
+                          ) : (
+                            <span className="text-xs text-red-600">↓</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-0.5">
+                        <div 
+                          className={`h-0.5 rounded-full transition-all duration-500 ${
+                            completionRate >= 80 ? 'bg-gradient-to-r from-green-500 to-emerald-500' :
+                            completionRate >= 60 ? 'bg-gradient-to-r from-yellow-500 to-orange-500' :
+                            'bg-gradient-to-r from-red-500 to-pink-500'
+                          }`}
+                          style={{ width: `${completionRate}%` }}
+                        ></div>
+                      </div>
+                      <p className="text-xs text-gray-500">Progress indicator</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="bg-white/80 rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
               {selectedClass ? (
                 <>
                   {/* Class Header */}
@@ -688,7 +1294,7 @@ const ClassManagement: React.FC = () => {
                           <div>
                             <h2 className="text-xl font-bold text-gray-900">{selectedClass.course?.name}</h2>
                             <div className="flex items-center gap-2 mt-1">
-                              <span className="px-3 py-1 bg-white text-green-700 text-sm font-medium rounded-full shadow-sm">
+                              <span className="px-3 py-1 bg-white/80 text-green-700 text-sm font-medium rounded-full shadow-sm">
                                 {selectedClass.course?.code}
                               </span>
                               <span className="text-sm text-gray-500">•</span>
@@ -700,21 +1306,37 @@ const ClassManagement: React.FC = () => {
                         <div className="flex flex-wrap gap-4 text-sm text-gray-600">
                           <div className="flex items-center gap-2">
                             <span className="font-medium">Section:</span>
-                            <span className="bg-white px-3 py-1 rounded-lg shadow-sm">{selectedClass.section}</span>
+                            <span className="bg-white/80 px-3 py-1 rounded-lg shadow-sm">{selectedClass.section}</span>
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="font-medium">Year Level:</span>
-                            <span className="bg-white px-3 py-1 rounded-lg shadow-sm">{selectedClass.year_level || 'N/A'}</span>
+                            <span className="bg-white/80 px-3 py-1 rounded-lg shadow-sm">{selectedClass.year_level || 'N/A'}</span>
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="font-medium">Academic Year:</span>
-                            <span className="bg-white px-3 py-1 rounded-lg shadow-sm">{selectedClass.academic_year}</span>
+                            <span className="bg-white/80 px-3 py-1 rounded-lg shadow-sm">{selectedClass.academic_year}</span>
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="font-medium">Semester:</span>
-                            <span className="bg-white px-3 py-1 rounded-lg shadow-sm">{selectedClass.semester}</span>
+                            <span className="bg-white/80 px-3 py-1 rounded-lg shadow-sm">{selectedClass.semester}</span>
                           </div>
                         </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={handlePrintGrades}
+                          className="flex items-center gap-2 px-3 py-2 bg-white/80 text-gray-700 rounded-lg shadow-sm border hover:bg-gray-50"
+                        >
+                          <Printer className="w-4 h-4" />
+                          Print
+                        </button>
+                        <button
+                          onClick={handleDownloadGrades}
+                          className="flex items-center gap-2 px-3 py-2 bg-white/80 text-gray-700 rounded-lg shadow-sm border hover:bg-gray-50"
+                        >
+                          <Download className="w-4 h-4" />
+                          Download
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -739,42 +1361,53 @@ const ClassManagement: React.FC = () => {
                       </div>
                     ) : (
                       <div className="overflow-x-auto">
-                        <table className="w-full divide-y divide-gray-200">
+                        <table className="min-w-full divide-y divide-gray-200">
                           <thead className="bg-gray-50">
                             <tr>
-                              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Student
                               </th>
-                              <th className="px-2 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider hidden sm:table-cell">
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">
                                 Email
                               </th>
-                              <th className="px-2 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                              <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Prelim
                               </th>
-                              <th className="px-2 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                              <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Midterm
                               </th>
-                              <th className="px-2 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                              <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Final
                               </th>
-                              <th className="px-2 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                              <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                GA
+                              </th>
+                              <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Actions
                               </th>
                             </tr>
                           </thead>
-                          <tbody className="bg-white divide-y divide-gray-200">
+                          <tbody className="bg-white/80 divide-y divide-gray-200">
                             {students.map((student, idx) => (
                               <tr key={student.id} className={`transition-all duration-200 hover:bg-gray-50 ${
                                 idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'
                               }`}>
                                 <td className="px-3 py-4 whitespace-nowrap">
                                   <div className="flex items-center">
-                                    <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-semibold text-xs sm:text-sm mr-2 sm:mr-3 flex-shrink-0">
-                                      {student.first_name.charAt(0)}{student.last_name.charAt(0)}
-                                    </div>
+                                    {student.avatar_url ? (
+                                      <img 
+                                        src={student.avatar_url} 
+                                        alt={`${student.display_name || 'Student'}`}
+                                        className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover mr-2 sm:mr-3 flex-shrink-0"
+                                      />
+                                    ) : (
+                                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-semibold text-xs sm:text-sm mr-2 sm:mr-3 flex-shrink-0">
+                                        {student.first_name?.charAt(0)}{student.last_name?.charAt(0)}
+                                      </div>
+                                    )}
                                     <div className="min-w-0 flex-1">
                                       <div className="text-sm font-semibold text-gray-900 truncate">
-                                        {student.first_name} {student.last_name}
+                                        {student.display_name || `${student.first_name} ${student.last_name}`}
                                       </div>
                                       <div className="text-xs text-gray-500 hidden sm:block">
                                         ID: {student.student_id || student.id.slice(0, 8)}...
@@ -792,45 +1425,97 @@ const ClassManagement: React.FC = () => {
                                   </div>
                                 </td>
                                 <td className="px-2 py-4 whitespace-nowrap text-center">
-                                  <input
-                                    type="number"
-                                    className="w-14 sm:w-16 text-center border border-gray-300 rounded-lg px-2 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                                    value={student.prelim_grade ?? ''}
-                                    min={0}
-                                    max={100}
-                                    step="0.01"
-                                    onChange={e => handleGradeChange(student.id, 'prelim_grade', e.target.value)}
-                                  />
+                                  {editingGrades[student.id] ? (
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      max="100"
+                                      step="0.01"
+                                      value={editingGrades[student.id].prelim || ''}
+                                      onChange={(e) => handleGradeChange(student.id, 'prelim', e.target.value)}
+                                      className="w-16 px-2 py-1 border border-gray-300 rounded text-sm"
+                                    />
+                                  ) : (
+                                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                      student.prelim_grade !== null ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                                    }`}>
+                                      {student.prelim_grade !== null ? student.prelim_grade : 'N/A'}
+                                    </span>
+                                  )}
                                 </td>
                                 <td className="px-2 py-4 whitespace-nowrap text-center">
-                                  <input
-                                    type="number"
-                                    className="w-14 sm:w-16 text-center border border-gray-300 rounded-lg px-2 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                                    value={student.midterm_grade ?? ''}
-                                    min={0}
-                                    max={100}
-                                    step="0.01"
-                                    onChange={e => handleGradeChange(student.id, 'midterm_grade', e.target.value)}
-                                  />
+                                  {editingGrades[student.id] ? (
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      max="100"
+                                      step="0.01"
+                                      value={editingGrades[student.id].midterm || ''}
+                                      onChange={(e) => handleGradeChange(student.id, 'midterm', e.target.value)}
+                                      className="w-16 px-2 py-1 border border-gray-300 rounded text-sm"
+                                    />
+                                  ) : (
+                                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                      student.midterm_grade !== null ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                                    }`}>
+                                      {student.midterm_grade !== null ? student.midterm_grade : 'N/A'}
+                                    </span>
+                                  )}
                                 </td>
                                 <td className="px-2 py-4 whitespace-nowrap text-center">
-                                  <input
-                                    type="number"
-                                    className="w-14 sm:w-16 text-center border border-gray-300 rounded-lg px-2 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                                    value={student.final_grade ?? ''}
-                                    min={0}
-                                    max={100}
-                                    step="0.01"
-                                    onChange={e => handleGradeChange(student.id, 'final_grade', e.target.value)}
-                                  />
+                                  {editingGrades[student.id] ? (
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      max="100"
+                                      step="0.01"
+                                      value={editingGrades[student.id].final || ''}
+                                      onChange={(e) => handleGradeChange(student.id, 'final', e.target.value)}
+                                      className="w-16 px-2 py-1 border border-gray-300 rounded text-sm"
+                                    />
+                                  ) : (
+                                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                      student.final_grade !== null ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                                    }`}>
+                                      {student.final_grade !== null ? student.final_grade : 'N/A'}
+                                    </span>
+                                  )}
                                 </td>
                                 <td className="px-2 py-4 whitespace-nowrap text-center">
-                                  <button
-                                    onClick={() => handleOpenGradeModal(student)}
-                                    className="text-blue-600 hover:text-blue-800 text-sm font-medium transition-colors"
-                                  >
-                                    View Details
-                                  </button>
+                                  {(() => {
+                                    const avg = calculateAverageGrade(student.prelim_grade, student.midterm_grade, student.final_grade);
+                                    return (
+                                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${avg !== null ? (avg >= 75 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800') : 'bg-gray-100 text-gray-800'}`}>
+                                        {avg !== null ? avg : 'N/A'}
+                                      </span>
+                                    );
+                                  })()}
+                                </td>
+                                <td className="px-2 py-4 whitespace-nowrap text-center">
+                                  {editingGrades[student.id] ? (
+                                    <div className="flex space-x-2">
+                                      <button
+                                        onClick={() => saveGrades(student.id)}
+                                        disabled={savingGrades[student.id]}
+                                        className="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+                                      >
+                                        {savingGrades[student.id] ? 'Saving...' : 'Save'}
+                                      </button>
+                                      <button
+                                        onClick={() => cancelEditing(student.id)}
+                                        className="inline-flex items-center px-3 py-1 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white/80 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                                      >
+                                        Cancel
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      onClick={() => startEditingGrades(student.id)}
+                                      className="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                                    >
+                                      Edit
+                                    </button>
+                                  )}
                                 </td>
                               </tr>
                             ))}
@@ -855,14 +1540,6 @@ const ClassManagement: React.FC = () => {
           </div>
         </div>
       </div>
-
-      <GradeInputModal
-        open={showGradeModal}
-        onClose={() => setShowGradeModal(false)}
-        student={selectedStudent}
-        classId={selectedClass?.subject_id || selectedClass?.id || ''}
-        onGradeSaved={handleGradeSaved}
-      />
     </div>
   );
 };
