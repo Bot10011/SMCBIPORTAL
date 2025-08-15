@@ -90,7 +90,6 @@ const TeacherDashboardOverview: React.FC = () => {
   // Loading states for better UX
   const [isLoading, setIsLoading] = useState(true);
   const [classesLoading, setClassesLoading] = useState(true);
-  const [studentsLoading, setStudentsLoading] = useState(true);
   
   // Search states with debouncing - optimized with useMemo
   const [searchResults, setSearchResults] = useState<{
@@ -336,11 +335,9 @@ const TeacherDashboardOverview: React.FC = () => {
   useEffect(() => {
     const fetchStudents = async () => {
       if (!user?.id) {
-        setStudentsLoading(false);
         return;
       }
       
-      setStudentsLoading(true);
       try {
         const { data: teacherSubjects, error: teacherSubjectsError } = await supabase
           .from('teacher_subjects')
@@ -351,13 +348,11 @@ const TeacherDashboardOverview: React.FC = () => {
         if (teacherSubjectsError) {
           console.error('Error fetching teacher subjects:', teacherSubjectsError);
           setStudents([]);
-          setStudentsLoading(false);
           return;
         }
         
         if (!teacherSubjects || teacherSubjects.length === 0) {
           setStudents([]);
-          setStudentsLoading(false);
           return;
         }
         
@@ -377,7 +372,6 @@ const TeacherDashboardOverview: React.FC = () => {
         if (enrollmentError) {
           console.error('Error fetching enrollments:', enrollmentError);
           setStudents([]);
-          setStudentsLoading(false);
           return;
         }
         
@@ -393,7 +387,6 @@ const TeacherDashboardOverview: React.FC = () => {
           if (studentError) {
             console.error('Error fetching student profiles:', studentError);
             setStudents([]);
-            setStudentsLoading(false);
             return;
           }
           
@@ -405,7 +398,6 @@ const TeacherDashboardOverview: React.FC = () => {
           if (subjectError) {
             console.error('Error fetching course details:', subjectError);
             setStudents([]);
-            setStudentsLoading(false);
             return;
           }
           
@@ -436,8 +428,6 @@ const TeacherDashboardOverview: React.FC = () => {
       } catch (error) {
         console.error('Error in fetchStudents for teacher', user.id, ':', error);
         setStudents([]);
-      } finally {
-        setStudentsLoading(false);
       }
     };
     
@@ -1042,7 +1032,7 @@ const TeacherDashboardOverview: React.FC = () => {
   return (
     <div className="flex flex-col h-full min-h-screen will-change-transform">
       <div className="flex-1 overflow-auto transform-gpu">
-        <div className="p-6 sm:p-8 max-w-7xl mx-auto transform-gpu">
+        <div className="p-6 sm:p-8 max-w-none w-full mx-auto transform-gpu">
           {/* Search Bar */}
           <div className="mb-6 contain-layout">
             <form onSubmit={handleSearch} className="relative">
@@ -1107,7 +1097,7 @@ const TeacherDashboardOverview: React.FC = () => {
                           <BookOpen className="w-4 h-4 mr-2" />
                           Classes ({searchResults.classes.length})
                         </h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           {searchResults.classes.map((classItem) => (
                             <div
                               key={classItem.id}
@@ -1251,9 +1241,9 @@ const TeacherDashboardOverview: React.FC = () => {
           </div>
 
           {/* Main Content Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 contain-layout">
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 lg:gap-6 contain-layout">
             {/* Left Column - Main Content */}
-            <div className="lg:col-span-2 space-y-6 contain-layout">
+            <div className="xl:col-span-2 space-y-4 lg:space-y-3 contain-layout">
               {/* Promotional Banner */}
               <div className="bg-gradient-to-r from-blue-600/90 to-purple-600/90 backdrop-blur-xl rounded-2xl p-4 text-white relative overflow-hidden border border-white/20 shadow-xl transform-gpu will-change-transform transition-all duration-500 ease-out">
                 <div className="flex items-center justify-between">
@@ -1329,7 +1319,7 @@ const TeacherDashboardOverview: React.FC = () => {
                       <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                       <span className="text-gray-600">Current</span>
                     </div>
-                    <div className="flex items-center space-x-1">
+                    <div className="flex items-center space-x-2">
                       <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                       <span className="text-gray-600">Upcoming</span>
                     </div>
@@ -1341,7 +1331,7 @@ const TeacherDashboardOverview: React.FC = () => {
                 </div>
                 
                 {classesLoading ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 lg:gap-4">
                     {[1, 2, 3].map(i => (
                       <div key={i} className="animate-pulse">
                         <div className="h-48 bg-gray-200 rounded-xl"></div>
@@ -1349,7 +1339,7 @@ const TeacherDashboardOverview: React.FC = () => {
                     ))}
                   </div>
                                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 lg:gap-4">
                     {sortedClasses}
                   </div>
                 )}
@@ -1365,7 +1355,7 @@ const TeacherDashboardOverview: React.FC = () => {
             </div>
 
                       {/* Right Column - Sidebar */}
-            <div className="lg:col-span-1 space-y-3 contain-layout">
+            <div className="xl:col-span-1 space-y-3 contain-layout">
               {/* Google Classroom Integration */}
               <div className="bg-gradient-to-r from-blue-500/90 to-purple-600/90 backdrop-blur-xl rounded-2xl py-6 px-4 shadow-xl border border-white/20 relative glassmorphism transform-gpu will-change-transform transition-all duration-300 ease-out">
                 <div className="flex items-center justify-between"> 
@@ -1463,7 +1453,7 @@ const TeacherDashboardOverview: React.FC = () => {
 
 
               {/* Unified panel container controlled by activePanel */}
-              <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 shadow-xl border border-white/20 relative glassmorphism transform-gpu will-change-transform transition-all duration-300 ease-out">
+              <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 shadow-xl border border-white/20 relative glassmorphism transform-gpu will-change-transform transition-all duration-300 ease-out mt-8">
                 {activePanel === 'notifications' && (
                   <div>
                     <h3 className="font-bold text-gray-700 flex items-center mb-2"><Bell className="w-4 h-4 mr-2 text-blue-500" /> Notifications</h3>
@@ -1863,11 +1853,11 @@ const TeacherDashboardOverview: React.FC = () => {
                               Cancel
                             </button>
                             <button
-                              onClick={async () => {
+                              onClick={async (event) => {
                                 if (selectedFile) {
                                   try {
                                     // Show loading state
-                                    const button = event?.target as HTMLButtonElement;
+                                    const button = event.currentTarget as HTMLButtonElement;
                                     button.textContent = 'Uploading...';
                                     button.disabled = true;
                                     
