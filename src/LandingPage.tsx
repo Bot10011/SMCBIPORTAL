@@ -503,7 +503,7 @@ const LandingPage = () => {
       {showForgotModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="w-full max-w-md p-6 relative animate-fade-in">
-            <div className="bg-white/95 rounded-2xl shadow-2xl p-6">
+            <div className="bg-white/100 rounded-2xl shadow-2xl p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-[#2C3E50]">
                   {verificationStep === 'email' ? 'Reset your password' : 'Enter verification code'}
@@ -515,7 +515,7 @@ const LandingPage = () => {
                     setForgotEmail('');
                     setVerificationCode('');
                   }}
-                  className="text-gray-400 hover:text-red-500 text-xl font-bold"
+                  className="w-6 h-6 flex items-center justify-center text-lg font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-full transition-colors duration-200"
                   aria-label="Close"
                 >
                   ×
@@ -524,15 +524,15 @@ const LandingPage = () => {
 
               {verificationStep === 'email' ? (
                 <>
-                  <p className="text-sm text-gray-600 mb-4">Enter your username and we will send you a verification code.</p>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
+                  <p className="text-sm text-gray-600 mb-4">Enter your email and we will send you a verification code.</p>
+              
               <div className="relative">
                 <input
                   type="text"
                   value={forgotEmail}
                   onChange={(e) => setForgotEmail(e.target.value)}
-                  placeholder="Enter your username"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white pr-32"
+                  placeholder="Enter your email"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-gray-100 pr-32"
                 />
                 <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm font-medium">
                   @smcbi.edu.ph
@@ -713,13 +713,14 @@ const LandingPage = () => {
 
         {/* Feedback Panel */}
         <div 
-          className={`fixed right-0 h-full z-40 transition-all duration-300 ease-in-out ${
-            showFeedback ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'
+          className={`fixed z-40 transition-all duration-300 ease-in-out ${
+            showFeedback ? 'opacity-100' : 'opacity-0'
           }`} 
           style={{
-            width: 'min(400px, 92vw)',
-            height: '80vh',
+            width: '400px',
+            height: '530px',
             top: '80px',
+            right: showFeedback ? '0px' : '-400px',
             borderRadius: '1.5rem 0 1.5rem 1.5rem',
             borderTopLeftRadius: '1.5rem',
             borderBottomLeftRadius: '1.5rem',
@@ -728,38 +729,37 @@ const LandingPage = () => {
             background: 'linear-gradient(135deg, #f8fafc 0%, #e0e7ef 100%)',
             boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.15)',
             border: '1px solid #e5e7eb',
-            pointerEvents: showFeedback ? 'auto' : 'none'
+            pointerEvents: showFeedback ? 'auto' : 'none',
+            position: 'fixed'
           }}
         >
           <div className="bg-transparent h-full shadow-none flex flex-col relative rounded-l-xl border-l-0">
             {/* Close Button */}
             <button
-              className="absolute w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center text-lg sm:text-xl font-bold text-white bg-red-500 hover:bg-red-600 rounded-full shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 animate-pop-in hover:scale-110 hover:rotate-90
-                top-2 right-2 sm:top-3 sm:right-3"
+              className="absolute w-6 h-6 flex items-center justify-center text-lg font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-full transition-colors duration-200 top-3 right-3"
               onClick={() => setShowFeedback(false)}
               aria-label="Close Feedback"
-              style={{
-                backgroundColor: '#ef4444',
-                boxShadow: '0 2px 8px rgba(239, 68, 68, 0.3)',
-                zIndex: 50
-              }}
             >
               ×
             </button>
             {/* Branding */}
-            <div className="flex flex-col items-center justify-center gap-1 px-8 pt-4 pb-4 border-b border-gray-200">
+            <div className="flex flex-col items-center justify-center gap-1 px-8 pt-4 pb-0">
               <img src="/img/logo1.png" alt="SMCBI Logo" className="w-10 h-10" />
               <span className="font-medium text-sm text-[#2C3E50]">Feedback Form</span>
             </div>
+            {/* Horizontal Line Separator */}
+            <div className="px-8 pb-3">
+              <div className="w-full h-1 bg-gray-300 rounded-full"></div>
+            </div>
             {/* Feedback Content */}
-            <div className="flex-1 overflow-y-auto px-8 py-6">
-              <div className="mb-8">
+            <div className="flex-1 overflow-y-auto px-8 py-0">
+              <div className="mb-2">
                 <label className="block font-semibold mb-2 text-[#2C3E50]">What was your first impression when you logged into the SMCBI School Portal & Enrollment System?</label>
-                <textarea className="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-green-300 shadow-sm transition" rows={3} placeholder="Your answer..." />
+                <textarea className="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-green-300 shadow-sm transition" rows={3} placeholder="Your feedback..." />
               </div>
-              <div className="mb-8">
+              <div className="mb-5">
                 <label className="block font-semibold mb-2 text-[#002656]">What do you like the most about our new SMCBI School Portal & Enrollment System?</label>
-                <textarea className="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-green-300 shadow-sm transition" rows={3} placeholder="Your answer..." />
+                <textarea className="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-green-300 shadow-sm transition" rows={3} placeholder="Your feedback..." />
               </div>
               <button className="w-full py-2 rounded-lg bg-[#2C3E50] text-white font-semibold hover:bg-[#1a2634] transition-all duration-200 shadow-md hover:scale-105">Submit Feedback</button>
             </div>
@@ -920,15 +920,9 @@ const LandingPage = () => {
               {/* Modal Header with right-aligned close button */}
               <div className="flex justify-end items-start w-full mb-2">
                 <button
-                  className="dev-modal-close w-7 h-7 flex items-center justify-center text-lg font-bold text-white bg-red-500 hover:bg-red-600 rounded-full shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 animate-pop-in hover:scale-110 hover:rotate-90"
+                  className="w-6 h-6 flex items-center justify-center text-lg font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-full transition-colors duration-200"
                   onClick={() => setShowDevModal(false)}
                   aria-label="Close Developer Info"
-                  style={{ 
-                    backgroundColor: '#ef4444', 
-                    boxShadow: '0 2px 8px rgba(239, 68, 68, 0.3)', 
-                    zIndex: 50,
-                    marginTop: '0.10rem'
-                  }}
                 >
                   ×
                 </button>
