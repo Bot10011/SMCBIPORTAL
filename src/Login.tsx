@@ -27,7 +27,7 @@
     const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       // Just store the username without @smcbi.edu.ph
       const value = e.target.value.replace('@smcbi.edu.ph', '').trim();
-      console.log('Username input changed:', value); // Debug log
+      console.log('Email input changed:', value); // Debug log
       
       // Development shortcut: Auto-fill password for specific usernames
       if (value === 'admin' || value === 'instructor' || value === 'student' || value === 'registrar' || value === 'programhead') {
@@ -126,7 +126,7 @@
           console.log('Auth error details:', error); // Debug log
           switch (error.message) {
             case 'Invalid login credentials':
-              errorMessage = 'Invalid username or password.';
+              errorMessage = 'Invalid email or password.';
               break;
             case 'Email not confirmed':
               errorMessage = 'Please verify your email address.';
@@ -174,21 +174,23 @@
       <div className="relative">
         {/* Login Form with smooth transition */}
         <div
-          className={`transition-all duration-500 ${showInstructionModal ? 'opacity-0 scale-95 pointer-events-none' : 'opacity-100 scale-100'}`}
+          className={`transition-all duration-700 ease-out ${showInstructionModal ? 'opacity-0 scale-95 pointer-events-none' : 'opacity-100 scale-100'}`}
+          style={{
+            animation: !showInstructionModal ? 'fadeInUp 0.8s ease-out' : 'none'
+          }}
         >
           {/* X Close Button - only show when login form is visible */}
           {!showInstructionModal && onClose && (
             <button
-              className="absolute w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center text-lg sm:text-xl font-bold text-white bg-red-500 hover:bg-red-600 rounded-full shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 animate-pop-in hover:scale-110 hover:rotate-90 top-2 right-2 sm:top-3 sm:right-3"
+              className="absolute w-6 h-6 flex items-center justify-center text-lg font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-full transition-colors duration-200 focus:outline-none top-3 right-3"
               aria-label="Close Login"
-              style={{ backgroundColor: 'rgb(239, 68, 68)', boxShadow: 'rgba(239, 68, 68, 0.3) 0px 2px 8px', zIndex: 50 }}
               onClick={onClose}
             >
-              &times;
+              ×
             </button>
           )}
-          <div className="w-full bg-white rounded-xl shadow-lg p-6">
-            <div className="text-center mb-">
+          <div className="w-full bg-white rounded-xl shadow-lg p-6 login-form">
+            <div className="text-center mb-" style={{ animation: 'fadeInScale 0.6s ease-out 0.1s both' }}>
               <img
                 src="/img/logo.png"
                 alt="School Logo"
@@ -198,7 +200,7 @@
 
             <form className="space-y-4" onSubmit={handleSubmit} autoComplete="on">
               <div className="space-y-3">
-                <div className="relative group">
+                <div className="relative group" style={{ animation: 'slideInFromRight 0.7s ease-out 0.2s both' }}>
                   <input
                     id="username"
                     name="username"
@@ -229,14 +231,14 @@
                       left-4
                       px-2 bg-white"
                   >
-                    Username
+                    Email
                   </label>
                   <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
                     @smcbi.edu.ph
                   </div>
                 </div>
 
-                <div className="relative group">
+                <div className="relative group" style={{ animation: 'slideInFromRight 0.7s ease-out 0.3s both' }}>
                   <input
                     id="password"
                     name="password"
@@ -298,7 +300,7 @@
                 type="submit"
                 className="w-full px-4 py-2 bg-[#2C3E50] text-white rounded-xl text-sm font-medium
                   hover:bg-[#1a2634] focus:outline-none focus:ring-2 focus:ring-[#2C3E50] focus:ring-offset-2 
-                  transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 disabled={isLoading}
               >
                 {isLoading ? (
@@ -309,21 +311,29 @@
                     </svg>
                     Signing in...
                   </span>
-                ) : 'Sign in'}
+                ) : (
+                  <>
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 5v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                    </svg>
+                    Sign in
+                  </>
+                )}
               </button>
             </form>
 
             <div className="relative flex items-center justify-center my-4">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-200"></div>
+                <div className="w-full h-px bg-gray-300"></div>
               </div>
+              <span className="relative bg-white px-3 text-xs text-gray-500 font-normal">OR</span>
             </div>
 
             {/* Sign in with Google */}
             <button
               type="button"
               onClick={handleGoogleSignIn}
-              className="w-full mt-2 px-4 py-2 bg-white border-2 border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#2C3E50] focus:ring-offset-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full mt-2 px-4 py-2 bg-gray-100 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-[#2C3E50] focus:ring-offset-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               disabled={isLoading}
               aria-label="Sign in with Google"
             >
@@ -341,7 +351,7 @@
                 Don't have an account?{' '}
                 <button
                   type="button"
-                  className="text-blue-600 hover:underline focus:outline-none focus:underline"
+                  className="text-blue-400 hover:underline focus:outline-none focus:underline"
                   onClick={() => setShowInstructionModal(true)}
                 >
                   Click here.
@@ -359,12 +369,11 @@
             >
               {/* X Close Button - styled the same as login modal */}
               <button
-                className="absolute w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center text-lg sm:text-xl font-bold text-white bg-red-500 hover:bg-red-600 rounded-full shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 animate-pop-in hover:scale-110 hover:rotate-90 top-2 right-2 sm:top-3 sm:right-3"
+                className="absolute w-6 h-6 flex items-center justify-center text-lg font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-full transition-colors duration-200 focus:outline-none top-3 right-3"
                 aria-label="Close Account Registration"
-                style={{ backgroundColor: 'rgb(239, 68, 68)', boxShadow: 'rgba(239, 68, 68, 0.3) 0px 2px 8px', zIndex: 50 }}
                 onClick={handleCloseModal}
               >
-                &times;
+                ×
               </button>
               <h2 className="text-lg font-semibold mb-2 text-gray-800">Account Registration</h2>
               <p className="text-gray-600 text-sm mb-4">
