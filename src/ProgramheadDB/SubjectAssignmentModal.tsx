@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion'; 
+import { motion } from 'framer-motion';
+import { createPortal } from 'react-dom';
 
 interface TeacherSubject {
   id?: string;
@@ -39,6 +40,7 @@ interface SubjectAssignmentModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (assignments: TeacherSubject[]) => Promise<{ success: boolean; message: string }>;
+  onSuccess?: () => void; // Callback for successful submission
   formErrors: Record<string, string>;
   assignment: TeacherSubject;
   handleInputChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
@@ -52,6 +54,7 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
   isOpen,
   onClose,
   onSubmit,
+  onSuccess,
   formErrors,
   assignment,
   handleInputChange,
@@ -63,13 +66,15 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
   // Add sections array
   const sections = ['A', 'B', 'C', 'D'];
 
-  // Add academic years array
+  // Auto-calculate academic year based on current date
   const currentYear = new Date().getFullYear();
-  const academicYears = [
-    `${currentYear}-${currentYear + 1}`,
-    `${currentYear + 1}-${currentYear + 2}`,
-    `${currentYear + 2}-${currentYear + 3}`
-  ];
+  const currentMonth = new Date().getMonth(); // 0-11 (Jan = 0, Dec = 11)
+  
+  // Academic year runs from June to May
+  // If current month is June or later, use current year as start
+  // If current month is January to May, use previous year as start
+  const academicYearStart = currentMonth >= 5 ? currentYear : currentYear - 1;
+  const academicYear = `${academicYearStart}-${academicYearStart + 1}`;
 
   // Add year levels array (value/label pairs) - use full format to match database
   const yearLevels = [
@@ -91,16 +96,66 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
     'Saturday': 'S',
     'Sunday': 'Su',
   };
+  // Reverse mapping from abbreviations to full names
+  const dayAbbrToFull: Record<string, string> = {
+    'M': 'Monday',
+    'T': 'Tuesday',
+    'W': 'Wednesday',
+    'Th': 'Thursday',
+    'F': 'Friday',
+    'S': 'Saturday',
+    'Su': 'Sunday',
+  };
 
   // Multi-select state for subjects
-  const [selectedSubjects, setSelectedSubjects] = useState<string[]>(assignment.subject_id ? [assignment.subject_id] : []);
+  const [selectedSubjects, setSelectedSubjects] = useState<string[]>(() => {
+    if (isEditMode && assignment.subject_id) {
+      // For editing, ensure subject_id is properly handled
+      return Array.isArray(assignment.subject_id) ? assignment.subject_id : [assignment.subject_id];
+    }
+    return [];
+  });
+  
   // Multi-select state for day
-  const [selectedDay, setSelectedDay] = useState<string[]>(assignment.day ? assignment.day.split(',') : []);
+  const [selectedDay, setSelectedDay] = useState<string[]>(() => {
+    if (isEditMode && assignment.day) {
+      // For editing, ensure day is properly parsed
+      const dayValue = assignment.day;
+      if (typeof dayValue === 'string') {
+        // Convert abbreviations to full day names for the UI
+        const dayAbbreviations = dayValue.split(',').filter(d => d.trim() !== '');
+        return dayAbbreviations.map(abbr => dayAbbrToFull[abbr] || abbr);
+      }
+      return Array.isArray(dayValue) ? dayValue : [];
+    }
+    return [];
+  });
+
+  // Track if form has been modified (for edit mode)
+  const [hasFormChanges, setHasFormChanges] = useState(false);
+  const [originalAssignment, setOriginalAssignment] = useState<TeacherSubject | null>(null);
+  
+  // Set academic year automatically when component mounts
+  React.useEffect(() => {
+    // Only set academic year if it's not already set (for new assignments)
+    // For existing assignments, preserve the current academic year
+    if (!assignment.academic_year) {
+      handleInputChange({
+        target: { name: 'academic_year', value: academicYear }
+      } as React.ChangeEvent<HTMLInputElement>);
+    }
+  }, [academicYear, assignment.academic_year]);
 
   // Filter courses by selected year level - both use the same format now
   const filteredCourses = assignment.year_level
     ? courses.filter(subject => subject.year_level === assignment.year_level)
     : [];
+    
+  // Debug logging for edit mode
+  console.log('Modal debug - filteredCourses:', filteredCourses);
+  console.log('Modal debug - selectedSubjects:', selectedSubjects);
+  console.log('Modal debug - selectedDay:', selectedDay);
+  console.log('Modal debug - assignment.year_level:', assignment.year_level);
 
   // Reset selected subjects when year level changes
   React.useEffect(() => {
@@ -108,6 +163,60 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
       setSelectedSubjects([]);
     }
   }, [assignment.year_level]);
+
+  // Sync selectedSubjects and selectedDay when assignment changes (for edit mode)
+  React.useEffect(() => {
+    console.log('Modal useEffect - isEditMode:', isEditMode, 'assignment:', assignment); // Debug log
+    
+    if (isEditMode && assignment.subject_id) {
+      const subjectIds = Array.isArray(assignment.subject_id) ? assignment.subject_id : [assignment.subject_id];
+      console.log('Setting selectedSubjects:', subjectIds); // Debug log
+      setSelectedSubjects(subjectIds);
+    }
+    
+    if (isEditMode && assignment.day) {
+      const dayValue = assignment.day;
+      if (typeof dayValue === 'string') {
+        // Convert abbreviations to full day names for the UI
+        const dayAbbreviations = dayValue.split(',').filter(d => d.trim() !== '');
+        const fullDayNames = dayAbbreviations.map(abbr => dayAbbrToFull[abbr] || abbr);
+        console.log('Setting selectedDay:', fullDayNames); // Debug log
+        setSelectedDay(fullDayNames);
+      } else if (Array.isArray(dayValue)) {
+        setSelectedDay(dayValue);
+      }
+    }
+
+    // Store original assignment for change tracking
+    if (isEditMode && !originalAssignment) {
+      setOriginalAssignment({ ...assignment });
+    }
+
+    // Reset form changes when assignment changes
+    setHasFormChanges(false);
+  }, [isEditMode, assignment.subject_id, assignment.day]);
+
+  // Track form changes for edit mode
+  React.useEffect(() => {
+    if (isEditMode && originalAssignment) {
+      // Get the original values from the stored original assignment
+      const originalSubjectIds = originalAssignment.subject_id ? (Array.isArray(originalAssignment.subject_id) ? originalAssignment.subject_id : [originalAssignment.subject_id]) : [];
+      const originalDays = originalAssignment.day ? originalAssignment.day.split(',').map(d => dayAbbrToFull[d.trim()] || d.trim()).filter(d => d) : [];
+      
+      // Check if any field has changed from the original assignment
+      const hasChanges = 
+        assignment.teacher_id !== originalAssignment.teacher_id ||
+        assignment.section !== originalAssignment.section ||
+        assignment.year_level !== originalAssignment.year_level ||
+        assignment.semester !== originalAssignment.semester ||
+        assignment.time !== originalAssignment.time ||
+        JSON.stringify(selectedSubjects.sort()) !== JSON.stringify(originalSubjectIds.sort()) ||
+        JSON.stringify(selectedDay.sort()) !== JSON.stringify(originalDays.sort());
+
+      console.log('Form changes detected:', hasChanges, 'original:', originalAssignment, 'current:', assignment); // Debug log
+      setHasFormChanges(hasChanges);
+    }
+  }, [isEditMode, originalAssignment, assignment, selectedSubjects, selectedDay]);
 
   // Update assignment.day when selectedDay changes
   React.useEffect(() => {
@@ -140,8 +249,8 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
       assignment.teacher_id &&
       selectedSubjects.length > 0 &&
       assignment.section &&
-      assignment.academic_year &&
       assignment.year_level &&
+      assignment.semester &&
       selectedDay.length > 0 &&
       assignment.time
     );
@@ -185,24 +294,24 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
     setModalError('');
     setModalSuccess('');
     
-    // Create multiple assignments for selected subjects
-    const assignments: TeacherSubject[] = selectedSubjects.map(subjectId => {
-      const subject = courses.find(c => c.id === subjectId);
-      const abbr = selectedDay.map(d => dayAbbr[d] || d);
-      return {
-        teacher_id: assignment.teacher_id,
-        subject_id: subjectId,
-        section: assignment.section,
-        academic_year: assignment.academic_year,
-        year_level: assignment.year_level,
-        semester: subject?.semester || '',
-        day: abbr.length === 1 ? abbr[0] : abbr.join(','),
-        time: assignment.time,
-        is_active: true
-      };
-    });
+          // Create multiple assignments for selected subjects
+      const assignments: TeacherSubject[] = selectedSubjects.map(subjectId => {
+        const abbr = selectedDay.map(d => dayAbbr[d] || d);
+        return {
+          teacher_id: assignment.teacher_id,
+          subject_id: subjectId,
+          section: assignment.section,
+          academic_year: assignment.academic_year || academicYear, // Use assignment state or fallback to calculated
+          year_level: assignment.year_level,
+          semester: assignment.semester || '', // Use the semester selected in the modal form
+          day: abbr.length === 1 ? abbr[0] : abbr.join(','),
+          time: assignment.time,
+          is_active: true
+        };
+      });
     // Debug log
     console.log('DEBUG assignments sent to parent:', assignments);
+    console.log('DEBUG academic year being used:', assignment.academic_year || academicYear);
 
     try {
       // Call the parent's onSubmit with the assignments array
@@ -210,10 +319,16 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
       
       if (result.success) {
         setModalSuccess(result.message);
-        // Close modal after 2 seconds
+        // Close modal after 2 seconds and refresh parent
         setTimeout(() => {
           setShowConfirmation(false);
           setModalSuccess('');
+          // Close the main modal and refresh the parent component
+          onClose();
+          // Call success callback to refresh assignments list
+          if (onSuccess) {
+            onSuccess();
+          }
         }, 2000);
       } else {
         setModalError(result.message);
@@ -230,157 +345,214 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-[9999] subject-modal">
+    return createPortal(
+    <div 
+      className="fixed inset-0 z-[9999] subject-modal-overlay" 
+      style={{ 
+        position: 'fixed', 
+        top: 0, 
+        left: 0, 
+        right: 0, 
+        bottom: 0,
+        width: '100vw',
+        height: '100vh',
+        zIndex: 9999,
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
+        transform: 'translateZ(0)',
+        willChange: 'transform'
+      }}
+    >
       {/* Semi-transparent overlay with enhanced blur */}
       <div 
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/60 backdrop-blur-md"
         onClick={onClose}
+        style={{
+          backdropFilter: 'blur(8px)',
+          WebkitBackdropFilter: 'blur(8px)'
+        }}
       />
       
       {/* Modal container */}
-      <div className="flex items-center justify-center h-full p-2 sm:p-6">
+      <div className="flex items-center justify-center h-full p-2 sm:p-6 overflow-hidden">
+        <div className="w-full h-full flex items-center justify-center">
         <motion.div
           initial={{ scale: 0.95, opacity: 0, y: 20 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.95, opacity: 0, y: 20 }}
           transition={{ type: "spring", stiffness: 300, damping: 30 }}
-          className="bg-gradient-to-br from-white/95 to-white/90 backdrop-blur-md rounded-3xl p-6 sm:p-10 max-w-5xl w-full mx-2 sm:mx-4 shadow-2xl border border-white/20 relative z-10 min-h-[60vh] max-h-[90vh] flex flex-col"
+          className="bg-white/95 backdrop-blur-md rounded-3xl p-6 sm:p-8 max-w-4xl w-full mx-2 sm:mx-4 shadow-2xl border border-white/20 relative z-10 max-h-[95vh] flex flex-col subject-modal-content"
           onClick={(e) => e.stopPropagation()}
+          style={{
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            transform: 'translateZ(0)',
+            willChange: 'transform'
+          }}
         >
           {/* Modal header */}
-          <div className="flex items-center justify-between mb-8">
-            <h3 className="text-2xl font-bold text-gray-800">
-              {isEditMode ? 'Edit Subject Assignment' : 'Assign New Subject'}
-            </h3>
+          <div className="flex items-center gap-3 mb-6">
+            <div className="p-2 bg-blue-100 rounded-lg">
+              <svg className="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <h3 className="text-xl font-bold text-gray-900">
+                {isEditMode ? 'Edit Subject Assignment' : 'Assign New Subject'}
+              </h3>
+              <p className="text-sm text-gray-600">
+                {isEditMode ? 'Update the subject assignment details' : 'Create a new subject assignment'}
+              </p>
+            </div>
             <button 
               onClick={onClose}
-              className="absolute w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center text-lg sm:text-xl font-bold text-white bg-red-500 hover:bg-red-600 rounded-full shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 animate-pop-in hover:scale-110 hover:rotate-90 top-2 right-2 sm:top-3 sm:right-3"
+              className="absolute top-3 right-3 w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors focus:outline-none"
               aria-label="Close modal"
-              style={{ backgroundColor: 'rgb(239, 68, 68)', boxShadow: 'rgba(239, 68, 68, 0.3) 0px 2px 8px', zIndex: 50 }}
             >
-              ×
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
             </button>
           </div>
           {/* Form - two column on md+ screens */}
-          <form onSubmit={handleFormSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-            {/* Left column: Teacher, Academic Year, Section, Semester */}
-            <div className="flex flex-col gap-6">
-              {/* Teacher Selection */}
-              <div>
-                <label htmlFor="teacher_id" className="block text-sm font-medium text-gray-700 mb-1">
-                  Instructor <span className="text-red-500">*</span>
-                </label>
-                <select
-                  id="teacher_id"
-                  name="teacher_id"
-                  value={assignment.teacher_id}
-                  onChange={handleInputChange}
-                  className={`w-full px-4 py-3 rounded-xl border ${
-                    formErrors.teacher_id || (!assignment.teacher_id && !isFormValid())
-                      ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
-                      : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
-                  } focus:ring-2 focus:ring-opacity-50 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm`}
-                >
-                  <option value="">Select a instructor</option>
-                  {teachers.map(teacher => (
-                    <option key={teacher.id} value={teacher.id}>
-                      {teacher.full_name} {teacher.department ? `(${teacher.department})` : ''}
-                    </option>
-                  ))}
-                </select>
-                {(formErrors.teacher_id || (!assignment.teacher_id && !isFormValid())) && (
-                  <p className="mt-1 text-sm text-red-600">
-                    {formErrors.teacher_id || 'Please select a instructor'}
-                  </p>
-                )}
-              </div>
-              {/* Academic Year */}
-              <div>
-                <label htmlFor="academic_year" className="block text-sm font-medium text-gray-700 mb-1">
-                  Academic Year <span className="text-red-500">*</span>
-                </label>
-                <select
-                  id="academic_year"
-                  name="academic_year"
-                  value={assignment.academic_year}
-                  onChange={handleInputChange}
-                  className={`w-full px-4 py-3 rounded-xl border ${
-                    formErrors.academic_year || (!assignment.academic_year && !isFormValid())
-                      ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
-                      : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
-                  } focus:ring-2 focus:ring-opacity-50 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm`}
-                  required
-                >
-                  <option value="">Select Academic Year</option>
-                  {academicYears.map((year) => (
-                    <option key={year} value={year}>
-                      {year}
-                    </option>
-                  ))}
-                </select>
-                {(formErrors.academic_year || (!assignment.academic_year && !isFormValid())) && (
-                  <p className="mt-1 text-sm text-red-600">
-                    {formErrors.academic_year || 'Please select an academic year'}
-                  </p>
-                )}
-              </div>
-              {/* Section */}
-              <div>
-                <label htmlFor="section" className="block text-sm font-medium text-gray-700 mb-1">
-                  Section <span className="text-red-500">*</span>
-                </label>
-                <select
-                  id="section"
-                  name="section"
-                  value={assignment.section}
-                  onChange={handleInputChange}
-                  className={`w-full px-4 py-3 rounded-xl border ${
-                    formErrors.section || (!assignment.section && !isFormValid())
-                      ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
-                      : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
-                  } focus:ring-2 focus:ring-opacity-50 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm`}
-                  required
-                >
-                  <option value="">Select Section</option>
-                  {sections.map((section) => (
-                    <option key={section} value={section}>
-                      Section {section}
-                    </option>
-                  ))}
-                </select>
-                {(formErrors.section || (!assignment.section && !isFormValid())) && (
-                  <p className="mt-1 text-sm text-red-600">
-                    {formErrors.section || 'Please select a section'}
-                  </p>
-                )}
-              </div>
-              {/* Day and Time Selection (one line) */}
-              <div className="flex gap-4">
-                <div className="flex-1">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Day(s) <span className="text-red-500">*</span>
+          <form onSubmit={handleFormSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 flex-1">
+            {/* Left column: Basic Info (2x2 grid) + Day & Time */}
+            <div className="flex flex-col gap-4">
+              {/* Basic Info Fields - 2x2 Grid Layout */}
+              <div className="grid grid-cols-2 gap-4">
+                {/* Row 1: Instructor & Academic Year */}
+                <div>
+                  <label htmlFor="teacher_id" className="block text-sm font-medium text-gray-700 mb-1">
+                    Instructor <span className="text-red-500">*</span>
                   </label>
-                  <div className="flex flex-wrap gap-2">
-                    {days.map(day => (
-                      <label key={day} className="inline-flex items-center gap-1 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={selectedDay.includes(day)}
-                          onChange={() => handleDayCheckbox(day)}
-                          className="accent-blue-600 w-4 h-4"
-                        />
-                        {day}
-                      </label>
+                  <select
+                    id="teacher_id"
+                    name="teacher_id"
+                    value={assignment.teacher_id}
+                    onChange={handleInputChange}
+                    className={`w-full px-4 py-3 rounded-xl border ${
+                      formErrors.teacher_id || (!assignment.teacher_id && !isFormValid())
+                        ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
+                        : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
+                    } focus:ring-2 focus:ring-opacity-50 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm`}
+                  >
+                    <option value="">Select a instructor</option>
+                    {teachers.map(teacher => (
+                      <option key={teacher.id} value={teacher.id}>
+                        {teacher.full_name} {teacher.department ? `(${teacher.department})` : ''}
+                      </option>
                     ))}
-                  </div>
-                   {(formErrors.day || (!selectedDay || selectedDay.length === 0) && !isFormValid()) && (
+                  </select>
+                  {(formErrors.teacher_id || (!assignment.teacher_id && !isFormValid())) && (
                     <p className="mt-1 text-sm text-red-600">
-                      {formErrors.day || 'Please select at least one day'}
+                      {formErrors.teacher_id || 'Please select a instructor'}
                     </p>
                   )}
                 </div>
-                <div className="flex-1">
+                
+                <div>
+                  <label htmlFor="academic_year" className="block text-sm font-medium text-gray-700 mb-1">
+                    Academic Year <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    id="academic_year"
+                    name="academic_year"
+                    value={assignment.academic_year || academicYear}
+                    readOnly
+                    className="w-full px-4 py-3 rounded-xl border border-gray-300 bg-gray-50 text-gray-700 cursor-not-allowed"
+                  />
+                 
+                </div>
+                
+                {/* Row 2: Section & Year Level */}
+                <div>
+                  <label htmlFor="section" className="block text-sm font-medium text-gray-700 mb-1">
+                    Section <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    id="section"
+                    name="section"
+                    value={assignment.section}
+                    onChange={handleInputChange}
+                    className={`w-full px-4 py-3 rounded-xl border ${
+                      formErrors.section || (!assignment.section && !isFormValid())
+                        ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
+                        : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
+                    } focus:ring-2 focus:ring-opacity-50 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm`}
+                    required
+                  >
+                    <option value="">Select Section</option>
+                    {sections.map((section) => (
+                      <option key={section} value={section}>
+                        Section {section}
+                      </option>
+                    ))}
+                  </select>
+                  {(formErrors.section || (!assignment.section && !isFormValid())) && (
+                    <p className="mt-1 text-sm text-red-600">
+                      {formErrors.section || 'Please select a section'}
+                    </p>
+                  )}
+                </div>
+                
+                <div>
+                  <label htmlFor="year_level" className="block text-sm font-medium text-gray-700 mb-1">
+                    Year Level <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    id="year_level"
+                    name="year_level"
+                    value={assignment.year_level}
+                    onChange={handleInputChange}
+                    className={`w-full px-4 py-3 rounded-xl border ${
+                      formErrors.year_level || (!assignment.year_level && !isFormValid())
+                        ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
+                        : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
+                    } focus:ring-2 focus:ring-opacity-50 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm`}
+                    required
+                  >
+                    <option value="">Select Year Level</option>
+                    {yearLevels.map((level) => (
+                      <option key={level.value} value={level.value}>{level.label}</option>
+                    ))}
+                  </select>
+                  {(formErrors.year_level || (!assignment.year_level && !isFormValid())) && (
+                    <p className="mt-1 text-sm text-red-600">
+                      {formErrors.year_level || 'Please select a year level'}
+                    </p>
+                  )}
+                </div>
+                
+                <div>
+                  <label htmlFor="semester" className="block text-sm font-medium text-gray-700 mb-1">
+                    Semester <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    id="semester"
+                    name="semester"
+                    value={assignment.semester}
+                    onChange={handleInputChange}
+                    className={`w-full px-4 py-3 rounded-xl border ${
+                      formErrors.semester || (!assignment.semester && !isFormValid())
+                        ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
+                        : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
+                    } focus:ring-2 focus:ring-opacity-50 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm`}
+                    required
+                  >
+                    <option value="">Select Semester</option>
+                    <option value="First Semester">First Semester</option>
+                    <option value="Second Semester">Second Semester</option>
+                    <option value="Summer">Summer</option>
+                  </select>
+                  {(formErrors.semester || (!assignment.semester && !isFormValid())) && (
+                    <p className="mt-1 text-sm text-red-600">
+                      {formErrors.semester || 'Please select a semester'}
+                    </p>
+                  )}
+                </div>
+                
+                <div>
                   <label htmlFor="time" className="block text-sm font-medium text-gray-700 mb-1">
                     Time <span className="text-red-500">*</span>
                   </label>
@@ -405,80 +577,133 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
                   )}
                 </div>
               </div>
-            </div>
-            {/* Right column: Year Level, Subject, Subject List */}
-            <div className="flex flex-col gap-6">
-              {/* Year Level Selection */}
+              {/* Day Selection (horizontal line) */}
               <div>
-                <label htmlFor="year_level" className="block text-sm font-medium text-gray-700 mb-1">
-                  Year Level <span className="text-red-500">*</span>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Day(s) <span className="text-red-500">*</span>
                 </label>
-                <select
-                  id="year_level"
-                  name="year_level"
-                  value={assignment.year_level}
-                  onChange={handleInputChange}
-                  className={`w-full px-4 py-3 rounded-xl border ${
-                    formErrors.year_level || (!assignment.year_level && !isFormValid())
-                      ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
-                      : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
-                  } focus:ring-2 focus:ring-opacity-50 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm`}
-                  required
-                >
-                  <option value="">Select Year Level</option>
-                  {yearLevels.map((level) => (
-                    <option key={level.value} value={level.value}>{level.label}</option>
+                <div className="flex flex-wrap gap-2">
+                  {days.map(day => (
+                    <label key={day} className="inline-flex items-center gap-1 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={selectedDay.includes(day)}
+                        onChange={() => handleDayCheckbox(day)}
+                        className="accent-blue-600 w-4 h-4"
+                      />
+                      {day}
+                    </label>
                   ))}
-                </select>
-                {(formErrors.year_level || (!assignment.year_level && !isFormValid())) && (
+                </div>
+                 {(formErrors.day || (!selectedDay || selectedDay.length === 0) && !isFormValid()) && (
                   <p className="mt-1 text-sm text-red-600">
-                    {formErrors.year_level || 'Please select a year level'}
+                    {formErrors.day || 'Please select at least one day'}
                   </p>
                 )}
               </div>
-              {/* Show all subjects for selected year level as cards/list, right after year level selection */}
+            </div>
+            {/* Right column: Subject List */}
+            <div className="flex flex-col gap-4">
+              {/* Show all subjects for selected year level as cards/list */}
               {assignment.year_level && (
-                <div className="mt-2">
-                  <h4 className="font-semibold text-gray-700 mb-2">
-                    Subjects for {yearLevels.find(l => l.value === assignment.year_level)?.label || assignment.year_level}:
-                  </h4>
-                  <p className="text-xs text-gray-500 mb-2">
-                    Select one or more subjects for this year level and section
-                  </p>
+                <div className="pt-0">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <h4 className="text-base font-semibold text-gray-800">
+                        Available Subjects
+                      </h4>
+                      <p className="text-xs text-gray-600">
+                        {yearLevels.find(l => l.value === assignment.year_level)?.label || assignment.year_level} • Select one or more subjects
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-xs text-gray-500">
+                        {filteredCourses.length} subject{filteredCourses.length !== 1 ? 's' : ''} available
+                      </span>
+                    </div>
+                  </div>
+                  
                   {filteredCourses.length > 0 ? (
-                    <div className="overflow-y-auto max-h-72 md:max-h-96 rounded-lg border border-blue-100 bg-white/60">
-                      <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 p-2">
+                    <div className="overflow-y-auto max-h-80 md:max-h-96 rounded-xl border border-gray-200 bg-white shadow-sm">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4">
                         {filteredCourses.map(subject => (
-                          <li
+                          <div
                             key={subject.id}
-                            className={`flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-sm text-gray-800 transition-all duration-150 ${selectedSubjects.includes(subject.id) ? 'ring-2 ring-blue-400 bg-blue-100' : ''}`}
+                            className="relative"
                           >
-                            <input
-                              type="checkbox"
-                              checked={selectedSubjects.includes(subject.id)}
-                              onChange={() => handleSubjectCheckbox(subject.id)}
-                              className="accent-blue-600 w-4 h-4"
-                              id={`subject-checkbox-${subject.id}`}
-                            />
-                            <label htmlFor={`subject-checkbox-${subject.id}`} className="cursor-pointer select-none w-full flex items-center gap-2">
-                              {subject.display_name}
-                              {/* Semester Badge */}
-                              {subject.semester === 'First Semester' && (
-                                <span className="ml-2 inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-xs font-bold px-2 py-0.5 rounded-full">1st Sem</span>
-                              )}
-                              {subject.semester === 'Second Semester' && (
-                                <span className="ml-2 inline-flex items-center gap-1 bg-green-100 text-green-800 text-xs font-bold px-2 py-0.5 rounded-full">2nd Sem</span>
-                              )}
-                              {subject.semester === 'Summer' && (
-                                <span className="ml-2 inline-flex items-center gap-1 bg-yellow-100 text-yellow-800 text-xs font-bold px-2 py-0.5 rounded-full">Summer</span>
-                              )}
-                            </label>
-                          </li>
+                            <div
+                              className="bg-white/ border-2 border-gray-200 rounded-xl p-4 h-48 flex flex-col"
+                            >
+                              {/* Checkbox and Semester Badge Row */}
+                              <div className="flex items-start justify-between mb-3 flex-shrink-0">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedSubjects.includes(subject.id)}
+                                  onChange={() => handleSubjectCheckbox(subject.id)}
+                                  className="w-5 h-5 accent-blue-600 rounded border-2 border-gray-300 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex-shrink-0"
+                                  id={`subject-checkbox-${subject.id}`}
+                                />
+                                
+                                {/* Semester Badge - Right aligned */}
+                                {subject.semester && (
+                                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold flex-shrink-0 ${
+                                    subject.semester === 'First Semester' 
+                                      ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                                      : subject.semester === 'Second Semester'
+                                      ? 'bg-green-100 text-green-800 border border-green-200'
+                                      : 'bg-yellow-100 text-yellow-800 border border-yellow-200'
+                                  }`}>
+                                    {subject.semester === 'First Semester' ? '1st Sem' : 
+                                     subject.semester === 'Second Semester' ? '2nd Sem' : 
+                                     'Summer'}
+                                  </span>
+                                )}
+                              </div>
+                              
+                              {/* Subject Code - Left aligned */}
+                              <div className="mb-2 text-left flex-shrink-0">
+                                <span className="inline-block text-sm font-bold text-gray-900 bg-gray-100 px-2 py-1 rounded-md">
+                                  {subject.code}
+                                </span>
+                              </div>
+                              
+                              {/* Subject Name - Left aligned - Flexible height */}
+                              <div className="mb-3 text-left flex-1 min-h-0">
+                                <h5 className="font-semibold text-gray-800 text-sm leading-tight line-clamp-3">
+                                  {subject.name}
+                                </h5>
+                              </div>
+                              
+                              {/* Units and Selection - Bottom row */}
+                              <div className="flex items-center justify-between flex-shrink-0">
+                                <span className="text-xs text-gray-600 font-medium">
+                                  {subject.units} {subject.units === 1 ? 'Unit' : 'Units'}
+                                </span>
+                                
+                                {/* Selection Indicator */}
+                                {selectedSubjects.includes(subject.id) && (
+                                  <div className="w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
+                                    <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                    </svg>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
                         ))}
-                      </ul>
+                      </div>
                     </div>
                   ) : (
-                    <p className="text-sm text-gray-500">No subjects available for this year level.</p>
+                    <div className="text-center py-8 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300">
+                      <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <h3 className="mt-2 text-sm font-medium text-gray-900">No subjects available</h3>
+                      <p className="mt-1 text-sm text-gray-500">
+                        No subjects found for {yearLevels.find(l => l.value === assignment.year_level)?.label || assignment.year_level}
+                      </p>
+                    </div>
                   )}
                 </div>
               )}
@@ -492,8 +717,8 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
 
             </div>
             
-            {/* Action Buttons - full width on mobile, right on desktop */}
-            <div className="md:col-span-2 flex flex-col sm:flex-row justify-end items-center gap-3 mt-8">
+            {/* Action Buttons - integrated into main modal */}
+            <div className="md:col-span-2 flex flex-col sm:flex-row justify-end items-center gap-3 mt-0">
               <button
                 type="button"
                 onClick={onClose}
@@ -503,9 +728,9 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
               </button>
               <button
                 type="submit"
-                disabled={formSubmitting || !isFormValid()}
+                disabled={formSubmitting || (!isFormValid() && !isEditMode) || (isEditMode && !hasFormChanges)}
                 className={`w-full sm:w-auto px-5 py-2.5 text-base font-semibold border border-transparent rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 ${
-                  isFormValid() && !formSubmitting
+                  (isFormValid() && !formSubmitting) || (isEditMode && hasFormChanges && !formSubmitting)
                     ? 'text-white bg-blue-600 hover:bg-blue-700 shadow-md'
                     : 'text-gray-400 bg-gray-200 cursor-not-allowed'
                 }`}
@@ -548,11 +773,12 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
               </div>
               <button 
                 onClick={handleCancelConfirmation}
-                className="absolute w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center text-lg sm:text-xl font-bold text-white bg-red-500 hover:bg-red-600 rounded-full shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 hover:scale-110 hover:rotate-90 top-2 right-2 sm:top-3 sm:right-3"
+                className="absolute top-3 right-3 w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors focus:outline-none"
                 aria-label="Close confirmation"
-                style={{ backgroundColor: 'rgb(239, 68, 68)', boxShadow: 'rgba(239, 68, 68, 0.3) 0px 2px 8px', zIndex: 50 }}
               >
-                ×
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
             </div>
 
@@ -620,6 +846,10 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
                   <span className="text-gray-900">{assignment.year_level}</span>
                 </div>
                 <div className="flex justify-between">
+                  <span className="font-medium text-gray-700">Semester:</span>
+                  <span className="text-gray-900">{assignment.semester}</span>
+                </div>
+                <div className="flex justify-between">
                   <span className="font-medium text-gray-700">Academic Year:</span>
                   <span className="text-gray-900">{assignment.academic_year}</span>
                 </div>
@@ -676,7 +906,81 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
           </motion.div>
         </div>
       )}
-    </div>
+      </div>
+    </div>,
+    document.body
+  );
+
+  // Additional CSS for modal positioning and blur effects
+  return (
+    <>
+      <style>{`
+        .subject-modal-overlay {
+          position: fixed !important;
+          top: 0 !important;
+          left: 0 !important;
+          right: 0 !important;
+          bottom: 0 !important;
+          width: 100vw !important;
+          height: 100vh !important;
+          z-index: 9999 !important;
+          backdrop-filter: blur(8px) !important;
+          -webkit-backdrop-filter: blur(8px) !important;
+          overflow: hidden !important;
+          animation: fadeIn 0.3s ease-out !important;
+        }
+        
+        .subject-modal-content {
+          backdrop-filter: blur(12px) !important;
+          -webkit-backdrop-filter: blur(12px) !important;
+          transform: translateZ(0) !important;
+          will-change: transform !important;
+          max-height: 95vh !important;
+          overflow: visible !important;
+          animation: slideIn 0.3s ease-out !important;
+        }
+        
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        
+        @keyframes slideIn {
+          from { 
+            opacity: 0; 
+            transform: translateY(-20px) scale(0.95); 
+          }
+          to { 
+            opacity: 1; 
+            transform: translateY(0) scale(1); 
+          }
+        }
+        
+        @media (max-width: 640px) {
+          .subject-modal-overlay {
+            padding: 0.5rem !important;
+          }
+          
+          .subject-modal-content {
+            max-height: 95vh !important;
+            margin: 0.25rem !important;
+            padding: 1rem !important;
+          }
+        }
+        
+        /* Ensure body doesn't scroll when modal is open */
+        body.modal-open {
+          overflow: hidden !important;
+          position: fixed !important;
+          width: 100% !important;
+        }
+        
+        /* Ensure modal is always on top */
+        .subject-modal-overlay * {
+          z-index: 9999 !important;
+        }
+      `}</style>
+    </>
   );
 };
 
