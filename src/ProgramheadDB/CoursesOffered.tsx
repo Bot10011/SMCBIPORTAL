@@ -58,12 +58,17 @@ interface Course {
   code: string;
   name: string;
   units: number;
+  lec_units?: number;
+  lab_units?: number;
+  hours_per_week?: number;
+  prerequisites?: string[];
   image_url?: string;
   created_by?: string;
   created_at?: string;
   updated_at?: string;
   summer?: boolean;
   year_level?: string;
+  semester?: string;
 }
 
 export default function CourseManagement() {
@@ -76,15 +81,21 @@ export default function CourseManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterUnits, setFilterUnits] = useState<string>('all');
   const [filterYearLevel, setFilterYearLevel] = useState('all');
+  const [filterSemester, setFilterSemester] = useState('all');
 
   // Form states
   const [courseForm, setCourseForm] = useState({
     code: '',
     name: '',
     units: 3,
+    lec_units: 2,
+    lab_units: 1,
+    hours_per_week: 3,
+    prerequisites: [] as string[],
     image_url: '',
     summer: false,
-    year_level: ''
+    year_level: '',
+    semester: ''
   });
 
   const [sectionForm, setSectionForm] = useState({
@@ -108,6 +119,34 @@ export default function CourseManagement() {
   const [courseImages, setCourseImages] = useState<{ [id: string]: string }>({});
   const [imageLoading, setImageLoading] = useState<{ [id: string]: boolean }>({});
   const [imageError, setImageError] = useState<{ [id: string]: boolean }>({});
+  
+  // Prerequisite selection state
+  const [availablePrerequisites, setAvailablePrerequisites] = useState<Course[]>([]);
+
+  const handlePrerequisiteChange = (courseCode: string, checked: boolean) => {
+    if (checked) {
+      // When selecting a specific prerequisite, ensure "None" is not selected
+      setCourseForm(prev => ({
+        ...prev,
+        prerequisites: [...prev.prerequisites, courseCode]
+      }));
+    } else {
+      setCourseForm(prev => ({
+        ...prev,
+        prerequisites: prev.prerequisites.filter(code => code !== courseCode)
+      }));
+    }
+  };
+
+  const handleNonePrerequisiteChange = (checked: boolean) => {
+    if (checked) {
+      // Clear all prerequisites when "None" is selected
+      setCourseForm(prev => ({
+        ...prev,
+        prerequisites: []
+      }));
+    }
+  };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null;
@@ -251,6 +290,7 @@ export default function CourseManagement() {
 
       if (coursesError) throw coursesError;
       setCourses(coursesData || []);
+      setAvailablePrerequisites(coursesData || []);
     } catch (error) {
       console.error('Error fetching courses:', error);
       toast.error('Failed to load courses');
@@ -260,9 +300,161 @@ export default function CourseManagement() {
   }, []);
 
   const handleDeleteCourse = useCallback(async (courseId: string) => {
-    if (!confirm('Are you sure you want to delete this course? This will also delete all associated sections.')) return;
+    if (!confirm('Are you sure you want to delete this course? This action cannot be undone and will affect all enrolled students.')) return;
 
     try {
+      // First, check if the course has any enrollments
+      console.log('Checking enrollments for course ID:', courseId);
+      const { data: enrollments, error: enrollmentError } = await supabase
+        .from('enrollcourse')
+        .select('id')
+        .eq('subject_id', courseId);
+
+      if (enrollmentError) {
+        console.error('Error checking enrollments:', enrollmentError);
+        // Try alternative column names if subject_id doesn't exist
+        if (enrollmentError.code === '42703') {
+          console.log('Trying alternative column names for enrollments...');
+          const { data: enrollmentsAlt, error: enrollmentErrorAlt } = await supabase
+            .from('enrollcourse')
+            .select('id')
+            .eq('course_id', courseId);
+          
+          if (enrollmentErrorAlt) {
+            console.error('Alternative column check failed:', enrollmentErrorAlt);
+            toast.error('Failed to check course dependencies');
+            return;
+          }
+          
+          if (enrollmentsAlt && enrollmentsAlt.length > 0) {
+            const shouldForceDelete = confirm(
+              `This course has ${enrollmentsAlt.length} student enrollment(s). Do you want to force delete and remove all enrollments? This will affect student records.`
+            );
+            
+            if (shouldForceDelete) {
+              // Delete all enrollments first
+              const { error: deleteEnrollmentsError } = await supabase
+                .from('enrollcourse')
+                .delete()
+                .eq('course_id', courseId);
+              
+              if (deleteEnrollmentsError) {
+                console.error('Error deleting enrollments:', deleteEnrollmentsError);
+                toast.error('Failed to remove enrollments');
+                return;
+              }
+              
+              toast.success(`${enrollmentsAlt.length} enrollment(s) removed`);
+            } else {
+              return;
+            }
+          }
+        } else {
+          toast.error('Failed to check course dependencies');
+          return;
+        }
+      }
+
+      if (enrollments && enrollments.length > 0) {
+        const shouldForceDelete = confirm(
+          `This course has ${enrollments.length} student enrollment(s). Do you want to force delete and remove all enrollments? This will affect student records.`
+        );
+        
+        if (shouldForceDelete) {
+          // Delete all enrollments first
+          const { error: deleteEnrollmentsError } = await supabase
+            .from('enrollcourse')
+            .delete()
+            .eq('subject_id', courseId);
+          
+          if (deleteEnrollmentsError) {
+            console.error('Error deleting enrollments:', deleteEnrollmentsError);
+            toast.error('Failed to remove enrollments');
+            return;
+          }
+          
+          toast.success(`${enrollments.length} enrollment(s) removed`);
+        } else {
+          return;
+        }
+      }
+
+      // Check if the course has any grades
+      console.log('Checking grades for course ID:', courseId);
+      const { data: grades, error: gradeError } = await supabase
+        .from('grades')
+        .select('id')
+        .eq('subject_id', courseId);
+
+      if (gradeError) {
+        console.error('Error checking grades:', gradeError);
+        // Try alternative column names if subject_id doesn't exist
+        if (gradeError.code === '42703') {
+          console.log('Trying alternative column names for grades...');
+          const { data: gradesAlt, error: gradeErrorAlt } = await supabase
+            .from('grades')
+            .select('id')
+            .eq('course_id', courseId);
+          
+          if (gradeErrorAlt) {
+            console.error('Alternative column check failed:', gradeErrorAlt);
+            toast.error('Failed to check course dependencies');
+            return;
+          }
+          
+          if (gradesAlt && gradesAlt.length > 0) {
+            const shouldForceDelete = confirm(
+              `This course has ${gradesAlt.length} grade record(s). Do you want to force delete and remove all grades? This will affect student academic records.`
+            );
+            
+            if (shouldForceDelete) {
+              // Delete all grades first
+              const { error: deleteGradesError } = await supabase
+                .from('grades')
+                .delete()
+                .eq('course_id', courseId);
+              
+              if (deleteGradesError) {
+                console.error('Error deleting grades:', deleteGradesError);
+                toast.error('Failed to remove grades');
+                return;
+              }
+              
+              toast.success(`${gradesAlt.length} grade record(s) removed`);
+            } else {
+              return;
+            }
+          }
+        } else {
+          toast.error('Failed to check course dependencies');
+          return;
+        }
+      }
+
+      if (grades && grades.length > 0) {
+        const shouldForceDelete = confirm(
+          `This course has ${grades.length} grade record(s). Do you want to force delete and remove all grades? This will affect student academic records.`
+        );
+        
+        if (shouldForceDelete) {
+          // Delete all grades first
+          const { error: deleteGradesError } = await supabase
+            .from('grades')
+            .delete()
+            .eq('subject_id', courseId);
+          
+          if (deleteGradesError) {
+            console.error('Error deleting grades:', deleteGradesError);
+            toast.error('Failed to remove grades');
+            return;
+          }
+          
+          toast.success(`${grades.length} grade record(s) removed`);
+        } else {
+          return;
+        }
+      }
+
       // Get the course to find its image path before deletion
       const { data: courseData, error: fetchError } = await supabase
         .from('courses')
@@ -275,27 +467,43 @@ export default function CourseManagement() {
       }
 
       // Delete the course
+      console.log('Attempting to delete course with ID:', courseId);
       const { error } = await supabase
         .from('courses')
         .delete()
         .eq('id', courseId);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Delete error:', error);
+        if (error.code === '23503') {
+          toast.error('Cannot delete course. It is still referenced by other records. Please remove all dependencies first.');
+        } else {
+          toast.error(`Failed to delete course: ${error.message}`);
+        }
+        return;
+      }
+
+      console.log('Course deleted successfully from database');
 
       // Clean up the associated image if it exists
       if (courseData?.image_url) {
         try {
+          console.log('Cleaning up course image:', courseData.image_url);
           await supabase.storage
             .from('course')
             .remove([courseData.image_url]);
-          console.log('Course image cleaned up:', courseData.image_url);
+          console.log('Course image cleaned up successfully');
         } catch (cleanupError) {
           console.error('Error cleaning up course image:', cleanupError);
+          // Don't fail the entire operation if image cleanup fails
+          toast.warning('Course deleted but image cleanup failed');
         }
       }
 
       toast.success('Course deleted successfully');
-      fetchCourses();
+      console.log('Refreshing courses list...');
+      await fetchCourses();
+      console.log('Courses list refreshed');
     } catch (error) {
       console.error('Error deleting course:', error);
       toast.error('Failed to delete course');
@@ -354,8 +562,84 @@ export default function CourseManagement() {
     }
   }, []);
 
+  const handleCloseModal = () => {
+    setShowAddModal(false);
+    setSelectedCourse(null);
+    setImageFile(null);
+    setShowCropModal(false);
+    setSelectedImage(null);
+    
+    // Reset form to default values
+    setCourseForm({ 
+      code: '', 
+      name: '', 
+      units: 3, 
+      lec_units: 2, 
+      lab_units: 1, 
+      hours_per_week: 3, 
+      prerequisites: [], 
+      image_url: '', 
+      summer: false, 
+      year_level: '',
+      semester: ''
+    });
+  };
+
+  const validateForm = () => {
+    // Don't validate if form is still loading
+    if (!courseForm.code) {
+      return false;
+    }
+    
+    if (!courseForm.code.trim()) {
+      toast.error('Subject code is required');
+      return false;
+    }
+    if (!courseForm.name.trim()) {
+      toast.error('Subject name is required');
+      return false;
+    }
+    if (courseForm.units <= 0) {
+      toast.error('Units must be greater than 0');
+      return false;
+    }
+    if (courseForm.lec_units < 0 || courseForm.lab_units < 0) {
+      toast.error('LEC and LAB units cannot be negative');
+      return false;
+    }
+    
+    // For new subjects, ensure total units equals LEC + LAB
+    // For existing subjects, allow flexibility but warn if there's a mismatch
+    if (!selectedCourse && courseForm.units !== (courseForm.lec_units + courseForm.lab_units)) {
+      toast.error('Total units must equal LEC + LAB units');
+      return false;
+    }
+    
+    // For updates, auto-correct the total units if there's a mismatch
+    if (selectedCourse && courseForm.units !== (courseForm.lec_units + courseForm.lab_units)) {
+      console.log('Auto-correcting units mismatch for existing subject');
+      console.log(`Current: units=${courseForm.units}, lec_units=${courseForm.lec_units}, lab_units=${courseForm.lab_units}`);
+      const correctedUnits = courseForm.lec_units + courseForm.lab_units;
+      console.log(`Corrected total units: ${correctedUnits}`);
+      
+      setCourseForm(prev => ({
+        ...prev,
+        units: correctedUnits
+      }));
+      
+      toast.info(`Total units automatically adjusted from ${courseForm.units} to ${correctedUnits} to match LEC + LAB units`);
+    }
+    
+    return true;
+  };
+
   const handleAddCourse = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!validateForm()) {
+      return;
+    }
+    
     try {
       let imagePath = courseForm.image_url || '';
       let oldImagePath = '';
@@ -386,15 +670,35 @@ export default function CourseManagement() {
       let error;
       if (selectedCourse && selectedCourse.id) {
         // Update existing course
+        console.log('Updating course with ID:', selectedCourse.id);
+        console.log('Update data:', {
+          code: courseForm.code,
+          name: courseForm.name,
+          units: courseForm.units,
+          lec_units: courseForm.lec_units,
+          lab_units: courseForm.lab_units,
+          hours_per_week: courseForm.hours_per_week,
+          prerequisites: courseForm.prerequisites,
+          image_url: imagePath,
+          summer: courseForm.summer,
+          year_level: courseForm.year_level,
+          semester: courseForm.semester
+        });
+        
         ({ error } = await supabase
           .from('courses')
           .update({
             code: courseForm.code,
             name: courseForm.name,
             units: courseForm.units,
+            lec_units: courseForm.lec_units,
+            lab_units: courseForm.lab_units,
+            hours_per_week: courseForm.hours_per_week,
+            prerequisites: courseForm.prerequisites,
             image_url: imagePath,
             summer: courseForm.summer,
-            year_level: courseForm.year_level
+            year_level: courseForm.year_level,
+            semester: courseForm.semester
           })
           .eq('id', selectedCourse.id)
           .select()
@@ -413,22 +717,52 @@ export default function CourseManagement() {
         }
       } else {
         // Insert new course
+        console.log('Inserting new course with data:', {
+          code: courseForm.code,
+          name: courseForm.name,
+          units: courseForm.units,
+          lec_units: courseForm.lec_units,
+          lab_units: courseForm.lab_units,
+          hours_per_week: courseForm.hours_per_week,
+          prerequisites: courseForm.prerequisites,
+          image_url: imagePath, 
+          summer: courseForm.summer, 
+          year_level: courseForm.year_level,
+          semester: courseForm.semester
+        });
+        
         ({ error } = await supabase
           .from('courses')
-          .insert([{ ...courseForm, image_url: imagePath, summer: courseForm.summer, year_level: courseForm.year_level }])
+          .insert([{ 
+            code: courseForm.code,
+            name: courseForm.name,
+            units: courseForm.units,
+            lec_units: courseForm.lec_units,
+            lab_units: courseForm.lab_units,
+            hours_per_week: courseForm.hours_per_week,
+            prerequisites: courseForm.prerequisites,
+            image_url: imagePath, 
+            summer: courseForm.summer, 
+            year_level: courseForm.year_level,
+            semester: courseForm.semester
+          }])
           .select()
           .single());
       }
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error saving course:', error);
+        toast.error('Failed to save course');
+        return;
+      }
+      
       toast.success(selectedCourse ? 'Course updated successfully' : 'Course added successfully');
-      setShowAddModal(false);
-      setCourseForm({ code: '', name: '', units: 3, image_url: '', summer: false, year_level: '' });
-      setImageFile(null);
-      setSelectedCourse(null);
-      setShowCropModal(false);
-      setSelectedImage(null);
-      fetchCourses();
+      
+      // Close modal and reset form
+      handleCloseModal();
+      
+      // Refresh the courses list
+      await fetchCourses();
     } catch (error) {
       console.error('Error adding course:', error);
       toast.error('Failed to add course');
@@ -476,9 +810,10 @@ export default function CourseManagement() {
                            course.code.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesUnits = filterUnits === 'all' || course.units.toString() === filterUnits;
       const matchesYear = filterYearLevel === 'all' || course.year_level === filterYearLevel;
-      return matchesSearch && matchesUnits && matchesYear;
+      const matchesSemester = filterSemester === 'all' || course.semester === filterSemester;
+      return matchesSearch && matchesUnits && matchesYear && matchesSemester;
     });
-  }, [courses, searchTerm, filterUnits, filterYearLevel]);
+  }, [courses, searchTerm, filterUnits, filterYearLevel, filterSemester]);
 
   // Memoized course statistics
   const courseStats = useMemo(() => {
@@ -751,15 +1086,61 @@ export default function CourseManagement() {
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Units</label>
-                  <input
-                    type="number"
-                    value={courseForm.units}
-                    onChange={(e) => setCourseForm({ ...courseForm, units: parseInt(e.target.value) })}
-                    className="w-full px-4 py-3 border border-gray-300 bg-white rounded-xl shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-                    min="1"
-                    max="6"
-                    required
-                  />
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">LEC</label>
+                      <input
+                        type="number"
+                        value={courseForm.lec_units}
+                        onChange={(e) => {
+                          const lec = parseInt(e.target.value) || 0;
+                          const lab = courseForm.lab_units || 0;
+                          const newUnits = lec + lab;
+                          console.log(`LEC changed: ${lec}, LAB: ${lab}, Total: ${newUnits}`);
+                          setCourseForm({ 
+                            ...courseForm, 
+                            lec_units: lec,
+                            units: newUnits
+                          });
+                        }}
+                        className="w-full px-3 py-2 border border-gray-300 bg-white rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-sm"
+                        min="0"
+                        max="6"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">LAB</label>
+                      <input
+                        type="number"
+                        value={courseForm.lab_units}
+                        onChange={(e) => {
+                          const lab = parseInt(e.target.value) || 0;
+                          const lec = courseForm.lec_units || 0;
+                          const newUnits = lec + lab;
+                          console.log(`LAB changed: ${lab}, LEC: ${lec}, Total: ${newUnits}`);
+                          setCourseForm({ 
+                            ...courseForm, 
+                            lab_units: lab,
+                            units: newUnits
+                          });
+                        }}
+                        className="w-full px-3 py-2 border border-gray-300 bg-white rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-sm"
+                        min="0"
+                        max="6"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Total</label>
+                      <input
+                        type="number"
+                        value={courseForm.units}
+                        className="w-full px-3 py-2 border border-gray-300 bg-gray-50 rounded-lg shadow-sm text-sm font-medium"
+                        readOnly
+                      />
+                    </div>
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Year Level</label>
@@ -776,10 +1157,23 @@ export default function CourseManagement() {
                     <option value="4th Year">4th Year</option>
                   </select>
                 </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Semester</label>
+                  <select
+                    value={courseForm.semester}
+                    onChange={e => setCourseForm({ ...courseForm, semester: e.target.value })}
+                    className="w-full px-4 py-3 border border-gray-300 bg-white rounded-xl shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                    required
+                  >
+                    <option value="">Select semester</option>
+                    <option value="1st Semester">1st Semester</option>
+                    <option value="2nd Semester">2nd Semester</option>
+                  </select>
+                </div>
               </div>
 
-              {/* Second row: Subject Name, Summer (as select) */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Second row: Subject Name, Hours/Week, Type */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Subject Name</label>
                   <input
@@ -792,17 +1186,103 @@ export default function CourseManagement() {
                   />
                 </div>
                 <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Hours/Week</label>
+                  <input
+                    type="number"
+                    value={courseForm.hours_per_week}
+                    onChange={(e) => setCourseForm({ ...courseForm, hours_per_week: parseInt(e.target.value) || 0 })}
+                    className="w-full px-4 py-3 border border-gray-300 bg-white rounded-xl shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                    placeholder="e.g., 3"
+                    min="1"
+                    max="20"
+                    required
+                  />
+                </div>
+                <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Type</label>
                   <select
-                    value={courseForm.summer ? 'Summer' : 'First Semester '}
+                    value={courseForm.summer ? 'Summer' : 'Regular'}
                     onChange={e => setCourseForm({ ...courseForm, summer: e.target.value === 'Summer' })}
                     className="w-full px-4 py-3 border border-gray-300 bg-white rounded-xl shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
                     required
                   >
-                    <option value="First Semester ">First Semester </option>
-                    <option value="Second Semester">Second Semester</option>
+                    <option value="Regular">Regular</option>
                     <option value="Summer">Summer</option>
                   </select>
+                </div>
+              </div>
+
+              {/* Prerequisites Selection */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-semibold text-gray-700">Prerequisites</label>
+                  {courseForm.prerequisites.length > 0 && (
+                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                      {courseForm.prerequisites.length} selected
+                    </span>
+                  )}
+                </div>
+                <div className="border border-gray-200 rounded-xl p-4 bg-gray-50 max-h-48 overflow-y-auto">
+                  {/* None Option */}
+                  <div className="mb-3 pb-3 border-b border-gray-200">
+                    <label className={`flex items-center space-x-3 p-2 rounded-lg hover:bg-white transition-colors duration-200 cursor-pointer ${
+                      courseForm.prerequisites.length === 0 ? 'bg-blue-50 border border-blue-200' : ''
+                    }`}>
+                      <input
+                        type="checkbox"
+                        checked={courseForm.prerequisites.length === 0}
+                        onChange={(e) => handleNonePrerequisiteChange(e.target.checked)}
+                        className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                      />
+                      <div className="flex-1">
+                        <div className="text-sm font-medium text-gray-900 flex items-center gap-2">
+                          <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          None (No prerequisites required)
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          This course has no prerequisites
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+                  
+                  {availablePrerequisites.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {availablePrerequisites
+                        .filter(course => course.code !== courseForm.code) // Exclude current course
+                        .map((course) => (
+                          <label key={course.id} className={`flex items-center space-x-3 p-2 rounded-lg hover:bg-white transition-colors duration-200 cursor-pointer ${
+                            courseForm.prerequisites.includes(course.code) ? 'bg-blue-50 border border-blue-200' : ''
+                          }`}>
+                            <input
+                              type="checkbox"
+                              checked={courseForm.prerequisites.includes(course.code)}
+                              onChange={(e) => handlePrerequisiteChange(course.code, e.target.checked)}
+                              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-medium text-gray-900 truncate">
+                                {course.code}
+                              </div>
+                              <div className="text-xs text-gray-500 truncate">
+                                {course.name}
+                              </div>
+                            </div>
+                          </label>
+                        ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-4">
+                      <div className="text-gray-400 text-sm">
+                        No other courses available as prerequisites
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="mt-2 text-xs text-gray-500">
+                  Select "None" for no prerequisites, or choose specific subjects that must be completed before enrolling in this course
                 </div>
               </div>
 
@@ -1208,6 +1688,15 @@ export default function CourseManagement() {
                   <option value="3rd Year">3rd Year</option>
                   <option value="4th Year">4th Year</option>
                 </select>
+                <select
+                  className="border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  value={filterSemester}
+                  onChange={e => setFilterSemester(e.target.value)}
+                >
+                  <option value="all">All Semesters</option>
+                  <option value="1st Semester">1st Semester</option>
+                  <option value="2nd Semester">2nd Semester</option>
+                </select>
               </div>
             </div>
           </div>
@@ -1242,230 +1731,413 @@ export default function CourseManagement() {
               )}
             </div>
           ) : viewMode === 'grid' ? (
-            <div className="coursemanagement-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredCourses.map((course, idx) => (
-                <motion.div
-                  key={course.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.1 }}
-                  className="coursemanagement-card bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden hover:shadow-xl transition-all duration-300 group"
-                >
-                    {/* Subject Image */}
-                    <div className="relative h-48 bg-gradient-to-br from-blue-50 to-indigo-50 overflow-hidden">
-                      {/* Loading Skeleton */}
-                      {imageLoading[String(course.id)] && (
-                        <div className="w-full h-full relative">
-                          {/* Enhanced Skeleton Animation */}
-                          <div className="absolute inset-0 enhanced-shimmer">
-                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
-                          </div>
-                          {/* Skeleton Content */}
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="flex flex-col items-center gap-3">
-                              <div className="w-12 h-12 bg-gray-300 rounded-xl skeleton-pulse"></div>
-                              <div className="w-20 h-3 bg-gray-300 rounded-full skeleton-pulse"></div>
+            <div className="space-y-8">
+              {(() => {
+                // Group courses by year level and semester
+                const groupedCourses: { [yearLevel: string]: { [semester: string]: typeof filteredCourses } } = {};
+                
+                filteredCourses.forEach(course => {
+                  const yearLevel = course.year_level || 'Unknown Year';
+                  const semester = course.semester || 'No Semester';
+                  
+                  if (!groupedCourses[yearLevel]) {
+                    groupedCourses[yearLevel] = {};
+                  }
+                  if (!groupedCourses[yearLevel][semester]) {
+                    groupedCourses[yearLevel][semester] = [];
+                  }
+                  
+                  groupedCourses[yearLevel][semester].push(course);
+                });
+                
+                return Object.entries(groupedCourses).map(([yearLevel, semesters], yearIdx) => (
+                  <motion.div
+                    key={yearLevel}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: yearIdx * 0.1 }}
+                    className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden"
+                  >
+                    {/* Year Level Header */}
+                    <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4">
+                      <h2 className="text-xl font-bold text-white flex items-center gap-3">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                        </svg>
+                        {yearLevel}
+                      </h2>
+                    </div>
+                    
+                    {/* Semesters */}
+                    <div className="p-6 space-y-6">
+                      {Object.entries(semesters).map(([semester, courses], semesterIdx) => (
+                        <div key={semester} className="space-y-4">
+                          {/* Semester Header */}
+                          <div className="flex items-center justify-between">
+                            <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                              <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+                              {semester}
+                              <span className="text-sm font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                                {courses.length} subject{courses.length !== 1 ? 's' : ''}
+                              </span>
+                            </h3>
+                            <div className="text-sm text-gray-500">
+                              {courses.reduce((total, course) => total + (course.units || 0), 0)} total units
                             </div>
                           </div>
-                        </div>
-                      )}
-                      
-                      {/* Actual Image */}
-                      {!imageLoading[String(course.id)] && courseImages[String(course.id)] && (
-                        <img
-                          src={courseImages[String(course.id)]}
-                          alt={course.name}
-                          className="w-full h-full object-cover transition-opacity duration-300"
-                          onError={() => setImageError(prev => ({ ...prev, [String(course.id)]: true }))}
-                        />
-                      )}
-                      
-                      {/* No Image Placeholder - Only show when not loading and no image exists */}
-                      {!imageLoading[String(course.id)] && !courseImages[String(course.id)] && !imageError[String(course.id)] && (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gray-50/80">
-                          <div className="w-12 h-12 bg-gray-200 rounded-xl flex items-center justify-center">
-                            <BookOpen className="w-6 h-6 text-gray-400" />
+                          
+                          {/* Courses List */}
+                          <div className="overflow-x-auto">
+                            <table className="min-w-full">
+                              <thead className="bg-gray-50">
+                                <tr>
+                                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Image</th>
+                                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subject Code</th>
+                                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subject Name</th>
+                                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Units</th>
+                                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">LEC</th>
+                                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">LAB</th>
+                                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hours/Week</th>
+                                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prerequisites</th>
+                                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                </tr>
+                              </thead>
+                              <tbody className="bg-white divide-y divide-gray-100">
+                                {courses.map((course, courseIdx) => (
+                                  <motion.tr
+                                    key={course.id}
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: (yearIdx * 0.1) + (semesterIdx * 0.05) + (courseIdx * 0.02) }}
+                                    className="hover:bg-gray-50 transition-colors duration-200 group"
+                                  >
+                                    {/* Subject Image */}
+                                    <td className="px-4 py-3">
+                                      <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center relative">
+                                        {/* Loading Skeleton */}
+                                        {imageLoading[String(course.id)] && (
+                                          <div className="w-full h-full relative">
+                                            <div className="absolute inset-0 enhanced-shimmer">
+                                              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
+                                            </div>
+                                          </div>
+                                        )}
+                                        
+                                        {/* Actual Image */}
+                                        {!imageLoading[String(course.id)] && courseImages[String(course.id)] && (
+                                          <img
+                                            src={courseImages[String(course.id)]}
+                                            alt={course.name}
+                                            className="w-full h-full object-cover transition-opacity duration-300"
+                                            onError={() => setImageError(prev => ({ ...prev, [String(course.id)]: true }))}
+                                          />
+                                        )}
+                                        
+                                        {/* No Image Placeholder */}
+                                        {!imageLoading[String(course.id)] && !courseImages[String(course.id)] && !imageError[String(course.id)] && (
+                                          <div className="flex flex-col items-center justify-center w-full h-full gap-1 bg-gray-50/80">
+                                            <BookOpen className="w-4 h-4 text-gray-400" />
+                                            <span className="text-[8px] text-gray-500 font-medium">No Image</span>
+                                          </div>
+                                        )}
+                                        
+                                        {/* Error State */}
+                                        {!imageLoading[String(course.id)] && imageError[String(course.id)] && (
+                                          <div className="flex flex-col items-center justify-center w-full h-full gap-1 bg-red-50/80">
+                                            <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                                            </svg>
+                                            <span className="text-[8px] text-red-500 font-medium">Error</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </td>
+                                    
+                                    {/* Subject Code */}
+                                    <td className="px-4 py-3">
+                                      <span className="text-sm font-semibold text-blue-600">{course.code}</span>
+                                    </td>
+                                    
+                                    {/* Subject Name */}
+                                    <td className="px-4 py-3">
+                                      <span className="text-sm font-medium text-gray-900 max-w-xs truncate block" title={course.name}>
+                                        {course.name}
+                                      </span>
+                                    </td>
+                                    
+                                    {/* Total Units */}
+                                    <td className="px-4 py-3">
+                                      <span className="bg-green-100 text-green-800 text-xs font-semibold px-2 py-1 rounded-full">
+                                        {course.units || 0} Unit{(course.units || 0) !== 1 ? 's' : ''}
+                                      </span>
+                                    </td>
+                                    
+                                    {/* LEC Units */}
+                                    <td className="px-4 py-3">
+                                      <span className="text-sm text-gray-700">
+                                        {course.lec_units || 0}
+                                      </span>
+                                    </td>
+                                    
+                                    {/* LAB Units */}
+                                    <td className="px-4 py-3">
+                                      <span className="text-sm text-gray-700">
+                                        {course.lab_units || 0}
+                                      </span>
+                                    </td>
+                                    
+                                    {/* Hours per Week */}
+                                    <td className="px-4 py-3">
+                                      <span className="text-sm text-gray-700">
+                                        {course.hours_per_week || 0}
+                                      </span>
+                                    </td>
+                                    
+                                    {/* Prerequisites */}
+                                    <td className="px-4 py-3">
+                                      <div className="flex flex-wrap gap-1">
+                                        {course.prerequisites && course.prerequisites.length > 0 ? (
+                                          course.prerequisites.map((prereq, idx) => (
+                                            <span key={idx} className="bg-orange-100 text-orange-800 text-xs px-2 py-1 rounded-full">
+                                              {prereq}
+                                            </span>
+                                          ))
+                                        ) : (
+                                          <span className="text-xs text-gray-400">None</span>
+                                        )}
+                                      </div>
+                                    </td>
+                                    
+                                    {/* Type */}
+                                    <td className="px-4 py-3">
+                                      {course.summer ? (
+                                        <span className="inline-flex items-center gap-1 bg-yellow-100 text-yellow-800 text-xs font-bold px-2 py-1 rounded-full">
+                                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="inline-block w-2 h-2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                                          Summer
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded-full">
+                                          Regular
+                                        </span>
+                                      )}
+                                    </td>
+                                    
+                                    {/* Actions */}
+                                    <td className="px-4 py-3">
+                                      <div className="bg-white/80 backdrop-blur-sm border border-white/30 rounded-lg p-1 shadow-sm flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                        <CourseActions
+                                          onEdit={() => {
+                                            setSelectedCourse(course);
+                                            setShowSectionModal(false);
+                                            setShowAddModal(true);
+                                            console.log('Loading course data for editing:', course);
+                                            setCourseForm({
+                                              code: course.code,
+                                              name: course.name,
+                                              units: course.units || 3,
+                                              lec_units: course.lec_units || course.units || 3,
+                                              lab_units: course.lab_units || 0,
+                                              hours_per_week: course.hours_per_week || 3,
+                                              prerequisites: course.prerequisites || [],
+                                              image_url: course.image_url || '',
+                                              summer: course.summer || false,
+                                              year_level: course.year_level || '',
+                                              semester: course.semester || ''
+                                            });
+                                            setImageFile(null);
+                                            setShowCropModal(false);
+                                            setSelectedImage(null);
+                                          }}
+                                          onDelete={() => handleDeleteCourse(String(course.id))}
+                                        />
+                                      </div>
+                                    </td>
+                                  </motion.tr>
+                                ))}
+                              </tbody>
+                            </table>
                           </div>
-                          <span className="text-xs text-gray-500 font-medium">No Image</span>
                         </div>
-                      )}
-                      
-                      {/* Error State - Only show when not loading and image failed to load */}
-                      {!imageLoading[String(course.id)] && imageError[String(course.id)] && (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-red-50/80 error-pulse">
-                          <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
-                            <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                            </svg>
-                          </div>
-                          <span className="text-xs text-red-500 font-medium">Image Error</span>
-                        </div>
-                      )}
-                    <div className="absolute top-4 right-4">
-                      <div className="bg-white/40 backdrop-blur-md border border-white/30 rounded-lg p-1 shadow-md flex items-center gap-1">
-                        <CourseActions
-                          onEdit={() => {
-                            setSelectedCourse(course);
-                            setShowSectionModal(false);
-                            setShowAddModal(true);
-                            setCourseForm({
-                              code: course.code,
-                              name: course.name,
-                              units: course.units,
-                              image_url: course.image_url || '',
-                              summer: course.summer || false,
-                              year_level: course.year_level || ''
-                            });
-                            setImageFile(null);
-                            setShowCropModal(false);
-                            setSelectedImage(null);
-                          }}
-                          onDelete={() => handleDeleteCourse(String(course.id))}
-                        />
-                      </div>
+                      ))}
                     </div>
-                  </div>
-                  <div className="p-6">
-                    {/* Subject Code, Units, Year Level */}
-                    <div className="flex flex-wrap items-center gap-2 mb-2">
-                      <span className="bg-green-100 text-green-800 text-xs font-semibold px-3 py-1 rounded-full">
-                        {course.units} Unit{course.units !== 1 ? 's' : ''}
-                      </span>
-                      <span className="bg-gray-100 text-gray-800 text-xs font-semibold px-3 py-1 rounded-full">
-                        {course.year_level}
-                      </span>
-                      {course.summer ? (
-                        <span className="inline-flex items-center gap-1 bg-yellow-100 text-yellow-800 text-xs font-bold px-2 py-1 rounded-full">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="inline-block w-3 h-3"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-                          Summer
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded-full">
-                          Regular
-                        </span>
-                      )}
-                    </div>
-                    {/* Subject Name with Code */}
-                    <h3 className="text-xl font-bold text-gray-900 mb-2 line-clamp-2">
-                      <span className="text-blue-600">{course.code}</span> - {course.name}
-                    </h3>
-                  </div>
-                </motion.div>
-              ))}
+                  </motion.div>
+                ));
+              })()}
             </div>
           ) : (
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="min-w-full">
-                  <thead className="bg-gradient-to-r from-blue-50 to-indigo-50">
-                    <tr>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">Units</th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">Year Level</th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">Subject Name</th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">Subject Image</th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">Summer</th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {filteredCourses.map((course) => (
-                      <tr key={course.id} className="hover:bg-gray-50 transition-colors duration-200">
-                          {/* Units */}
-                          <td className="px-6 py-4">
-                            <span className="bg-green-100 text-green-800 text-sm font-semibold px-3 py-1 rounded-full">
-                              {course.units} Unit{course.units !== 1 ? 's' : ''}
-                            </span>
-                          </td>
-                          {/* Year Level */}
-                          <td className="px-6 py-4 text-gray-700 max-w-xs truncate">{course.year_level}</td>
-                          {/* Subject Name with Code */}
-                          <td className="px-6 py-4 font-semibold text-gray-900">
-                            <span className="text-blue-600">{course.code}</span> - {course.name}
-                          </td>
-                          {/* Subject Image */}
-                          <td className="px-6 py-4">
-                            <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center relative">
-                              {/* Loading Skeleton */}
-                              {imageLoading[String(course.id)] && (
-                                <div className="w-full h-full relative">
-                                  {/* Enhanced Skeleton Animation */}
-                                  <div className="absolute inset-0 enhanced-shimmer">
-                                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
-                                  </div>
-                                </div>
-                              )}
-                              
-                              {/* Actual Image */}
-                              {!imageLoading[String(course.id)] && courseImages[String(course.id)] && (
-                                <img 
-                                  src={courseImages[String(course.id)]} 
-                                  alt={course.name} 
-                                  className="w-full h-full object-cover transition-opacity duration-300"
-                                  onError={() => setImageError(prev => ({ ...prev, [String(course.id)]: true }))}
-                                />
-                              )}
-                              
-                              {/* No Image Placeholder - Only show when not loading and no image exists */}
-                              {!imageLoading[String(course.id)] && !courseImages[String(course.id)] && !imageError[String(course.id)] && (
-                                <div className="flex flex-col items-center justify-center w-full h-full gap-1 bg-gray-50/80">
-                                  <BookOpen className="w-4 h-4 text-gray-400" />
-                                  <span className="text-[8px] text-gray-500 font-medium">No Image</span>
-                                </div>
-                              )}
-                              
-                              {/* Error State - Only show when not loading and image failed to load */}
-                              {!imageLoading[String(course.id)] && imageError[String(course.id)] && (
-                                <div className="flex flex-col items-center justify-center w-full h-full gap-1 bg-red-50/80 error-pulse">
-                                  <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                                  </svg>
-                                  <span className="text-[8px] text-red-500 font-medium">Error</span>
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                          {/* Summer */}
-                          <td className="px-6 py-4">
-                            {course.summer ? (
-                              <span className="inline-flex items-center gap-1 bg-yellow-100 text-yellow-800 text-xs font-bold px-3 py-1 rounded-full">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="inline-block w-4 h-4"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-                                Summer
+            <div className="space-y-8">
+              {(() => {
+                // Group courses by year level and semester for list view
+                const groupedCourses: { [yearLevel: string]: { [semester: string]: typeof filteredCourses } } = {};
+                
+                filteredCourses.forEach(course => {
+                  const yearLevel = course.year_level || 'Unknown Year';
+                  const semester = course.semester || 'No Semester';
+                  
+                  if (!groupedCourses[yearLevel]) {
+                    groupedCourses[yearLevel] = {};
+                  }
+                  if (!groupedCourses[yearLevel][semester]) {
+                    groupedCourses[yearLevel][semester] = [];
+                  }
+                  
+                  groupedCourses[yearLevel][semester].push(course);
+                });
+                
+                return Object.entries(groupedCourses).map(([yearLevel, semesters], yearIdx) => (
+                  <motion.div
+                    key={yearLevel}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: yearIdx * 0.1 }}
+                    className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden"
+                  >
+                    {/* Year Level Header */}
+                    <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4">
+                      <h2 className="text-xl font-bold text-white flex items-center gap-3">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                        </svg>
+                        {yearLevel}
+                      </h2>
+                    </div>
+                    
+                    {/* Semesters */}
+                    <div className="space-y-6">
+                      {Object.entries(semesters).map(([semester, courses], semesterIdx) => (
+                        <div key={semester} className="space-y-4">
+                          {/* Semester Header */}
+                          <div className="px-6 pt-6 pb-2">
+                            <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                              <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+                              {semester}
+                              <span className="text-sm font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                                {courses.length} subject{courses.length !== 1 ? 's' : ''}
                               </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full">
-                                Regular
-                              </span>
-                            )}
-                          </td>
-                          {/* Actions */}
-                          <td className="px-6 py-4">
-                             <div className="bg-white/40 backdrop-blur-md border border-white/30 rounded-lg p-1 shadow-md flex items-center gap-1">
-                               <CourseActions
-                                 onEdit={() => {
-                                   setSelectedCourse(course);
-                                   setShowSectionModal(false);
-                                   setShowAddModal(true);
-                                   setCourseForm({
-                                     code: course.code,
-                                     name: course.name,
-                                     units: course.units,
-                                     image_url: course.image_url || '',
-                                     summer: course.summer || false,
-                                     year_level: course.year_level || ''
-                                   });
-                                   setImageFile(null);
-                                   setShowCropModal(false);
-                                   setSelectedImage(null);
-                                 }}
-                                 onDelete={() => handleDeleteCourse(String(course.id))}
-                               />
-                             </div>
-                          </td>
-                        </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                            </h3>
+                          </div>
+                          
+                          {/* Courses Table */}
+                          <div className="overflow-x-auto">
+                            <table className="min-w-full">
+                              <thead className="bg-gray-50">
+                                <tr>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Units</th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subject Name</th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subject Image</th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                </tr>
+                              </thead>
+                              <tbody className="bg-white divide-y divide-gray-100">
+                                {courses.map((course) => (
+                                  <tr key={course.id} className="hover:bg-gray-50 transition-colors duration-200">
+                                    {/* Units */}
+                                    <td className="px-6 py-4">
+                                      <span className="bg-green-100 text-green-800 text-xs font-semibold px-2 py-1 rounded-full">
+                                        {course.units} Unit{course.units !== 1 ? 's' : ''}
+                                      </span>
+                                    </td>
+                                    {/* Subject Name with Code */}
+                                    <td className="px-6 py-4 font-semibold text-gray-900">
+                                      <span className="text-blue-600">{course.code}</span> - {course.name}
+                                    </td>
+                                    {/* Subject Image */}
+                                    <td className="px-6 py-4">
+                                      <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center relative">
+                                        {/* Loading Skeleton */}
+                                        {imageLoading[String(course.id)] && (
+                                          <div className="w-full h-full relative">
+                                            <div className="absolute inset-0 enhanced-shimmer">
+                                              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
+                                            </div>
+                                          </div>
+                                        )}
+                                        
+                                        {/* Actual Image */}
+                                        {!imageLoading[String(course.id)] && courseImages[String(course.id)] && (
+                                          <img 
+                                            src={courseImages[String(course.id)]} 
+                                            alt={course.name} 
+                                            className="w-full h-full object-cover transition-opacity duration-300"
+                                            onError={() => setImageError(prev => ({ ...prev, [String(course.id)]: true }))}
+                                          />
+                                        )}
+                                        
+                                        {/* No Image Placeholder */}
+                                        {!imageLoading[String(course.id)] && !courseImages[String(course.id)] && !imageError[String(course.id)] && (
+                                          <div className="flex flex-col items-center justify-center w-full h-full gap-1 bg-gray-50/80">
+                                            <BookOpen className="w-4 h-4 text-gray-400" />
+                                            <span className="text-[8px] text-gray-500 font-medium">No Image</span>
+                                          </div>
+                                        )}
+                                        
+                                        {/* Error State */}
+                                        {!imageLoading[String(course.id)] && imageError[String(course.id)] && (
+                                          <div className="flex flex-col items-center justify-center w-full h-full gap-1 bg-red-50/80">
+                                            <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                                            </svg>
+                                            <span className="text-[8px] text-red-500 font-medium">Error</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </td>
+                                    {/* Type */}
+                                    <td className="px-6 py-4">
+                                      {course.summer ? (
+                                        <span className="inline-flex items-center gap-1 bg-yellow-100 text-yellow-800 text-xs font-bold px-2 py-1 rounded-full">
+                                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="inline-block w-2 h-2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                                          Summer
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded-full">
+                                          Regular
+                                        </span>
+                                      )}
+                                    </td>
+                                    {/* Actions */}
+                                    <td className="px-6 py-4">
+                                       <div className="bg-white/40 backdrop-blur-md border border-white/30 rounded-lg p-1 shadow-md flex items-center gap-1">
+                                         <CourseActions
+                                           onEdit={() => {
+                                             setSelectedCourse(course);
+                                             setShowSectionModal(false);
+                                             setShowAddModal(true);
+                                             console.log('Loading course data for editing:', course);
+                                             setCourseForm({
+                                               code: course.code,
+                                               name: course.name,
+                                               units: course.units || 3,
+                                               lec_units: course.lec_units || course.units || 3,
+                                               lab_units: course.lab_units || 0,
+                                               hours_per_week: course.hours_per_week || 3,
+                                               prerequisites: course.prerequisites || [],
+                                               image_url: course.image_url || '',
+                                               summer: course.summer || false,
+                                               year_level: course.year_level || '',
+                                               semester: course.semester || ''
+                                             });
+                                             setImageFile(null);
+                                             setShowCropModal(false);
+                                             setSelectedImage(null);
+                                           }}
+                                           onDelete={() => handleDeleteCourse(String(course.id))}
+                                         />
+                                       </div>
+                                     </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </motion.div>
+                ));
+              })()}
             </div>
           )}
         </motion.div>
