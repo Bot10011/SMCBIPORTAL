@@ -64,6 +64,60 @@ const SupabaseAuthCallback: React.FC = () => {
           return;
         }
 
+        // Update user profile with Google metadata if available
+        // This will also refresh metadata if user changes their Google account or avatar
+        if (user.user_metadata) {
+          try {
+            // Debug: Log the actual metadata structure
+            console.log('Google user metadata:', user.user_metadata);
+            console.log('Google app metadata:', user.app_metadata);
+            
+            // Check for various possible avatar field names
+            const avatarUrl = user.user_metadata.avatar_url || 
+                             user.user_metadata.picture || 
+                             user.user_metadata.avatar ||
+                             user.user_metadata.profile_picture ||
+                             user.user_metadata.profile_pic ||
+                             user.user_metadata.photo ||
+                             user.user_metadata.image;
+            
+            // Check for various possible name field names
+            const displayName = user.user_metadata.full_name || 
+                               user.user_metadata.name || 
+                               user.user_metadata.display_name ||
+                               (user.user_metadata.given_name && user.user_metadata.family_name ? 
+                                user.user_metadata.given_name + ' ' + user.user_metadata.family_name : null);
+            
+            // Always update if we have new metadata (this handles account changes and avatar updates)
+            if (avatarUrl || displayName || user.app_metadata?.provider) {
+              const updateData: {
+                display_name?: string;
+                avatar_url?: string;
+                auth_provider?: string;
+              } = {};
+              
+              if (displayName) updateData.display_name = displayName;
+              if (avatarUrl) updateData.avatar_url = avatarUrl;
+              if (user.app_metadata?.provider) updateData.auth_provider = user.app_metadata.provider;
+              
+              const { error: updateError } = await supabase
+                .from('user_profiles')
+                .update(updateData)
+                .eq('id', user.id);
+              
+              if (updateError) {
+                console.warn('Failed to update Google metadata:', updateError);
+                // Continue with login even if metadata update fails
+              } else {
+                console.log('Google user metadata updated successfully:', { displayName, avatarUrl, provider: user.app_metadata?.provider });
+              }
+            }
+          } catch (metadataError) {
+            console.warn('Error updating Google metadata:', metadataError);
+            // Continue with login even if metadata update fails
+          }
+        }
+
         // Existing profile → proceed to app
         const normalizedRole: UserRole = (existingProfile.role === 'program_head') ? 'program_head' : existingProfile.role;
         const userDataToStore = {
