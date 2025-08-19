@@ -5,6 +5,8 @@ import ProgramHeadEnrollment from './ProgramHeadEnrollment';
 import CoursesOffered from './CoursesOffered';
 import SubjectAssignment from './SubjectAssignment';
 import UserManagement from './UserManagement';
+import ClassManagement from './ClassManagement';
+import InstructorManagement from './InstructorManagement';
 import Settings from './Settings';
 
 import { motion } from 'framer-motion';
@@ -14,23 +16,15 @@ import {
   ClipboardList,
   BookOpenCheck,
   BarChart3,
-  Calendar,
-  Bell,
-  StickyNote,
-  ChevronUp,
-  ChevronDown
+  Calendar
 } from 'lucide-react';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { supabase } from '../lib/supabase';
-import { useAuth } from '../contexts/AuthContext';
-// import { getGoogleClassroomConnectionInfo } from '../lib/services/googleClassroomService';
-// import { StudentGoogleClassroom } from '../components/StudentGoogleClassroom';
 
 // Import program head-specific components
 
 // Dashboard Overview Component
 const DashboardOverview: React.FC = () => {
-  const { user } = useAuth();
   const [stats, setStats] = useState({
     activeStudents: 0,
     pendingRequests: 0,
@@ -42,87 +36,8 @@ const DashboardOverview: React.FC = () => {
     rating: number;
     students: number;
     color: string;
-    yearLabel?: string;
   }[]>([]);
   const [error, setError] = useState<string | null>(null);
-  // Unified panel state replaces separate modal flags
-  const perfListRef = React.useRef<HTMLDivElement | null>(null);
-  const [yearFilter, setYearFilter] = useState<'all' | '1st Year' | '2nd Year' | '3rd Year' | '4th Year'>('all');
-  const [activePanel, setActivePanel] = useState<'notifications' | 'notes' | 'calendar'>('calendar');
-  const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState(new Date().getDate());
-  const [personalNotes, setPersonalNotes] = useState<Array<{ id: string; content: string; created_at: string }>>([]);
-  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
-  const [editingNoteContent, setEditingNoteContent] = useState<string>("");
-  const [programNotifications, setProgramNotifications] = useState<Array<{ id: string; title: string; message: string; severity: 'announcement' | 'reminder' | 'deadline' | 'exam' | 'meeting' | 'advisory' | 'info' | 'success' | 'warning' | 'error'; audience: 'instructor' | 'student' | 'all'; created_by: string | null; created_at: string }>>([]);
-  const [editingNotifId, setEditingNotifId] = useState<string | null>(null);
-  const [editingNotif, setEditingNotif] = useState<{ title: string; message: string; severity: 'announcement' | 'reminder' | 'deadline' | 'exam' | 'meeting' | 'advisory' | 'info' | 'success' | 'warning' | 'error'; audience: 'instructor' | 'student' | 'all' }>({ title: '', message: '', severity: 'announcement', audience: 'instructor' });
-
-  const handlePreviousMonth = () => {
-    setCurrentMonth(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
-  };
-
-  const handleNextMonth = () => {
-    setCurrentMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
-  };
-
-  const calendarDates = (() => {
-    const year = currentMonth.getFullYear();
-    const month = currentMonth.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const startDate = new Date(firstDay);
-    const dayOfWeek = firstDay.getDay();
-    const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // start week on Monday
-    startDate.setDate(startDate.getDate() - daysToSubtract);
-    const dates: Date[] = [];
-    for (let i = 0; i < 42; i++) {
-      const date = new Date(startDate);
-      date.setDate(startDate.getDate() + i);
-      dates.push(date);
-    }
-    return dates;
-  })();
-
-  // (Optional) Google Classroom connection check removed for now
-
-  // Load personal notes for program head
-  useEffect(() => {
-    const loadNotes = async () => {
-      if (!user?.id) return;
-      try {
-        const { data, error } = await supabase
-          .from('personal_notes')
-          .select('id, content, created_at')
-          .order('created_at', { ascending: false })
-          .limit(50);
-        if (error) throw error;
-        setPersonalNotes(data || []);
-      } catch (err) {
-        console.error('ProgramHead notes fetch error:', err);
-        setPersonalNotes([]);
-      }
-    };
-    loadNotes();
-  }, [user?.id]);
-
-  // Load notifications for management (program head can create/manage)
-  useEffect(() => {
-    const loadNotifications = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('notifications')
-          .select('id, title, message, severity, audience, created_by, created_at')
-          .order('created_at', { ascending: false })
-          .limit(50);
-        if (error) throw error;
-        setProgramNotifications(data || []);
-      } catch (err) {
-        console.error('ProgramHead notifications fetch error:', err);
-        setProgramNotifications([]);
-      }
-    };
-    loadNotifications();
-  }, []);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -136,43 +51,28 @@ const DashboardOverview: React.FC = () => {
         // 2. Fetch all courses to map subject_id to code
         const { data: courses, error: coursesError } = await supabase
           .from('courses')
-          .select('id, code, year_level');
+          .select('id, code');
         if (coursesError) throw coursesError;
-        const courseMetaMap: Record<string, { code: string; year_level?: string | null }> = {};
-        (courses || []).forEach((c: { id: string, code: string, year_level?: string | null }) => {
-          courseMetaMap[c.id] = { code: c.code, year_level: c.year_level };
+        const courseCodeMap: Record<string, string> = {};
+        (courses || []).forEach((c: { id: string, code: string }) => {
+          courseCodeMap[c.id] = c.code;
         });
         // Unique students
         const uniqueStudentIds = new Set((enrollments || []).map((e: { student_id: string }) => e.student_id));
         // Unique subjects
         const uniqueSubjectIds = new Set((enrollments || []).map((e: { subject_id: string }) => e.subject_id));
-        // Courses Performance: ensure ALL courses show, even without enrollments
+        // Courses Performance: for each subject_id, count unique student_id
         const subjectStudentMap: Record<string, Set<string>> = {};
         (enrollments || []).forEach((e: { subject_id: string, student_id: string }) => {
           if (!subjectStudentMap[e.subject_id]) subjectStudentMap[e.subject_id] = new Set();
           subjectStudentMap[e.subject_id].add(e.student_id);
         });
-        const performance = (courses || []).map((c: { id: string; code: string; year_level?: string | null }) => {
-          // Normalize year label
-          const yl = (c.year_level || '').toString().trim();
-          const yearLabel = yl || (() => {
-            const match = (c.code || '').match(/(\d{3})/);
-            if (!match) return '';
-            const digit = match[1][0];
-            if (digit === '1') return '1st Year';
-            if (digit === '2') return '2nd Year';
-            if (digit === '3') return '3rd Year';
-            if (digit === '4') return '4th Year';
-            return '';
-          })();
-          return {
-            course: (courseMetaMap[c.id]?.code) || c.id,
-            rating: 0,
-            students: subjectStudentMap[c.id] ? subjectStudentMap[c.id].size : 0,
-            color: 'blue',
-            yearLabel,
-          };
-        });
+        const performance = Object.entries(subjectStudentMap).map(([subjectId, studentsSet]) => ({
+          course: courseCodeMap[subjectId] || subjectId,
+          rating: 0,
+          students: studentsSet.size,
+          color: 'blue',
+        }));
         setStats({
           activeStudents: uniqueStudentIds.size,
           pendingRequests: 0,
@@ -270,53 +170,39 @@ const DashboardOverview: React.FC = () => {
 
       {/* Middle Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left: Course Performance Chart (spans 2) */}
+        {/* Course Performance Chart */}
         <motion.div 
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
-          className="lg:col-span-2 bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6"
+          className="lg:col-span-2 bg-white rounded-2xl shadow-lg p-6"
         >
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-semibold text-gray-800 flex items-center">
               <BarChart3 className="w-5 h-5 mr-2 text-gray-600" />
-              Subjects Performance
+              Courses Performance
             </h2>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => perfListRef.current?.scrollBy({ top: -200, behavior: 'smooth' })}
-                className="p-2 rounded-lg border border-gray-200 hover:bg-gray-100 text-gray-600"
-                title="Scroll up"
-              >
-                <ChevronUp className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => perfListRef.current?.scrollBy({ top: 200, behavior: 'smooth' })}
-                className="p-2 rounded-lg border border-gray-200 hover:bg-gray-100 text-gray-600"
-                title="Scroll down"
-              >
-                <ChevronDown className="w-4 h-4" />
-              </button>
-              <select
-                value={yearFilter}
-                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setYearFilter(e.target.value as 'all' | '1st Year' | '2nd Year' | '3rd Year' | '4th Year')}
-                className="bg-gray-50 border border-gray-200 text-gray-700 py-2 px-3 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="all">All Years</option>
-                <option value="1st Year">1st Year</option>
-                <option value="2nd Year">2nd Year</option>
-                <option value="3rd Year">3rd Year</option>
-                <option value="4th Year">4th Year</option>
-              </select>
-            </div>
+            <select className="bg-gray-50 border border-gray-200 text-gray-700 py-2 px-3 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="current">Current Semester</option>
+              <option value="previous">Previous Semester</option>
+              <option value="yearly">Yearly Overview</option>
+            </select>
           </div>
 
-          <div ref={perfListRef} className="space-y-4 max-h-[420px] overflow-y-auto pr-2">
-            {studentPerformance
-              .filter(course => yearFilter === 'all' || course.yearLabel === yearFilter)
-              .map(course => {
+          <div className="space-y-4">
+            {studentPerformance.map(course => {
               const maxStudents = 100;
               const percent = Math.min((course.students / maxStudents) * 100, 100);
+              // Year indicator from course code (e.g., IT101 => 1st Year, IT202 => 2nd Year)
+              let yearLabel = '';
+              const match = course.course.match(/(\d{3})/);
+              if (match) {
+                const yearDigit = match[1][0];
+                if (yearDigit === '1') yearLabel = '1st Year';
+                else if (yearDigit === '2') yearLabel = '2nd Year';
+                else if (yearDigit === '3') yearLabel = '3rd Year';
+                else if (yearDigit === '4') yearLabel = '4th Year';
+              }
               return (
                 <div key={course.course} className="space-y-2">
                   <div className="flex justify-between items-center">
@@ -333,378 +219,63 @@ const DashboardOverview: React.FC = () => {
                   </div>
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-gray-500">Enrolled Students</span>
-                   
+                    <span className="font-semibold text-gray-700">{course.students}</span>
                   </div>
-                 
+                  {yearLabel && (
+                    <div className="text-xs text-blue-600 font-semibold mt-1">{yearLabel}</div>
+                  )}
                 </div>
               );
             })}
           </div>
         </motion.div>
 
-        {/* Right: Toolbar + Calendar stacked */}
-        <div className="lg:col-span-1 space-y-6">
-          {/* Icon toolbar like Teacher dashboard */}
-          <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-4 shadow-xl border border-white/20 relative">
-            <div className="flex items-center justify-center">
-              <div className="flex items-center space-x-4">
-                {/* Notifications */}
-                <button onClick={() => setActivePanel('notifications')} className={`relative cursor-pointer group rounded-xl p-3 shadow-lg border transition-all duration-200 ${
-                  activePanel === 'notifications' ? 'bg-blue-100 border-blue-300' : 'bg-white/80 border-white/80'
-                }`}>
-                  <Bell className={`w-6 h-6 ${activePanel === 'notifications' ? 'text-blue-600' : 'text-gray-600'}`} />
-                </button>
-                {/* Notes */}
-                <button onClick={() => setActivePanel('notes')} className={`relative cursor-pointer group rounded-xl p-3 shadow-lg border transition-all duration-200 ${
-                  activePanel === 'notes' ? 'bg-yellow-100 border-yellow-300' : 'bg-white/80 border-white/80'
-                }`}>
-                  <StickyNote className={`w-6 h-6 ${activePanel === 'notes' ? 'text-yellow-600' : 'text-gray-600'}`} />
-                </button>
-                {/* Calendar */}
-                <button onClick={() => setActivePanel('calendar')} className={`relative cursor-pointer group rounded-xl p-3 shadow-lg border transition-all duration-200 ${
-                  activePanel === 'calendar' ? 'bg-green-100 border-green-300' : 'bg-white/80 border-white/80'
-                }`}>
-                  <Calendar className={`w-6 h-6 ${activePanel === 'calendar' ? 'text-green-600' : 'text-gray-600'}`} />
-                </button>
-              </div>
-            </div>
+        {/* Academic Calendar */}
+        <motion.div 
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.5, delay: 0.3 }}
+          className="bg-white rounded-2xl shadow-lg p-6"
+        >
+          <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+            <Calendar className="w-5 h-5 mr-2 text-gray-600" />
+            Academic Calendar
+          </h2>
+          
+          <div className="mt-4 space-y-3">
+            <CalendarEvent 
+              date="June 5" 
+              title="Faculty Meeting" 
+              time="1:00 PM - 3:00 PM" 
+              type="meeting" 
+            />
+            <CalendarEvent 
+              date="June 8" 
+              title="Curriculum Review" 
+              time="10:00 AM - 12:00 PM" 
+              type="important" 
+            />
+            <CalendarEvent 
+              date="June 12" 
+              title="Grade Submission Deadline" 
+              time="11:59 PM" 
+              type="deadline" 
+            />
+            <CalendarEvent 
+              date="June 15" 
+              title="Department Planning" 
+              time="2:00 PM - 4:00 PM" 
+              type="regular" 
+            />
           </div>
-
-          {/* Unified container that switches based on selected icon */}
-          <motion.div 
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
-            className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 shadow-xl border border-white/20"
-          >
-            {activePanel === 'notifications' && (
-              <div>
-                <h3 className="font-bold text-gray-700 flex items-center mb-3"><Bell className="w-4 h-4 mr-2 text-blue-500" /> Notifications</h3>
-                {/* Add notification indicator/form */}
-                <form
-                  onSubmit={async (e) => {
-                    e.preventDefault();
-                    const form = e.currentTarget as HTMLFormElement;
-                    const titleInput = form.elements.namedItem('title') as HTMLInputElement;
-                    const messageInput = form.elements.namedItem('message') as HTMLInputElement;
-                    const severitySelect = form.elements.namedItem('type') as HTMLSelectElement;
-                    const audienceSelect = form.elements.namedItem('audience') as HTMLSelectElement;
-                    const title = (titleInput?.value || '').trim();
-                    const message = (messageInput?.value || '').trim();
-                    const severity = (severitySelect?.value || 'announcement') as 'announcement' | 'reminder' | 'deadline' | 'exam' | 'meeting' | 'advisory' | 'info' | 'success' | 'warning' | 'error';
-                    const audience = (audienceSelect?.value || 'instructor') as 'instructor' | 'student' | 'all';
-                    if (!title || !message || !user?.id) return;
-                    try {
-                      const { data: inserted, error } = await supabase
-                        .from('notifications')
-                        .insert({ title, message, severity, audience, created_by: user.id, is_active: true })
-                        .select('id, title, message, severity, audience, created_by, created_at')
-                        .single();
-                      if (error) throw error;
-                      if (inserted) setProgramNotifications(prev => [inserted, ...prev]);
-                      titleInput.value = '';
-                      messageInput.value = '';
-                      severitySelect.value = 'info';
-                      audienceSelect.value = 'instructor';
-                    } catch (err) {
-                      console.error('Failed to add notification:', err);
-                    }
-                  }}
-                  className="grid grid-cols-1 gap-2 mb-4"
-                >
-                  <input name="title" placeholder="Title" className="px-3 py-2 rounded-lg border border-gray-300 text-sm" />
-                  <input name="message" placeholder="Message" className="px-3 py-2 rounded-lg border border-gray-300 text-sm" />
-                  <div className="flex gap-2">
-                    <select name="type" className="px-2 py-2 rounded-lg border border-gray-300 text-sm">
-                      <option value="announcement">Announcement</option>
-                      <option value="reminder">Reminder</option>
-                      <option value="deadline">Deadline</option>
-                      <option value="exam">Exam</option>
-                      <option value="meeting">Meeting</option>
-                      <option value="advisory">Advisory</option>
-                    </select>
-                    <select name="audience" className="px-2 py-2 rounded-lg border border-gray-300 text-sm">
-                      <option value="instructor">Instructors</option>
-                      <option value="student">Students</option>
-                      <option value="all">All</option>
-                    </select>
-                    <button type="submit" className="px-3 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-sm">Add</button>
-                  </div>
-                </form>
-                {/* List notifications with edit/delete for own items */}
-                <div className="space-y-3">
-                  {programNotifications.length === 0 ? (
-                    <div className="text-sm text-gray-500">No notifications</div>
-                  ) : (
-                    programNotifications.map((n) => (
-                      <div key={n.id} className={`p-3 rounded-lg border flex items-start justify-between ${
-                        n.severity === 'success' ? 'bg-green-50 border-green-200' :
-                        n.severity === 'warning' ? 'bg-yellow-50 border-yellow-200' :
-                        n.severity === 'error' ? 'bg-red-50 border-red-200' : 'bg-blue-50 border-blue-200'
-                      }`}>
-                        <div className="flex-1 pr-3">
-                          {editingNotifId === n.id ? (
-                            <div className="space-y-2">
-                              <input
-                                value={editingNotif.title}
-                                onChange={(e) => setEditingNotif(prev => ({ ...prev, title: e.target.value }))}
-                                className="w-full px-2 py-1 rounded border border-gray-300 text-sm"
-                              />
-                              <input
-                                value={editingNotif.message}
-                                onChange={(e) => setEditingNotif(prev => ({ ...prev, message: e.target.value }))}
-                                className="w-full px-2 py-1 rounded border border-gray-300 text-sm"
-                              />
-                              <div className="flex gap-2">
-                                <select value={editingNotif.severity} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setEditingNotif(prev => ({ ...prev, severity: e.target.value as 'announcement' | 'reminder' | 'deadline' | 'exam' | 'meeting' | 'advisory' | 'info' | 'success' | 'warning' | 'error' }))} className="px-2 py-1 rounded border border-gray-300 text-sm">
-                                  <option value="announcement">Announcement</option>
-                                  <option value="reminder">Reminder</option>
-                                  <option value="deadline">Deadline</option>
-                                  <option value="exam">Exam</option>
-                                  <option value="meeting">Meeting</option>
-                                  <option value="advisory">Advisory</option>
-                                  <option value="info">Info</option>
-                                  <option value="success">Success</option>
-                                  <option value="warning">Warning</option>
-                                  <option value="error">Error</option>
-                                </select>
-                                <select value={editingNotif.audience} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setEditingNotif(prev => ({ ...prev, audience: e.target.value as 'instructor' | 'student' | 'all' }))} className="px-2 py-1 rounded border border-gray-300 text-sm">
-                                  <option value="instructor">Instructors</option>
-                                  <option value="student">Students</option>
-                                  <option value="all">All</option>
-                                </select>
-                              </div>
-                            </div>
-                          ) : (
-                            <>
-                              <div className="font-medium text-sm text-gray-700">{n.title}</div>
-                              <div className="text-xs text-gray-600">{n.message}</div>
-                              <div className="mt-1 inline-flex items-center gap-2 text-[10px]">
-                                <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 border border-gray-200">{n.severity}</span>
-                                <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 border border-gray-200">{n.audience}</span>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {n.created_by === (user?.id || null) ? (
-                            editingNotifId === n.id ? (
-                              <>
-                                <button
-                                  className="px-2 py-1 text-xs rounded bg-green-500 text-white hover:bg-green-600"
-                                  onClick={async () => {
-                                    try {
-                                      const { error } = await supabase
-                                        .from('notifications')
-                                        .update({ title: editingNotif.title, message: editingNotif.message, severity: editingNotif.severity, audience: editingNotif.audience })
-                                        .eq('id', n.id);
-                                      if (error) throw error;
-                                      setProgramNotifications(prev => prev.map(x => x.id === n.id ? { ...x, ...editingNotif } : x));
-                                      setEditingNotifId(null);
-                                    } catch (err) {
-                                      console.error('Failed to update notification:', err);
-                                    }
-                                  }}
-                                >
-                                  Save
-                                </button>
-                                <button
-                                  className="px-2 py-1 text-xs rounded bg-gray-200 text-gray-700 hover:bg-gray-300"
-                                  onClick={() => setEditingNotifId(null)}
-                                >
-                                  Cancel
-                                </button>
-                              </>
-                            ) : (
-                              <>
-                                <button
-                                  className="px-2 py-1 text-xs rounded bg-yellow-100 text-yellow-700 hover:bg-yellow-200"
-                                  onClick={() => { setEditingNotifId(n.id); setEditingNotif({ title: n.title, message: n.message, severity: n.severity, audience: n.audience }); }}
-                                >
-                                  Edit
-                                </button>
-                                <button
-                                  className="px-2 py-1 text-xs rounded bg-red-100 text-red-700 hover:bg-red-200"
-                                  onClick={async () => {
-                                    try {
-                                      const { error } = await supabase
-                                        .from('notifications')
-                                        .delete()
-                                        .eq('id', n.id);
-                                      if (error) throw error;
-                                      setProgramNotifications(prev => prev.filter(x => x.id !== n.id));
-                                    } catch (err) {
-                                      console.error('Failed to delete notification:', err);
-                                    }
-                                  }}
-                                >
-                                  Delete
-                                </button>
-                              </>
-                            )
-                          ) : (
-                            <span className="text-[10px] text-gray-400">read-only</span>
-                          )}
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
-            {activePanel === 'notes' && (
-              <div>
-                <h3 className="font-bold text-gray-700 flex items-center mb-3"><StickyNote className="w-4 h-4 mr-2 text-yellow-500" /> Personal Notes</h3>
-                <form
-                  onSubmit={async (e) => {
-                    e.preventDefault();
-                    const form = e.currentTarget as HTMLFormElement;
-                    const input = form.elements.namedItem('note') as HTMLInputElement;
-                    const text = (input?.value || '').trim();
-                    if (!text) return;
-                    try {
-                      const { data: inserted, error } = await supabase
-                        .from('personal_notes')
-                        .insert({ user_id: user?.id, content: text })
-                        .select('id, content, created_at')
-                        .single();
-                      if (error) throw error;
-                      if (inserted) setPersonalNotes(prev => [inserted, ...prev]);
-                      input.value = '';
-                    } catch (err) {
-                      console.error('Failed to add note:', err);
-                    }
-                  }}
-                  className="flex items-center gap-2 mb-3"
-                >
-                  <input type="text" name="note" placeholder="Type a new note and press Enter..." className="flex-1 px-3 py-2 rounded-lg border border-gray-300 bg-white/70 focus:bg-white focus:ring-2 focus:ring-yellow-400 focus:border-transparent text-sm" />
-                  <button type="submit" className="px-3 py-2 rounded-lg bg-yellow-500 hover:bg-yellow-600 text-white text-sm">Add</button>
-                </form>
-                <ul className="space-y-2 text-sm text-gray-600">
-                  {personalNotes.map((n) => (
-                    <li key={n.id} className="flex items-start justify-between gap-2">
-                      <div className="flex items-start gap-2 flex-1">
-                        <div className="w-1.5 h-1.5 bg-gray-400 rounded-full mt-2 flex-shrink-0"></div>
-                        {editingNoteId === n.id ? (
-                          <input
-                            value={editingNoteContent}
-                            onChange={(e) => setEditingNoteContent(e.target.value)}
-                            className="flex-1 px-3 py-2 rounded-lg border border-gray-300 bg-white/70 focus:bg-white focus:ring-2 focus:ring-yellow-400 focus:border-transparent text-sm"
-                          />
-                        ) : (
-                          <span>{n.content}</span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {editingNoteId === n.id ? (
-                          <>
-                            <button
-                              className="px-2 py-1 text-xs rounded bg-green-500 text-white hover:bg-green-600"
-                              onClick={async () => {
-                                const text = editingNoteContent.trim();
-                                if (!text) return;
-                                try {
-                                  const { error } = await supabase
-                                    .from('personal_notes')
-                                    .update({ content: text })
-                                    .eq('id', n.id)
-                                    .eq('user_id', user?.id || '');
-                                  if (error) throw error;
-                                  setPersonalNotes(prev => prev.map(x => x.id === n.id ? { ...x, content: text } : x));
-                                  setEditingNoteId(null);
-                                  setEditingNoteContent('');
-                                } catch (err) {
-                                  console.error('Failed to update note:', err);
-                                }
-                              }}
-                            >
-                              Save
-                            </button>
-                            <button
-                              className="px-2 py-1 text-xs rounded bg-gray-200 text-gray-700 hover:bg-gray-300"
-                              onClick={() => { setEditingNoteId(null); setEditingNoteContent(''); }}
-                            >
-                              Cancel
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button
-                              className="px-2 py-1 text-xs rounded bg-yellow-100 text-yellow-700 hover:bg-yellow-200"
-                              onClick={() => { setEditingNoteId(n.id); setEditingNoteContent(n.content); }}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              className="px-2 py-1 text-xs rounded bg-red-100 text-red-700 hover:bg-red-200"
-                              onClick={async () => {
-                                try {
-                                  const { error } = await supabase
-                                    .from('personal_notes')
-                                    .delete()
-                                    .eq('id', n.id)
-                                    .eq('user_id', user?.id || '');
-                                  if (error) throw error;
-                                  setPersonalNotes(prev => prev.filter(x => x.id !== n.id));
-                                } catch (err) {
-                                  console.error('Failed to delete note:', err);
-                                }
-                              }}
-                            >
-                              Delete
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {activePanel === 'calendar' && (
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-bold text-gray-700 flex items-center"><Calendar className="w-5 h-5 mr-2 text-blue-600" /> {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</h3>
-                  <div className="flex space-x-1">
-                    <button onClick={handlePreviousMonth} className="p-1 hover:bg-gray-100/50 backdrop-blur-sm rounded border border-white/20 transition-colors">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
-                    </button>
-                    <button onClick={handleNextMonth} className="p-1 hover:bg-gray-100/50 backdrop-blur-sm rounded border border-white/20 transition-colors">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
-                    </button>
-                  </div>
-                </div>
-                <div className="grid grid-cols-7 gap-1 text-center">
-                  {['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'].map(day => (
-                    <div key={day} className="text-xs font-medium text-gray-500 py-1">{day}</div>
-                  ))}
-                  {calendarDates.map((date, index) => {
-                    const isCurrentMonth = date.getMonth() === currentMonth.getMonth();
-                    const isSelected = isCurrentMonth && date.getDate() === selectedDate;
-                    const isToday = isCurrentMonth && date.getDate() === new Date().getDate() && currentMonth.getMonth() === new Date().getMonth() && currentMonth.getFullYear() === new Date().getFullYear();
-                    return (
-                      <button
-                        key={index}
-                        onClick={() => isCurrentMonth && setSelectedDate(date.getDate())}
-                        className={`text-xs py-1 rounded transition-colors w-full ${
-                          isCurrentMonth
-                            ? isToday
-                              ? 'bg-green-500/90 backdrop-blur-sm text-white font-medium shadow-lg'
-                              : isSelected
-                              ? 'bg-blue-500/90 backdrop-blur-sm text-white'
-                              : 'text-gray-700 hover:bg-gray-100/50 backdrop-blur-sm'
-                            : 'text-gray-400'
-                        }`}
-                      >
-                        {date.getDate()}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </motion.div>
-        </div>
+          
+          <button className="mt-6 text-indigo-600 hover:text-indigo-800 text-sm font-medium flex items-center">
+            View full calendar
+            <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
+            </svg>
+          </button>
+        </motion.div>
       </div>
 
       {/* Student Requests Table removed due to missing table */}
@@ -742,7 +313,26 @@ const StatsCard: React.FC<{ title: string; value: number; icon: React.ReactNode;
   );
 };
 
-// CalendarEvent removed (not used after aligning with Teacher dashboard)
+const CalendarEvent: React.FC<{ date: string; title: string; time: string; type: string }> = ({ 
+  date, title, time, type 
+}) => {
+  const typeClasses = {
+    important: "border-red-400 bg-red-50",
+    meeting: "border-blue-400 bg-blue-50",
+    deadline: "border-amber-400 bg-amber-50",
+    regular: "border-emerald-400 bg-emerald-50",
+  };
+
+  return (
+    <div className={`p-3 rounded-xl border-l-4 ${typeClasses[type as keyof typeof typeClasses]} hover:shadow-md transition-shadow`}>
+      <div className="flex justify-between">
+        <span className="font-semibold text-gray-800">{title}</span>
+        <span className="text-sm text-gray-500">{date}</span>
+      </div>
+      <p className="text-sm text-gray-600 mt-1">{time}</p>
+    </div>
+  );
+};
 
 const ProgramHeadDashboard: React.FC = () => {
   return (
@@ -756,6 +346,8 @@ const ProgramHeadDashboard: React.FC = () => {
           <Route path="/assign-subjects" element={<SubjectAssignment />} />
           <Route path="/academic-history" element={<CoursesOffered />} />
           <Route path="/user-management" element={<UserManagement />} />
+          <Route path="/instructor-management" element={<InstructorManagement />} />
+          <Route path="/class-management" element={<ClassManagement />} />
           <Route path="/settings" element={<Settings />} />
 
           <Route path="*" element={<DashboardOverview />} />
