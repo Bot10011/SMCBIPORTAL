@@ -136,15 +136,15 @@ const sidebarItems: SidebarItem[] = [
     roles: ['program_head'],
   },
   {
-    label: 'Subject Assignment',
-    path: '/dashboard/assign-subjects',
-    icon: <PiHandshakeBold className="w-5 h-5" />,
+    label: 'Instructor Management',
+    path: '/dashboard/instructor-management',
+    icon: <Users2 className="w-5 h-5" />,
     roles: ['program_head'],
   },
   {
-    label: 'User Management',
-    path: '/dashboard/user-management',
-    icon: <User className="w-5 h-5" />,
+    label: 'Class Management',
+    path: '/dashboard/class-management',
+    icon: <Users2 className="w-5 h-5" />,
     roles: ['program_head'],
   },
   {
@@ -188,6 +188,12 @@ const sidebarItems: SidebarItem[] = [
     label: 'Class List Viewer',
     path: '/dashboard/class-list',
     icon: <PiUsersBold className="w-5 h-5" />,
+    roles: ['registrar'],
+  },
+  {
+    label: 'Prospectus',
+    path: '/dashboard/prospectus',
+    icon: <PiBookOpenTextBold className="w-5 h-5" />,
     roles: ['registrar'],
   },
   {
