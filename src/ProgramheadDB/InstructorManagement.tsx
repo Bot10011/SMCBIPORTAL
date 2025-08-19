@@ -482,6 +482,23 @@ const InstructorManagement: React.FC = () => {
     }));
   };
 
+  // Open Subject Assignment Modal prefilled for a specific year level
+  const handleOpenSubjectAssignmentForYear = (yearLevel: string) => {
+    setFormErrors({});
+    setNewAssignment({
+      teacher_id: '',
+      subject_id: '',
+      section: '',
+      academic_year: getDefaultSchoolYear(),
+      semester: '',
+      year_level: yearLevel,
+      is_active: true,
+      day: '',
+      time: ''
+    });
+    setSubjectAssignmentModal({ isOpen: true, selectedTeacherId: '', selectedTeacherName: '' });
+  };
+
   const openAssignmentDetail = (assignment: TeacherSubject) => {
     setAssignmentDetailModal({
       isOpen: true,
@@ -819,13 +836,25 @@ const InstructorManagement: React.FC = () => {
                     </Select>
                   </FormControl>
                 </Grid>
-                <Grid item xs={12} sm={8}>
+                <Grid item xs={12} sm={4}>
                   <Typography variant="body2" color="textSecondary">
                     {selectedYearLevel === 'all' 
                       ? `${assignments.length} total assigned`
                       : `${assignments.filter(a => a.year_level === selectedYearLevel).length} assignments in ${selectedYearLevel}`
                     }
                   </Typography>
+                </Grid>
+                <Grid item xs={12} sm={4} sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <Button
+                    variant="contained"
+                    onClick={() => handleOpenSubjectAssignmentForYear(selectedYearLevel === 'all' ? '' : selectedYearLevel)}
+                    sx={{
+                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      '&:hover': { background: 'linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%)' }
+                    }}
+                  >
+                    Assign Instructor
+                  </Button>
                 </Grid>
               </Grid>
             </Card>
@@ -910,18 +939,35 @@ const InstructorManagement: React.FC = () => {
                             }}
                           />
                         </Box>
-                        <Button
-                          onClick={(e) => {
-                            e.stopPropagation(); // Prevent triggering the parent onClick
-                            toggleSection(yearLevel);
-                          }}
-                          sx={{ 
-                            color: 'white',
-                            '&:hover': { bg: 'rgba(255, 255, 255, 0.1)' }
-                          }}
-                        >
-                          {expandedSections[yearLevel] ? 'Hide' : 'Show'}
-                        </Button>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenSubjectAssignmentForYear(yearLevel);
+                            }}
+                            variant="outlined"
+                            size="small"
+                            sx={{ 
+                              color: 'white',
+                              borderColor: 'rgba(255,255,255,0.6)',
+                              '&:hover': { borderColor: 'white', bg: 'rgba(255,255,255,0.1)' }
+                            }}
+                          >
+                            Assign Instructor
+                          </Button>
+                          <Button
+                            onClick={(e) => {
+                              e.stopPropagation(); // Prevent triggering the parent onClick
+                              toggleSection(yearLevel);
+                            }}
+                            sx={{ 
+                              color: 'white',
+                              '&:hover': { bg: 'rgba(255, 255, 255, 0.1)' }
+                            }}
+                          >
+                            {expandedSections[yearLevel] ? 'Hide' : 'Show'}
+                          </Button>
+                        </Box>
                       </Box>
 
                       {/* Assignments Grid - Collapsible */}
@@ -1097,6 +1143,18 @@ const InstructorManagement: React.FC = () => {
             ) : (
               // Show filtered assignments for specific year level
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
+                  <Button
+                    variant="contained"
+                    onClick={() => handleOpenSubjectAssignmentForYear(selectedYearLevel)}
+                    sx={{
+                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      '&:hover': { background: 'linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%)' }
+                    }}
+                  >
+                    Assign Instructor
+                  </Button>
+                </Box>
                 {assignments
                   .filter(a => a.year_level === selectedYearLevel)
                   .map((assignment) => (
