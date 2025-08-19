@@ -4,6 +4,7 @@ import {
   Button,
   Card,
   CardContent,
+  Chip,
   Dialog,
   DialogActions,
   DialogContent,
@@ -13,7 +14,7 @@ import {
   InputLabel,
   MenuItem,
   Select,
-  Table, 
+  Table,
   TableBody,
   TableCell,
   TableContainer,
@@ -56,6 +57,7 @@ interface Subject {
   units: number;
   yearLevel: number;
   status: 'pending' | 'approved' | 'removed';
+  hours_per_week?: number;
 }
 
 const ProgramHeadEnrollment: React.FC = () => {
@@ -70,7 +72,13 @@ const ProgramHeadEnrollment: React.FC = () => {
     code: string;
     name: string;
     units: number;
+    lec_units?: number;
+    lab_units?: number;
+    hours_per_week?: number;
     year_level?: string;
+    prerequisites?: string[];
+    summer?: boolean;
+    semester?: string;
   }>>([]);
   const [allowMixedCourses, setAllowMixedCourses] = useState(false);
   const [filterSearch, setFilterSearch] = useState('');
@@ -98,6 +106,1130 @@ const ProgramHeadEnrollment: React.FC = () => {
   const [endSemesterConfirmationError, setEndSemesterConfirmationError] = useState(false);
   const [courseSearch, setCourseSearch] = useState('');
   const [isProspectusModalOpen, setIsProspectusModalOpen] = useState(false);
+  const [loadingCourses, setLoadingCourses] = useState(false);
+
+  // Fetch courses when prospectus modal opens
+  useEffect(() => {
+    if (isProspectusModalOpen) {
+      const fetchCoursesForProspectus = async () => {
+        setLoadingCourses(true);
+        console.log('=== STARTING COURSE FETCH FOR PROSPECTUS ===');
+        
+        try {
+          // Check current user session first
+          console.log('Step 0: Checking user session...');
+          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+          
+          if (sessionError) {
+            console.error('❌ Session error:', sessionError);
+          } else if (!session) {
+            console.error('❌ No active session');
+          } else {
+            console.log('✅ Active session found:', {
+              userId: session.user.id,
+              email: session.user.email,
+              role: session.user.user_metadata?.role || 'unknown'
+            });
+          }
+          
+          // Check Supabase configuration
+          console.log('Step 0.5: Checking Supabase configuration...');
+          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+          const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+          
+          if (!supabaseUrl || !supabaseKey) {
+            console.error('❌ Missing Supabase environment variables');
+            console.error('URL:', supabaseUrl ? '✅ Set' : '❌ Missing');
+            console.error('Key:', supabaseKey ? '✅ Set' : '❌ Missing');
+          } else {
+            console.log('✅ Supabase environment variables are set');
+            console.log('URL length:', supabaseUrl.length);
+            console.log('Key length:', supabaseKey.length);
+          }
+          
+          // First, let's check if the courses table has any data at all
+          console.log('Step 1: Counting total courses...');
+          const { count, error: countError } = await supabase
+            .from('courses')
+            .select('*', { count: 'exact', head: true });
+          
+          if (countError) {
+            console.error('❌ Error counting courses:', countError);
+          } else {
+            console.log('✅ Total courses in database:', count);
+          }
+          
+          // Test if we can access any tables at all
+          console.log('Step 1.5: Testing table access...');
+          const { data: testData, error: testError } = await supabase
+            .from('user_profiles')
+            .select('id, first_name')
+            .limit(1);
+          
+          if (testError) {
+            console.error('❌ Cannot access user_profiles table:', testError);
+          } else {
+            console.log('✅ Can access user_profiles table:', testData);
+          }
+          
+          // Test database connectivity with a simple operation
+          console.log('Step 1.6: Testing database connectivity...');
+          try {
+            const { data: testInsert, error: insertError } = await supabase
+              .from('user_profiles')
+              .select('id')
+              .limit(1);
+            
+            if (insertError) {
+              console.error('❌ Database connectivity test failed:', insertError);
+            } else {
+              console.log('✅ Database connectivity test passed');
+            }
+          } catch (connectError) {
+            console.error('❌ Database connectivity test exception:', connectError);
+          }
+          
+          // Test if courses table exists at all
+          console.log('Step 1.7: Testing if courses table exists...');
+          try {
+            const { data: tableTest, error: tableError } = await supabase
+              .from('courses')
+              .select('id')
+              .limit(1);
+            
+            if (tableError) {
+              console.error('❌ Courses table test failed:', tableError);
+              console.error('Table error details:', {
+                message: tableError.message,
+                details: tableError.details,
+                hint: tableError.hint,
+                code: tableError.code
+              });
+            } else {
+              console.log('✅ Courses table exists and is accessible');
+              console.log('✅ Table test result:', tableTest);
+            }
+          } catch (tableException) {
+            console.error('❌ Courses table test exception:', tableException);
+          }
+          
+          // Try a completely basic query first
+          console.log('Step 2: Trying basic query (select *)...');
+          const { data: basicData, error: basicError } = await supabase
+            .from('courses')
+            .select('*')
+            .limit(5);
+          
+          if (basicError) {
+            console.error('❌ Basic query error:', basicError);
+            
+            // Try alternative table names
+            console.log('Step 2.5: Trying alternative table names...');
+            const alternativeTables = ['course', 'subject', 'subjects'];
+            
+            for (const tableName of alternativeTables) {
+              console.log(`Trying table: ${tableName}`);
+              const { data: altData, error: altError } = await supabase
+                .from(tableName)
+                .select('*')
+                .limit(1);
+              
+              if (!altError && altData) {
+                console.log(`✅ Found alternative table: ${tableName}`, altData);
+                break;
+              } else {
+                console.log(`❌ Table ${tableName} not accessible:`, altError);
+              }
+            }
+          } else {
+            console.log('✅ Basic query result (first 5):', basicData);
+            console.log('✅ Basic query count:', basicData?.length || 0);
+          }
+          
+          // Now try the specific query we need
+          console.log('Step 3: Trying specific query...');
+          const { data, error } = await supabase
+            .from('courses')
+            .select('id, code, name,  lec_units, lab_units, units, hours_per_week, year_level, prerequisites, summer, semester')
+            .order('code', { ascending: true });
+          
+          if (error) {
+            console.error('❌ Specific query error:', error);
+            console.error('Error details:', {
+              message: error.message,
+              details: error.details,
+              hint: error.hint,
+              code: error.code
+            });
+            
+            // Try a fallback query without ordering
+            console.log('Step 3.5: Trying fallback query without ordering...');
+            const { data: fallbackData, error: fallbackError } = await supabase
+              .from('courses')
+              .select('id, code, name,  lec_units, lab_units, units, hours_per_week, year_level, prerequisites, summer, semester');
+            
+            if (fallbackError) {
+              console.error('❌ Fallback query also failed:', fallbackError);
+              
+              // Try the most basic query possible
+              console.log('Step 3.6: Trying most basic query...');
+              const { data: basicData2, error: basicError2 } = await supabase
+                .from('courses')
+                .select('*');
+              
+              if (basicError2) {
+                console.error('❌ Even basic query failed:', basicError2);
+              } else {
+                console.log('✅ Basic query succeeded:', basicData2);
+                if (basicData2 && basicData2.length > 0) {
+                  setCourses(basicData2);
+                  console.log('✅ Courses set from basic query');
+                }
+              }
+            } else {
+              console.log('✅ Fallback query succeeded:', fallbackData);
+              if (fallbackData && fallbackData.length > 0) {
+                setCourses(fallbackData);
+                console.log('✅ Courses set from fallback query');
+              }
+            }
+          } else {
+            console.log('✅ Specific query success!');
+            console.log('✅ Fetched courses count:', data?.length || 0);
+            console.log('✅ First few courses:', data?.slice(0, 3));
+            console.log('✅ All courses:', data);
+            
+            if (data && data.length > 0) {
+              setCourses(data);
+              console.log('✅ Courses state updated successfully');
+            } else {
+              console.log('⚠️ No courses returned from query');
+            }
+          }
+          
+        } catch (catchError) {
+          console.error('❌ Unexpected error during course fetch:', catchError);
+        } finally {
+          setLoadingCourses(false);
+          console.log('=== COURSE FETCH COMPLETED ===');
+        }
+      };
+      
+      fetchCoursesForProspectus();
+    }
+  }, [isProspectusModalOpen]);
+
+  // Semester helpers used for sub-categorization (must be defined before render)
+  const isFirstSemesterCourse = (course: any) => {
+    if (!course || course.summer) return false;
+    const src = String(course.semester || course.year_level || '').toLowerCase();
+    return src.includes('1') || src.includes('first');
+  };
+
+  const isSecondSemesterCourse = (course: any) => {
+    if (!course || course.summer) return false;
+    const src = String(course.semester || course.year_level || '').toLowerCase();
+    return src.includes('2') || src.includes('second');
+  };
+
+  // Helper function to render subjects
+  const renderSubjects = () => {
+    console.log('renderSubjects called, courses:', courses);
+    console.log('courses length:', courses.length);
+    console.log('loadingCourses:', loadingCourses);
+    console.log('courses data:', JSON.stringify(courses, null, 2));
+    
+    if (loadingCourses) {
+      console.log('Courses are loading, showing loading state');
+      return (
+        <Box sx={{ p: 3, textAlign: 'center', color: '#6b7280' }}>
+          <CircularProgress size={24} sx={{ mb: 2 }} />
+          <Typography variant="body2">
+            Loading courses...
+          </Typography>
+        </Box>
+      );
+    }
+    
+    if (!courses || courses.length === 0) {
+      console.log('No courses available, returning empty');
+      return (
+        <Box sx={{ p: 3, textAlign: 'center', color: '#6b7280' }}>
+          <Typography variant="body2">
+            No courses available. Please check if courses are loaded.
+          </Typography>
+        </Box>
+      );
+    }
+    
+    // First, check if we have any courses with year levels
+    const coursesWithYearLevel = courses.filter(course => course.year_level);
+    const coursesWithoutYearLevel = courses.filter(course => !course.year_level);
+    
+    console.log('Total courses:', courses.length);
+    console.log('Courses with year level:', coursesWithYearLevel.length);
+    console.log('Courses without year level:', coursesWithoutYearLevel.length);
+    
+    // If no courses have year levels, show all courses in one section
+    if (coursesWithYearLevel.length === 0) {
+      const totalUnits = courses.reduce((sum, subj) => sum + (subj.units || 0), 0);
+      console.log('Showing all subjects section, total units:', totalUnits);
+      return (
+        <Card sx={{ 
+          mb: 2, 
+          borderRadius: 2, 
+          border: '1px solid #e5e7eb',
+          overflow: 'hidden'
+        }}>
+          <Box sx={{ 
+            background: 'linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%)',
+            p: 2,
+            borderBottom: '1px solid #e5e7eb'
+          }}>
+            <Typography variant="h6" sx={{ 
+              fontWeight: 600, 
+              color: '#374151',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1
+            }}>
+              <Box sx={{ 
+                width: 24, 
+                height: 24, 
+                borderRadius: '50%', 
+                background: '#667eea',
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                fontSize: '0.8rem',
+                color: 'white',
+                fontWeight: 600
+              }}>
+                📚
+              </Box>
+              All Subjects
+              <Box sx={{ 
+                ml: 1, 
+                px: 1.5, 
+                py: 0.3, 
+                borderRadius: 1, 
+                background: '#e0e7ef',
+                fontSize: '0.75rem',
+                color: '#374151',
+                fontWeight: 500
+              }}>
+                {courses.length} subjects
+              </Box>
+              <Box sx={{ 
+                ml: 1, 
+                px: 1.5, 
+                py: 0.3, 
+                borderRadius: 1, 
+                background: '#e0e7ef',
+                fontSize: '0.75rem',
+                color: '#374151',
+                fontWeight: 500
+              }}>
+                {totalUnits} units
+              </Box>
+            </Typography>
+          </Box>
+          
+          <CardContent sx={{ p: 0 }}>
+            {courses.length > 0 ? (
+              <TableContainer>
+                <Table size="small" sx={{ tableLayout: 'fixed', width: '100%' }}>
+                  <colgroup>
+                    <col style={{ width: '16%' }} />
+                    <col style={{ width: '36%' }} />
+                    <col style={{ width: '12%' }} />
+                    <col style={{ width: '8%' }} />
+                    <col style={{ width: '8%' }} />
+                    <col style={{ width: '8%' }} />
+                    <col style={{ width: '8%' }} />
+                    <col style={{ width: '8%' }} />
+                    <col style={{ width: '8%' }} />
+                    <col style={{ width: '8%' }} />
+                    <col style={{ width: '8%' }} />
+                  </colgroup>
+                  <TableHead>
+                     <TableRow sx={{ background: '#f9fafb' }}>
+                       <TableCell sx={{ 
+                         fontWeight: 600, 
+                         color: '#374151',
+                         fontSize: '0.875rem',
+                         borderBottom: '2px solid #e5e7eb'
+                       }}>
+                         Subject Code
+                       </TableCell>
+                        <TableCell sx={{ 
+                         fontWeight: 600, 
+                         color: '#374151',
+                         fontSize: '0.875rem',
+                         borderBottom: '2px solid #e5e7eb'
+                       }}>
+                         Subject Name
+                       </TableCell>
+                         <TableCell sx={{ 
+                           fontWeight: 600, 
+                           color: '#374151',
+                           fontSize: '0.875rem',
+                           borderBottom: '2px solid #e5e7eb',
+                           textAlign: 'center'
+                         }}>
+                           Enrollment Status
+                         </TableCell>
+                        <TableCell sx={{ 
+                          fontWeight: 600, 
+                          color: '#374151',
+                          fontSize: '0.875rem',
+                          borderBottom: '2px solid #e5e7eb',
+                          textAlign: 'center'
+                        }}>
+                          
+                          LEC
+                        </TableCell>
+                        <TableCell sx={{ 
+                          fontWeight: 600, 
+                          color: '#374151',
+                          fontSize: '0.875rem',
+                          borderBottom: '2px solid #e5e7eb',
+                          textAlign: 'center'
+                        }}>
+                          LAB
+                        </TableCell>
+                        <TableCell sx={{ 
+                          fontWeight: 600, 
+                          color: '#374151',
+                          fontSize: '0.875rem',
+                          borderBottom: '2px solid #e5e7eb',
+                          textAlign: 'center'
+                        }}>
+                          Units
+                        </TableCell>
+                        <TableCell sx={{ 
+                          fontWeight: 600, 
+                          color: '#374151',
+                          fontSize: '0.875rem',
+                          borderBottom: '2px solid #e5e7eb',
+                          textAlign: 'center'
+                        }}>
+                          Hours/Week
+                        </TableCell>
+                        <TableCell sx={{ 
+                          fontWeight: 600, 
+                          color: '#374151',
+                          fontSize: '0.875rem',
+                          borderBottom: '2px solid #e5e7eb',
+                          textAlign: 'center'
+                        }}>
+                          Type
+                        </TableCell>
+                        <TableCell sx={{ 
+                          fontWeight: 600, 
+                          color: '#374151',
+                          fontSize: '0.875rem',
+                          borderBottom: '2px solid #e5e7eb',
+                          textAlign: 'center'
+                        }}>
+                          Average Grade
+                        </TableCell>
+                        <TableCell sx={{ 
+                          fontWeight: 600, 
+                          color: '#374151',
+                          fontSize: '0.875rem',
+                          borderBottom: '2px solid #e5e7eb',
+                          textAlign: 'center'
+                        }}>
+                          Prerequisites
+                        </TableCell>
+                         <TableCell sx={{ 
+                           fontWeight: 600, 
+                           color: '#374151',
+                           fontSize: '0.875rem',
+                           borderBottom: '2px solid #e5e7eb',
+                           textAlign: 'center'
+                         }}>
+                           Status
+                         </TableCell>
+                      </TableRow>
+                   </TableHead>
+                   <TableBody>
+                     {courses.map((subject, idx) => (
+                       <TableRow 
+                         key={subject.id} 
+                         sx={{ 
+                           background: idx % 2 === 0 ? '#f9fafb' : '#ffffff',
+                           '&:hover': {
+                             background: '#f0f9ff',
+                             transition: 'background-color 0.2s ease'
+                           }
+                         }}
+                       >
+                         <TableCell sx={{ 
+                           fontWeight: 600,
+                           fontFamily: 'monospace',
+                           fontSize: '0.875rem',
+                           color: '#1f2937'
+                         }}>
+                           {subject.code}
+                         </TableCell>
+                           <TableCell sx={{ 
+                            fontSize: '0.875rem',
+                            color: '#374151',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                         }}>
+                           {subject.name}
+                         </TableCell>
+                           <TableCell sx={{ textAlign: 'center' }}>
+                             <Box sx={{ 
+                               display: 'inline-block',
+                               px: 1.5,
+                               py: 0.5,
+                               borderRadius: 1,
+                               fontSize: '0.75rem',
+                               fontWeight: 500,
+                               background: getEnrollmentStatus(subject.id, subject.code) === 'active' ? '#dcfce7' : '#f3f4f6',
+                               color: getEnrollmentStatus(subject.id, subject.code) === 'active' ? '#166534' : '#374151',
+                               textTransform: 'capitalize'
+                             }}>
+                               {getEnrollmentStatus(subject.id, subject.code) === 'active' ? 'Enrolled' : 'Not enrolled'}
+                             </Box>
+                           </TableCell>
+                         <TableCell sx={{ 
+                           textAlign: 'center',
+                           fontWeight: 600,
+                           fontSize: '0.875rem',
+                           color: '#059669'
+                         }}>
+                           {subject.units}
+                         </TableCell>
+                         <TableCell sx={{ 
+                           textAlign: 'center',
+                           fontWeight: 600,
+                           fontSize: '0.875rem',
+                           color: '#059669'
+                         }}>
+                           {(() => {
+                             console.log(`LEC units for ${subject.code}:`, subject.lec_units);
+                             return subject.lec_units || 0;
+                           })()}
+                         </TableCell>
+                         <TableCell sx={{ 
+                           textAlign: 'center',
+                           fontWeight: 600,
+                           fontSize: '0.875rem',
+                           color: '#059669'
+                         }}>
+                           {(() => {
+                             console.log(`LAB units for ${subject.code}:`, subject.lab_units);
+                             return subject.lab_units || 0;
+                           })()}
+                         </TableCell>
+                         <TableCell sx={{ 
+                           textAlign: 'center',
+                           fontWeight: 600,
+                           fontSize: '0.875rem',
+                           color: '#059669'
+                         }}>
+                           {subject.hours_per_week || 0}
+                         </TableCell>
+                          <TableCell sx={{ textAlign: 'center' }}>
+                            <Box sx={{ 
+                              display: 'inline-block',
+                              px: 1.5,
+                              py: 0.5,
+                              borderRadius: 1,
+                              fontSize: '0.75rem',
+                              fontWeight: 500,
+                              background: subject.code.startsWith('IT') ? '#dbeafe' : '#fef3c7',
+                              color: subject.code.startsWith('IT') ? '#1e40af' : '#92400e',
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.05em'
+                            }}>
+                              {subject.code.startsWith('IT') ? 'Major' : 'Minor'}
+                            </Box>
+                          </TableCell>
+                          <TableCell sx={{ textAlign: 'center' }}>
+                            {(() => {
+                              const subjectGrades = getSubjectGrades(subject.code);
+                              if (loadingGrades) {
+                                return (
+                                  <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+                                    <CircularProgress size={16} />
+                                  </Box>
+                                );
+                              }
+                              if (subjectGrades) {
+                                const hasGrades = subjectGrades.prelim_grade !== null || 
+                                                subjectGrades.midterm_grade !== null || 
+                                                subjectGrades.final_grade !== null;
+                                if (hasGrades) {
+                                  const averageGrade = calculateAverageGrade(
+                                    subjectGrades.prelim_grade || null,
+                                    subjectGrades.midterm_grade || null,
+                                    subjectGrades.final_grade || null
+                                  );
+                                  return (
+                                    <Box sx={{ 
+                                      fontSize: '0.875rem',
+                                      fontWeight: 700,
+                                      color: '#0ea5e9',
+                                      background: '#f0f9ff',
+                                      px: 1.5,
+                                      py: 0.5,
+                                      borderRadius: 1,
+                                      border: '1px solid #0ea5e9'
+                                    }}>
+                                      {averageGrade}
+                                    </Box>
+                                  );
+                                }
+                              }
+                              return (
+                                <Box sx={{ 
+                                  fontSize: '0.75rem',
+                                  color: '#6b7280',
+                                  fontStyle: 'italic'
+                                }}>
+                                  No grades
+                                </Box>
+                              );
+                            })()}
+                          </TableCell>
+                          <TableCell sx={{ textAlign: 'center' }}>
+                            {(() => {
+                              console.log(`Prerequisites for ${subject.code}:`, subject.prerequisites);
+                              return subject.prerequisites && subject.prerequisites.length > 0 ? (
+                                <Box sx={{ 
+                                  display: 'flex',
+                                  flexWrap: 'wrap',
+                                  gap: 0.5,
+                                  justifyContent: 'center'
+                                }}>
+                                  {subject.prerequisites.map((prereq, idx) => (
+                                    <Chip
+                                      key={idx}
+                                      label={prereq}
+                                      size="small"
+                                      sx={{
+                                        fontSize: '0.7rem',
+                                        height: '20px',
+                                        background: '#fef3c7',
+                                        color: '#92400e',
+                                        border: '1px solid #f59e0b'
+                                      }}
+                                    />
+                                  ))}
+                                </Box>
+                              ) : (
+                                <Typography sx={{ 
+                                  fontSize: '0.75rem',
+                                  color: '#9ca3af',
+                                  fontStyle: 'italic'
+                                }}>
+                                  None
+                                </Typography>
+                              );
+                            })()}
+                          </TableCell>
+                           <TableCell sx={{ textAlign: 'center' }}>
+                             {(() => {
+                               const confirmationStatus = getConfirmationStatus(subject.code);
+                               const isConfirmed = confirmationStatus === 'confirmed';
+                               
+                               return (
+                                 <Box sx={{ 
+                                   display: 'inline-block',
+                                   px: 1.5,
+                                   py: 0.5,
+                                   borderRadius: 1,
+                                   fontSize: '0.75rem',
+                                   fontWeight: 500,
+                                   background: isConfirmed ? '#dcfce7' : '#e5e7eb',
+                                   color: isConfirmed ? '#166534' : '#374151',
+                                   textTransform: 'capitalize'
+                                 }}>
+                                   {isConfirmed ? 'Confirmed' : 'Pending'}
+                                 </Box>
+                               );
+                             })()}
+                           </TableCell>
+                        </TableRow>
+                     ))}
+                   </TableBody>
+                 </Table>
+               </TableContainer>
+             ) : (
+               <Box sx={{ 
+                 p: 3, 
+                 textAlign: 'center',
+                 color: '#6b7280'
+               }}>
+                 <Typography variant="body2">
+                   No subjects available
+                 </Typography>
+               </Box>
+             )}
+           </CardContent>
+         </Card>
+       );
+     }
+     
+     // If courses have year levels, show them by year
+     return [1, 2, 3, 4].map((yearLevel) => {
+       const yearSubjects = courses.filter(course => {
+         // Handle string year_level formats
+         const courseYearLevel = course.year_level;
+         if (courseYearLevel) {
+           // Check for various string formats
+           const matches = courseYearLevel.includes(String(yearLevel)) || 
+                  courseYearLevel.toLowerCase().includes(`${yearLevel}st`) ||
+                  courseYearLevel.toLowerCase().includes(`${yearLevel}nd`) ||
+                  courseYearLevel.toLowerCase().includes(`${yearLevel}rd`) ||
+                  courseYearLevel.toLowerCase().includes(`${yearLevel}th`);
+           if (matches) {
+             console.log(`Course ${course.code} (${courseYearLevel}) matches year ${yearLevel}`);
+           }
+           return matches;
+         }
+         return false;
+       });
+       console.log(`Year ${yearLevel}: ${yearSubjects.length} subjects found`);
+       const categorizedSubjects = categorizeCourses(yearSubjects);
+       const totalUnits = yearSubjects.reduce((sum, subj) => sum + (subj.units || 0), 0);
+      
+      return (
+        <Card key={yearLevel} sx={{ 
+          mb: 2, 
+          borderRadius: 2, 
+          border: '1px solid #e5e7eb',
+          overflow: 'hidden'
+        }}>
+          <Box sx={{ 
+            background: 'linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%)',
+            p: 2,
+            borderBottom: '1px solid #e5e7eb'
+          }}>
+            <Typography variant="h6" sx={{ 
+              fontWeight: 600, 
+              color: '#374151',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1
+            }}>
+              <Box sx={{ 
+                width: 24, 
+                height: 24, 
+                borderRadius: '50%', 
+                background: '#667eea',
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                fontSize: '0.8rem',
+                color: 'white',
+                fontWeight: 600
+              }}>
+                {yearLevel}
+              </Box>
+              {getYearLabel(String(yearLevel))} Subjects
+              <Box sx={{ 
+                ml: 1, 
+                px: 1.5, 
+                py: 0.3, 
+                borderRadius: 1, 
+                background: '#e0e7ef',
+                fontSize: '0.75rem',
+                color: '#374151',
+                fontWeight: 500
+              }}>
+                {yearSubjects.length} subjects
+              </Box>
+              <Box sx={{ 
+                ml: 1, 
+                px: 1.5, 
+                py: 0.3, 
+                borderRadius: 1, 
+                background: '#e0e7ef',
+                fontSize: '0.75rem',
+                color: '#374151',
+                fontWeight: 500
+              }}>
+                {totalUnits} units
+              </Box>
+            </Typography>
+          </Box>
+          
+          <CardContent sx={{ p: 0 }}>
+            {yearSubjects.length > 0 ? (
+              <>
+                {/* 1st Semester */}
+                <Box sx={{ px: 2, pt: 2, pb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Box sx={{ width: 8, height: 8, borderRadius: '50%', background: '#3b82f6' }} />
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#1f2937' }}>1st Semester</Typography>
+                </Box>
+                <TableContainer>
+                  <Table size="small" sx={{ tableLayout: 'fixed', width: '100%' }}>
+                    <colgroup>
+                      <col style={{ width: '16%' }} />
+                      <col style={{ width: '28%' }} />
+                      <col style={{ width: '10%' }} />
+                      <col style={{ width: '6%' }} />
+                      <col style={{ width: '6%' }} />
+                      <col style={{ width: '6%' }} />
+                      <col style={{ width: '8%' }} />
+                      <col style={{ width: '10%' }} />
+                      <col style={{ width: '10%' }} />
+                      <col style={{ width: '10%' }} />
+                      <col style={{ width: '10%' }} />
+                    </colgroup>
+                    <TableHead>
+                      <TableRow sx={{ background: '#f0f9ff' }}>
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd' }}>Subject Code</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd' }}>Subject Name</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd', textAlign: 'center' }}>Enrollment Status</TableCell>
+                        
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd', textAlign: 'center' }}>LEC</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd', textAlign: 'center' }}>LAB</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd', textAlign: 'center' }}>Units</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd', textAlign: 'center' }}>Hours/Week</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd', textAlign: 'center' }}>Type</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd', textAlign: 'center' }}>Average Grade</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd', textAlign: 'center' }}>Prerequisites</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd', textAlign: 'center' }}>Status</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {yearSubjects.filter(isFirstSemesterCourse).map((subject, idx) => (
+                        <TableRow key={subject.id} sx={{ background: idx % 2 === 0 ? '#f0f9ff' : '#ffffff' }}>
+                          <TableCell sx={{ fontWeight: 600, fontFamily: 'monospace', fontSize: '0.875rem', color: '#0369a1' }}>{subject.code}</TableCell>
+                          <TableCell sx={{ fontSize: '0.875rem', color: '#075985', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{subject.name}</TableCell>
+                          <TableCell sx={{ textAlign: 'center' }}>
+                            <Box sx={{ display: 'inline-block', px: 1.5, py: 0.5, borderRadius: 1, fontSize: '0.75rem', fontWeight: 500, background: getEnrollmentStatus(subject.id, subject.code) === 'active' ? '#e0f2fe' : '#f3f4f6', color: getEnrollmentStatus(subject.id, subject.code) === 'active' ? '#0369a1' : '#374151', textTransform: 'capitalize' }}>{getEnrollmentStatus(subject.id, subject.code) === 'active' ? 'Enrolled' : 'Not enrolled'}</Box>
+                          </TableCell>
+                          
+                          <TableCell sx={{ textAlign: 'center', fontWeight: 600, fontSize: '0.875rem', color: '#0369a1' }}>{subject.lec_units || 0}</TableCell>
+                          <TableCell sx={{ textAlign: 'center', fontWeight: 600, fontSize: '0.875rem', color: '#0369a1' }}>{subject.lab_units || 0}</TableCell>
+                          <TableCell sx={{ textAlign: 'center', fontWeight: 600, fontSize: '0.875rem', color: '#0369a1' }}>{subject.units}</TableCell>
+                          <TableCell sx={{ textAlign: 'center', fontWeight: 600, fontSize: '0.875rem', color: '#0369a1' }}>{subject.hours_per_week || 0}</TableCell>
+                          <TableCell sx={{ textAlign: 'center' }}>
+                            <Box sx={{ display: 'inline-block', px: 1.5, py: 0.5, borderRadius: 1, fontSize: '0.75rem', fontWeight: 500, background: subject.code.startsWith('IT') ? '#dbeafe' : '#fef3c7', color: subject.code.startsWith('IT') ? '#1e40af' : '#92400e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{subject.code.startsWith('IT') ? 'Major' : 'Minor'}</Box>
+                          </TableCell>
+                          <TableCell sx={{ textAlign: 'center' }}>
+                            {(() => {
+                              const subjectGrades = getSubjectGrades(subject.code);
+                              if (subjectGrades) {
+                                const hasGrades = subjectGrades.prelim_grade !== null || subjectGrades.midterm_grade !== null || subjectGrades.final_grade !== null;
+                                if (hasGrades) {
+                                  const averageGrade = calculateAverageGrade(subjectGrades.prelim_grade || null, subjectGrades.midterm_grade || null, subjectGrades.final_grade || null);
+                                  return (<Box sx={{ fontSize: '0.875rem', fontWeight: 700, color: '#0284c7', background: '#e0f2fe', px: 1.5, py: 0.5, borderRadius: 1, border: '1px solid #7dd3fc' }}>{averageGrade}</Box>);
+                                }
+                              }
+                              return (<Box sx={{ fontSize: '0.75rem', color: '#6b7280', fontStyle: 'italic' }}>No grades</Box>);
+                            })()}
+                          </TableCell>
+                          <TableCell sx={{ textAlign: 'center' }}>
+                            {subject.prerequisites && subject.prerequisites.length > 0 ? (
+                              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, justifyContent: 'center' }}>
+                                {subject.prerequisites.map((prereq: string, idx: number) => (
+                                  <Chip key={idx} label={prereq} size="small" sx={{ fontSize: '0.7rem', height: '20px', background: '#fef3c7', color: '#92400e', border: '1px solid #f59e0b' }} />
+                                ))}
+                              </Box>
+                            ) : (
+                              <Typography sx={{ fontSize: '0.75rem', color: '#9ca3af', fontStyle: 'italic' }}>None</Typography>
+                            )}
+                          </TableCell>
+                          <TableCell sx={{ textAlign: 'center' }}>
+                            {(() => {
+                              const confirmationStatus = getConfirmationStatus(subject.code);
+                              const isConfirmed = confirmationStatus === 'confirmed';
+                              return (
+                                <Box sx={{ display: 'inline-block', px: 1.5, py: 0.5, borderRadius: 1, fontSize: '0.75rem', fontWeight: 500, background: isConfirmed ? '#dcfce7' : '#e5e7eb', color: isConfirmed ? '#166534' : '#374151', textTransform: 'capitalize' }}>{isConfirmed ? 'Confirmed' : 'Pending'}</Box>
+                              );
+                            })()}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+
+                {/* 2nd Semester */}
+                <Box sx={{ px: 2, pt: 3, pb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Box sx={{ width: 8, height: 8, borderRadius: '50%', background: '#0ea5e9' }} />
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#1f2937' }}>2nd Semester</Typography>
+                </Box>
+                <TableContainer>
+                  <Table size="small" sx={{ tableLayout: 'fixed', width: '100%' }}>
+                    <colgroup>
+                      <col style={{ width: '16%' }} />
+                      <col style={{ width: '28%' }} />
+                      <col style={{ width: '10%' }} />
+                      <col style={{ width: '6%' }} />
+                      <col style={{ width: '6%' }} />
+                      <col style={{ width: '6%' }} />
+                      <col style={{ width: '8%' }} />
+                      <col style={{ width: '10%' }} />
+                      <col style={{ width: '10%' }} />
+                      <col style={{ width: '10%' }} />
+                      <col style={{ width: '10%' }} />
+                    </colgroup>
+                    <TableHead>
+                      <TableRow sx={{ background: '#f0f9ff' }}>
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd' }}>Subject Code</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd' }}>Subject Name</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd', textAlign: 'center' }}>Enrollment Status</TableCell>
+                        
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd', textAlign: 'center' }}>LEC</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd', textAlign: 'center' }}>LAB</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd', textAlign: 'center' }}>Units</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd', textAlign: 'center' }}>Hours/Week</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd', textAlign: 'center' }}>Type</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd', textAlign: 'center' }}>Average Grade</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd', textAlign: 'center' }}>Prerequisites</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd', textAlign: 'center' }}>Status</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {yearSubjects.filter(isSecondSemesterCourse).map((subject, idx) => (
+                        <TableRow key={subject.id} sx={{ background: idx % 2 === 0 ? '#f0f9ff' : '#ffffff' }}>
+                          <TableCell sx={{ fontWeight: 600, fontFamily: 'monospace', fontSize: '0.875rem', color: '#0369a1' }}>{subject.code}</TableCell>
+                          <TableCell sx={{ fontSize: '0.875rem', color: '#075985', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{subject.name}</TableCell>
+                          <TableCell sx={{ textAlign: 'center' }}>
+                            <Box sx={{ display: 'inline-block', px: 1.5, py: 0.5, borderRadius: 1, fontSize: '0.75rem', fontWeight: 500, background: getEnrollmentStatus(subject.id, subject.code) === 'active' ? '#e0f2fe' : '#f3f4f6', color: getEnrollmentStatus(subject.id, subject.code) === 'active' ? '#0369a1' : '#374151', textTransform: 'capitalize' }}>{getEnrollmentStatus(subject.id, subject.code) === 'active' ? 'Enrolled' : 'Not enrolled'}</Box>
+                          </TableCell>
+                          
+                          <TableCell sx={{ textAlign: 'center', fontWeight: 600, fontSize: '0.875rem', color: '#0369a1' }}>{subject.lec_units || 0}</TableCell>
+                          <TableCell sx={{ textAlign: 'center', fontWeight: 600, fontSize: '0.875rem', color: '#0369a1' }}>{subject.lab_units || 0}</TableCell>
+                          <TableCell sx={{ textAlign: 'center', fontWeight: 600, fontSize: '0.875rem', color: '#0369a1' }}>{subject.units}</TableCell>
+                          <TableCell sx={{ textAlign: 'center', fontWeight: 600, fontSize: '0.875rem', color: '#0369a1' }}>{subject.hours_per_week || 0}</TableCell>
+                          <TableCell sx={{ textAlign: 'center' }}>
+                            <Box sx={{ display: 'inline-block', px: 1.5, py: 0.5, borderRadius: 1, fontSize: '0.75rem', fontWeight: 500, background: subject.code.startsWith('IT') ? '#dbeafe' : '#fef3c7', color: subject.code.startsWith('IT') ? '#1e40af' : '#92400e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{subject.code.startsWith('IT') ? 'Major' : 'Minor'}</Box>
+                          </TableCell>
+                          <TableCell sx={{ textAlign: 'center' }}>
+                            {(() => {
+                              const subjectGrades = getSubjectGrades(subject.code);
+                              if (subjectGrades) {
+                                const hasGrades = subjectGrades.prelim_grade !== null || subjectGrades.midterm_grade !== null || subjectGrades.final_grade !== null;
+                                if (hasGrades) {
+                                  const averageGrade = calculateAverageGrade(subjectGrades.prelim_grade || null, subjectGrades.midterm_grade || null, subjectGrades.final_grade || null);
+                                  return (<Box sx={{ fontSize: '0.875rem', fontWeight: 700, color: '#0284c7', background: '#e0f2fe', px: 1.5, py: 0.5, borderRadius: 1, border: '1px solid #7dd3fc' }}>{averageGrade}</Box>);
+                                }
+                              }
+                              return (<Box sx={{ fontSize: '0.75rem', color: '#6b7280', fontStyle: 'italic' }}>No grades</Box>);
+                            })()}
+                          </TableCell>
+                          <TableCell sx={{ textAlign: 'center' }}>
+                            {subject.prerequisites && subject.prerequisites.length > 0 ? (
+                              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, justifyContent: 'center' }}>
+                                {subject.prerequisites.map((prereq: string, idx: number) => (
+                                  <Chip key={idx} label={prereq} size="small" sx={{ fontSize: '0.7rem', height: '20px', background: '#fef3c7', color: '#92400e', border: '1px solid #f59e0b' }} />
+                                ))}
+                              </Box>
+                            ) : (
+                              <Typography sx={{ fontSize: '0.75rem', color: '#9ca3af', fontStyle: 'italic' }}>None</Typography>
+                            )}
+                          </TableCell>
+                          <TableCell sx={{ textAlign: 'center' }}>
+                            {(() => {
+                              const confirmationStatus = getConfirmationStatus(subject.code);
+                              const isConfirmed = confirmationStatus === 'confirmed';
+                              return (
+                                <Box sx={{ display: 'inline-block', px: 1.5, py: 0.5, borderRadius: 1, fontSize: '0.75rem', fontWeight: 500, background: isConfirmed ? '#dcfce7' : '#e5e7eb', color: isConfirmed ? '#166534' : '#374151', textTransform: 'capitalize' }}>{isConfirmed ? 'Confirmed' : 'Pending'}</Box>
+                              );
+                            })()}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+
+                {/* Summer */}
+                <Box sx={{ px: 2, pt: 3, pb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Box sx={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b' }} />
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#1f2937' }}>Summer</Typography>
+                </Box>
+                <TableContainer>
+                  <Table size="small" sx={{ tableLayout: 'fixed', width: '100%' }}>
+                    <colgroup>
+                      <col style={{ width: '16%' }} />
+                      <col style={{ width: '28%' }} />
+                      <col style={{ width: '10%' }} />
+                      <col style={{ width: '6%' }} />
+                      <col style={{ width: '6%' }} />
+                      <col style={{ width: '6%' }} />
+                      <col style={{ width: '8%' }} />
+                      <col style={{ width: '10%' }} />
+                      <col style={{ width: '10%' }} />
+                      <col style={{ width: '10%' }} />
+                      <col style={{ width: '10%' }} />
+                    </colgroup>
+                    <TableHead>
+                      <TableRow sx={{ background: '#fff7ed' }}>
+                        <TableCell sx={{ fontWeight: 700, color: '#92400e', fontSize: '0.875rem', borderBottom: '2px solid #fde68a' }}>Subject Code</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#92400e', fontSize: '0.875rem', borderBottom: '2px solid #fde68a' }}>Subject Name</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#92400e', fontSize: '0.875rem', borderBottom: '2px solid #fde68a', textAlign: 'center' }}>Enrollment Status</TableCell>
+                        
+                        <TableCell sx={{ fontWeight: 700, color: '#92400e', fontSize: '0.875rem', borderBottom: '2px solid #fde68a', textAlign: 'center' }}>LEC</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#92400e', fontSize: '0.875rem', borderBottom: '2px solid #fde68a', textAlign: 'center' }}>LAB</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#92400e', fontSize: '0.875rem', borderBottom: '2px solid #fde68a', textAlign: 'center' }}>Units</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#92400e', fontSize: '0.875rem', borderBottom: '2px solid #fde68a', textAlign: 'center' }}>Hours/Week</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#92400e', fontSize: '0.875rem', borderBottom: '2px solid #fde68a', textAlign: 'center' }}>Type</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#92400e', fontSize: '0.875rem', borderBottom: '2px solid #fde68a', textAlign: 'center' }}>Average Grade</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#92400e', fontSize: '0.875rem', borderBottom: '2px solid #fde68a', textAlign: 'center' }}>Prerequisites</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#92400e', fontSize: '0.875rem', borderBottom: '2px solid #fde68a', textAlign: 'center' }}>Status</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {yearSubjects.filter(s => s.summer).map((subject, idx) => (
+                        <TableRow key={subject.id} sx={{ background: idx % 2 === 0 ? '#fff7ed' : '#ffffff' }}>
+                          <TableCell sx={{ fontWeight: 600, fontFamily: 'monospace', fontSize: '0.875rem', color: '#92400e' }}>{subject.code}</TableCell>
+                          <TableCell sx={{ fontSize: '0.875rem', color: '#7c2d12', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{subject.name}</TableCell>
+                          <TableCell sx={{ textAlign: 'center' }}>
+                            <Box sx={{ display: 'inline-block', px: 1.5, py: 0.5, borderRadius: 1, fontSize: '0.75rem', fontWeight: 500, background: getEnrollmentStatus(subject.id, subject.code) === 'active' ? '#fef3c7' : '#f3f4f6', color: getEnrollmentStatus(subject.id, subject.code) === 'active' ? '#92400e' : '#374151', textTransform: 'capitalize' }}>
+                              {getEnrollmentStatus(subject.id, subject.code) === 'active' ? 'Enrolled' : 'Not enrolled'}
+                            </Box>
+                          </TableCell>
+                          
+                          <TableCell sx={{ textAlign: 'center', fontWeight: 600, fontSize: '0.875rem', color: '#92400e' }}>{subject.lec_units || 0}</TableCell>
+                          <TableCell sx={{ textAlign: 'center', fontWeight: 600, fontSize: '0.875rem', color: '#92400e' }}>{subject.lab_units || 0}</TableCell>
+                          <TableCell sx={{ textAlign: 'center', fontWeight: 600, fontSize: '0.875rem', color: '#92400e' }}>{subject.units}</TableCell>
+                          <TableCell sx={{ textAlign: 'center', fontWeight: 600, fontSize: '0.875rem', color: '#92400e' }}>{subject.hours_per_week || 0}</TableCell>
+                          <TableCell sx={{ textAlign: 'center' }}>
+                            <Box sx={{ display: 'inline-block', px: 1.5, py: 0.5, borderRadius: 1, fontSize: '0.75rem', fontWeight: 500, background: subject.code.startsWith('IT') ? '#dbeafe' : '#fef3c7', color: subject.code.startsWith('IT') ? '#1e40af' : '#92400e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                              {subject.code.startsWith('IT') ? 'Major' : 'Minor'}
+                            </Box>
+                          </TableCell>
+                          <TableCell sx={{ textAlign: 'center' }}>
+                            {(() => {
+                              const subjectGrades = getSubjectGrades(subject.code);
+                              if (subjectGrades) {
+                                const hasGrades = subjectGrades.prelim_grade !== null || subjectGrades.midterm_grade !== null || subjectGrades.final_grade !== null;
+                                if (hasGrades) {
+                                  const averageGrade = calculateAverageGrade(subjectGrades.prelim_grade || null, subjectGrades.midterm_grade || null, subjectGrades.final_grade || null);
+                                  return (<Box sx={{ fontSize: '0.875rem', fontWeight: 700, color: '#b45309', background: '#fffbeb', px: 1.5, py: 0.5, borderRadius: 1, border: '1px solid #f59e0b' }}>{averageGrade}</Box>);
+                                }
+                              }
+                              return (<Box sx={{ fontSize: '0.75rem', color: '#6b7280', fontStyle: 'italic' }}>No grades</Box>);
+                            })()}
+                          </TableCell>
+                          <TableCell sx={{ textAlign: 'center' }}>
+                            {subject.prerequisites && subject.prerequisites.length > 0 ? (
+                              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, justifyContent: 'center' }}>
+                                {subject.prerequisites.map((prereq, idx) => (
+                                  <Chip key={idx} label={prereq} size="small" sx={{ fontSize: '0.7rem', height: '20px', background: '#fef3c7', color: '#92400e', border: '1px solid #f59e0b' }} />
+                                ))}
+                              </Box>
+                            ) : (
+                              <Typography sx={{ fontSize: '0.75rem', color: '#9ca3af', fontStyle: 'italic' }}>None</Typography>
+                            )}
+                          </TableCell>
+                          <TableCell sx={{ textAlign: 'center' }}>
+                            {(() => {
+                              const confirmationStatus = getConfirmationStatus(subject.code);
+                              const isConfirmed = confirmationStatus === 'confirmed';
+                              return (
+                                <Box sx={{ display: 'inline-block', px: 1.5, py: 0.5, borderRadius: 1, fontSize: '0.75rem', fontWeight: 500, background: isConfirmed ? '#dcfce7' : '#e5e7eb', color: isConfirmed ? '#166534' : '#374151', textTransform: 'capitalize' }}>{isConfirmed ? 'Confirmed' : 'Pending'}</Box>
+                              );
+                            })()}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </>
+             ) : (
+               <Box sx={{ 
+                 p: 3, 
+                 textAlign: 'center',
+                 color: '#6b7280'
+               }}>
+                 <Typography variant="body2">
+                   No subjects available for {getYearLabel(String(yearLevel))}
+                 </Typography>
+               </Box>
+             )}
+           </CardContent>
+         </Card>
+       );
+     });
+   };
+
+  // Prerequisite checking function
+  const checkPrerequisites = async (studentId: string, courseCode: string): Promise<{ canEnroll: boolean; missingPrerequisites: string[] }> => {
+    try {
+      // Get the course with its prerequisites
+      const { data: courseData, error: courseError } = await supabase
+        .from('courses')
+        .select('prerequisites')
+        .eq('code', courseCode)
+        .single();
+
+      if (courseError || !courseData?.prerequisites || courseData.prerequisites.length === 0) {
+        return { canEnroll: true, missingPrerequisites: [] };
+      }
+
+      const prerequisites = courseData.prerequisites as string[];
+      
+      // Get student's completed subjects (grades with passing marks)
+      const { data: studentGrades, error: gradesError } = await supabase
+        .from('grades')
+        .select(`
+          course:courses(code),
+          final_grade
+        `)
+        .eq('student_id', studentId);
+
+      if (gradesError) {
+        console.error('Error fetching student grades:', gradesError);
+        return { canEnroll: false, missingPrerequisites: prerequisites };
+      }
+
+      // Get student's profile year level for Year Standing checks
+      const { data: profileData } = await supabase
+        .from('user_profiles')
+        .select('year_level')
+        .eq('id', studentId)
+        .single();
+      const studentYear = Number((profileData as any)?.year_level || 0);
+
+      // Check if student has completed all prerequisites
+      const completedSubjects = (studentGrades || [])
+        .filter(grade => grade.final_grade && grade.final_grade >= 75) // Assuming 75 is passing
+        .map(grade => (grade.course as any)?.code)
+        .filter(Boolean);
+
+      const missingPrerequisites: string[] = [];
+
+      for (const prereq of prerequisites) {
+        // Year Standing pattern: '1st Year Standing', '2nd Year Standing', etc.
+        const ysMatch = prereq.match(/^(\d)(st|nd|rd|th)\s+Year\s+Standing$/i);
+        if (ysMatch) {
+          const requiredYear = Number(ysMatch[1]);
+          if (!studentYear || studentYear < requiredYear) {
+            missingPrerequisites.push(prereq);
+          }
+          continue;
+        }
+        // Subject prerequisite
+        if (!completedSubjects.includes(prereq)) {
+          missingPrerequisites.push(prereq);
+        }
+      }
+
+      return {
+        canEnroll: missingPrerequisites.length === 0,
+        missingPrerequisites
+      };
+    } catch (error) {
+      console.error('Error checking prerequisites:', error);
+      return { canEnroll: false, missingPrerequisites: [] };
+    }
+  };
   const [selectedStudentForProspectus, setSelectedStudentForProspectus] = useState<Student | null>(null);
   const [studentGrades, setStudentGrades] = useState<Array<{
     id: string;
@@ -192,16 +1324,26 @@ const ProgramHeadEnrollment: React.FC = () => {
   useEffect(() => {
     // Fetch courses on mount
     const fetchCourses = async () => {
+      setLoadingCourses(true);
+      console.log('Initial fetchCourses called');
       const { data, error } = await supabase
         .from('courses')
-        .select('id, code, name, units, year_level')
+        .select('id, code, name, units, lec_units, lab_units, hours_per_week, year_level, prerequisites, summer, semester')
         .order('code', { ascending: true });
       if (!error && data) {
-        console.log('Fetched courses:', data);
+        console.log('Initial fetchCourses success:', data);
+        console.log('Initial courses count:', data.length);
         setCourses(data);
       } else if (error) {
-        console.error('Error fetching courses:', error);
+        console.error('Initial fetchCourses error:', error);
+        console.error('Initial error details:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        });
       }
+      setLoadingCourses(false);
     };
     fetchCourses();
   }, []);
@@ -645,9 +1787,10 @@ const ProgramHeadEnrollment: React.FC = () => {
   const handleOpenProspectusModal = (student: Student) => {
     setSelectedStudentForProspectus(student);
     setIsProspectusModalOpen(true);
-    // Fetch student grades when opening the modal
-    fetchStudentGrades(student.id);
-    fetchStudentEnrollments(student.id);
+    // We need to get the UUID from user_profiles since student.id contains the formatted student_id
+    fetchStudentGradesByFormattedId(student.id);
+    fetchStudentEnrollmentsByFormattedId(student.id);
+    fetchStudentConfirmations(student.id);
   };
 
   // Handler to close prospectus modal
@@ -696,27 +1839,206 @@ const ProgramHeadEnrollment: React.FC = () => {
     }
   };
 
+  const fetchStudentGradesByFormattedId = async (formattedStudentId: string) => {
+    try {
+      setLoadingGrades(true);
+      console.log('Fetching grades for formatted student ID:', formattedStudentId);
+      
+      // First get the UUID from user_profiles using the formatted student_id
+      const { data: profileData, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('id')
+        .eq('student_id', formattedStudentId)
+        .single();
+      
+      if (profileError) {
+        console.error('Error finding user profile:', profileError);
+        return;
+      }
+      
+      console.log('Found profile with UUID:', profileData?.id);
+      
+      // Now fetch grades using the UUID
+      const { data: gradesData, error: gradesError } = await supabase
+        .from('grades')
+        .select(`
+          *,
+          course:courses (code, name)
+        `)
+        .eq('student_id', profileData.id);
+
+      if (gradesError) {
+        console.error('Error fetching grades:', gradesError);
+        return;
+      }
+
+      const grades = (gradesData || []).map(grade => ({
+        id: grade.id,
+        student_id: grade.student_id,
+        subject_code: grade.course?.code || '',
+        subject_name: grade.course?.name || '',
+        prelim_grade: grade.prelim_grade,
+        midterm_grade: grade.midterm_grade,
+        final_grade: grade.final_grade,
+        remarks: grade.remarks,
+        year_level: grade.year_level,
+        semester: grade.semester,
+        academic_year: grade.academic_year,
+      }));
+
+      setStudentGrades(grades);
+    } catch (error) {
+      console.error('Error fetching student grades by formatted ID:', error);
+    } finally {
+      setLoadingGrades(false);
+    }
+  };
+
   // Helper function to get grades for a specific subject
   const getSubjectGrades = (subjectCode: string) => {
     return studentGrades.find(grade => grade.subject_code === subjectCode);
   };
 
+  // Helper function to calculate average grade
+  const calculateAverageGrade = (prelim: number | null, midterm: number | null, final: number | null) => {
+    const grades = [prelim, midterm, final].filter(grade => grade !== null && grade !== undefined);
+    if (grades.length === 0) return null;
+    
+    const sum = grades.reduce((acc, grade) => acc + (grade || 0), 0);
+    return Math.round((sum / grades.length) * 100) / 100; // Round to 2 decimal places
+  };
+
   // Fetch enrollment selections to compute enrollment status per subject
-  const [studentEnrollments, setStudentEnrollments] = useState<Array<{ subject_id: string; status: string }>>([]);
+  const [studentEnrollments, setStudentEnrollments] = useState<Array<{ subject_id: string; status: string; subject?: { code: string } }>>([]);
+  const [studentConfirmations, setStudentConfirmations] = useState<Array<{ subject_code: string; status: string }>>([]);
   const fetchStudentEnrollments = async (studentId: string) => {
     try {
+      console.log('Fetching enrollments for student UUID:', studentId);
+      
       const { data, error } = await supabase
         .from('enrollcourse')
-        .select('subject_id, status')
+        .select(`
+          subject_id, 
+          status,
+          subject:courses(code)
+        `)
         .eq('student_id', studentId);
-      if (!error && data) setStudentEnrollments(data as any);
+      
+      if (error) {
+        console.error('Error fetching enrollments:', error);
+        return;
+      }
+      
+      console.log('Raw enrollment data:', data);
+      if (data) {
+        setStudentEnrollments(data as any);
+        console.log('Processed enrollments:', data);
+      }
     } catch (e) {
       console.error('Error fetching enrollments', e);
     }
   };
-  const getEnrollmentStatus = (courseId: string) => {
-    const rec = studentEnrollments.find(e => e.subject_id === courseId);
+
+  const fetchStudentEnrollmentsByFormattedId = async (formattedStudentId: string) => {
+    try {
+      console.log('Fetching enrollments for formatted student ID:', formattedStudentId);
+      
+      // First get the UUID from user_profiles using the formatted student_id
+      const { data: profileData, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('id')
+        .eq('student_id', formattedStudentId)
+        .single();
+      
+      if (profileError) {
+        console.error('Error finding user profile:', profileError);
+        return;
+      }
+      
+      console.log('Found profile with UUID:', profileData?.id);
+      
+      // Now fetch enrollments using the UUID
+      const { data, error } = await supabase
+        .from('enrollcourse')
+        .select(`
+          subject_id, 
+          status,
+          subject:courses(code)
+        `)
+        .eq('student_id', profileData.id);
+      
+      if (error) {
+        console.error('Error fetching enrollments:', error);
+        return;
+      }
+      
+      console.log('Raw enrollment data:', data);
+      if (data) {
+        setStudentEnrollments(data as any);
+        console.log('Processed enrollments:', data);
+      }
+    } catch (e) {
+      console.error('Error fetching enrollments by formatted ID', e);
+    }
+  };
+
+  // Function to fetch student confirmations
+  const fetchStudentConfirmations = async (formattedStudentId: string) => {
+    try {
+      console.log('Fetching confirmations for formatted student ID:', formattedStudentId);
+      
+      // First get the UUID from user_profiles using the formatted student_id
+      const { data: profileData, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('id')
+        .eq('student_id', formattedStudentId)
+        .single();
+      
+      if (profileError) {
+        console.error('Error finding user profile:', profileError);
+        return;
+      }
+      
+      console.log('Found profile with UUID:', profileData?.id);
+      
+      // Now fetch confirmations using the UUID
+      const { data, error } = await supabase
+        .from('subject_actions')
+        .select('subject_code, status')
+        .eq('student_id', profileData.id)
+        .eq('action_type', 'confirm');
+      
+      if (error) {
+        console.error('Error fetching confirmations:', error);
+        return;
+      }
+      
+      console.log('Raw confirmation data:', data);
+      if (data) {
+        setStudentConfirmations(data);
+        console.log('Processed confirmations:', data);
+      }
+    } catch (e) {
+      console.error('Error fetching confirmations by formatted ID', e);
+    }
+  };
+  
+  const getEnrollmentStatus = (courseId: string, courseCode?: string) => {
+    // Try to find by subject_id first, then by subject code as fallback
+    let rec = studentEnrollments.find(e => e.subject_id === courseId);
+    
+    if (!rec && courseCode) {
+      rec = studentEnrollments.find(e => e.subject?.code === courseCode);
+    }
+    
     return rec?.status || 'not enrolled';
+  };
+
+  // Helper function to get confirmation status for a subject
+  const getConfirmationStatus = (subjectCode: string) => {
+    const confirmation = studentConfirmations.find(c => c.subject_code === subjectCode);
+    console.log(`Checking confirmation for ${subjectCode}:`, confirmation ? 'confirmed' : 'pending');
+    return confirmation ? 'confirmed' : 'pending';
   };
 
   // Helper to reset the new student form
@@ -1868,7 +3190,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                               </Typography>
                             )}
                             <FormGroup>
-                              {(courseList as { id: string; code: string; name: string; units: number; yearLevel?: number; status?: string }[]).map((course) => (
+                              {(courseList as { id: string; code: string; name: string; units: number; yearLevel?: number; status?: string; prerequisites?: string[] }[]).map((course) => (
                                 <FormControlLabel
                                   key={course.id}
                                   control={
@@ -1885,9 +3207,37 @@ const ProgramHeadEnrollment: React.FC = () => {
                                   }
                                   label={
                                     <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-                                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                                        {course.code}
-                                      </Typography>
+                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                          {course.code}
+                                        </Typography>
+                                        {course.prerequisites && course.prerequisites.length > 0 && (
+                                          <Box sx={{ 
+                                            display: 'flex', 
+                                            alignItems: 'center', 
+                                            gap: 0.5,
+                                            px: 1,
+                                            py: 0.25,
+                                            borderRadius: 0.5,
+                                            background: '#fef3c7',
+                                            border: '1px solid #f59e0b'
+                                          }}>
+                                            <Typography variant="caption" sx={{ 
+                                              color: '#92400e', 
+                                              fontWeight: 600,
+                                              fontSize: '0.7rem'
+                                            }}>
+                                              Prereq
+                                            </Typography>
+                                            <Typography variant="caption" sx={{ 
+                                              color: '#92400e',
+                                              fontSize: '0.7rem'
+                                            }}>
+                                              ({course.prerequisites.length})
+                                            </Typography>
+                                          </Box>
+                                        )}
+                                      </Box>
                                       <Typography variant="body2" sx={{ color: '#6b7280', fontSize: '0.875rem' }}>
                                         {course.name}
                                       </Typography>
@@ -3419,329 +4769,7 @@ const ProgramHeadEnrollment: React.FC = () => {
             </Typography>
 
             {/* Show all subjects from 1st to 4th year */}
-            {[1, 2, 3, 4].map((yearLevel) => {
-              const yearSubjects = courses.filter(course => {
-                // Handle string year_level formats
-                const courseYearLevel = course.year_level;
-                if (courseYearLevel) {
-                  // Check for various string formats
-                  const matches = courseYearLevel.includes(String(yearLevel)) || 
-                         courseYearLevel.toLowerCase().includes(`${yearLevel}st`) ||
-                         courseYearLevel.toLowerCase().includes(`${yearLevel}nd`) ||
-                         courseYearLevel.toLowerCase().includes(`${yearLevel}rd`) ||
-                         courseYearLevel.toLowerCase().includes(`${yearLevel}th`);
-                  if (matches) {
-                    console.log(`Course ${course.code} (${courseYearLevel}) matches year ${yearLevel}`);
-                  }
-                  return matches;
-                }
-                return false;
-              });
-              console.log(`Year ${yearLevel}: ${yearSubjects.length} subjects found`);
-              const categorizedSubjects = categorizeCourses(yearSubjects);
-              const totalUnits = yearSubjects.reduce((sum, subj) => sum + (subj.units || 0), 0);
-              
-              return (
-                <Card key={yearLevel} sx={{ 
-                  mb: 2, 
-                  borderRadius: 2, 
-                  border: '1px solid #e5e7eb',
-                  overflow: 'hidden'
-                }}>
-                  <Box sx={{ 
-                    background: 'linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%)',
-                    p: 2,
-                    borderBottom: '1px solid #e5e7eb'
-                  }}>
-                    <Typography variant="h6" sx={{ 
-                      fontWeight: 600, 
-                      color: '#374151',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 1
-                    }}>
-                      <Box sx={{ 
-                        width: 24, 
-                        height: 24, 
-                        borderRadius: '50%', 
-                        background: '#667eea',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '0.8rem',
-                        color: 'white',
-                        fontWeight: 600
-                      }}>
-                        {yearLevel}
-                      </Box>
-                      {getYearLabel(String(yearLevel))} Subjects
-                      <Box sx={{ 
-                        ml: 1, 
-                        px: 1.5, 
-                        py: 0.3, 
-                        borderRadius: 1, 
-                        background: '#e0e7ef',
-                        fontSize: '0.75rem',
-                        color: '#374151',
-                        fontWeight: 500
-                      }}>
-                        {yearSubjects.length} subjects
-                      </Box>
-                      <Box sx={{ 
-                        ml: 1, 
-                        px: 1.5, 
-                        py: 0.3, 
-                        borderRadius: 1, 
-                        background: '#e0e7ef',
-                        fontSize: '0.75rem',
-                        color: '#374151',
-                        fontWeight: 500
-                      }}>
-                        {totalUnits} units
-                      </Box>
-                    </Typography>
-                  </Box>
-                  
-                  <CardContent sx={{ p: 0 }}>
-                    {yearSubjects.length > 0 ? (
-                      <TableContainer>
-                        <Table size="small" sx={{ tableLayout: 'fixed', width: '100%' }}>
-                          <colgroup>
-                            <col style={{ width: '16%' }} />
-                            <col style={{ width: '36%' }} />
-                            <col style={{ width: '12%' }} />
-                            <col style={{ width: '8%' }} />
-                            <col style={{ width: '12%' }} />
-                            <col style={{ width: '8%' }} />
-                            <col style={{ width: '8%' }} />
-                          </colgroup>
-                          <TableHead>
-                             <TableRow sx={{ background: '#f9fafb' }}>
-                               <TableCell sx={{ 
-                                 fontWeight: 600, 
-                                 color: '#374151',
-                                 fontSize: '0.875rem',
-                                 borderBottom: '2px solid #e5e7eb'
-                               }}>
-                                 Subject Code
-                               </TableCell>
-                                <TableCell sx={{ 
-                                 fontWeight: 600, 
-                                 color: '#374151',
-                                 fontSize: '0.875rem',
-                                 borderBottom: '2px solid #e5e7eb'
-                               }}>
-                                 Subject Name
-                               </TableCell>
-                                <TableCell sx={{ 
-                                  fontWeight: 600, 
-                                  color: '#374151',
-                                  fontSize: '0.875rem',
-                                  borderBottom: '2px solid #e5e7eb',
-                                  textAlign: 'center'
-                                }}>
-                                  Enrollment Status
-                                </TableCell>
-                               <TableCell sx={{ 
-                                 fontWeight: 600, 
-                                 color: '#374151',
-                                 fontSize: '0.875rem',
-                                 borderBottom: '2px solid #e5e7eb',
-                                 textAlign: 'center'
-                               }}>
-                                 Units
-                               </TableCell>
-                               <TableCell sx={{ 
-                                 fontWeight: 600, 
-                                 color: '#374151',
-                                 fontSize: '0.875rem',
-                                 borderBottom: '2px solid #e5e7eb',
-                                 textAlign: 'center'
-                               }}>
-                                 Type
-                               </TableCell>
-                               <TableCell sx={{ 
-                                 fontWeight: 600, 
-                                 color: '#374151',
-                                 fontSize: '0.875rem',
-                                 borderBottom: '2px solid #e5e7eb',
-                                 textAlign: 'center'
-                               }}>
-                                 Grades
-                               </TableCell>
-                                <TableCell sx={{ 
-                                  fontWeight: 600, 
-                                  color: '#374151',
-                                  fontSize: '0.875rem',
-                                  borderBottom: '2px solid #e5e7eb',
-                                  textAlign: 'center'
-                                }}>
-                                  Status
-                                </TableCell>
-                             </TableRow>
-                          </TableHead>
-                          <TableBody>
-                            {yearSubjects.map((subject, idx) => (
-                              <TableRow 
-                                key={subject.id} 
-                                sx={{ 
-                                  background: idx % 2 === 0 ? '#f9fafb' : '#ffffff',
-                                  '&:hover': {
-                                    background: '#f0f9ff',
-                                    transition: 'background-color 0.2s ease'
-                                  }
-                                }}
-                              >
-                                <TableCell sx={{ 
-                                  fontWeight: 600,
-                                  fontFamily: 'monospace',
-                                  fontSize: '0.875rem',
-                                  color: '#1f2937'
-                                }}>
-                                  {subject.code}
-                                </TableCell>
-                                  <TableCell sx={{ 
-                                   fontSize: '0.875rem',
-                                   color: '#374151',
-                                   whiteSpace: 'nowrap',
-                                   overflow: 'hidden',
-                                   textOverflow: 'ellipsis'
-                                }}>
-                                  {subject.name}
-                                </TableCell>
-                                  <TableCell sx={{ textAlign: 'center' }}>
-                                    <Box sx={{ 
-                                      display: 'inline-block',
-                                      px: 1.5,
-                                      py: 0.5,
-                                      borderRadius: 1,
-                                      fontSize: '0.75rem',
-                                      fontWeight: 500,
-                                      background: getEnrollmentStatus(subject.id) === 'active' ? '#dcfce7' : '#f3f4f6',
-                                      color: getEnrollmentStatus(subject.id) === 'active' ? '#166534' : '#374151',
-                                      textTransform: 'capitalize'
-                                    }}>
-                                      {getEnrollmentStatus(subject.id) === 'active' ? 'Enrolled' : 'Not enrolled'}
-                                    </Box>
-                                  </TableCell>
-                                <TableCell sx={{ 
-                                  textAlign: 'center',
-                                  fontWeight: 600,
-                                  fontSize: '0.875rem',
-                                  color: '#059669'
-                                }}>
-                                  {subject.units}
-                                </TableCell>
-                                                               <TableCell sx={{ textAlign: 'center' }}>
-                                 <Box sx={{ 
-                                   display: 'inline-block',
-                                   px: 1.5,
-                                   py: 0.5,
-                                   borderRadius: 1,
-                                   fontSize: '0.75rem',
-                                   fontWeight: 500,
-                                   background: subject.code.startsWith('IT') ? '#dbeafe' : '#fef3c7',
-                                   color: subject.code.startsWith('IT') ? '#1e40af' : '#92400e',
-                                   textTransform: 'uppercase',
-                                   letterSpacing: '0.05em'
-                                 }}>
-                                   {subject.code.startsWith('IT') ? 'Major' : 'Minor'}
-                                 </Box>
-                               </TableCell>
-                               <TableCell sx={{ textAlign: 'center' }}>
-                                 {(() => {
-                                   const subjectGrades = getSubjectGrades(subject.code);
-                                   if (loadingGrades) {
-                                     return (
-                                       <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-                                         <CircularProgress size={16} />
-                                       </Box>
-                                     );
-                                   }
-                                   if (subjectGrades) {
-                                     const hasGrades = subjectGrades.prelim_grade !== null || 
-                                                     subjectGrades.midterm_grade !== null || 
-                                                     subjectGrades.final_grade !== null;
-                                     if (hasGrades) {
-                                       return (
-                                         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                                           {subjectGrades.prelim_grade !== null && (
-                                             <Box sx={{ 
-                                               fontSize: '0.75rem',
-                                               fontWeight: 600,
-                                               color: '#059669'
-                                             }}>
-                                               Prelim: {subjectGrades.prelim_grade}
-                                             </Box>
-                                           )}
-                                           {subjectGrades.midterm_grade !== null && (
-                                             <Box sx={{ 
-                                               fontSize: '0.75rem',
-                                               fontWeight: 600,
-                                               color: '#059669'
-                                             }}>
-                                               Midterm: {subjectGrades.midterm_grade}
-                                             </Box>
-                                           )}
-                                           {subjectGrades.final_grade !== null && (
-                                             <Box sx={{ 
-                                               fontSize: '0.75rem',
-                                               fontWeight: 600,
-                                               color: '#059669'
-                                             }}>
-                                               Final: {subjectGrades.final_grade}
-                                             </Box>
-                                           )}
-                                         </Box>
-                                       );
-                                     }
-                                   }
-                                   return (
-                                     <Box sx={{ 
-                                       fontSize: '0.75rem',
-                                       color: '#6b7280',
-                                       fontStyle: 'italic'
-                                     }}>
-                                       No grades
-                                     </Box>
-                                   );
-                                 })()}
-                               </TableCell>
-                                <TableCell sx={{ textAlign: 'center' }}>
-                                  <Box sx={{ 
-                                    display: 'inline-block',
-                                    px: 1.5,
-                                    py: 0.5,
-                                    borderRadius: 1,
-                                    fontSize: '0.75rem',
-                                    fontWeight: 500,
-                                    background: '#e5e7eb',
-                                    color: '#374151',
-                                    textTransform: 'capitalize'
-                                  }}>
-                                    Pending
-                                  </Box>
-                                </TableCell>
-                             </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </TableContainer>
-                    ) : (
-                      <Box sx={{ 
-                        p: 3, 
-                        textAlign: 'center',
-                        color: '#6b7280'
-                      }}>
-                        <Typography variant="body2">
-                          No subjects available for {getYearLabel(String(yearLevel))}
-                        </Typography>
-                      </Box>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })}
+            {renderSubjects()}
             </Box>
           </Box>
         </DialogContent>
