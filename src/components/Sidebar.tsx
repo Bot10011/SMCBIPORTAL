@@ -306,6 +306,32 @@ function getAuthAvatarUrl(u: unknown): string | null {
   return null;
 }
 
+// Helper: derive a human-friendly display name from Supabase Auth
+function getAuthDisplayName(u: unknown): string | null {
+  if (!u || typeof u !== 'object') return null;
+  const meta = (u as { user_metadata?: Record<string, unknown> | null }).user_metadata || undefined;
+  const idents = (u as { identities?: Array<{ identity_data?: Record<string, unknown> | null }> | null }).identities || [];
+
+  const fromMeta = meta && (
+    (typeof meta.full_name === 'string' && meta.full_name) ||
+    (typeof meta.name === 'string' && meta.name) ||
+    (typeof meta.display_name === 'string' && meta.display_name) ||
+    (typeof meta.preferred_username === 'string' && meta.preferred_username) ||
+    (typeof meta.given_name === 'string' && meta.given_name)
+  );
+  if (fromMeta) return fromMeta as string;
+
+  for (const ident of idents) {
+    const data = ident?.identity_data || undefined;
+    if (!data) continue;
+    const fromIdent = (typeof data.full_name === 'string' && data.full_name)
+      || (typeof data.name === 'string' && data.name)
+      || (typeof data.given_name === 'string' && data.given_name);
+    if (fromIdent) return fromIdent as string;
+  }
+  return null;
+}
+
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const { user, logout } = useAuth();
   const { isModalOpen, showUserLocationModal } = useModal();
@@ -316,6 +342,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(null);
+  const [authDisplayName, setAuthDisplayName] = useState<string>('');
 
   // Ref for the Logout button
   const logoutButtonRef = useRef<HTMLButtonElement>(null);
@@ -480,7 +507,11 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           // 1) Prefer Google avatar from Authentication
           try {
             const { data: authData } = await supabase.auth.getUser();
-            const authAvatar = authData?.user ? getAuthAvatarUrl(authData.user) : null;
+            const authUser = authData?.user;
+            // set display name from Auth
+            const dn = authUser ? getAuthDisplayName(authUser) : null;
+            setAuthDisplayName(dn || (user.email || ''));
+            const authAvatar = authUser ? getAuthAvatarUrl(authUser) : null;
             if (authAvatar) {
               setProfilePictureUrl(authAvatar);
               return;
@@ -499,6 +530,9 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
               });
               if (resp.ok) {
                 const json = await resp.json();
+                if (typeof json?.name === 'string' && !authDisplayName) {
+                  setAuthDisplayName(json.name);
+                }
                 if (typeof json?.picture === 'string') {
                   setProfilePictureUrl(json.picture);
                   return;
@@ -526,10 +560,11 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
       } else {
         setProfile(null);
         setProfilePictureUrl(null);
+        setAuthDisplayName(user?.email || '');
       }
     };
     fetchProfile();
-  }, [user?.id]);
+  }, [user?.id, user?.email]);
 
   const handleLogoutClick = useCallback(() => {
     setShowLogoutConfirm(true);
@@ -697,7 +732,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                 </div>
                 <div className="flex-1 min-w-0 overflow-hidden">
                   <p className="text-sm font-medium text-white truncate">
-                    {profile ? [profile.first_name, profile.middle_name, profile.last_name].filter(Boolean).join(' ') : user.email?.split('@')[0]}
+                    {authDisplayName || user.email?.split('@')[0]}
                   </p>
                   <p className="text-xs text-gray-400 truncate">
                     {user.email}
