@@ -7,7 +7,7 @@ import CourseActions from '../components/CourseActions';
 import { createPortal } from 'react-dom';
 import Cropper from 'react-easy-crop';
 import { Area } from 'react-easy-crop';
-import './dashboard.css'; 
+import './dashboard.css';
 
 // Utility function to crop image
 function getCroppedImg(
@@ -1089,8 +1089,8 @@ export default function CourseManagement() {
                   <div className="grid grid-cols-3 gap-2">
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">LEC</label>
-                      <input
-                        type="number"
+                  <input
+                    type="number"
                         value={courseForm.lec_units}
                         onChange={(e) => {
                           const lec = parseInt(e.target.value) || 0;
@@ -1105,9 +1105,8 @@ export default function CourseManagement() {
                         }}
                         className="w-full px-3 py-2 border border-gray-300 bg-white rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-sm"
                         min="0"
-                        max="6"
-                        required
-                      />
+                    required
+                  />
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">LAB</label>
@@ -1127,7 +1126,6 @@ export default function CourseManagement() {
                         }}
                         className="w-full px-3 py-2 border border-gray-300 bg-white rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-sm"
                         min="0"
-                        max="6"
                         required
                       />
                     </div>
@@ -1158,17 +1156,33 @@ export default function CourseManagement() {
                   </select>
                 </div>
                 <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Type</label>
+                  <select
+                    value={courseForm.summer ? 'Summer' : 'Regular'}
+                    onChange={e => setCourseForm({ ...courseForm, summer: e.target.value === 'Summer', semester: e.target.value === 'Summer' ? '' : courseForm.semester })}
+                    className="w-full px-4 py-3 border border-gray-300 bg-white rounded-xl shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                    required
+                  >
+                    <option value="Regular">Regular</option>
+                    <option value="Summer">Summer</option>
+                  </select>
+                </div>
+                <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Semester</label>
                   <select
                     value={courseForm.semester}
                     onChange={e => setCourseForm({ ...courseForm, semester: e.target.value })}
                     className="w-full px-4 py-3 border border-gray-300 bg-white rounded-xl shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-                    required
+                    required={!courseForm.summer}
+                    disabled={courseForm.summer}
                   >
                     <option value="">Select semester</option>
                     <option value="1st Semester">1st Semester</option>
                     <option value="2nd Semester">2nd Semester</option>
                   </select>
+                  {courseForm.summer && (
+                    <p className="mt-1 text-xs text-gray-500">Semester not required for Summer subjects.</p>
+                  )}
                 </div>
               </div>
 
@@ -1198,96 +1212,108 @@ export default function CourseManagement() {
                     required
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Type</label>
-                  <select
-                    value={courseForm.summer ? 'Summer' : 'Regular'}
-                    onChange={e => setCourseForm({ ...courseForm, summer: e.target.value === 'Summer' })}
-                    className="w-full px-4 py-3 border border-gray-300 bg-white rounded-xl shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-                    required
-                  >
-                    <option value="Regular">Regular</option>
-                    <option value="Summer">Summer</option>
-                  </select>
-                </div>
+                <div></div>
               </div>
 
+              {/* Prerequisites + Image Layout */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Prerequisites Selection */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="block text-sm font-semibold text-gray-700">Prerequisites</label>
-                  {courseForm.prerequisites.length > 0 && (
-                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
-                      {courseForm.prerequisites.length} selected
-                    </span>
-                  )}
-                </div>
-                <div className="border border-gray-200 rounded-xl p-4 bg-gray-50 max-h-48 overflow-y-auto">
-                  {/* None Option */}
+              <div className="lg:col-span-2">
+                 <div className="flex items-center justify-between mb-2">
+                   <label className="block text-sm font-semibold text-gray-700">Prerequisites</label>
+                   {courseForm.prerequisites.length > 0 && (
+                     <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                       {courseForm.prerequisites.length} selected
+                     </span>
+                   )}
+                 </div>
+                 <div className="border border-gray-200 rounded-xl p-4 bg-gray-50 min-h-64 max-h-96 overflow-y-auto">
+                   {/* None Option */}
+                   <div className="mb-3 pb-3 border-b border-gray-200">
+                     <label className={`flex items-center space-x-3 p-2 rounded-lg hover:bg-white transition-colors duration-200 cursor-pointer ${
+                       courseForm.prerequisites.length === 0 ? 'bg-blue-50 border border-blue-200' : ''
+                     }`}>
+                       <input
+                         type="checkbox"
+                         checked={courseForm.prerequisites.length === 0}
+                         onChange={(e) => handleNonePrerequisiteChange(e.target.checked)}
+                         className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                       />
+                       <div className="flex-1">
+                         <div className="text-sm font-medium text-gray-900 flex items-center gap-2">
+                           <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                           </svg>
+                           None (No prerequisites required)
+                         </div>
+                         <div className="text-xs text-gray-500">
+                           This course has no prerequisites
+                         </div>
+                       </div>
+                     </label>
+                   </div>
+
+                  {/* Year Standing Options */}
                   <div className="mb-3 pb-3 border-b border-gray-200">
-                    <label className={`flex items-center space-x-3 p-2 rounded-lg hover:bg-white transition-colors duration-200 cursor-pointer ${
-                      courseForm.prerequisites.length === 0 ? 'bg-blue-50 border border-blue-200' : ''
-                    }`}>
-                      <input
-                        type="checkbox"
-                        checked={courseForm.prerequisites.length === 0}
-                        onChange={(e) => handleNonePrerequisiteChange(e.target.checked)}
-                        className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
-                      />
-                      <div className="flex-1">
-                        <div className="text-sm font-medium text-gray-900 flex items-center gap-2">
-                          <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                          None (No prerequisites required)
+                    <div className="text-xs font-semibold text-gray-600 mb-2">Year Standing</div>
+                    {['1st Year Standing','2nd Year Standing','3rd Year Standing','4th Year Standing'].map((ys) => (
+                      <label key={ys} className={`flex items-center space-x-3 p-2 rounded-lg hover:bg-white transition-colors duration-200 cursor-pointer ${
+                        courseForm.prerequisites.includes(ys) ? 'bg-blue-50 border border-blue-200' : ''
+                      }`}>
+                        <input
+                          type="checkbox"
+                          checked={courseForm.prerequisites.includes(ys)}
+                          onChange={(e) => handlePrerequisiteChange(ys, e.target.checked)}
+                          className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-gray-900 truncate">{ys}</div>
+                          <div className="text-xs text-gray-500 truncate">Requires student be in {ys.replace(' Standing','')}</div>
                         </div>
-                        <div className="text-xs text-gray-500">
-                          This course has no prerequisites
-                        </div>
-                      </div>
-                    </label>
+                      </label>
+                    ))}
                   </div>
                   
                   {availablePrerequisites.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {availablePrerequisites
-                        .filter(course => course.code !== courseForm.code) // Exclude current course
-                        .map((course) => (
-                          <label key={course.id} className={`flex items-center space-x-3 p-2 rounded-lg hover:bg-white transition-colors duration-200 cursor-pointer ${
-                            courseForm.prerequisites.includes(course.code) ? 'bg-blue-50 border border-blue-200' : ''
-                          }`}>
-                            <input
-                              type="checkbox"
-                              checked={courseForm.prerequisites.includes(course.code)}
-                              onChange={(e) => handlePrerequisiteChange(course.code, e.target.checked)}
-                              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
-                            />
-                            <div className="flex-1 min-w-0">
-                              <div className="text-sm font-medium text-gray-900 truncate">
-                                {course.code}
-                              </div>
-                              <div className="text-xs text-gray-500 truncate">
-                                {course.name}
-                              </div>
-                            </div>
-                          </label>
-                        ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-4">
-                      <div className="text-gray-400 text-sm">
-                        No other courses available as prerequisites
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div className="mt-2 text-xs text-gray-500">
-                  Select "None" for no prerequisites, or choose specific subjects that must be completed before enrolling in this course
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                       {availablePrerequisites
+                         .filter(course => course.code !== courseForm.code) // Exclude current course
+                         .map((course) => (
+                           <label key={course.id} className={`flex items-center space-x-3 p-2 rounded-lg hover:bg-white transition-colors duration-200 cursor-pointer ${
+                             courseForm.prerequisites.includes(course.code) ? 'bg-blue-50 border border-blue-200' : ''
+                           }`}>
+                             <input
+                               type="checkbox"
+                               checked={courseForm.prerequisites.includes(course.code)}
+                               onChange={(e) => handlePrerequisiteChange(course.code, e.target.checked)}
+                               className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                             />
+                             <div className="flex-1 min-w-0">
+                               <div className="text-sm font-medium text-gray-900 truncate">
+                                 {course.code}
+                               </div>
+                               <div className="text-xs text-gray-500 truncate">
+                                 {course.name}
+                               </div>
+                             </div>
+                           </label>
+                         ))}
+                     </div>
+                   ) : (
+                     <div className="text-center py-4">
+                       <div className="text-gray-400 text-sm">
+                         No other courses available as prerequisites
+                       </div>
+                     </div>
+                   )}
+                 </div>
+                 <div className="mt-2 text-xs text-gray-500">
+                   Select "None" for no prerequisites, choose specific subjects, or pick a Year Standing requirement (1st-4th) that a student must meet before enrolling.
                 </div>
               </div>
 
               {/* Subject Image */}
-              <div>
+               <div className="lg:col-span-1">
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Subject Image</label>
                 <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center hover:border-blue-300 transition-all duration-300 hover:shadow-lg bg-gradient-to-br from-gray-50 to-white">
                   <input
@@ -1375,6 +1401,7 @@ export default function CourseManagement() {
                       </div>
                     </label>
                   )}
+                 </div>
                 </div>
               </div>
               
@@ -1751,10 +1778,10 @@ export default function CourseManagement() {
                 });
                 
                 return Object.entries(groupedCourses).map(([yearLevel, semesters], yearIdx) => (
-                  <motion.div
+                <motion.div
                     key={yearLevel}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: yearIdx * 0.1 }}
                     className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden"
                   >
@@ -1794,9 +1821,10 @@ export default function CourseManagement() {
                                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Image</th>
                                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subject Code</th>
                                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subject Name</th>
-                                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Units</th>
+                                  
                                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">LEC</th>
                                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">LAB</th>
+                                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Units</th>
                                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hours/Week</th>
                                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prerequisites</th>
                                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
@@ -1811,47 +1839,47 @@ export default function CourseManagement() {
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ delay: (yearIdx * 0.1) + (semesterIdx * 0.05) + (courseIdx * 0.02) }}
                                     className="hover:bg-gray-50 transition-colors duration-200 group"
-                                  >
-                                    {/* Subject Image */}
+                >
+                    {/* Subject Image */}
                                     <td className="px-4 py-3">
                                       <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center relative">
-                                        {/* Loading Skeleton */}
-                                        {imageLoading[String(course.id)] && (
-                                          <div className="w-full h-full relative">
-                                            <div className="absolute inset-0 enhanced-shimmer">
-                                              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
-                                            </div>
-                                          </div>
-                                        )}
-                                        
-                                        {/* Actual Image */}
-                                        {!imageLoading[String(course.id)] && courseImages[String(course.id)] && (
-                                          <img
-                                            src={courseImages[String(course.id)]}
-                                            alt={course.name}
-                                            className="w-full h-full object-cover transition-opacity duration-300"
-                                            onError={() => setImageError(prev => ({ ...prev, [String(course.id)]: true }))}
-                                          />
-                                        )}
-                                        
+                      {/* Loading Skeleton */}
+                      {imageLoading[String(course.id)] && (
+                        <div className="w-full h-full relative">
+                          <div className="absolute inset-0 enhanced-shimmer">
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Actual Image */}
+                      {!imageLoading[String(course.id)] && courseImages[String(course.id)] && (
+                        <img
+                          src={courseImages[String(course.id)]}
+                          alt={course.name}
+                          className="w-full h-full object-cover transition-opacity duration-300"
+                          onError={() => setImageError(prev => ({ ...prev, [String(course.id)]: true }))}
+                        />
+                      )}
+                      
                                         {/* No Image Placeholder */}
-                                        {!imageLoading[String(course.id)] && !courseImages[String(course.id)] && !imageError[String(course.id)] && (
+                      {!imageLoading[String(course.id)] && !courseImages[String(course.id)] && !imageError[String(course.id)] && (
                                           <div className="flex flex-col items-center justify-center w-full h-full gap-1 bg-gray-50/80">
                                             <BookOpen className="w-4 h-4 text-gray-400" />
                                             <span className="text-[8px] text-gray-500 font-medium">No Image</span>
-                                          </div>
-                                        )}
-                                        
+                        </div>
+                      )}
+                      
                                         {/* Error State */}
-                                        {!imageLoading[String(course.id)] && imageError[String(course.id)] && (
+                      {!imageLoading[String(course.id)] && imageError[String(course.id)] && (
                                           <div className="flex flex-col items-center justify-center w-full h-full gap-1 bg-red-50/80">
                                             <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                                            </svg>
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                            </svg>
                                             <span className="text-[8px] text-red-500 font-medium">Error</span>
-                                          </div>
+                          </div>
                                         )}
-                                      </div>
+                        </div>
                                     </td>
                                     
                                     {/* Subject Code */}
@@ -1866,12 +1894,7 @@ export default function CourseManagement() {
                                       </span>
                                     </td>
                                     
-                                    {/* Total Units */}
-                                    <td className="px-4 py-3">
-                                      <span className="bg-green-100 text-green-800 text-xs font-semibold px-2 py-1 rounded-full">
-                                        {course.units || 0} Unit{(course.units || 0) !== 1 ? 's' : ''}
-                                      </span>
-                                    </td>
+                                    
                                     
                                     {/* LEC Units */}
                                     <td className="px-4 py-3">
@@ -1884,6 +1907,12 @@ export default function CourseManagement() {
                                     <td className="px-4 py-3">
                                       <span className="text-sm text-gray-700">
                                         {course.lab_units || 0}
+                                      </span>
+                                    </td>
+                                    {/* Total Units */}
+                                    <td className="px-4 py-3">
+                                      <span className="bg-green-100 text-green-800 text-xs font-semibold px-2 py-1 rounded-full">
+                                        {course.units || 0} Unit{(course.units || 0) !== 1 ? 's' : ''}
                                       </span>
                                     </td>
                                     
@@ -1926,42 +1955,42 @@ export default function CourseManagement() {
                                     {/* Actions */}
                                     <td className="px-4 py-3">
                                       <div className="bg-white/80 backdrop-blur-sm border border-white/30 rounded-lg p-1 shadow-sm flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                                        <CourseActions
-                                          onEdit={() => {
-                                            setSelectedCourse(course);
-                                            setShowSectionModal(false);
-                                            setShowAddModal(true);
+                        <CourseActions
+                          onEdit={() => {
+                            setSelectedCourse(course);
+                            setShowSectionModal(false);
+                            setShowAddModal(true);
                                             console.log('Loading course data for editing:', course);
-                                            setCourseForm({
-                                              code: course.code,
-                                              name: course.name,
+                            setCourseForm({
+                              code: course.code,
+                              name: course.name,
                                               units: course.units || 3,
                                               lec_units: course.lec_units || course.units || 3,
                                               lab_units: course.lab_units || 0,
                                               hours_per_week: course.hours_per_week || 3,
                                               prerequisites: course.prerequisites || [],
-                                              image_url: course.image_url || '',
-                                              summer: course.summer || false,
+                              image_url: course.image_url || '',
+                              summer: course.summer || false,
                                               year_level: course.year_level || '',
                                               semester: course.semester || ''
-                                            });
-                                            setImageFile(null);
-                                            setShowCropModal(false);
-                                            setSelectedImage(null);
-                                          }}
-                                          onDelete={() => handleDeleteCourse(String(course.id))}
-                                        />
-                                      </div>
+                            });
+                            setImageFile(null);
+                            setShowCropModal(false);
+                            setSelectedImage(null);
+                          }}
+                          onDelete={() => handleDeleteCourse(String(course.id))}
+                        />
+                      </div>
                                     </td>
                                   </motion.tr>
                                 ))}
                               </tbody>
                             </table>
-                          </div>
-                        </div>
-                      ))}
                     </div>
-                  </motion.div>
+                  </div>
+                      ))}
+                  </div>
+                </motion.div>
                 ));
               })()}
             </div>
@@ -2019,8 +2048,8 @@ export default function CourseManagement() {
                           </div>
                           
                           {/* Courses Table */}
-                          <div className="overflow-x-auto">
-                            <table className="min-w-full">
+              <div className="overflow-x-auto">
+                <table className="min-w-full">
                               <thead className="bg-gray-50">
                                 <tr>
                                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Units</th>
@@ -2028,110 +2057,110 @@ export default function CourseManagement() {
                                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subject Image</th>
                                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                                </tr>
-                              </thead>
+                    </tr>
+                  </thead>
                               <tbody className="bg-white divide-y divide-gray-100">
                                 {courses.map((course) => (
-                                  <tr key={course.id} className="hover:bg-gray-50 transition-colors duration-200">
-                                    {/* Units */}
-                                    <td className="px-6 py-4">
+                      <tr key={course.id} className="hover:bg-gray-50 transition-colors duration-200">
+                          {/* Units */}
+                          <td className="px-6 py-4">
                                       <span className="bg-green-100 text-green-800 text-xs font-semibold px-2 py-1 rounded-full">
-                                        {course.units} Unit{course.units !== 1 ? 's' : ''}
-                                      </span>
-                                    </td>
-                                    {/* Subject Name with Code */}
-                                    <td className="px-6 py-4 font-semibold text-gray-900">
-                                      <span className="text-blue-600">{course.code}</span> - {course.name}
-                                    </td>
-                                    {/* Subject Image */}
-                                    <td className="px-6 py-4">
-                                      <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center relative">
-                                        {/* Loading Skeleton */}
-                                        {imageLoading[String(course.id)] && (
-                                          <div className="w-full h-full relative">
-                                            <div className="absolute inset-0 enhanced-shimmer">
-                                              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
-                                            </div>
-                                          </div>
-                                        )}
-                                        
-                                        {/* Actual Image */}
-                                        {!imageLoading[String(course.id)] && courseImages[String(course.id)] && (
-                                          <img 
-                                            src={courseImages[String(course.id)]} 
-                                            alt={course.name} 
-                                            className="w-full h-full object-cover transition-opacity duration-300"
-                                            onError={() => setImageError(prev => ({ ...prev, [String(course.id)]: true }))}
-                                          />
-                                        )}
-                                        
+                              {course.units} Unit{course.units !== 1 ? 's' : ''}
+                            </span>
+                          </td>
+                          {/* Subject Name with Code */}
+                          <td className="px-6 py-4 font-semibold text-gray-900">
+                            <span className="text-blue-600">{course.code}</span> - {course.name}
+                          </td>
+                          {/* Subject Image */}
+                          <td className="px-6 py-4">
+                            <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center relative">
+                              {/* Loading Skeleton */}
+                              {imageLoading[String(course.id)] && (
+                                <div className="w-full h-full relative">
+                                  <div className="absolute inset-0 enhanced-shimmer">
+                                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {/* Actual Image */}
+                              {!imageLoading[String(course.id)] && courseImages[String(course.id)] && (
+                                <img 
+                                  src={courseImages[String(course.id)]} 
+                                  alt={course.name} 
+                                  className="w-full h-full object-cover transition-opacity duration-300"
+                                  onError={() => setImageError(prev => ({ ...prev, [String(course.id)]: true }))}
+                                />
+                              )}
+                              
                                         {/* No Image Placeholder */}
-                                        {!imageLoading[String(course.id)] && !courseImages[String(course.id)] && !imageError[String(course.id)] && (
-                                          <div className="flex flex-col items-center justify-center w-full h-full gap-1 bg-gray-50/80">
-                                            <BookOpen className="w-4 h-4 text-gray-400" />
-                                            <span className="text-[8px] text-gray-500 font-medium">No Image</span>
-                                          </div>
-                                        )}
-                                        
+                              {!imageLoading[String(course.id)] && !courseImages[String(course.id)] && !imageError[String(course.id)] && (
+                                <div className="flex flex-col items-center justify-center w-full h-full gap-1 bg-gray-50/80">
+                                  <BookOpen className="w-4 h-4 text-gray-400" />
+                                  <span className="text-[8px] text-gray-500 font-medium">No Image</span>
+                                </div>
+                              )}
+                              
                                         {/* Error State */}
-                                        {!imageLoading[String(course.id)] && imageError[String(course.id)] && (
+                              {!imageLoading[String(course.id)] && imageError[String(course.id)] && (
                                           <div className="flex flex-col items-center justify-center w-full h-full gap-1 bg-red-50/80">
-                                            <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                                            </svg>
-                                            <span className="text-[8px] text-red-500 font-medium">Error</span>
-                                          </div>
-                                        )}
-                                      </div>
-                                    </td>
+                                  <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                                  </svg>
+                                  <span className="text-[8px] text-red-500 font-medium">Error</span>
+                                </div>
+                              )}
+                            </div>
+                          </td>
                                     {/* Type */}
-                                    <td className="px-6 py-4">
-                                      {course.summer ? (
+                          <td className="px-6 py-4">
+                            {course.summer ? (
                                         <span className="inline-flex items-center gap-1 bg-yellow-100 text-yellow-800 text-xs font-bold px-2 py-1 rounded-full">
                                           <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="inline-block w-2 h-2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-                                          Summer
-                                        </span>
-                                      ) : (
+                                Summer
+                              </span>
+                            ) : (
                                         <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded-full">
-                                          Regular
-                                        </span>
-                                      )}
-                                    </td>
-                                    {/* Actions */}
-                                    <td className="px-6 py-4">
-                                       <div className="bg-white/40 backdrop-blur-md border border-white/30 rounded-lg p-1 shadow-md flex items-center gap-1">
-                                         <CourseActions
-                                           onEdit={() => {
-                                             setSelectedCourse(course);
-                                             setShowSectionModal(false);
-                                             setShowAddModal(true);
+                                Regular
+                              </span>
+                            )}
+                          </td>
+                          {/* Actions */}
+                          <td className="px-6 py-4">
+                             <div className="bg-white/40 backdrop-blur-md border border-white/30 rounded-lg p-1 shadow-md flex items-center gap-1">
+                               <CourseActions
+                                 onEdit={() => {
+                                   setSelectedCourse(course);
+                                   setShowSectionModal(false);
+                                   setShowAddModal(true);
                                              console.log('Loading course data for editing:', course);
-                                             setCourseForm({
-                                               code: course.code,
-                                               name: course.name,
+                                   setCourseForm({
+                                     code: course.code,
+                                     name: course.name,
                                                units: course.units || 3,
                                                lec_units: course.lec_units || course.units || 3,
                                                lab_units: course.lab_units || 0,
                                                hours_per_week: course.hours_per_week || 3,
                                                prerequisites: course.prerequisites || [],
-                                               image_url: course.image_url || '',
-                                               summer: course.summer || false,
+                                     image_url: course.image_url || '',
+                                     summer: course.summer || false,
                                                year_level: course.year_level || '',
                                                semester: course.semester || ''
-                                             });
-                                             setImageFile(null);
-                                             setShowCropModal(false);
-                                             setSelectedImage(null);
-                                           }}
-                                           onDelete={() => handleDeleteCourse(String(course.id))}
-                                         />
-                                       </div>
-                                     </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
+                                   });
+                                   setImageFile(null);
+                                   setShowCropModal(false);
+                                   setSelectedImage(null);
+                                 }}
+                                 onDelete={() => handleDeleteCourse(String(course.id))}
+                               />
+                             </div>
+                          </td>
+                        </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
                         </div>
                       ))}
                     </div>
