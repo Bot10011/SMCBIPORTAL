@@ -2,8 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { motion } from 'framer-motion';
-import { Mail, UserCircle, Briefcase, Edit, Lock, X } from 'lucide-react';
-import { createPortal } from 'react-dom';
+import { Mail, UserCircle, Briefcase } from 'lucide-react';
 
 // Removed cropping/upload utilities; avatar will be fetched from Google account metadata
 
@@ -28,25 +27,7 @@ const TeacherSettings: React.FC = () => {
   const [displayName, setDisplayName] = useState<string>('');
   
   
-  // Edit Profile Modal State
-  const [showEditProfile, setShowEditProfile] = useState(false);
-  const [editForm, setEditForm] = useState({
-    first_name: '',
-    last_name: '',
-    middle_name: '',
-    email: ''
-  });
-  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
-  
-  // Change Password Modal State
-  const [showChangePassword, setShowChangePassword] = useState(false);
-  const [passwordForm, setPasswordForm] = useState({
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: ''
-  });
-  const [isChangingPassword, setIsChangingPassword] = useState(false);
-  const [passwordError, setPasswordError] = useState('');
+  // Edit profile and change password removed for this view
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -123,90 +104,11 @@ const TeacherSettings: React.FC = () => {
 
   // Removed upload and crop handlers; avatar is sourced from Google metadata
 
-  // Initialize edit form when profile loads
-  useEffect(() => {
-    if (profile) {
-      setEditForm({
-        first_name: profile.first_name || '',
-        last_name: profile.last_name || '',
-        middle_name: profile.middle_name || '',
-        email: profile.email || ''
-      });
-    }
-  }, [profile]);
+  // Removed edit form initialization
 
-  const handleEditProfile = async () => {
-    if (!user?.id) return;
-    
-    setIsUpdatingProfile(true);
-    try {
-      const { error } = await supabase
-        .from('user_profiles')
-        .update({
-          first_name: editForm.first_name,
-          last_name: editForm.last_name,
-          middle_name: editForm.middle_name,
-          email: editForm.email
-        })
-        .eq('id', user.id);
-      
-      if (error) throw error;
-      
-      // Update local state
-      setProfile(prev => prev ? {
-        ...prev,
-        first_name: editForm.first_name,
-        last_name: editForm.last_name,
-        middle_name: editForm.middle_name,
-        email: editForm.email
-      } : null);
-      
-      setShowEditProfile(false);
-    } catch (error) {
-      console.error('Error updating profile:', error);
-      alert('Failed to update profile. Please try again.');
-    } finally {
-      setIsUpdatingProfile(false);
-    }
-  };
+  // Removed handleEditProfile
 
-  const handleChangePassword = async () => {
-    if (!user?.email) return;
-    
-    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      setPasswordError('New passwords do not match');
-      return;
-    }
-    
-    if (passwordForm.newPassword.length < 6) {
-      setPasswordError('Password must be at least 6 characters');
-      return;
-    }
-    
-    setIsChangingPassword(true);
-    setPasswordError('');
-    
-    try {
-      const { error } = await supabase.auth.updateUser({
-        password: passwordForm.newPassword
-      });
-      
-      if (error) throw error;
-      
-      setShowChangePassword(false);
-      setPasswordForm({
-        currentPassword: '',
-        newPassword: '',
-        confirmPassword: ''
-      });
-      alert('Password updated successfully!');
-    } catch (error) {
-      console.error('Error changing password:', error);
-      setPasswordError('Failed to change password. Please try again.');
-    } finally {
-      setIsChangingPassword(false);
-    }
-  };
+  // Removed handleChangePassword
 
   if (loading) {
     return (
@@ -242,189 +144,9 @@ const TeacherSettings: React.FC = () => {
         className="w-full max-w-2xl mx-auto bg-white/80 rounded-3xl shadow-2xl p-8 border border-gray-100 relative"
       >
        
+        {/* Edit Profile Modal removed */}
 
-        {/* Edit Profile Modal - Using Portal */}
-        {showEditProfile && createPortal(
-          <motion.div 
-            className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-md" 
-            initial={{ opacity: 0 }} 
-            animate={{ opacity: 1 }} 
-            exit={{ opacity: 0 }}
-            style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
-          >
-            <motion.div 
-              className="bg-white/80 rounded-3xl shadow-2xl p-8 w-[95vw] max-w-md mx-4"
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            >
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
-                    <Edit className="w-5 h-5 text-white" />
-                  </div>
-                  <h3 className="text-xl font-bold text-gray-900">Edit Profile</h3>
-                </div>
-                <button 
-                  onClick={() => setShowEditProfile(false)}
-                  className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
-                >
-                  <X className="w-5 h-5 text-gray-500" />
-                </button>
-              </div>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
-                  <input
-                    type="text"
-                    value={editForm.first_name}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, first_name: e.target.value }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
-                  <input
-                    type="text"
-                    value={editForm.last_name}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, last_name: e.target.value }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Middle Name (Optional)</label>
-                  <input
-                    type="text"
-                    value={editForm.middle_name}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, middle_name: e.target.value }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                  <input
-                    type="email"
-                    value={editForm.email}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, email: e.target.value }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-              
-              <div className="flex gap-3 mt-6">
-                <button 
-                  onClick={() => setShowEditProfile(false)} 
-                  className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-all duration-200"
-                >
-                  Cancel
-                </button>
-                <button 
-                  onClick={handleEditProfile}
-                  disabled={isUpdatingProfile}
-                  className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium rounded-xl hover:from-blue-700 hover:to-indigo-700 focus:ring-2 focus:ring-blue-300 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  {isUpdatingProfile ? (
-                    <div className="flex items-center justify-center gap-2">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      Updating...
-                    </div>
-                  ) : (
-                    'Update Profile'
-                  )}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>,
-          document.body
-        )}
-
-        {/* Change Password Modal - Using Portal */}
-        {showChangePassword && createPortal(
-          <motion.div 
-            className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-md" 
-            initial={{ opacity: 0 }} 
-            animate={{ opacity: 1 }} 
-            exit={{ opacity: 0 }}
-            style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
-          >
-            <motion.div 
-              className="bg-white/80 rounded-3xl shadow-2xl p-8 w-[95vw] max-w-md mx-4"
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            >
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center">
-                    <Lock className="w-5 h-5 text-white" />
-                  </div>
-                  <h3 className="text-xl font-bold text-gray-900">Change Password</h3>
-                </div>
-                <button 
-                  onClick={() => setShowChangePassword(false)}
-                  className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
-                >
-                  <X className="w-5 h-5 text-gray-500" />
-                </button>
-              </div>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
-                  <input
-                    type="password"
-                    value={passwordForm.newPassword}
-                    onChange={(e) => setPasswordForm(prev => ({ ...prev, newPassword: e.target.value }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Enter new password"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
-                  <input
-                    type="password"
-                    value={passwordForm.confirmPassword}
-                    onChange={(e) => setPasswordForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Confirm new password"
-                  />
-                </div>
-                {passwordError && (
-                  <div className="p-3 bg-red-50 border border-red-200 rounded-xl">
-                    <p className="text-sm text-red-600">{passwordError}</p>
-                  </div>
-                )}
-              </div>
-              
-              <div className="flex gap-3 mt-6">
-                <button 
-                  onClick={() => setShowChangePassword(false)} 
-                  className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-all duration-200"
-                >
-                  Cancel
-                </button>
-                <button 
-                  onClick={handleChangePassword}
-                  disabled={isChangingPassword}
-                  className="flex-1 px-4 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-medium rounded-xl hover:from-green-700 hover:to-emerald-700 focus:ring-2 focus:ring-green-300 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  {isChangingPassword ? (
-                    <div className="flex items-center justify-center gap-2">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      Updating...
-                    </div>
-                  ) : (
-                    'Change Password'
-                  )}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>,
-          document.body
-        )}
+        {/* Change Password Modal removed */}
 
         {/* Removed crop modal; avatar comes from Google metadata */}
 
@@ -448,9 +170,7 @@ const TeacherSettings: React.FC = () => {
                 )}
               </div>
             </div>
-            <h2 className="text-xl font-bold text-gray-900 mb-1 text-center">
-              {profile.first_name} {profile.middle_name ? profile.middle_name + ' ' : ''}{profile.last_name}
-            </h2>
+            
             <div className="inline-flex items-center gap-2 px-3 py-1 bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-700 rounded-full text-xs font-semibold mb-1">
               <Briefcase className="w-3.5 h-3.5" />
               {profile.role}
@@ -501,21 +221,7 @@ const TeacherSettings: React.FC = () => {
         </div>
 
 
-        {/* Action Buttons */}
-        <div className="flex gap-3 pt-6 mt-6 border-t border-gray-100">
-          <button 
-            onClick={() => setShowEditProfile(true)}
-            className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow text-sm"
-          >
-            Edit Profile
-          </button>
-          <button 
-            onClick={() => setShowChangePassword(true)}
-            className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-all duration-200 text-sm"
-          >
-            Change Password
-          </button>
-        </div>
+        {/* Action Buttons removed */}
       </motion.div>
     </div>
     
