@@ -28,7 +28,6 @@ import { PiMegaphoneBold } from "react-icons/pi";
 import { PiClipboardTextBold } from "react-icons/pi";
 import { PiNotebookBold } from "react-icons/pi";
 import { PiUsersBold } from "react-icons/pi";
-import { PiHandshakeBold } from "react-icons/pi";
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Add custom CSS for animations and scrollbar
