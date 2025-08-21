@@ -7,7 +7,7 @@ import {
   Tabs,
   Tab,
   Button, 
-  Dialog,
+  Dialog, 
   DialogTitle,
   DialogContent,
   DialogActions,
@@ -1804,3 +1804,4 @@ const InstructorManagement: React.FC = () => {
 };
 
 export default InstructorManagement; 
+
