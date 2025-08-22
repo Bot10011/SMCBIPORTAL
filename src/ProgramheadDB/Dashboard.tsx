@@ -4,8 +4,8 @@ import DashboardLayout from '../components/Sidebar';
 import ProgramHeadEnrollment from './ProgramHeadEnrollment';
 import CoursesOffered from './CoursesOffered';
 import SubjectAssignment from './SubjectAssignment';
-//port ClassManagement from './ClassManagement';
-//port InstructorManagement from './InstructorManagement';
+import ClassManagement from './ClassManagement';
+import InstructorManagement from './InstructorManagement';
 import UserManagement from './UserManagement';
 import Settings from './Settings';
 
@@ -758,8 +758,8 @@ const ProgramHeadDashboard: React.FC = () => {
           <Route path="/assign-subjects" element={<SubjectAssignment />} />
           <Route path="/academic-history" element={<CoursesOffered />} />
           <Route path="/user-management" element={<UserManagement />} />
-          {/* <Route path="/instructor-management" element={<InstructorManagement />} />
-          <Route path="/class-management" element={<ClassManagement />} /> */}
+          <Route path="/instructor-management" element={<InstructorManagement />} />
+          <Route path="/class-management" element={<ClassManagement />} /> 
           <Route path="/settings" element={<Settings />} />
 
           <Route path="*" element={<DashboardOverview />} />
