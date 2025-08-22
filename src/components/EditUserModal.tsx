@@ -4,7 +4,6 @@ import { supabase } from '../lib/supabase';
 import { useModal } from '../contexts/ModalContext';
 import toast from 'react-hot-toast';
 import ConfirmationDialog from './ConfirmationDialog';
-import { sanitizeTextInput } from '../utils/validation'; 
 
 import { AnimatePresence, motion } from 'framer-motion';
 
@@ -18,13 +17,13 @@ interface UserProfile {
   is_active: boolean;
   department?: string;
   program_id?: number | null;
-  student_id?: string;
-  year_level?: string;
-  student_type?: string;
-  enrollment_status?: string;
-  section?: string;
-  school_year?: string;
-  semester?: string;
+  student_id?: string | null;
+  year_level?: string | null;
+  student_type?: string | null;
+  enrollment_status?: string | null;
+  section?: string | null;
+  school_year?: string | null;
+  semester?: string | null;
   gender?: string;
   birthdate?: string;
   phone?: string;
@@ -33,7 +32,7 @@ interface UserProfile {
   emergency_contact_name?: string;
   emergency_contact_relationship?: string;
   emergency_contact_phone?: string;
-  student_status?: string;
+  student_status?: string | null;
   profile_picture_url?: string;
   created_by?: string;
   created_at?: string;
@@ -47,7 +46,7 @@ interface Program {
 }
 
 export default function EditUserModal() {
-  const { showEditUserModal, setShowEditUserModal, selectedUserId } = useModal();
+  const { showEditUserModal, setShowEditUserModal, selectedUserId, onEditUserModalClose } = useModal();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [programs, setPrograms] = useState<Program[]>([]);
@@ -311,16 +310,126 @@ export default function EditUserModal() {
     }
   }, [formData.school_year, formData.first_name, formData.last_name]);
 
+  // Comprehensive data validation function
+  const validateAndCleanData = (data: Partial<UserProfile>, userRole: string) => {
+    const cleanedData = { ...data };
+    
+    if (userRole === 'student') {
+      // Validate and clean student-specific fields
+      const validEnrollmentStatuses = ['pending', 'enrolled', 'active', 'approved', 'returned', 'dropped'];
+      const validStudentStatuses = ['active', 'inactive', 'graduated', 'transferred', 'dropped'];
+      const validYearLevels = ['1', '2', '3', '4', '1st Year', '2nd Year', '3rd Year', '4th Year'];
+      const validSemesters = ['1st Semester', '2nd Semester'];
+      const validStudentTypes = ['Freshman', 'Regular', 'Irregular', 'Transferee'];
+      const validSections = ['A', 'B', 'C', 'D'];
+      
+      // Enrollment Status validation
+      if (cleanedData.enrollment_status && !validEnrollmentStatuses.includes(cleanedData.enrollment_status)) {
+        cleanedData.enrollment_status = 'enrolled'; // Safe default
+        console.warn('Invalid enrollment_status corrected to default value');
+      }
+      
+      // Student Status validation
+      if (cleanedData.student_status && !validStudentStatuses.includes(cleanedData.student_status)) {
+        cleanedData.student_status = 'active'; // Safe default
+        console.warn('Invalid student_status corrected to default value');
+      }
+      
+      // Year Level validation
+      if (cleanedData.year_level && !validYearLevels.includes(cleanedData.year_level)) {
+        cleanedData.year_level = '1st Year'; // Safe default
+        console.warn('Invalid year_level corrected to default value');
+      }
+      
+      // Semester validation
+      if (cleanedData.semester && !validSemesters.includes(cleanedData.semester)) {
+        cleanedData.semester = '1st Semester'; // Safe default
+        console.warn('Invalid semester corrected to default value');
+      }
+      
+      // Student Type validation
+      if (cleanedData.student_type && !validStudentTypes.includes(cleanedData.student_type)) {
+        cleanedData.student_type = 'Regular'; // Safe default
+        console.warn('Invalid student_type corrected to default value');
+      }
+      
+      // Section validation
+      if (cleanedData.section && !validSections.includes(cleanedData.section)) {
+        cleanedData.section = 'A'; // Safe default
+        console.warn('Invalid section corrected to default value');
+      }
+      
+      // Ensure required student fields have values
+      if (!cleanedData.enrollment_status) {
+        cleanedData.enrollment_status = 'enrolled';
+      }
+      if (!cleanedData.student_status) {
+        cleanedData.student_status = 'active';
+      }
+      
+    } else {
+      // For non-student users, ensure all student-specific fields are NULL
+      cleanedData.enrollment_status = null;
+      cleanedData.student_status = null;
+      cleanedData.year_level = null;
+      cleanedData.semester = null;
+      cleanedData.student_type = null;
+      cleanedData.section = null;
+      cleanedData.school_year = null;
+      cleanedData.student_id = null;
+      cleanedData.program_id = null;
+    }
+    
+    return cleanedData;
+  };
+
+  // Enhanced form validation
+  const validateFormData = (): { isValid: boolean; errors: string[] } => {
+    const errors: string[] = [];
+    
+    if (user?.role === 'student') {
+      // Validate student-specific fields
+      const validEnrollmentStatuses = ['pending', 'enrolled', 'active', 'approved', 'returned', 'dropped'];
+      const validStudentStatuses = ['active', 'inactive', 'graduated', 'transferred', 'dropped'];
+      const validYearLevels = ['1', '2', '3', '4', '1st Year', '2nd Year', '3rd Year', '4th Year'];
+      const validSemesters = ['1st Semester', '2nd Semester'];
+      
+      if (formData.enrollment_status && !validEnrollmentStatuses.includes(formData.enrollment_status)) {
+        errors.push('Invalid enrollment status selected');
+      }
+      
+      if (formData.student_status && !validStudentStatuses.includes(formData.student_status)) {
+        errors.push('Invalid student status selected');
+      }
+      
+      if (formData.year_level && !validYearLevels.includes(formData.year_level)) {
+        errors.push('Invalid year level selected');
+      }
+      
+      if (formData.semester && !validSemesters.includes(formData.semester)) {
+        errors.push('Invalid semester selected');
+      }
+    }
+    
+    return { isValid: errors.length === 0, errors };
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!hasChanges) {
       setShowEditUserModal(false);
       return;
     }
+    
+    // Comprehensive form validation
+    const validation = validateFormData();
+    if (!validation.isValid) {
+      validation.errors.forEach(error => toast.error(error));
+      return;
+    }
+    
     setShowSaveConfirm(true);
   };
-
-
 
   const handleSaveConfirm = async () => {
     if (!selectedUserId) return;
@@ -328,22 +437,39 @@ export default function EditUserModal() {
     try {
       setSaving(true);
   
+      // Comprehensive data cleaning and validation
+      const cleanedData = validateAndCleanData(formData, user?.role || '');
       
-      // Update user profile in database (excluding email field)
+      // Log what we're sending to database for debugging
+      console.log('Sending cleaned data to database:', cleanedData);
+      
+      // Update user profile in database with cleaned data
       const { error: profileError } = await supabase
         .from('user_profiles')
-        .update(formData)
+        .update(cleanedData)
         .eq('id', selectedUserId);
 
-      if (profileError) throw profileError;
-
-
+      if (profileError) {
+        console.error('Database update error:', profileError);
+        throw profileError;
+      }
 
       toast.success('User profile updated successfully.');
+      // Call the callback if it exists, then close the modal
+      if (onEditUserModalClose) {
+        console.log('EditUserModal: Calling callback to refresh user list');
+        onEditUserModalClose();
+      }
       setShowEditUserModal(false);
     } catch (error) {
       console.error('Error updating user:', error);
-      toast.error('Failed to update user');
+      
+      // Enhanced error handling
+      if (error && typeof error === 'object' && 'message' in error) {
+        toast.error(`Update failed: ${error.message}`);
+      } else {
+        toast.error('Failed to update user. Please try again.');
+      }
     } finally {
       setSaving(false);
       setShowSaveConfirm(false);
@@ -386,145 +512,59 @@ export default function EditUserModal() {
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="sticky top-0 z-10 bg-white/90 backdrop-blur border-b px-4 py-3">
-              <div className="flex flex-col items-center justify-center">
-                <h2 className="text-xl font-semibold text-gray-900 tracking-tight">Edit User</h2>
-                {user && (
-                  <p className="text-sm text-gray-500 mt-1">
-                    Role: <span className="font-medium text-blue-600 capitalize">{user.role}</span>
-                  </p>
-                )}
-                {(user && (user.role === 'instructor' || user.role === 'program_head')) && (
-                  <p className="text-sm text-gray-500 mt-0.5">
-                    Department: <span className="font-medium text-gray-900">{(formData.department || '').trim() || 'Not set'}</span>
-                  </p>
-                )}
+            <div className="sticky top-0 z-10 bg-white/90 backdrop-blur border-b px-6 py-4">
+              <div className="flex items-center justify-between">
+                <div className="flex-1"></div>
+                <div className="flex flex-col items-center justify-center flex-1">
+                  <h2 className="text-xl font-semibold text-gray-900 tracking-tight">Edit User</h2>
+                  {user && (
+                    <p className="text-sm text-gray-500 mt-1">
+                      Role: <span className="font-medium text-blue-600 capitalize">{user.role}</span>
+                    </p>
+                  )}
+                  {(user && (user.role === 'instructor' || user.role === 'program_head')) && (
+                    <p className="text-sm text-gray-500 mt-0.5">
+                      Department: <span className="font-medium text-gray-900">{(formData.department || '').trim() || 'Not set'}</span>
+                    </p>
+                  )}
+                </div>
+                <div className="flex-1 flex justify-end">
+                  <button
+                    onClick={() => setShowEditUserModal(false)}
+                    className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-300"
+                    aria-label="Close modal"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
               </div>
-              <button
-                onClick={() => setShowEditUserModal(false)}
-                className="absolute w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center text-lg sm:text-xl font-bold text-white bg-red-500 hover:bg-red-600 rounded-full shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 animate-pop-in hover:scale-110 hover:rotate-90 top-2 right-2 sm:top-3 sm:right-3"
-                aria-label="Close modal"
-                style={{ backgroundColor: 'rgb(239, 68, 68)', boxShadow: 'rgba(239, 68, 68, 0.3) 0px 2px 8px', zIndex: 50 }}
-              >
-                ×
-              </button>
             </div>
 
             {/* Content */}
-            <div className="p-4">
+            <div className="p-6">
               {loading ? (
                 <div className="flex justify-center items-center py-8">
                   <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
                 </div>
               ) : user ? (
                 <form onSubmit={handleSubmit} className="space-y-4 premium-form">
-                  {/* Personal Information */}
-                  <div className="space-y-6">
-                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-                      <h3 className="text-base font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-user">
-                          <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
-                          <circle cx="12" cy="7" r="4"></circle>
-                        </svg>
-                        Personal Information
-                      </h3>
-                    
-                      {/* Name Fields in Single Line */}
-                      <div className="grid grid-cols-4 gap-3">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-600 mb-1">
-                            First Name
-                          </label>
-                          <input
-                            type="text"
-                            value={formData.first_name || ''}
-                            onChange={(e) => setFormData({ ...formData, first_name: sanitizeTextInput(e.target.value) })}
-                              className="w-full px-3 py-1.5 rounded-lg border-2 bg-white transition-all duration-200 shadow-sm"
-                            style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-600 mb-1">
-                            Middle Name
-                          </label>
-                          <input
-                            type="text"
-                            value={formData.middle_name || ''}
-                            onChange={(e) => setFormData({ ...formData, middle_name: sanitizeTextInput(e.target.value) })}
-                            className="w-full px-3 py-1.5 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
-                            style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-600 mb-1">
-                            Last Name
-                          </label>
-                          <input
-                            type="text"
-                            value={formData.last_name || ''}
-                            onChange={(e) => setFormData({ ...formData, last_name: sanitizeTextInput(e.target.value) })}
-                            className="w-full px-3 py-1.5 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
-                            style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-600 mb-1">
-                            Suffix
-                          </label>
-                          <input
-                            type="text"
-                            value={formData.suffix || ''}
-                            onChange={(e) => setFormData({ ...formData, suffix: e.target.value })}
-                            className="w-full px-3 py-1.5 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
-                            style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
-                            placeholder="e.g., Jr., Sr., III"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Gender, Birthdate, Phone, Email in one row */}
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-3">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-600 mb-1">
-                            Gender
-                          </label>
-                          <select
-                            value={formData.gender || ''}
-                            onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                            className="w-full px-3 py-1.5 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
-                            style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
-                          >
-                            <option value="">Select Gender</option>
-                            <option value="male">Male</option>
-                            <option value="female">Female</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-600 mb-1">
-                            Birthdate
-                          </label>
-                          <input
-                            type="date"
-                            value={formData.birthdate || ''}
-                            onChange={(e) => setFormData({ ...formData, birthdate: e.target.value })}
-                            className="w-full px-3 py-1.5 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
-                            style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-600 mb-1">
-                            Phone Number
-                          </label>
-                          <input
-                            type="tel"
-                            value={formData.phone || ''}
-                            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                            className="w-full px-3 py-1.5 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
-                            style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
-                            maxLength={11}
-                          />
-                        </div>
-                        <div>
+                  {/* Student Information */}
+                  {user.role === 'student' && (
+                    <div className="space-y-6">
+                      {/* Academic Information */}
+                      <div className="bg-gray-50 rounded-xl border border-gray-200 p-6">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-600">
+                            <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
+                            <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
+                          </svg>
+                          Academic Information
+                        </h3>
+                        
+                        {/* Email Address - First field */}
+                        <div className="mb-4">
                           <label className="block text-sm font-medium text-gray-600 mb-1">
                             Email Address
                           </label>
@@ -538,39 +578,7 @@ export default function EditUserModal() {
                             style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
                           />
                         </div>
-                      </div>
-
-                      {/* Address */}
-                      <div className="mt-3">
-                        <label className="block text-sm font-medium text-gray-600 mb-1">
-                          Address
-                        </label>
-                        <textarea
-                          value={formData.address || ''}
-                          onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                          rows={3}
-                          className="w-full px-3 py-1.5 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500 resize-none"
-                          style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
-                          placeholder="Enter complete address"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-
-
-                  {/* Student Information */}
-                  {user.role === 'student' && (
-                    <div className="space-y-4">
-                      {/* Academic Information */}
-                      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-                        <h3 className="text-base font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-graduation-cap">
-                            <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
-                            <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
-                          </svg>
-                          Academic Information
-                        </h3>
+                        
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                           <div>
                             <label className="block text-sm font-medium text-gray-600 mb-1">
@@ -661,13 +669,11 @@ export default function EditUserModal() {
                               style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
                             >
                               <option value="">Select Status</option>
-                              <option value="pending">Pending</option>
                               <option value="enrolled">Enrolled</option>
-                              <option value="active">Active</option>
-                              <option value="approved">Approved</option>
-                              <option value="returned">Returned</option>
-                              <option value="dropped">Dropped</option>
+                              <option value="pending">Pending</option>
                               <option value="not_enrolled">Not Enrolled</option>
+                             
+                          
                             </select>
                           </div>
                           <div>
@@ -722,76 +728,13 @@ export default function EditUserModal() {
                           </div>
                         </div>
                       </div>
-
-                      {/* Emergency Contact Information */}
-                      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mt-4">
-                        <h3 className="text-base font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-phone">
-                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
-                          </svg>
-                          Emergency Contact Information
-                        </h3>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-600 mb-1">
-                              Emergency Contact Name
-                            </label>
-                            <input
-                              type="text"
-                              value={formData.emergency_contact_name || ''}
-                              onChange={(e) => setFormData({ ...formData, emergency_contact_name: e.target.value })}
-                              className="w-full px-3 py-1.5 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
-                              style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-600 mb-1">
-                              Relationship
-                            </label>
-                            <input
-                              type="text"
-                              value={formData.emergency_contact_relationship || ''}
-                              onChange={(e) => setFormData({ ...formData, emergency_contact_relationship: e.target.value })}
-                              className="w-full px-3 py-1.5 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
-                              style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
-                              placeholder="e.g., Parent, Sibling, Guardian"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-600 mb-1">
-                              Emergency Contact Phone
-                            </label>
-                            <input
-                              type="tel"
-                              value={formData.emergency_contact_phone || ''}
-                              onChange={(e) => setFormData({ ...formData, emergency_contact_phone: e.target.value })}
-                              className="w-full px-3 py-1.5 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
-                              style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
-                              maxLength={11}
-                            />
-                          </div>
-                        </div>
-                      </div>
                       </div>
                
                 
                   )}
 
-                  {/* Status */}
-                  <div>
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={formData.is_active}
-                        onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                        className="rounded border-gray-300 text-blue-500 focus:ring-blue-500"
-                      />
-                      <span className="text-sm font-medium text-gray-500">Active Account</span>
-                    </label>
-                  </div>
-
                   {/* Actions */}
-                  <div className="flex justify-end gap-2 pt-4 border-t ">
+                  <div className="flex justify-end gap-3 pt-6 border-t border-gray-200">
                     <button
                       type="button"
                       onClick={() => setShowEditUserModal(false)}
