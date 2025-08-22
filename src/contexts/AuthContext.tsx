@@ -12,6 +12,7 @@ interface AuthContextType {
   hasPermission: (permission: PermissionKey) => boolean;
   canCreateUser: (role: UserRole) => boolean;
   setCreatingUserFlag: (creating: boolean) => void; // Add this to the interface
+  refreshUserMetadata: () => Promise<void>; // Add metadata refresh function
 }
 
 const AuthContext = createContext<AuthContextType & { loading: boolean } | undefined>(undefined);
@@ -20,6 +21,61 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [isCreatingUser, setIsCreatingUser] = useState(false); // Add this flag
+
+  // Function to refresh Google user metadata
+  const refreshUserMetadata = async () => {
+    try {
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser || currentUser.app_metadata?.provider !== 'google') {
+        return; // Only refresh for Google users
+      }
+
+      // Check if we need to refresh metadata (e.g., session is fresh)
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      // Get current profile data
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('display_name, avatar_url, auth_provider')
+        .eq('id', currentUser.id)
+        .single();
+
+      if (profile) {
+        // Update metadata if available
+        const updateData: {
+          display_name?: string;
+          avatar_url?: string;
+          auth_provider?: string;
+        } = {};
+
+        // Check for new metadata
+        if (currentUser.user_metadata?.full_name && currentUser.user_metadata.full_name !== profile.display_name) {
+          updateData.display_name = currentUser.user_metadata.full_name;
+        }
+        if (currentUser.user_metadata?.picture && currentUser.user_metadata.picture !== profile.avatar_url) {
+          updateData.avatar_url = currentUser.user_metadata.picture;
+        }
+        if (currentUser.app_metadata?.provider && currentUser.app_metadata.provider !== profile.auth_provider) {
+          updateData.auth_provider = currentUser.app_metadata.provider;
+        }
+
+        // Update if there are changes
+        if (Object.keys(updateData).length > 0) {
+          const { error } = await supabase
+            .from('user_profiles')
+            .update(updateData)
+            .eq('id', currentUser.id);
+          
+          if (!error) {
+            console.log('User metadata refreshed successfully:', updateData);
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to refresh user metadata:', error);
+    }
+  };
 
   useEffect(() => {
     const checkSession = async () => {
@@ -102,9 +158,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [isCreatingUser]); // Add isCreatingUser to dependencies
 
+  // Set up periodic metadata refresh for Google users
+  useEffect(() => {
+    if (!user || !(user.email.includes('@gmail.com') || user.email.includes('@google.com'))) {
+      return; // Only for Google users
+    }
+
+    // Refresh metadata every 30 minutes
+    const interval = setInterval(refreshUserMetadata, 30 * 60 * 1000);
+    
+    // Also refresh when the component mounts
+    refreshUserMetadata();
+
+    return () => clearInterval(interval);
+  }, [user]);
+
   const login = (userData: User) => {
     setUser(userData);
     localStorage.setItem('user', JSON.stringify(userData));
+    
+    // Refresh metadata after login for Google users
+    if (userData.email.includes('@gmail.com') || userData.email.includes('@google.com')) {
+      setTimeout(refreshUserMetadata, 1000); // Small delay to ensure session is established
+    }
   };
 
   const logout = async () => {
@@ -136,7 +212,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, hasPermission, canCreateUser, loading, setCreatingUserFlag }}>
+    <AuthContext.Provider value={{ user, login, logout, hasPermission, canCreateUser, loading, setCreatingUserFlag, refreshUserMetadata }}>
       {loading ? (
         <div className="flex items-center justify-center h-screen">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
