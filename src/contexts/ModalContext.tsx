@@ -14,6 +14,8 @@ interface ModalContextType {
   isModalOpen: boolean;
   closeModal: () => void;
   openModal: (type: string) => void;
+  onEditUserModalClose?: () => void;
+  setOnEditUserModalClose: (callback: (() => void) | undefined) => void;
 }
 
 const ModalContext = createContext<ModalContextType | undefined>(undefined);
@@ -25,6 +27,7 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
   const [showUserLocationModal, setShowUserLocationModal] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [onEditUserModalClose, setOnEditUserModalClose] = useState<(() => void) | undefined>(undefined);
 
   const closeModal = () => {
     setIsModalOpen(false);
@@ -69,7 +72,9 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
       setSelectedUserId,
       isModalOpen,
       closeModal,
-      openModal
+      openModal,
+      onEditUserModalClose,
+      setOnEditUserModalClose
     }}>
       {children}
     </ModalContext.Provider>
