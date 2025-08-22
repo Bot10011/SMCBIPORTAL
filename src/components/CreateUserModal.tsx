@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, UserPlus, Loader2, ChevronLeft, ChevronRight, CheckCircle2, Check, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
-import { sanitizeTextInput } from '../utils/validation';
+
 import { createPortal } from 'react-dom';
 import { createClient } from '@supabase/supabase-js';
 import { useAuth } from '../contexts/AuthContext';
@@ -20,11 +20,7 @@ interface Department {
 
 interface CreateUserForm {
   email: string;
-  role: 'instructor' | 'student' | 'registrar' | 'program_head';
-  first_name: string;
-  middle_name?: string;
-  last_name: string;
-  suffix?: string;
+  role: 'instructor' | 'student' | 'registrar' | 'program_head' | '';
   is_active: boolean;
   department?: string;
   program_id?: string;
@@ -35,15 +31,7 @@ interface CreateUserForm {
   section?: string;
   school_year?: string;
   semester?: string;
-  gender?: string;
-  birthdate?: string;
-  phone?: string;
-  address?: string;
-  emergency_contact_name?: string;
-  emergency_contact_relationship?: string;
-  emergency_contact_phone?: string;
-  password: string;
-  // confirmPassword removed
+  student_status?: string;
 }
 
 interface CreateUserModalProps {
@@ -58,36 +46,34 @@ interface RoleRequirements {
 }
 
 const roleRequirements: Record<CreateUserForm['role'], RoleRequirements> = {
+  '': {
+    requiredFields: [],
+    optionalFields: []
+  },
   student: {
     requiredFields: [
-      'email', 'role', 'first_name', 'last_name', 'password',
-      'student_id', 'gender', 'birthdate', 'phone', 'address',
-      'program_id', 'year_level', 'student_type', 'enrollment_status',
-      'section', 'semester', 'school_year',
-      'emergency_contact_name', 'emergency_contact_relationship', 'emergency_contact_phone'
+      'email', 'role', 'department', 'year_level', 'student_type', 
+      'enrollment_status', 'section', 'semester'
     ],
-    optionalFields: ['middle_name', 'suffix']
+    optionalFields: []
   },
   instructor: {
     requiredFields: [
-      'email', 'role', 'first_name', 'last_name', 'password',
-      'gender', 'birthdate', 'phone', 'address', 'department'
+      'email', 'role'
     ],
-    optionalFields: ['middle_name', 'suffix']
+    optionalFields: []
   },
   registrar: {
     requiredFields: [
-      'email', 'role', 'first_name', 'last_name', 'password',
-      'gender', 'birthdate', 'phone', 'address'
+      'email', 'role'
     ],
-    optionalFields: ['middle_name', 'suffix']
+    optionalFields: []
   },
   program_head: {
     requiredFields: [
-      'email', 'role', 'first_name', 'last_name', 'password',
-      'gender', 'birthdate', 'phone', 'address', 'department'
+      'email', 'role'
     ],
-    optionalFields: ['middle_name', 'suffix']
+    optionalFields: []
   }
 };
 
@@ -96,11 +82,7 @@ interface UserProfile {
   id: string;
   email: string;
   role: CreateUserForm['role'];
-  first_name: string;
-  last_name: string;
   is_active: boolean;
-  middle_name: string | null;
-  suffix: string | null;
   department: string | null;
   program_id: number | null;
   student_id: string | null;
@@ -109,14 +91,8 @@ interface UserProfile {
   semester: string | null;
   student_type: string | null;
   enrollment_status: string | null;
-  gender: string | null;
-  birthdate: string | null;
-  phone: string | null;
-  address: string | null;
-  emergency_contact_name: string | null;
-  emergency_contact_relationship: string | null;
-  emergency_contact_phone: string | null;
   school_year: string | null;
+  student_status: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -137,14 +113,14 @@ const createUserClient = createClient(
 );
 
 const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUserCreated }) => {
+  // Auto-generate current academic year
+  const currentYear = new Date().getFullYear();
+  const currentAcademicYear = `${currentYear}-${currentYear + 1}`;
+
   // Form state
   const [form, setForm] = useState<CreateUserForm>({
     email: '',
-    role: 'student',
-    first_name: '',
-    middle_name: '',
-    last_name: '',
-    suffix: '',
+    role: '',
     is_active: true,
     department: '',
     program_id: '',
@@ -153,25 +129,15 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
     student_type: '',
     enrollment_status: '',
     section: '',
-    school_year: '',
+    school_year: currentAcademicYear,
     semester: '',
-    gender: '',
-    birthdate: '',
-    phone: '',
-    address: '',
-    emergency_contact_name: '',
-    emergency_contact_relationship: '',
-    emergency_contact_phone: '',
-    password: 'TempPass@123', // Set default password
-    // confirmPassword removed
+    student_status: 'active'
   });
 
   // UI state
   const [step, setStep] = useState(0);
   const [creating, setCreating] = useState(false);
   const [emailStatus, setEmailStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
-  const [phoneError, setPhoneError] = useState('');
-  const [emergencyPhoneError, setEmergencyPhoneError] = useState('');
   const [isGeneratingId, setIsGeneratingId] = useState(false);
 
   // Data state
@@ -182,36 +148,17 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
   // Constants
   const getSteps = (role: string) => {
     if (role === 'student') {
-      return ['Account Information', 'Basic Information', 'Academic Information', 'Emergency Contact', 'Review'];
+      return ['Role Selection', 'Academic Information'];
     }
-    return ['Account Information', 'Basic Information', 'Review'];
+    return ['Role Selection', 'Department & Email'];
   };
 
   const [steps, setSteps] = useState<string[]>(getSteps(form.role));
-  const genderOptions = [
-    { value: 'male', label: 'Male' },
-    { value: 'female', label: 'Female' },
-
-  ];
   const yearLevels = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
-  const studentTypes = ['Regular', 'Irregular', 'Transferee'];
-  const enrollmentStatuses = ['enrolled', 'not_enrolled'];
+  const studentTypes = ['Freshman', 'Regular', 'Irregular', 'Transferee'];
+  const enrollmentStatuses = ['pending', 'enrolled', 'active', 'approved', 'returned', 'dropped'];
   const semesters = ['1st Semester', '2nd Semester'];
   const sectionOptions = ['A', 'B', 'C', 'D'];
-
-  // Add academic years array
-  const currentYear = new Date().getFullYear();
-  const academicYears = [
-    `${currentYear}-${currentYear + 1}`,
-    `${currentYear + 1}-${currentYear + 2}`,
-    `${currentYear + 2}-${currentYear + 3}`
-  ];
-
-  // Remove password validation state and requirements
-  // Remove passwordValidation, passwordRequirements, showRequirements, and related logic
-
-  // Phone validation state
-  const [phoneTouched, setPhoneTouched] = useState(false);
 
   // Add state for confirmation dialog
   const [showConfirmation, setShowConfirmation] = useState(false);
@@ -222,11 +169,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
   const resetForm = () => {
     setForm({
       email: '',
-      role: 'student',
-      first_name: '',
-      middle_name: '',
-      last_name: '',
-      suffix: '',
+      role: '',
       is_active: true,
       department: '',
       program_id: '',
@@ -235,22 +178,12 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
       student_type: '',
       enrollment_status: '',
       section: '',
-      school_year: '',
+      school_year: currentAcademicYear,
       semester: '',
-      gender: '',
-      birthdate: '',
-      phone: '',
-      address: '',
-      emergency_contact_name: '',
-      emergency_contact_relationship: '',
-      emergency_contact_phone: '',
-      password: 'TempPass@123',
+      student_status: 'active'
     });
     setStep(0);
     setEmailStatus('idle');
-    setPhoneError('');
-    setEmergencyPhoneError('');
-    setPhoneTouched(false);
     setShowConfirmation(false);
   };
 
@@ -361,35 +294,6 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
     }
   };
 
-  // Remove areAllRequirementsMet and validatePassword functions
-
-  // Phone validation handler
-  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.replace(/\D/g, '');
-    if (value.length <= 11) {
-      setForm(prev => ({ ...prev, phone: value }));
-      if (phoneTouched) {
-        setPhoneError(value.length === 11 ? '' : 'Phone number must be 11 digits');
-      }
-    }
-  };
-
-  const handlePhoneBlur = () => {
-    setPhoneTouched(true);
-    if (form.phone) {
-      setPhoneError(form.phone.length === 11 ? '' : 'Phone number must be 11 digits');
-    }
-  };
-
-  // Emergency contact phone validation
-  const handleEmergencyPhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.replace(/\D/g, '');
-    if (value.length <= 11) {
-      setForm(prev => ({ ...prev, emergency_contact_phone: value }));
-      setEmergencyPhoneError(value.length === 11 ? '' : 'Phone number must be 11 digits');
-    }
-  };
-
   // Add this useEffect to auto-generate ID when role is student
   useEffect(() => {
     if (form.role === 'student' && !form.student_id) {
@@ -476,23 +380,10 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
       }
     }
 
-    // Validate phone numbers
-    if (form.phone && !/^\d{11}$/.test(form.phone)) {
-      errors.push('Phone number must be exactly 11 digits');
-    }
-
-    if (form.role === 'student' && form.emergency_contact_phone && !/^\d{11}$/.test(form.emergency_contact_phone)) {
-      errors.push('Emergency contact phone number must be exactly 11 digits');
-    }
-
     // Validate student-specific fields
     if (form.role === 'student') {
       if (form.student_id && !/^C\d{6}$/.test(form.student_id)) {
         errors.push('Invalid student ID format. Must start with C followed by 6 digits');
-      }
-      
-      if (form.school_year && !/^\d{4}-\d{4}$/.test(form.school_year)) {
-        errors.push('School year must be in format YYYY-YYYY');
       }
     }
 
@@ -566,13 +457,11 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
       // Create auth user using isolated client so admin session is not affected
       const { data: authData, error: authError } = await createUserClient.auth.signUp({
         email: `${form.email}@smcbi.edu.ph`,
-        password: form.password,
+        password: 'TempPass@123',
         options: {
           emailRedirectTo: `${window.location.origin}/auth/callback`,
           data: {
-            role: form.role,
-            first_name: form.first_name,
-            last_name: form.last_name
+            role: form.role
           }
         }
       });
@@ -601,27 +490,17 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
         id: newUserId,
         email: `${form.email}@smcbi.edu.ph`,
         role: form.role,
-        first_name: form.first_name,
-        last_name: form.last_name,
         is_active: form.is_active,
-        middle_name: form.middle_name || null,
-        suffix: form.suffix || null,
         department: form.department || null,
-        program_id: form.program_id ? Number(form.program_id) : null,
+        program_id: null, // Set to null since we're using department instead
         student_id: form.role === 'student' ? (form.student_id || null) : null,
         year_level: form.year_level || null,
         section: form.section || null,
         semester: form.semester || null,
         student_type: form.student_type || null,
         enrollment_status: form.enrollment_status || null,
-        gender: form.gender || null,
-        birthdate: form.birthdate || null,
-        phone: form.phone || null,
-        address: form.address || null,
-        emergency_contact_name: form.emergency_contact_name || null,
-        emergency_contact_relationship: form.emergency_contact_relationship || null,
-        emergency_contact_phone: form.emergency_contact_phone || null,
         school_year: form.school_year || null,
+        student_status: form.student_status || null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
@@ -673,53 +552,52 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
 
   // Update canProceed function to use role-based validation
   const canProceed = () => {
-    if (step === 0) {
-      return (
-        form.email &&
-        form.role &&
-        form.first_name &&
-        form.last_name &&
-        emailStatus === 'valid'
-      );
-    }
-
-    const requirements = roleRequirements[form.role];
-    const currentStepFields = getFieldsForStep(step, form.role);
+    console.log('canProceed debug:', { step, email: form.email, role: form.role, emailStatus });
     
-    return currentStepFields.every(field => {
-      if (requirements.requiredFields.includes(field)) {
-        return !!form[field];
-      }
-      return true;
-    });
-  };
-
-  // Add this helper function
-  const getFieldsForStep = (step: number, role: CreateUserForm['role']): (keyof CreateUserForm)[] => {
-    if (role === 'student') {
-      switch (step) {
-        case 1:
-          return ['student_id', 'gender', 'birthdate', 'phone', 'address'];
-        case 2:
-          return ['program_id', 'year_level', 'student_type', 'enrollment_status', 'section', 'semester', 'school_year'];
-        case 3:
-          return ['emergency_contact_name', 'emergency_contact_relationship', 'emergency_contact_phone'];
-        default:
-          return [];
-      }
-    } else {
-      switch (step) {
-        case 1:
-          return ['gender', 'birthdate', 'phone', 'address', 'department'];
-        default:
-          return [];
-      }
+    if (step === 0) {
+      // For Step 0, only require role selection - email can be empty
+      const canGo = form.role !== '';
+      console.log('Step 0 can proceed:', canGo, { role: form.role !== '' });
+      return canGo;
     }
+
+    // For step 1, check if all required fields for the role are filled
+    if (step === 1) {
+      const requirements = roleRequirements[form.role];
+      if (!requirements) return false;
+      
+      // Check if all required fields are filled
+      const allRequiredFieldsFilled = requirements.requiredFields.every(field => {
+        const value = form[field];
+        return value !== '' && value !== null && value !== undefined;
+      });
+      
+      console.log('Step 1 can proceed:', allRequiredFieldsFilled, { 
+        requiredFields: requirements.requiredFields,
+        formValues: form,
+        allRequiredFieldsFilled 
+      });
+      
+      return allRequiredFieldsFilled;
+    }
+
+    return false;
   };
 
   // Get max step based on role
   const getMaxStep = () => {
-    return form.role === 'student' ? 4 : 2;
+    return 1; // Always 2 steps (0 and 1)
+  };
+
+  // Check if all required fields are filled for the current role
+  const areAllRequiredFieldsFilled = () => {
+    const requirements = roleRequirements[form.role];
+    if (!requirements) return false;
+    
+    return requirements.requiredFields.every(field => {
+      const value = form[field];
+      return value !== '' && value !== null && value !== undefined;
+    });
   };
 
   if (!isOpen) return null;
@@ -883,52 +761,43 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
                         className="w-full max-w-xs mx-auto border-2 border-gray-500 rounded-lg px-3 py-2 text-center appearance-none bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200 shadow-sm"
                         style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
                         value={form.role}
-                        onChange={e => setForm(prev => ({ ...prev, role: e.target.value as CreateUserForm['role'] }))}
+                        onChange={e => {
+                          console.log('Role changed from', form.role, 'to', e.target.value);
+                          setForm(prev => ({ ...prev, role: e.target.value as CreateUserForm['role'] }));
+                        }}
                         required
                       >
+                        <option value="">Select Role</option>
                         <option value="student">Student</option>
                         <option value="instructor">Instructor</option>
                         {/* Admin role temporarily disabled */}
                         {/* <option value="admin">Admin</option> */}
                         <option value="registrar">Registrar</option>
-
                         <option value="program_head">Program Head</option>
-
                       </select>
                     </div>
 
-                    {/* Update the department selection dropdown */}
 
-                    {(form.role === 'instructor' || form.role === 'program_head') && (
 
-                  
 
-                      <div className="mt-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
 
-                          Department <span className="text-red-500">*</span>
-                        </label>
-                        <select
-                          className="w-full border-2 border-gray-500 rounded-lg px-3 py-2 mt-1 bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200 shadow-sm text-gray-500"
-                          style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
-                          value={form.department}
-                          onChange={e => setForm(prev => ({ ...prev, department: e.target.value }))}
-                          required
-                          disabled={isLoadingDepartments}
-                        >
-                          <option value="">Select Department</option>
-                          {departments.map(dept => (
-                            <option key={dept.name} value={dept.name}>
-                              {dept.name}
-                            </option>
-                          ))}
-                        </select>
-                        {isLoadingDepartments && (
-                          <p className="mt-1 text-sm text-gray-500 text-center">Loading departments...</p>
-                        )}
-                      </div>
-                    )}
 
+
+
+                  </motion.div>
+                )}
+
+                {/* Step 2: Academic Information (for students) / Department (for instructors/program heads) */}
+                {step === 1 && (
+                  <motion.div
+                    key="academic-info"
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 20 }}
+                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                    className="space-y-4"
+                  >
+                    {/* Email field for all roles */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700">Email</label>
                       <div className="relative">
@@ -975,88 +844,14 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
                       )}
                     </div>
 
-                    <div className="grid grid-cols-4 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700">First Name</label>
-                        <input
-                          type="text"
-                          className="w-full border-2 border-gray-500 rounded-lg px-3 py-2 mt-1 bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200 shadow-sm text-gray-500"
-                          style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
-                          value={form.first_name}
-                          onChange={e => setForm(prev => ({ ...prev, first_name: sanitizeTextInput(e.target.value) }))}
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700">Last Name</label>
-                        <input
-                          type="text"
-                          className="w-full border-2 border-gray-500 rounded-lg px-3 py-2 mt-1 bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200 shadow-sm text-gray-500"
-                          style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
-                          value={form.last_name}
-                          onChange={e => setForm(prev => ({ ...prev, last_name: sanitizeTextInput(e.target.value) }))}
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700">Middle Name</label>
-                        <input
-                          type="text"
-                          className="w-full border-2 border-gray-500 rounded-lg px-3 py-2 mt-1 bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200 shadow-sm text-gray-500"
-                          style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
-                          value={form.middle_name}
-                          onChange={e => setForm(prev => ({ ...prev, middle_name: sanitizeTextInput(e.target.value) }))}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700">Suffix</label>
-                        <input
-                          type="text"
-                          className="w-full border-2 border-gray-500 rounded-lg px-3 py-2 mt-1 bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200 shadow-sm text-gray-500"
-                          style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
-                          value={form.suffix}
-                          onChange={e => setForm(prev => ({ ...prev, suffix: e.target.value }))}
-                          placeholder="e.g., Jr., Sr., III"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Remove password and confirm password fields from the modal UI, replace with a single read-only password field */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Password</label>
-                      <input
-                        type="text"
-                        className="w-full border-2 border-gray-500 rounded-lg px-3 py-2 mt-1 bg-gray-100 text-gray-500 cursor-not-allowed focus:border-gray-600 focus:ring-2 focus:ring-gray-600/20 transition-all duration-200 shadow-sm"
-                        style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
-                        value={form.password}
-                        readOnly
-                        disabled
-                      />
-                      <p className="mt-1 text-xs text-gray-500">Default password is <span className="font-mono">TempPass@123</span>. User will be required to change this on first login.</p>
-                    </div>
-
-                    {/* Remove confirm password field and password requirements indicator from the UI */}
-                  </motion.div>
-                )}
-
-                {/* Step 2: Basic Information */}
-                {step === 1 && (
-                  <motion.div
-                    key="basic-info"
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 20 }}
-                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                    className="space-y-4"
-                  >
-                    <div className="grid grid-cols-2 gap-4">
-                      {form.role === 'student' && (
+                    {form.role === 'student' ? (
+                      <div className="grid grid-cols-2 gap-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Student ID</label>
                           <div className="relative">
                             <input
                               type="text"
-                              className="w-full border-2 border-gray-500 rounded-lg px-3 py-2 bg-white font-mono text-center text-sm shadow-sm"
+                              className="w-full border-2 border-gray-500 rounded-lg px-3 py-3 bg-white font-mono text-center text-sm shadow-sm"
                               style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
                               value={form.student_id || ''}
                               readOnly
@@ -1069,104 +864,28 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
                             )}
                           </div>
                         </div>
-                      )}
 
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
-                        <select
-                          className="w-full border-2 border-gray-500 rounded-lg px-3 py-2 text-sm bg-white shadow-sm text-gray-500"
-                          style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
-                          value={form.gender}
-                          onChange={e => setForm(prev => ({ ...prev, gender: e.target.value }))}
-                          required
-                        >
-                          <option value="">Select Gender</option>
-                          {genderOptions.map(option => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Birthdate</label>
-                        <input
-                          type="date"
-                          className="w-full border-2 border-gray-500 rounded-lg px-3 py-2 text-sm bg-white shadow-sm text-gray-500"
-                          style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
-                          value={form.birthdate}
-                          onChange={e => setForm(prev => ({ ...prev, birthdate: e.target.value }))}
-                          required
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
-                        <input
-                          type="tel"
-                          className={`w-full border-2 rounded-lg px-3 py-2 text-sm bg-white shadow-sm text-gray-500 ${
-                            phoneTouched && phoneError ? 'border-red-500 bg-red-50' : 'border-gray-500'
-                          }`}
-                          style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: phoneTouched && phoneError ? '#ef4444' : '#6b7280 !important' }}
-                          value={form.phone}
-                          onChange={handlePhoneChange}
-                          onBlur={handlePhoneBlur}
-                          maxLength={11}
-                          required
-                        />
-                        {phoneTouched && phoneError && (
-                          <p className="mt-0.5 text-xs text-red-500">{phoneError}</p>
-                        )}
-                      </div>
-
-                      <div className="col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-                        <textarea
-                          className="w-full border-2 border-gray-500 rounded-lg px-3 py-2 text-sm bg-white shadow-sm text-gray-500"
-                          style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
-                          value={form.address}
-                          onChange={e => setForm(prev => ({ ...prev, address: e.target.value }))}
-                          rows={2}
-                          required
-                        />
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-
-                {/* Step 3: Academic Information (for students) */}
-                {step === 2 && form.role === 'student' && (
-                  <motion.div
-                    key="academic-info"
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 20 }}
-                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                    className="space-y-4"
-                  >
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Program <span className="text-red-500">*</span>
-                        </label>
-                        <select
-                          className={`w-full border-2 rounded-lg px-3 py-2 text-sm bg-white shadow-sm text-gray-500 ${
-                            form.program_id ? 'border-green-500 bg-green-50' : 'border-gray-500'
-                          }`}
-                          style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: form.program_id ? '#10b981' : '#6b7280 !important' }}
-                          value={form.program_id}
-                          onChange={e => setForm(prev => ({ ...prev, program_id: e.target.value }))}
-                          required
-                        >
-                          <option value="">Select Program</option>
-                          {programs.map(program => (
-                            <option key={program.id} value={program.id}>
-                              {program.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Program <span className="text-red-500">*</span>
+                          </label>
+                          <select
+                            className={`w-full border-2 rounded-lg px-3 py-3 text-sm bg-white shadow-sm text-gray-500 ${
+                              form.department ? 'border-green-500 bg-green-50' : 'border-gray-500'
+                            }`}
+                            style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: form.department ? '#10b981' : '#6b7280 !important' }}
+                            value={form.department}
+                            onChange={e => setForm(prev => ({ ...prev, department: e.target.value }))}
+                            required
+                          >
+                            <option value="">Select Program</option>
+                            {programs.map(program => (
+                              <option key={program.id} value={program.name}>
+                                {program.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
 
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1280,235 +999,55 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
 
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          School Year <span className="text-red-500">*</span>
+                          Academic Year <span className="text-red-500">*</span>
                         </label>
-                        <select
-                          className={`w-full border-2 rounded-lg px-3 py-2 text-sm bg-white shadow-sm text-gray-500 ${
-                            form.school_year ? 'border-green-500 bg-green-50' : 'border-gray-500'
-                          }`}
-                          style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: form.school_year ? '#10b981' : '#6b7280 !important' }}
+                        <input
+                          type="text"
+                          className="w-full border-2 border-gray-500 rounded-lg px-3 py-3 text-sm bg-gray-100 text-gray-500 cursor-not-allowed shadow-sm"
+                          style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
                           value={form.school_year}
-                          onChange={e => setForm(prev => ({ ...prev, school_year: e.target.value }))}
-                          required
-                        >
-                          <option value="">Select School Year</option>
-                          {academicYears.map(year => (
-                            <option key={year} value={year}>
-                              {year}
-                            </option>
-                          ))}
-                        </select>
+                          readOnly
+                          disabled
+                        />
+                   
                       </div>
                     </div>
-                  </motion.div>
-                )}
-
-                {/* Step 4: Emergency Contact (for students) */}
-                {step === 3 && form.role === 'student' && (
-                  <motion.div
-                    key="emergency-contact"
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 20 }}
-                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                    className="space-y-4"
-                  >
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        Emergency Contact Name <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        className={`w-full border-2 rounded-lg px-3 py-2 mt-1 bg-white shadow-sm text-gray-500 ${
-                          form.emergency_contact_name ? 'border-green-500 bg-green-50' : 'border-gray-500'
-                        }`}
-                        style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: form.emergency_contact_name ? '#10b981' : '#6b7280 !important' }}
-                        value={form.emergency_contact_name}
-                        onChange={e => setForm(prev => ({ ...prev, emergency_contact_name: e.target.value }))}
-                        required
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        Relationship <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        className={`w-full border-2 rounded-lg px-3 py-2 mt-1 bg-white shadow-sm text-gray-500 ${
-                          form.emergency_contact_relationship ? 'border-green-500 bg-green-50' : 'border-gray-500'
-                        }`}
-                        style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: form.emergency_contact_relationship ? '#10b981' : '#6b7280 !important' }}
-                        value={form.emergency_contact_relationship}
-                        onChange={e => setForm(prev => ({ ...prev, emergency_contact_relationship: e.target.value }))}
-                        placeholder="e.g., Parent, Sibling, Guardian"
-                        required
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        Emergency Contact Phone <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="tel"
-                        className={`w-full border-2 rounded-lg px-3 py-2 mt-1 bg-white shadow-sm text-gray-500 ${
-                          form.emergency_contact_phone && !emergencyPhoneError 
-                            ? 'border-green-500 bg-green-50' 
-                            : emergencyPhoneError 
-                              ? 'border-red-500 bg-red-50' 
-                              : 'border-gray-500'
-                        }`}
-                        style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: form.emergency_contact_phone && !emergencyPhoneError ? '#10b981' : emergencyPhoneError ? '#ef4444' : '#6b7280 !important' }}
-                        value={form.emergency_contact_phone}
-                        onChange={handleEmergencyPhoneChange}
-                        
-                        maxLength={11}
-                        required
-                      />
-                      {emergencyPhoneError && (
-                        <p className="mt-1 text-sm text-red-500">{emergencyPhoneError}</p>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-4">
+                      {form.role !== 'registrar' && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Department <span className="text-red-500">*</span>
+                          </label>
+                          <select
+                            className="w-full border-2 border-gray-500 rounded-lg px-3 py-3 text-sm bg-white shadow-sm text-gray-500"
+                            style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
+                            value={form.department}
+                            onChange={e => setForm(prev => ({ ...prev, department: e.target.value }))}
+                            required
+                            disabled={isLoadingDepartments}
+                          >
+                            <option value="">Select Department</option>
+                            {departments.map(dept => (
+                              <option key={dept.name} value={dept.name}>
+                                {dept.name}
+                              </option>
+                            ))}
+                          </select>
+                          {isLoadingDepartments && (
+                            <p className="mt-1 text-sm text-gray-500 text-center">Loading departments...</p>
+                          )}
+                        </div>
                       )}
                     </div>
-                  </motion.div>
+                  )}
+                </motion.div>
                 )}
 
-                {/* Step 5: Review (for students) or Step 3: Review (for others) */}
-                {((form.role === 'student' && step === 4) || (form.role !== 'student' && step === 2)) && (
-                  <motion.div
-                    key="review"
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                    className="space-y-4"
-                  >
-                    <h4 className="text-lg font-semibold text-blue-700 mb-4">Review Information</h4>
-                    
-                    {/* Account Information */}
-                    <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                      <h5 className="font-medium text-gray-900 mb-2">Account Information</h5>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-sm text-gray-500">Full Name</p>
-                          <p className="font-medium">
-                            {[form.first_name, form.middle_name, form.last_name, form.suffix]
-                              .filter(Boolean)
-                              .join(' ')}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500">Email</p>
-                          <p className="font-medium">{form.email}@smcbi.edu.ph</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500">Role</p>
-                          <p className="font-medium capitalize">{form.role}</p>
-                        </div>
-                      </div>
-                    </div>
 
-                    {/* Basic Information */}
-                    <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                      <h5 className="font-medium text-gray-900 mb-2">Basic Information</h5>
-                      <div className="grid grid-cols-2 gap-4">
 
-                        {(form.role === 'instructor' || form.role === 'program_head') && (
 
-                       
-                          <div>
-                            <p className="text-sm text-gray-500">Department</p>
-                            <p className="font-medium">{form.department}</p>
-                          </div>
-                        )}
-                        {form.role === 'student' && (
-                          <div>
-                            <p className="text-sm text-gray-500">Student ID</p>
-                            <p className="font-medium">{form.student_id}</p>
-                          </div>
-                        )}
-                        <div>
-                          <p className="text-sm text-gray-500">Gender</p>
-                          <p className="font-medium capitalize">{form.gender}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500">Birthdate</p>
-                          <p className="font-medium">{form.birthdate}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500">Phone Number</p>
-                          <p className="font-medium">{form.phone}</p>
-                        </div>
-                        <div className="col-span-2">
-                          <p className="text-sm text-gray-500">Address</p>
-                          <p className="font-medium">{form.address}</p>
-                        </div>
-                      </div>
-                    </div>
 
-                    {/* Academic Information (for students) */}
-                    {form.role === 'student' && (
-                      <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                        <h5 className="font-medium text-gray-900 mb-2">Academic Information</h5>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <p className="text-sm text-gray-500">Program</p>
-                            <p className="font-medium">
-                              {programs.find(p => p.id.toString() === form.program_id)?.name}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-500">Year Level</p>
-                            <p className="font-medium">{form.year_level}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-500">Student Type</p>
-                            <p className="font-medium">{form.student_type}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-500">Enrollment Status</p>
-                            <p className="font-medium">
-                              {form.enrollment_status?.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-500">Section</p>
-                            <p className="font-medium">Section {form.section}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-500">Semester</p>
-                            <p className="font-medium">{form.semester}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-500">School Year</p>
-                            <p className="font-medium">{form.school_year || 'Not specified'}</p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Emergency Contact (for students) */}
-                    {form.role === 'student' && (
-                      <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                        <h5 className="font-medium text-gray-900 mb-2">Emergency Contact</h5>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <p className="text-sm text-gray-500">Contact Name</p>
-                            <p className="font-medium">{form.emergency_contact_name}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-500">Relationship</p>
-                            <p className="font-medium">{form.emergency_contact_relationship}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-500">Contact Phone</p>
-                            <p className="font-medium">{form.emergency_contact_phone}</p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </motion.div>
-                )}
               </AnimatePresence>
 
               {/* Confirmation Dialog */}
@@ -1593,7 +1132,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
                 ) : (
                   <motion.button
                     type="button"
-                    disabled={creating}
+                    disabled={creating || !areAllRequiredFieldsFilled()}
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={handleSubmit}
