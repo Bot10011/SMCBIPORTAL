@@ -6,7 +6,7 @@ interface StudentProfile {
   id: string; // UUID
   student_id?: string; // human-readable id
   first_name?: string;
-  last_name?: string;
+  last_name?: string; 
   middle_name?: string;
   year_level?: string;
   section?: string | null;
