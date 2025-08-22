@@ -27,6 +27,11 @@ interface UserProfile {
   enrollment_status?: string;
   department?: string;
   profile_picture_url?: string;
+  student_status?: string;
+  avatar_url?: string;
+  display_name?: string;
+  auth_provider?: string;
+  updated_at?: string;
 }
 
 export default function UserManagement() {
@@ -38,6 +43,7 @@ export default function UserManagement() {
   // Add back the search and filter state
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<'all' | 'students' | 'instructors' | 'registrars' | 'program_heads'>('all');
+  const [studentStatusFilter, setStudentStatusFilter] = useState<string>('');
   
   // Add modal state
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
@@ -48,7 +54,26 @@ export default function UserManagement() {
   const [selectedUserForAction, setSelectedUserForAction] = useState<UserProfile | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
 
-  const { setShowEditUserModal, setSelectedUserId } = useModal();
+  const { setShowEditUserModal, setSelectedUserId, setOnEditUserModalClose } = useModal();
+  
+  // Function to reset student status filter when switching tabs
+  const resetStudentStatusFilter = () => {
+    setStudentStatusFilter('');
+  };
+  
+  // Function to refresh user list after editing
+  const handleUserUpdated = useCallback(() => {
+    console.log('UserManagement: Received callback to refresh user list');
+    fetchUsers();
+  }, []);
+  
+  // Set up the callback when opening edit modal
+  const handleEditUser = useCallback((userId: string) => {
+    console.log('UserManagement: Setting up edit modal with callback for user:', userId);
+    setSelectedUserId(userId);
+    setOnEditUserModalClose(handleUserUpdated);
+    setShowEditUserModal(true);
+  }, [setSelectedUserId, setOnEditUserModalClose, setShowEditUserModal, handleUserUpdated]);
   
   // Memoized filtered users logic
   const filteredUsers = useMemo(() => {
@@ -61,15 +86,15 @@ export default function UserManagement() {
         activeTab === 'program_heads' ? user.role === 'program_head' : true;
       
       const matchesSearch = searchTerm === '' || 
-        [user.first_name, user.middle_name, user.last_name, user.suffix]
-          .filter(Boolean)
-          .join(' ')
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase());
+        (user.display_name || '').toLowerCase().includes(searchTerm.toLowerCase());
       
-      return matchesTab && matchesSearch;
+      // Add student status filtering
+      const matchesStudentStatus = studentStatusFilter === '' || 
+        (user.role === 'student' && user.student_status === studentStatusFilter);
+      
+      return matchesTab && matchesSearch && matchesStudentStatus;
     });
-  }, [users, activeTab, searchTerm]);
+  }, [users, activeTab, searchTerm, studentStatusFilter]);
 
   // Memoized user statistics
   const userStats = useMemo(() => {
@@ -94,9 +119,11 @@ export default function UserManagement() {
   const fetchUsers = useCallback(async () => {
     try {
       setLoading(true);
+      
+      // Fetch user profiles from our table
       let query = supabase
         .from('user_profiles')
-        .select('*')
+        .select('*, display_name, avatar_url, auth_provider, updated_at')
         .neq('role', 'superadmin') // Exclude superadmin users
         .order('created_at', { ascending: false });
 
@@ -104,10 +131,28 @@ export default function UserManagement() {
         query = query.neq('id', currentUser.id); // Exclude the currently logged-in user
       }
 
-      const { data: users, error } = await query;
+      const { data: userProfiles, error: profileError } = await query;
+      if (profileError) throw profileError;
 
-      if (error) throw error;
-      const sanitized = (users || []).filter(u => (currentUser?.id ? u.id !== currentUser.id : true));
+      console.log('Raw user profiles from database:', userProfiles);
+      if (userProfiles && userProfiles.length > 0) {
+        console.log('Sample user fields:', Object.keys(userProfiles[0]));
+        console.log('Sample user display_name:', userProfiles[0].display_name);
+        console.log('Sample user avatar_url:', userProfiles[0].avatar_url);
+        console.log('Sample user auth_provider:', userProfiles[0].auth_provider);
+      }
+
+      // Use the existing display_name and avatar_url columns directly
+      const processedUsers = (userProfiles || []).map(profile => ({
+        ...profile,
+        // Use the existing columns from your table
+        display_name: profile.display_name || 'No Name',
+        avatar_url: profile.avatar_url || null
+      }));
+
+      console.log('Processed users:', processedUsers);
+
+      const sanitized = processedUsers.filter(u => (currentUser?.id ? u.id !== currentUser.id : true));
       setUsers(sanitized);
     } catch (error) {
       console.error('Error fetching users:', error);
@@ -125,25 +170,52 @@ export default function UserManagement() {
   useEffect(() => {
     let isCancelled = false;
     const loadProfilePictures = async () => {
-      const usersWithPics = users.filter(u => !!u.profile_picture_url);
+      // Use avatar_url if available, otherwise fallback to profile_picture_url
+      const usersWithPics = users.filter(u => u.avatar_url || u.profile_picture_url);
       if (usersWithPics.length === 0) return;
+
+      console.log('Loading profile pictures for users:', usersWithPics.map(u => ({ 
+        id: u.id, 
+        avatar_url: u.avatar_url, 
+        profile_picture_url: u.profile_picture_url,
+        auth_provider: u.auth_provider 
+      })));
 
       const entries = await Promise.all(
         usersWithPics.map(async (u) => {
           try {
-            const { data: signedUrlData, error } = await supabase
-              .storage
-              .from('avatar')
-              .createSignedUrl(u.profile_picture_url as string, 60 * 60);
-            if (error) return [u.id, null] as const;
-            return [u.id, signedUrlData?.signedUrl ?? null] as const;
-          } catch {
+            // If user has avatar_url (Google avatar), use it directly
+            if (u.avatar_url && u.avatar_url.startsWith('http')) {
+              console.log(`User ${u.id} has Google avatar URL:`, u.avatar_url);
+              return [u.id, u.avatar_url] as const;
+            }
+            
+            // Otherwise, try to get signed URL from Supabase storage for profile_picture_url
+            if (u.profile_picture_url) {
+              console.log(`User ${u.id} has profile_picture_url, getting signed URL:`, u.profile_picture_url);
+              const { data: signedUrlData, error } = await supabase
+                .storage
+                .from('avatar')
+                .createSignedUrl(u.profile_picture_url, 60 * 60);
+              if (error) {
+                console.warn(`Failed to get signed URL for user ${u.id}:`, error);
+                return [u.id, null] as const;
+              }
+              console.log(`Successfully got signed URL for user ${u.id}:`, signedUrlData?.signedUrl);
+              return [u.id, signedUrlData?.signedUrl ?? null] as const;
+            }
+            
+            console.log(`User ${u.id} has no profile picture, will show default avatar`);
+            return [u.id, null] as const;
+          } catch (error) {
+            console.warn(`Error processing profile picture for user ${u.id}:`, error);
             return [u.id, null] as const;
           }
         })
       );
 
       if (!isCancelled) {
+        console.log('Setting profile picture URLs:', entries);
         setProfilePictureUrls((prev) => {
           const next = { ...prev } as Record<string, string | null>;
           entries.forEach(([userId, url]) => {
@@ -309,6 +381,8 @@ export default function UserManagement() {
     setShowCreateUserModal(false);
   };
 
+
+
   return (
     <div className="min-h-screen from-blue-50 via-white to-indigo-50 w-full">
       <div className="w-full px-6 py-8">
@@ -376,8 +450,34 @@ export default function UserManagement() {
               />
             </div>
           </div>
+          {/* Student Status Filter - Only show when students tab is active */}
+          {activeTab === 'students' && (
+            <div className="flex-1 min-w-[8rem] sm:min-w-[10rem] md:min-w-[14rem] lg:min-w-[16rem] xl:min-w-[20rem] max-w-[28rem]">
+              <div className="relative overflow-hidden rounded-xl bg-[#252728] border border-gray-600 shadow-[inset_4px_4px_8px_rgba(0,0,0,0.3),inset_-4px_-4px_8px_rgba(255,255,255,0.05)] focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-inset transition-all duration-200">
+                <select
+                  value={studentStatusFilter}
+                  onChange={(e) => setStudentStatusFilter(e.target.value)}
+                  className="w-full pl-3 pr-10 py-2 bg-[#1c1c1d] rounded-xl outline-none transition-all duration-200 text-xs sm:text-sm text-white border-0 focus:ring-0 focus:outline-none appearance-none cursor-pointer"
+                >
+                  <option value="">All Student Statuses</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                  <option value="graduated">Graduated</option>
+                  <option value="transferred">Transferred</option>
+                  <option value="dropped">Dropped</option>
+                </select>
+                <svg className="h-5 w-5 absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+
+            </div>
+          )}
           <button
-            onClick={() => setActiveTab('all')}
+            onClick={() => {
+              setActiveTab('all');
+              resetStudentStatusFilter();
+            }}
             className={`flex-none shrink-0 px-3 md:px-5 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-medium transition-all duration-200 md:ml-2 ${
               activeTab === 'all'
                 ? 'bg-blue-600 text-white shadow-sm'
@@ -393,7 +493,10 @@ export default function UserManagement() {
             </div>
           </button>
           <button
-            onClick={() => setActiveTab('students')}
+            onClick={() => {
+              setActiveTab('students');
+              resetStudentStatusFilter();
+            }}
             className={`flex-none shrink-0 px-3 md:px-5 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-medium transition-all duration-200 ${
               activeTab === 'students'
                 ? 'bg-green-600 text-white shadow-sm'
@@ -409,7 +512,10 @@ export default function UserManagement() {
             </div>
           </button>
           <button
-            onClick={() => setActiveTab('instructors')}
+            onClick={() => {
+              setActiveTab('instructors');
+              resetStudentStatusFilter();
+            }}
             className={`flex-none shrink-0 px-3 md:px-5 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-medium transition-all duration-200 ${
               activeTab === 'instructors'
                 ? 'bg-indigo-600 text-white shadow-sm'
@@ -425,7 +531,10 @@ export default function UserManagement() {
             </div>
           </button>
           <button
-            onClick={() => setActiveTab('registrars')}
+            onClick={() => {
+              setActiveTab('registrars');
+              resetStudentStatusFilter();
+            }}
             className={`flex-none shrink-0 px-3 md:px-5 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-medium transition-all duration-200 ${
               activeTab === 'registrars'
                 ? 'bg-orange-600 text-white shadow-sm'
@@ -441,7 +550,10 @@ export default function UserManagement() {
             </div>
           </button>
           <button
-            onClick={() => setActiveTab('program_heads')}
+            onClick={() => {
+              setActiveTab('program_heads');
+              resetStudentStatusFilter();
+            }}
             className={`flex-none shrink-0 px-3 md:px-5 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-medium transition-all duration-200 ${
               activeTab === 'program_heads'
                 ? 'bg-purple-600 text-white shadow-sm'
@@ -553,7 +665,7 @@ export default function UserManagement() {
                     <tr>
                                         <th className="px-6 py-4 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">User Information</th>
                   {activeTab === 'all' && (
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">Role & Status</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">Role</th>
                   )}
                   {activeTab === 'students' && (
                     <>
@@ -587,7 +699,7 @@ export default function UserManagement() {
                               {profilePictureUrls[user.id] ? (
                                 <img
                                   src={profilePictureUrls[user.id] as string}
-                                  alt={`${[user.first_name, user.last_name].filter(Boolean).join(' ')} profile`}
+                                  alt={`${user.display_name} profile`}
                                   className="w-full h-full object-cover"
                                 />
                               ) : (
@@ -596,13 +708,14 @@ export default function UserManagement() {
                                     ? 'bg-gradient-to-br from-green-500 to-green-600 shadow-green-500/20'
                                     : 'bg-gradient-to-br from-blue-500 to-blue-600 shadow-blue-500/20'
                                 }`}>
-                                  {user.first_name?.charAt(0).toUpperCase() || (user.email?.[0]?.toUpperCase() ?? '?')}
+                                  {user.display_name?.charAt(0).toUpperCase() || 
+                                   (user.email?.[0]?.toUpperCase() ?? '?')}
                                 </div>
                               )}
                             </div>
                             <div>
                               <div className="font-semibold text-white">
-                                {[user.first_name, user.middle_name, user.last_name, user.suffix].filter(Boolean).join(' ')}
+                                {user.display_name || 'No Name'}
                               </div>
                               <div className="text-sm text-gray-300 mt-0.5">{user.email}</div>
                               {user.role === 'student' && (
@@ -640,19 +753,34 @@ export default function UserManagement() {
                             <td className="px-6 py-5">
                               <div className="flex flex-col gap-2">
                                 <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold w-fit
-                                  ${user.enrollment_status === 'Enrolled' 
+                                  ${user.enrollment_status === 'enrolled' 
                                     ? 'bg-emerald-100 text-emerald-700' 
-                                    : 'bg-yellow-100 text-yellow-700'}`}>
-                                  {user.enrollment_status || 'N/A'}
+                                    : user.enrollment_status === 'pending'
+                                    ? 'bg-yellow-100 text-yellow-700'
+                                    : user.enrollment_status === 'active'
+                                    ? 'bg-blue-100 text-blue-700'
+                                    : user.enrollment_status === 'approved'
+                                    ? 'bg-green-100 text-green-700'
+                                    : user.enrollment_status === 'returned'
+                                    ? 'bg-orange-100 text-orange-700'
+                                    : user.enrollment_status === 'dropped'
+                                    ? 'bg-red-100 text-red-700'
+                                    : 'bg-gray-100 text-gray-700'}`}>
+                                  {user.enrollment_status ? user.enrollment_status.charAt(0).toUpperCase() + user.enrollment_status.slice(1) : 'N/A'}
                                 </span>
                                 <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold w-fit
-                                  ${user.is_active 
-                                    ? 'bg-emerald-100 text-emerald-700' 
-                                    : 'bg-red-100 text-red-700'}`}>
-                                  <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${
-                                    user.is_active ? 'bg-emerald-500' : 'bg-red-500'
-                                  }`}></span>
-                                  {user.is_active ? 'Active' : 'Inactive'}
+                                  ${user.student_status === 'active' 
+                                    ? 'bg-blue-100 text-blue-700' 
+                                    : user.student_status === 'inactive'
+                                    ? 'bg-gray-100 text-gray-700'
+                                    : user.student_status === 'graduated'
+                                    ? 'bg-purple-100 text-purple-700'
+                                    : user.student_status === 'transferred'
+                                    ? 'bg-orange-100 text-orange-700'
+                                    : user.student_status === 'dropped'
+                                    ? 'bg-red-100 text-red-700'
+                                    : 'bg-gray-100 text-gray-700'}`}>
+                                  {user.student_status ? user.student_status.charAt(0).toUpperCase() + user.student_status.slice(1) : 'N/A'}
                                 </span>
                               </div>
                             </td>
@@ -741,10 +869,7 @@ export default function UserManagement() {
                               whileTap={{ scale: 0.95 }}
                               className="usermanagement-action-button p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200"
                               title="Edit user"
-                              onClick={() => {
-                                setSelectedUserId(user.id);
-                                setShowEditUserModal(true);
-                              }}
+                              onClick={() => handleEditUser(user.id)}
                             >
                               <Edit className="w-4 h-4" />
                             </motion.button>
@@ -794,7 +919,7 @@ export default function UserManagement() {
             }}
             onConfirm={confirmDeleteUser}
             title="Delete User"
-            message={`Are you sure you want to delete ${selectedUserForAction ? [selectedUserForAction.first_name, selectedUserForAction.middle_name, selectedUserForAction.last_name].filter(Boolean).join(' ') : 'this user'}? This action cannot be undone.`}
+            message={`Are you sure you want to delete ${selectedUserForAction ? (selectedUserForAction.display_name || 'this user') : 'this user'}? This action cannot be undone.`}
             confirmText="Delete"
             cancelText="Cancel"
             type="danger"
@@ -812,7 +937,7 @@ export default function UserManagement() {
             }}
             onConfirm={confirmToggleUserStatus}
             title={selectedUserForAction?.is_active ? "Deactivate User" : "Activate User"}
-            message={`Are you sure you want to ${selectedUserForAction?.is_active ? 'deactivate' : 'activate'} ${selectedUserForAction ? [selectedUserForAction.first_name, selectedUserForAction.middle_name, selectedUserForAction.last_name].filter(Boolean).join(' ') : 'this user'}?`}
+            message={`Are you sure you want to ${selectedUserForAction?.is_active ? 'deactivate' : 'activate'} ${selectedUserForAction ? (selectedUserForAction.display_name || 'this user') : 'this user'}?`}
             confirmText={selectedUserForAction?.is_active ? "Deactivate" : "Activate"}
             cancelText="Cancel"
             type="warning"
