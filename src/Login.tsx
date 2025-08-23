@@ -6,6 +6,7 @@
   import { useAuth } from './contexts/AuthContext';
   import toast from 'react-hot-toast';
   import { AuthError } from '@supabase/supabase-js';
+  import PasswordResetForm from './components/PasswordResetForm';
 
   interface LoginProps {
     onClose?: () => void;
@@ -19,10 +20,26 @@
       password: ''
     });
     const [showInstructionModal, setShowInstructionModal] = useState(false);
+    
+    // Add forgot password modal state
+    const [showForgotModal, setShowForgotModal] = useState(false);
+    const [forgotEmail, setForgotEmail] = useState('');
+    const [sendingRecovery, setSendingRecovery] = useState(false);
+    const [recoveryCooldown, setRecoveryCooldown] = useState(0);
+    const [verificationStep, setVerificationStep] = useState('email'); // 'email', 'code', or 'reset-password'
+    const [verificationCode, setVerificationCode] = useState('');
+    const [verifyingCode, setVerifyingCode] = useState(false);
 
     const navigate = useNavigate();
     const location = useLocation();
     const { login } = useAuth();
+
+    // Add cooldown ticker for recovery
+    React.useEffect(() => {
+      if (recoveryCooldown <= 0) return;
+      const t = setInterval(() => setRecoveryCooldown(v => (v > 0 ? v - 1 : 0)), 1000);
+      return () => clearInterval(t);
+    }, [recoveryCooldown]);
 
     const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       // Just store the username without @smcbi.edu.ph
@@ -153,6 +170,10 @@
           provider: 'google',
           options: {
             scopes: 'openid profile email',
+            queryParams: {
+              access_type: 'offline',
+              prompt: 'consent'
+            },
             redirectTo: `${window.location.origin}/auth/callback`
           }
         });
@@ -174,13 +195,13 @@
       <div className="relative">
         {/* Login Form with smooth transition */}
         <div
-          className={`transition-all duration-700 ease-out ${showInstructionModal ? 'opacity-0 scale-95 pointer-events-none' : 'opacity-100 scale-100'}`}
+          className={`transition-all duration-700 ease-out ${showInstructionModal || showForgotModal ? 'opacity-0 scale-95 pointer-events-none' : 'opacity-100 scale-100'}`}
           style={{
-            animation: !showInstructionModal ? 'fadeInUp 0.8s ease-out' : 'none'
+            animation: !showInstructionModal && !showForgotModal ? 'fadeInUp 0.8s ease-out' : 'none'
           }}
         >
           {/* X Close Button - only show when login form is visible */}
-          {!showInstructionModal && onClose && (
+          {!showInstructionModal && !showForgotModal && onClose && (
             <button
               className="absolute w-6 h-6 flex items-center justify-center text-lg font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-full transition-colors duration-200 focus:outline-none top-3 right-3"
               aria-label="Close Login"
@@ -291,6 +312,7 @@
                   type="button"
                   className="text-xs text-gray-600 hover:text-gray-800"
                   disabled={isLoading}
+                  onClick={() => setShowForgotModal(true)}
                 >
                   Forgot password?
                 </button>
@@ -385,6 +407,214 @@
             </div>
           </div>
         )}
+
+        {/* Forgot Password Modal */}
+        {showForgotModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center ">
+            <div className="w-full max-w-md p-6 relative animate-fade-in">
+              <div className="bg-white/100 rounded-2xl shadow-2xl p-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-[#2C3E50]">
+                    {verificationStep === 'email' ? 'Reset your password' : 
+                     verificationStep === 'code' ? 'Enter verification code' : 
+                     ''}
+                  </h3>
+                  
+                </div>
+
+                {verificationStep === 'email' ? (
+                  <>
+                    <p className="text-sm text-gray-600 mb-4">Enter your email and we will send you a verification code.</p>
+                
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={forgotEmail}
+                        onChange={(e) => setForgotEmail(e.target.value)}
+                        placeholder="Enter your email"
+                        className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-gray-100 pr-32"
+                      />
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm font-medium">
+                        @smcbi.edu.ph
+                      </div>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        const username = forgotEmail.trim();
+                        if (!username) { toast.error('Please enter your email'); return; }
+                        if (recoveryCooldown > 0) return;
+                        
+                        const email = `${username}@smcbi.edu.ph`;
+                        setSendingRecovery(true);
+                        try {
+                          const redirectTo = `${window.location.origin}/reset-password`;
+                          
+                          console.log('Sending password reset request to:', email);
+                          console.log('API endpoint:', '/api/send-password-reset-email');
+                          
+                          // Use custom mailer API instead of Supabase
+                          const response = await fetch('/api/send-password-reset-email', {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                              email,
+                              redirectTo
+                            }),
+                          });
+
+                          console.log('Response status:', response.status);
+                          console.log('Response headers:', response.headers);
+                          
+                          if (!response.ok) {
+                            let errorMessage = 'Failed to send reset email';
+                            
+                            try {
+                              const result = await response.json();
+                              errorMessage = result.error || errorMessage;
+                              console.log('Error response:', result);
+                            } catch (parseError) {
+                              console.error('Failed to parse error response:', parseError);
+                              errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+                            }
+                            
+                            if (response.status === 429) {
+                              toast.error('Too many requests. Try again later.');
+                              setRecoveryCooldown(60);
+                            } else if (response.status === 404) {
+                              toast.error('API endpoint not found. Please check server configuration.');
+                              console.error('404 Error - API endpoint not found');
+                            } else {
+                              toast.error(errorMessage);
+                            }
+                          } else {
+                            try {
+                              const result = await response.json();
+                              console.log('Success response:', result);
+                              
+                              if (result.success === false) {
+                                toast.error(result.message || 'Failed to send verification code');
+                                if (result.message && result.message.includes('maximum number')) {
+                                  // Set a longer cooldown for rate limit errors
+                                  setRecoveryCooldown(3600); // 1 hour cooldown
+                                }
+                              } else {
+                                toast.success('Verification code sent! Check your inbox.');
+                                setVerificationStep('code');
+                              }
+                            } catch (parseError) {
+                              console.error('Failed to parse success response:', parseError);
+                              toast.success('Verification code sent! Check your inbox.');
+                              setVerificationStep('code');
+                            }
+                          }
+                        } catch (error) {
+                          console.error('Password reset error:', error);
+                          if (error instanceof TypeError && error.message.includes('fetch')) {
+                            toast.error('Network error. Please check your connection.');
+                          } else {
+                            toast.error('Failed to send reset email. Please try again.');
+                          }
+                        } finally {
+                          setSendingRecovery(false);
+                        }
+                      }}
+                      disabled={sendingRecovery || recoveryCooldown > 0 || !forgotEmail.trim()}
+                      className="mt-4 w-full py-2.5 rounded-lg bg-[#2C3E50] text-white font-semibold hover:bg-[#1a2634] transition-all duration-200 shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {recoveryCooldown > 0 ? `Wait ${recoveryCooldown}s` : (sendingRecovery ? 'Sending…' : 'Send verification code')}
+                    </button>
+                    <div className="mt-3 text-xs text-gray-500">We'll send a verification code to your email. If you don't see it, check Spam.</div>
+                  </>
+                ) : verificationStep === 'code' ? (
+                  <>
+                    <p className="text-sm text-gray-600 mb-4">Please enter the verification code we sent to your email address.</p>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Verification Code</label>
+                    <input
+                      type="text"
+                      value={verificationCode}
+                      onChange={(e) => setVerificationCode(e.target.value)}
+                      placeholder="SMCBI-000000"
+                      maxLength={11}
+                      className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white text-center text-lg tracking-widest"
+                    />
+                    <button
+                      onClick={async () => {
+                        const code = verificationCode.trim();
+                        if (!code || !code.startsWith('SMCBI-') || code.length < 11) { 
+                          toast.error('Please enter a valid verification code (SMCBI-######)'); 
+                          return; 
+                        }
+                        
+                        setVerifyingCode(true);
+                        try {
+                          // Verify the code against the server
+                          const response = await fetch('/api/verify-reset-code', {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                              email: `${forgotEmail.trim()}@smcbi.edu.ph`,
+                              code
+                            }),
+                          });
+
+                          const result = await response.json();
+                          
+                          if (!response.ok || !result.success) {
+                            toast.error(result.message || 'Invalid verification code');
+                          } else if (result.success) {
+                            toast.success('Code verified! Now you can reset your password.');
+                            setVerificationStep('reset-password');
+                          } else {
+                            toast.error('Verification failed. Please try again.');
+                          }
+                        } catch (error) {
+                          console.error('Code verification error:', error);
+                          toast.error('Failed to verify code. Please try again.');
+                        } finally {
+                          setVerifyingCode(false);
+                        }
+                      }}
+                      disabled={verifyingCode || !verificationCode.trim() || !verificationCode.startsWith('SMCBI-') || verificationCode.length < 11}
+                      className="mt-4 w-full py-2.5 rounded-lg bg-[#2C3E50] text-white font-semibold hover:bg-[#1a2634] transition-all duration-200 shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {verifyingCode ? 'Verifying...' : 'Verify Code'}
+                    </button>
+                    <div className="mt-3 text-xs text-gray-500">
+                      Didn't receive the code? 
+                      <button 
+                        onClick={() => setVerificationStep('email')}
+                        className="text-blue-600 hover:underline ml-1"
+                      >
+                        Resend
+                      </button>
+                    </div>
+                  </>
+                ) : verificationStep === 'reset-password' ? (
+                  <PasswordResetForm 
+                    email={`${forgotEmail.trim()}@smcbi.edu.ph`} 
+                    onClose={() => setShowForgotModal(false)} 
+                  />
+                ) : null}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* CSS Animations */}
+        <style>{`
+          .animate-fade-in {
+            animation: fadeIn 0.4s ease;
+            will-change: opacity, transform;
+          }
+          @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+        `}</style>
       </div>
     );
   };
