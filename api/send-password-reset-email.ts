@@ -251,23 +251,43 @@ export async function handlePasswordReset(email: string) {
   }
 }
 
-// Check if this file is being run directly (for testing)
-if (process.argv[1] === import.meta.url) {
-  const email = process.env.email;
-  
-  if (!email) {
-    console.error('Usage: email=<email> tsx send-password-reset-email.ts');
-    process.exit(1);
+// Vercel API handler
+export default async function handler(req: any, res: any) {
+  // Enable CORS
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  // Handle preflight request
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
   }
-  
-  // Actually call the function and output the result
-  handlePasswordReset(email)
-    .then(result => {
-      console.log(JSON.stringify(result, null, 2));
-      process.exit(0);
-    })
-    .catch(error => {
-      console.error('Error:', error.message);
-      process.exit(1);
+
+  // Only allow POST requests
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    const result = await handlePasswordReset(email);
+    
+    if (result.success) {
+      return res.status(200).json(result);
+    } else {
+      return res.status(400).json(result);
+    }
+  } catch (error) {
+    console.error('API Error:', error);
+    return res.status(500).json({ 
+      error: 'Internal server error',
+      message: error instanceof Error ? error.message : 'Unknown error'
     });
+  }
 }
