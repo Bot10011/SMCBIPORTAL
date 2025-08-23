@@ -4,6 +4,7 @@ import { motion, useMotionValue, useTransform, useSpring, AnimatePresence } from
 import AnnouncementModal from './components/AnnouncementModal';
 import { supabase } from './lib/supabase';
 import { toast } from 'react-hot-toast';
+import PasswordResetForm from './components/PasswordResetForm';
 
 interface Announcement {
   id: string;
@@ -33,9 +34,10 @@ const LandingPage = () => {
   const [forgotEmail, setForgotEmail] = useState('');
   const [sendingRecovery, setSendingRecovery] = useState(false);
   const [recoveryCooldown, setRecoveryCooldown] = useState(0);
-  const [verificationStep, setVerificationStep] = useState('email'); // 'email' or 'code'
+  const [verificationStep, setVerificationStep] = useState('email'); // 'email', 'code', or 'reset-password'
   const [verificationCode, setVerificationCode] = useState('');
   const [verifyingCode, setVerifyingCode] = useState(false);
+
 
   // Add motion values for 3D effect with performance optimization
   const x = useMotionValue(0);
@@ -504,22 +506,16 @@ const LandingPage = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="w-full max-w-md p-6 relative animate-fade-in">
             <div className="bg-white/100 rounded-2xl shadow-2xl p-6">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between ">
                 <h3 className="text-lg font-semibold text-[#2C3E50]">
-                  {verificationStep === 'email' ? 'Reset your password' : 'Enter verification code'}
+                  {verificationStep === 'email' 
+                    ? 'Reset your password' 
+                    : verificationStep === 'reset-password'
+                      ? ''
+                      : 'Enter verification code'
+                  }
                 </h3>
-                <button
-                  onClick={() => {
-                    setShowForgotModal(false);
-                    setVerificationStep('email');
-                    setForgotEmail('');
-                    setVerificationCode('');
-                  }}
-                  className="w-6 h-6 flex items-center justify-center text-lg font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-full transition-colors duration-200"
-                  aria-label="Close"
-                >
-                  ×
-                </button>
+             
               </div>
 
               {verificationStep === 'email' ? (
@@ -539,48 +535,87 @@ const LandingPage = () => {
                 </div>
               </div>
               <button
-                onClick={async () => {
-                  const username = forgotEmail.trim();
-                  if (!username) { toast.error('Please enter your email'); return; }
-                  if (recoveryCooldown > 0) return;
-                  
-                  const email = `${username}@smcbi.edu.ph`;
-                  setSendingRecovery(true);
-                  try {
-                    const redirectTo = `${window.location.origin}/reset-password`;
+                                  onClick={async () => {
+                    const username = forgotEmail.trim();
+                    if (!username) { toast.error('Please enter your email'); return; }
+                    if (recoveryCooldown > 0) return;
                     
-                    // Use custom mailer API instead of Supabase
-                    const response = await fetch('/api/send-password-reset-email', {
-                      method: 'POST',
-                      headers: {
-                        'Content-Type': 'application/json',
-                      },
-                      body: JSON.stringify({
-                        email,
-                        redirectTo
-                      }),
-                    });
+                    const email = `${username}@smcbi.edu.ph`;
+                    setSendingRecovery(true);
+                    try {
+                      const redirectTo = `${window.location.origin}/reset-password`;
+                      
+                      console.log('Sending password reset request to:', email);
+                      console.log('API endpoint:', '/api/send-password-reset-email');
+                      
+                      // Use custom mailer API instead of Supabase
+                      const response = await fetch('/api/send-password-reset-email', {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                          email,
+                          redirectTo
+                        }),
+                      });
 
-                    const result = await response.json();
-                    
-                    if (!response.ok) {
-                      if (response.status === 429) {
-                        toast.error('Too many requests. Try again later.');
-                        setRecoveryCooldown(60);
+                      console.log('Response status:', response.status);
+                      console.log('Response headers:', response.headers);
+                      
+                      if (!response.ok) {
+                        let errorMessage = 'Failed to send reset email';
+                        
+                        try {
+                          const result = await response.json();
+                          errorMessage = result.error || errorMessage;
+                          console.log('Error response:', result);
+                        } catch (parseError) {
+                          console.error('Failed to parse error response:', parseError);
+                          errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+                        }
+                        
+                        if (response.status === 429) {
+                          toast.error('Too many requests. Try again later.');
+                          setRecoveryCooldown(60);
+                        } else if (response.status === 404) {
+                          toast.error('API endpoint not found. Please check server configuration.');
+                          console.error('404 Error - API endpoint not found');
+                        } else {
+                          toast.error(errorMessage);
+                        }
                       } else {
-                        toast.error(result.error || 'Failed to send reset email');
+                        try {
+                          const result = await response.json();
+                          console.log('Success response:', result);
+                          
+                          if (result.success === false) {
+                            toast.error(result.message || 'Failed to send verification code');
+                            if (result.message && result.message.includes('maximum number')) {
+                              // Set a longer cooldown for rate limit errors
+                              setRecoveryCooldown(3600); // 1 hour cooldown
+                            }
+                          } else {
+                            toast.success('Verification code sent! Check your inbox.');
+                            setVerificationStep('code');
+                          }
+                        } catch (parseError) {
+                          console.error('Failed to parse success response:', parseError);
+                          toast.success('Verification code sent! Check your inbox.');
+                          setVerificationStep('code');
+                        }
                       }
-                    } else {
-                      toast.success('Verification code sent! Check your inbox.');
-                      setVerificationStep('code');
+                    } catch (error) {
+                      console.error('Password reset error:', error);
+                      if (error instanceof TypeError && error.message.includes('fetch')) {
+                        toast.error('Network error. Please check your connection.');
+                      } else {
+                        toast.error('Failed to send reset email. Please try again.');
+                      }
+                    } finally {
+                      setSendingRecovery(false);
                     }
-                  } catch (error) {
-                    console.error('Password reset error:', error);
-                    toast.error('Failed to send reset email. Please try again.');
-                  } finally {
-                    setSendingRecovery(false);
-                  }
-                }}
+                  }}
                 disabled={sendingRecovery || recoveryCooldown > 0 || !forgotEmail.trim()}
                 className="mt-4 w-full py-2.5 rounded-lg bg-[#2C3E50] text-white font-semibold hover:bg-[#1a2634] transition-all duration-200 shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
               >
@@ -588,23 +623,23 @@ const LandingPage = () => {
               </button>
               <div className="mt-3 text-xs text-gray-500">We'll send a verification code to your email. If you don't see it, check Spam.</div>
                 </>
-              ) : (
+              ) : verificationStep === 'code' ? (
                 <>
-                  <p className="text-sm text-gray-600 mb-4">Enter the 6-digit verification code sent to your email.</p>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Verification Code</label>
+                  <p className="text-sm text-gray-600 mb-4">Please enter the verification code we sent to your email address.</p>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Verification Code:</label>
                   <input
                     type="text"
                     value={verificationCode}
                     onChange={(e) => setVerificationCode(e.target.value)}
-                    placeholder="Enter 6-digit code"
-                    maxLength={6}
+                    placeholder="SMCBI-000000"
+                    maxLength={12}
                     className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white text-center text-lg tracking-widest"
                   />
                   <button
                     onClick={async () => {
                       const code = verificationCode.trim();
-                      if (!code || code.length !== 6) { 
-                        toast.error('Please enter the 6-digit verification code'); 
+                      if (!code || !code.startsWith('SMCBI-')) { 
+                        toast.error('Please enter a valid verification code (SMCBI-######)'); 
                         return; 
                       }
                       
@@ -624,13 +659,14 @@ const LandingPage = () => {
 
                         const result = await response.json();
                         
-                        if (!response.ok) {
-                          toast.error(result.error || 'Invalid verification code');
+                        if (!response.ok || !result.success) {
+                          toast.error(result.message || 'Invalid verification code');
+                        } else if (result.success) {
+                          toast.success('Code verified! Now you can reset your password.');
+                          // Update state to show the password reset form
+                          setVerificationStep('reset-password');
                         } else {
-                          toast.success('Code verified! Redirecting to password reset...');
-                          setTimeout(() => {
-                            window.location.href = '/reset-password';
-                          }, 1500);
+                          toast.error('Verification failed. Please try again.');
                         }
                       } catch (error) {
                         console.error('Code verification error:', error);
@@ -639,7 +675,7 @@ const LandingPage = () => {
                         setVerifyingCode(false);
                       }
                     }}
-                    disabled={verifyingCode || !verificationCode.trim() || verificationCode.length !== 6}
+                    disabled={verifyingCode || !verificationCode.trim() || !verificationCode.startsWith('SMCBI-')}
                     className="mt-4 w-full py-2.5 rounded-lg bg-[#2C3E50] text-white font-semibold hover:bg-[#1a2634] transition-all duration-200 shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     {verifyingCode ? 'Verifying...' : 'Verify Code'}
@@ -654,7 +690,9 @@ const LandingPage = () => {
                     </button>
                   </div>
                 </>
-              )}
+              ) : verificationStep === 'reset-password' ? (
+                <PasswordResetForm email={`${forgotEmail.trim()}@smcbi.edu.ph`} onClose={() => setShowForgotModal(false)} />
+              ) : null}
             </div>
           </div>
         </div>
