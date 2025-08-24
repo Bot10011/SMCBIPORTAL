@@ -560,40 +560,69 @@
                     </button>
                     <div className="mt-3 text-xs text-gray-500">We'll send a verification code to your email. If you don't see it, check Spam.</div>
                     
-                    {/* Debug button for troubleshooting */}
+                    {/* Debug buttons for troubleshooting */}
                     {process.env.NODE_ENV === 'development' && (
-                      <button
-                        onClick={async () => {
-                          const username = forgotEmail.trim();
-                          if (!username) { toast.error('Please enter your email first'); return; }
-                          
-                          const email = `${username}@smcbi.edu.ph`;
-                          console.log('🔍 Debug: Testing user lookup for:', email);
-                          
-                          try {
-                            const response = await fetch('/api/debug-user-lookup', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ email })
-                            });
+                      <>
+                        <button
+                          onClick={async () => {
+                            const username = forgotEmail.trim();
+                            if (!username) { toast.error('Please enter your email first'); return; }
                             
-                            const result = await response.json();
-                            console.log('🔍 Debug result:', result);
+                            const email = `${username}@smcbi.edu.ph`;
+                            console.log('🔍 Debug: Testing user lookup for:', email);
                             
-                            if (result.success) {
-                              toast.success('User found! Check console for details.');
-                            } else {
-                              toast.error(`Debug failed: ${result.error}`);
+                            try {
+                              const response = await fetch('/api/debug-user-lookup', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ email })
+                              });
+                              
+                              const result = await response.json();
+                              console.log('🔍 Debug result:', result);
+                              
+                              if (result.success) {
+                                toast.success('User found! Check console for details.');
+                              } else {
+                                toast.error(`Debug failed: ${result.error}`);
+                              }
+                            } catch (error) {
+                              console.error('Debug error:', error);
+                              toast.error('Debug request failed');
                             }
-                          } catch (error) {
-                            console.error('Debug error:', error);
-                            toast.error('Debug request failed');
-                          }
-                        }}
-                        className="mt-2 w-full py-2 rounded-lg bg-gray-500 text-white text-sm hover:bg-gray-600 transition-all duration-200"
-                      >
-                        🔍 Debug User Lookup
-                      </button>
+                          }}
+                          className="mt-2 w-full py-2 rounded-lg bg-gray-500 text-white text-sm hover:bg-gray-600 transition-all duration-200"
+                        >
+                          🔍 Debug User Lookup
+                        </button>
+                        
+                        <button
+                          onClick={async () => {
+                            console.log('🔍 Testing Supabase connectivity...');
+                            
+                            try {
+                              const response = await fetch('/api/test-supabase-connectivity', {
+                                method: 'GET'
+                              });
+                              
+                              const result = await response.json();
+                              console.log('🔍 Connectivity test result:', result);
+                              
+                              if (result.success) {
+                                toast.success('Connectivity test passed! Check console for details.');
+                              } else {
+                                toast.error(`Connectivity test failed: ${result.error}`);
+                              }
+                            } catch (error) {
+                              console.error('Connectivity test error:', error);
+                              toast.error('Connectivity test failed');
+                            }
+                          }}
+                          className="mt-2 w-full py-2 rounded-lg bg-blue-500 text-white text-sm hover:bg-blue-600 transition-all duration-200"
+                        >
+                          🌐 Test Supabase Connectivity
+                        </button>
+                      </>
                     )}
                   </>
                 ) : verificationStep === 'code' ? (
