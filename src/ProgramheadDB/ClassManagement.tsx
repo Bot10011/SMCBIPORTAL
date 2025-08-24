@@ -12,6 +12,7 @@ interface StudentProfile {
   section?: string | null;
   enrollment_status?: string | null;
   student_type?: string | null;
+  role?: string; // Add role field
 }
 
 const YEAR_LEVELS = ['1st Year', '2nd Year', '3rd Year', '4th Year'] as const;
@@ -123,7 +124,7 @@ const ClassManagement: React.FC = () => {
             // Filter for users that look like students (have student_id or year_level)
             studentsArray = allUsers.filter(s => 
               s.student_id || s.year_level || 
-              (s.first_name && s.last_name && !s.role) // Assume users with names but no role are students
+              (s.first_name && s.last_name) // Assume users with names are students
             );
             console.log('Filtered potential students:', studentsArray.length);
           } else {
@@ -588,5 +589,4 @@ const ClassManagement: React.FC = () => {
 };
 
 export default ClassManagement;
-
 
