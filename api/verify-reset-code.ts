@@ -10,8 +10,8 @@ export async function handleCodeVerification(email: string, code: string) {
     // Log the code for debugging
     console.log('Validating code format:', code);
     
-    // Use a simpler validation approach
-    if (!code || !code.startsWith('SMCBI-') || code.length < 11) {
+    // Validate exact code format: SMCBI- followed by 6 digits
+    if (!code || !code.startsWith('SMCBI-') || !/^SMCBI-\d{6}$/.test(code)) {
       console.error('Invalid code format:', code);
       throw new Error('Invalid verification code format. Expected: SMCBI-######');
     }
