@@ -506,16 +506,26 @@ const LandingPage = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="w-full max-w-md p-6 relative animate-fade-in">
             <div className="bg-white/100 rounded-2xl shadow-2xl p-6">
-              <div className="flex items-center justify-between ">
+              <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-[#2C3E50]">
                   {verificationStep === 'email' 
                     ? 'Reset your password' 
                     : verificationStep === 'reset-password'
+                    
                       ? ''
                       : 'Enter verification code'
                   }
                 </h3>
-             
+                <button 
+                  onClick={() => setShowForgotModal(false)}
+                  className="text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full p-1.5 transition-colors duration-200"
+                  aria-label="Close modal"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </button>
               </div>
 
               {verificationStep === 'email' ? (
@@ -632,7 +642,7 @@ const LandingPage = () => {
                     value={verificationCode}
                     onChange={(e) => setVerificationCode(e.target.value)}
                     placeholder="SMCBI-000000"
-                    maxLength={12}
+                    maxLength={15}
                     className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white text-center text-lg tracking-widest"
                   />
                   <button
