@@ -54,12 +54,12 @@ export async function getEmailUsage() {
     return {
       success: true,
       data: {
-        totalEmailsSent: totalCount,
-        emailsLastDay: recentCount,
-        emailsLast30Days: monthlyCount,
+        totalEmailsSent: totalCount || 0,
+        emailsLastDay: recentCount || 0,
+        emailsLast30Days: monthlyCount || 0,
         quotaLimit: 3000,
-        quotaRemaining: 3000 - monthlyCount,
-        quotaUsagePercent: ((monthlyCount / 3000) * 100).toFixed(2)
+        quotaRemaining: 3000 - (monthlyCount || 0),
+        quotaUsagePercent: (((monthlyCount || 0) / 3000) * 100).toFixed(2)
       }
     };
 
@@ -72,15 +72,37 @@ export async function getEmailUsage() {
   }
 }
 
-// For direct execution (testing)
-if (process.argv[1] === import.meta.url) {
-  getEmailUsage()
-    .then(result => {
-      console.log(JSON.stringify(result, null, 2));
-      process.exit(0);
-    })
-    .catch(error => {
-      console.error('Error:', error.message);
-      process.exit(1);
+// Vercel API handler
+export default async function handler(req: any, res: any) {
+  // Enable CORS
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  // Handle preflight request
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+
+  // Only allow GET requests
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  try {
+    const result = await getEmailUsage();
+    
+    if (result.success) {
+      return res.status(200).json(result);
+    } else {
+      return res.status(500).json(result);
+    }
+  } catch (error) {
+    console.error('API Error:', error);
+    return res.status(500).json({ 
+      error: 'Internal server error',
+      message: error instanceof Error ? error.message : 'Unknown error'
     });
+  }
 }
