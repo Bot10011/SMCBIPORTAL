@@ -154,7 +154,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
   };
 
   const [steps, setSteps] = useState<string[]>(getSteps(form.role));
-  const yearLevels = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
+  const yearLevels = ['1', '2', '3', '4'];
   const studentTypes = ['Freshman', 'Regular', 'Irregular', 'Transferee'];
   const enrollmentStatuses = ['pending', 'enrolled', 'active', 'approved', 'returned', 'dropped'];
   const semesters = ['1st Semester', '2nd Semester'];
