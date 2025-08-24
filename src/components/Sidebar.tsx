@@ -98,13 +98,13 @@ const sidebarItems: SidebarItem[] = [
     roles: ['admin'],
   },
   {
-    label: 'Course Management',
+    label: 'Subject Management',
     path: '/dashboard/courses',
     icon: <PiGraduationCapBold className="w-5 h-5" />,
     roles: ['admin'],
   },
   {
-    label: 'Program',
+    label: 'Programs',
     path: '/dashboard/program-management',
     icon: <ClipboardList className="w-5 h-5" />,
     roles: ['admin'],
@@ -278,6 +278,8 @@ interface Profile {
   middle_name?: string;
   last_name?: string;
   profile_picture_url?: string;
+  display_name?: string;
+  avatar_url?: string;
 }
 
 // Get an avatar URL from Supabase Auth user metadata or provider identity data
@@ -311,31 +313,7 @@ function getAuthAvatarUrl(u: unknown): string | null {
   return null;
 }
 
-// Helper: derive a human-friendly display name from Supabase Auth
-function getAuthDisplayName(u: unknown): string | null {
-  if (!u || typeof u !== 'object') return null;
-  const meta = (u as { user_metadata?: Record<string, unknown> | null }).user_metadata || undefined;
-  const idents = (u as { identities?: Array<{ identity_data?: Record<string, unknown> | null }> | null }).identities || [];
 
-  const fromMeta = meta && (
-    (typeof meta.full_name === 'string' && meta.full_name) ||
-    (typeof meta.name === 'string' && meta.name) ||
-    (typeof meta.display_name === 'string' && meta.display_name) ||
-    (typeof meta.preferred_username === 'string' && meta.preferred_username) ||
-    (typeof meta.given_name === 'string' && meta.given_name)
-  );
-  if (fromMeta) return fromMeta as string;
-
-  for (const ident of idents) {
-    const data = ident?.identity_data || undefined;
-    if (!data) continue;
-    const fromIdent = (typeof data.full_name === 'string' && data.full_name)
-      || (typeof data.name === 'string' && data.name)
-      || (typeof data.given_name === 'string' && data.given_name);
-    if (fromIdent) return fromIdent as string;
-  }
-  return null;
-}
 
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const { user, logout } = useAuth();
@@ -504,63 +482,75 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
       if (user?.id) {
         const { data, error } = await supabase
           .from('user_profiles')
-          .select('first_name, middle_name, last_name, profile_picture_url')
+          .select('first_name, middle_name, last_name, profile_picture_url, display_name, avatar_url')
           .eq('id', user.id)
           .single();
         if (!error && data) {
           setProfile(data);
-          // 1) Prefer Google avatar from Authentication
-          try {
-            const { data: authData } = await supabase.auth.getUser();
-            const authUser = authData?.user;
-            // set display name from Auth
-            const dn = authUser ? getAuthDisplayName(authUser) : null;
-            setAuthDisplayName(dn || (user.email || ''));
-            const authAvatar = authUser ? getAuthAvatarUrl(authUser) : null;
-            if (authAvatar) {
-              setProfilePictureUrl(authAvatar);
-              return;
+          
+          // Priority 1: Use display_name from database profile
+          if (data.display_name && data.display_name.trim()) {
+            setAuthDisplayName(data.display_name);
+          } else {
+            // Fallback to constructed name from first/middle/last names
+            const constructedName = `${data.first_name || ''} ${data.middle_name ? data.middle_name + ' ' : ''}${data.last_name || ''}`.trim();
+            if (constructedName) {
+              setAuthDisplayName(constructedName);
+            } else {
+              setAuthDisplayName(user.email || '');
             }
-          } catch {
-            // ignore; try next strategies
           }
-
-          // 2) Try Google userinfo API with provider access token
-          try {
-            const { data: sessionData } = await supabase.auth.getSession();
-            const token = sessionData?.session?.provider_token as string | undefined;
-            if (token) {
-              const resp = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-                headers: { Authorization: `Bearer ${token}` }
-              });
-              if (resp.ok) {
-                const json = await resp.json();
-                if (typeof json?.name === 'string' && !authDisplayName) {
-                  setAuthDisplayName(json.name);
-                }
-                if (typeof json?.picture === 'string') {
-                  setProfilePictureUrl(json.picture);
-                  return;
-                }
-              }
-            }
-          } catch {
-            // ignore; try next strategy
-          }
-
-          // 3) Fallback to storage bucket URL if present
-          if (data.profile_picture_url) {
+          
+          // Priority 1: Use avatar_url from database profile
+          let pictureUrl: string | null = data.avatar_url || null;
+          
+          // Priority 2: Fallback to profile_picture_url from storage bucket
+          if (!pictureUrl && data.profile_picture_url) {
             const { data: signedUrlData } = await supabase
               .storage
               .from('avatar')
               .createSignedUrl(data.profile_picture_url, 60 * 60);
             if (signedUrlData?.signedUrl) {
-              setProfilePictureUrl(signedUrlData.signedUrl);
-              return;
+              pictureUrl = signedUrlData.signedUrl;
             }
           }
-          // 4) Final fallback: show no image; UI will render initials/icon
-          setProfilePictureUrl(null);
+          
+          // Priority 3: Fallback to Google metadata if database fields are empty
+          if (!pictureUrl) {
+            try {
+              const { data: authData } = await supabase.auth.getUser();
+              const authUser = authData?.user;
+              const authAvatar = authUser ? getAuthAvatarUrl(authUser) : null;
+              if (authAvatar) {
+                pictureUrl = authAvatar;
+              }
+            } catch {
+              // ignore; try next strategy
+            }
+          }
+          
+          // Priority 4: Final fallback to Google API if still no avatar
+          if (!pictureUrl) {
+            try {
+              const { data: sessionData } = await supabase.auth.getSession();
+              const token = sessionData?.session?.provider_token as string | undefined;
+              if (token) {
+                const resp = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                  headers: { Authorization: `Bearer ${token}` }
+                });
+                if (resp.ok) {
+                  const json = await resp.json();
+                  if (typeof json?.picture === 'string') {
+                    pictureUrl = json.picture;
+                  }
+                }
+              }
+            } catch {
+              // ignore; final fallback
+            }
+          }
+          
+          setProfilePictureUrl(pictureUrl);
         }
       } else {
         setProfile(null);
