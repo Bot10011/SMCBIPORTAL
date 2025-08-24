@@ -59,7 +59,7 @@ const ClassList: React.FC = () => {
           }
           return null;
         }).filter(Boolean))]);
-        setSectionOptions([...new Set(data.map((row: { section: string }) => row.section).filter(Boolean))]);
+        setSectionOptions([...new Set(data.map((row) => row.section).filter(Boolean))]);
       }
       setLoading(false);
     };
