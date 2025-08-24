@@ -77,6 +77,12 @@ export async function handlePasswordReset(email: string) {
         if (authError) {
           console.error('❌ Error accessing auth.users:', authError);
           console.error('🔍 Auth error details:', JSON.stringify(authError, null, 2));
+          
+          // Check if it's a network connectivity issue
+          if (authError.message.includes('fetch failed') || authError.message.includes('network') || authError.message.includes('timeout')) {
+            throw new Error(`Network connectivity issue: Unable to reach Supabase. Please check your internet connection and try again. Error: ${authError.message}`);
+          }
+          
           throw new Error(`Unable to access user authentication data: ${authError.message}`);
         }
         
@@ -110,12 +116,18 @@ export async function handlePasswordReset(email: string) {
           console.log('🔍 Looking for email:', email);
           throw new Error(`User not found in system. Email: ${email}`);
         }
-              } catch (authLookupError) {
-          console.error('❌ Error looking up user in auth.users:', authLookupError);
-          console.error('🔍 Auth lookup error details:', JSON.stringify(authLookupError, null, 2));
-          const errorMessage = authLookupError instanceof Error ? authLookupError.message : 'Unknown error';
-          throw new Error(`User lookup failed: ${errorMessage}`);
+      } catch (authLookupError) {
+        console.error('❌ Error looking up user in auth.users:', authLookupError);
+        console.error('🔍 Auth lookup error details:', JSON.stringify(authLookupError, null, 2));
+        const errorMessage = authLookupError instanceof Error ? authLookupError.message : 'Unknown error';
+        
+        // Provide more helpful error messages
+        if (errorMessage.includes('fetch failed')) {
+          throw new Error('Network connectivity issue: Unable to reach Supabase. This might be due to network restrictions or Supabase being temporarily unavailable.');
         }
+        
+        throw new Error(`User lookup failed: ${errorMessage}`);
+      }
     } else {
       userProfile = profileData;
       console.log('✅ Found user in user_profiles:', userProfile);
