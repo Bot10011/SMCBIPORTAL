@@ -27,7 +27,7 @@ body {
 
 /* Remove border style from all elements and pseudo-elements globally */
 *, *::before, *::after {
-   border-style: solid !important;
+  /*  border-style: solid !important;  */ 
 
 }
 
