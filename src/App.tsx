@@ -11,7 +11,7 @@ import EditUserModal from './components/EditUserModal';
 import GoogleClassroomCallback from './components/GoogleClassroomCallback';
 import { useModal } from './contexts/ModalContext';
 import NotFoundOrHome from './middleware/NotFoundOrHome';
-import ResetPassword from './components/ResetPassword';
+import ResetPasswordWrapper from './components/ResetPasswordWrapper';
 import SupabaseAuthCallback from './components/SupabaseAuthCallback';
 
 // Import public components (not lazy loaded for immediate access)
@@ -219,7 +219,14 @@ const App: React.FC = () => {
               <Route path="/" element={<LandingPage />} />
               {/* Make /login redirect to landing to prevent direct access */}
               <Route path="/login" element={<Navigate to="/" replace />} />
-              <Route path="/reset-password" element={<ResetPassword />} />
+              <Route 
+                path="/reset-password" 
+                element={
+                  <React.Suspense fallback={<div>Loading...</div>}>
+                    <ResetPasswordWrapper />
+                  </React.Suspense>
+                } 
+              />
               {/* Supabase OAuth callback endpoint */}
               <Route path="/auth/callback" element={<SupabaseAuthCallback />} />
               <Route path="/test-redirect" element={<Navigate to="/" replace />} />
