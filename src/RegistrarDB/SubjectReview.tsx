@@ -54,7 +54,9 @@ const mockSubjectDetails = {
 const SubjectReview: React.FC = () => {
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
 
-  const subjectDetails = selectedSubjectId ? mockSubjectDetails[selectedSubjectId] : null;
+  const subjectDetails = selectedSubjectId && Object.prototype.hasOwnProperty.call(mockSubjectDetails, selectedSubjectId) 
+    ? mockSubjectDetails[selectedSubjectId as keyof typeof mockSubjectDetails]
+    : null;
 
   return (
     <div className="max-w-3xl mx-auto py-10 px-4">
@@ -77,11 +79,11 @@ const SubjectReview: React.FC = () => {
           <div className="mb-4">
             <span className="font-semibold text-gray-700">Teacher:</span> {subjectDetails.teacher}
           </div>
-          {subjectDetails.sections.map(section => (
+          {subjectDetails.sections.map((section: { name: string; students: { id: string; name: string }[] }) => (
             <div key={section.name} className="mb-6">
               <div className="font-semibold text-blue-600 mb-2">Section: {section.name}</div>
               <ul className="list-disc ml-6">
-                {section.students.map(student => (
+                {section.students.map((student: { id: string; name: string }) => (
                   <li key={student.id} className="text-gray-700">{student.name}</li>
                 ))}
               </ul>
