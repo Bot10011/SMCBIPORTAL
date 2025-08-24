@@ -3,6 +3,14 @@ import { Resend } from 'resend';
 
 export async function handlePasswordReset(email: string) {
   try {
+    console.log('🔍 Starting password reset for email:', email);
+    console.log('🌍 Environment check:', {
+      hasResendKey: !!process.env.RESEND_API_KEY,
+      hasSupabaseUrl: !!process.env.SUPABASE_URL,
+      hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+      nodeEnv: process.env.NODE_ENV || 'development'
+    });
+
     // Validate email
     if (!email || !email.includes('@')) {
       throw new Error('Invalid email address');
@@ -49,6 +57,7 @@ export async function handlePasswordReset(email: string) {
     // Look up the user - try user_profiles first, then auth.users as fallback
     let userProfile = null;
     
+    console.log('🔍 Looking up user in user_profiles table...');
     // First try to find user in user_profiles table
     const { data: profileData, error: profileError } = await supabase
       .from('user_profiles')
@@ -57,16 +66,21 @@ export async function handlePasswordReset(email: string) {
       .single();
 
     if (profileError) {
-      console.log('User not found in user_profiles table, trying auth.users...');
+      console.log('❌ User not found in user_profiles table:', profileError.message);
+      console.log('🔍 Trying auth.users as fallback...');
       
       // If not found in user_profiles, try to find in auth.users
       try {
+        console.log('🔑 Attempting to list auth users...');
         const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
         
         if (authError) {
-          console.error('Error accessing auth.users:', authError);
-          throw new Error('Unable to access user authentication data');
+          console.error('❌ Error accessing auth.users:', authError);
+          console.error('🔍 Auth error details:', JSON.stringify(authError, null, 2));
+          throw new Error(`Unable to access user authentication data: ${authError.message}`);
         }
+        
+        console.log(`✅ Successfully retrieved ${authUsers.users.length} auth users`);
         
         // Find user by email (case-insensitive)
         const authUser = authUsers.users.find(
@@ -74,7 +88,11 @@ export async function handlePasswordReset(email: string) {
         );
         
         if (authUser) {
-          console.log('Found user in auth.users:', authUser.id, authUser.email);
+          console.log('✅ Found user in auth.users:', {
+            id: authUser.id,
+            email: authUser.email,
+            metadata: authUser.user_metadata
+          });
           
           // Create a basic profile object from auth user
           userProfile = {
@@ -84,19 +102,23 @@ export async function handlePasswordReset(email: string) {
             last_name: authUser.user_metadata?.last_name || ''
           };
           
-          console.log('Created profile from auth user:', userProfile);
+          console.log('✅ Created profile from auth user:', userProfile);
         } else {
-          console.log('User not found in either table. Available auth users:', 
+          console.log('❌ User not found in either table');
+          console.log('🔍 Available auth users:', 
             authUsers.users.map(u => ({ id: u.id, email: u.email })));
-          throw new Error('User not found in system');
+          console.log('🔍 Looking for email:', email);
+          throw new Error(`User not found in system. Email: ${email}`);
         }
-      } catch (authLookupError) {
-        console.error('Error looking up user in auth.users:', authLookupError);
-        throw new Error('User not found');
-      }
+              } catch (authLookupError) {
+          console.error('❌ Error looking up user in auth.users:', authLookupError);
+          console.error('🔍 Auth lookup error details:', JSON.stringify(authLookupError, null, 2));
+          const errorMessage = authLookupError instanceof Error ? authLookupError.message : 'Unknown error';
+          throw new Error(`User lookup failed: ${errorMessage}`);
+        }
     } else {
       userProfile = profileData;
-      console.log('Found user in user_profiles:', userProfile);
+      console.log('✅ Found user in user_profiles:', userProfile);
     }
 
     if (!userProfile) {
@@ -319,7 +341,6 @@ if (process.argv[1] === import.meta.url) {
 }
 
 // Vercel API handler
-// @ts-expect-error - Vercel API routes use any types
 export default async function handler(req: any, res: any) {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
