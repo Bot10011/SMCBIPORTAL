@@ -2,6 +2,7 @@ import React from 'react';
 import { useSearchParams, Navigate } from 'react-router-dom';
 import ResetPassword from './ResetPassword';
 
+// No props needed for this component
 const ResetPasswordWrapper: React.FC = () => {
   const [searchParams] = useSearchParams();
   const email = searchParams.get('email');
@@ -20,8 +21,3 @@ const ResetPasswordWrapper: React.FC = () => {
 };
 
 export default ResetPasswordWrapper;
-
-
-
-
-
