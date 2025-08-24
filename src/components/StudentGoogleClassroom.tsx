@@ -82,8 +82,8 @@ export const StudentGoogleClassroom: React.FC<StudentGoogleClassroomProps> = ({ 
     return assignment;
   };
 
-  const validateSubmission = (submission: GoogleSubmission | null) => {
-    if (submission && (!submission.id || !submission.courseWorkId)) {
+  const validateSubmission = (submission: GoogleSubmission | null): GoogleSubmission => {
+    if (!submission || !submission.id || !submission.courseWorkId) {
       throw new Error('Invalid submission data');
     }
     return submission;
