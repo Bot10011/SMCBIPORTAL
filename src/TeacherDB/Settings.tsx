@@ -40,33 +40,52 @@ const TeacherSettings: React.FC = () => {
             .single();
           if (error) throw error;
           setProfile(data);
-          // Fetch Google avatar and display name from auth user metadata (robust fallbacks)
-          const { data: authUserData } = await supabase.auth.getUser();
-          const authUserUnknown = authUserData?.user;
-          const authUserObj = authUserUnknown && typeof authUserUnknown === 'object'
-            ? (authUserUnknown as {
-                user_metadata?: Record<string, unknown> | null;
-                identities?: Array<{ provider?: string; identity_data?: Record<string, unknown> | null }> | null;
-              })
-            : undefined;
+          
+          // Priority 1: Use display_name and avatar_url from database profile
+          let resolvedName = data?.display_name || '';
+          let resolvedAvatar = data?.avatar_url || null;
+          
+          // Priority 2: Fallback to constructed name from first/middle/last names
+          if (!resolvedName) {
+            resolvedName = `${data?.first_name || ''} ${data?.middle_name ? data.middle_name + ' ' : ''}${data?.last_name || ''}`.trim();
+          }
+          
+          // Priority 3: Fallback to username if no name available
+          if (!resolvedName) {
+            resolvedName = data?.username || '';
+          }
+          
+          // Priority 4: Fallback to Google metadata if database fields are empty
+          if (!resolvedName || !resolvedAvatar) {
+            const { data: authUserData } = await supabase.auth.getUser();
+            const authUserUnknown = authUserData?.user;
+            const authUserObj = authUserUnknown && typeof authUserUnknown === 'object'
+              ? (authUserUnknown as {
+                  user_metadata?: Record<string, unknown> | null;
+                  identities?: Array<{ provider?: string; identity_data?: Record<string, unknown> | null }> | null;
+                })
+              : undefined;
 
-          const identities = Array.isArray(authUserObj?.identities) ? authUserObj?.identities : [];
-          const googleIdentity = identities.find(i => i?.provider === 'google');
-          const identityData = googleIdentity?.identity_data || undefined;
-          const metadata = authUserObj?.user_metadata || undefined;
+            const identities = Array.isArray(authUserObj?.identities) ? authUserObj?.identities : [];
+            const googleIdentity = identities.find(i => i?.provider === 'google');
+            const identityData = googleIdentity?.identity_data || undefined;
+            const metadata = authUserObj?.user_metadata || undefined;
 
-          const avatarFromIdentity = (identityData?.['avatar_url'] as string | undefined) || (identityData?.['picture'] as string | undefined);
-          const avatarFromMetadata = (metadata?.['avatar_url'] as string | undefined) || (metadata?.['picture'] as string | undefined) || (metadata?.['profile_picture'] as string | undefined);
-          const nameFromMetadata = (metadata?.['full_name'] as string | undefined) || (metadata?.['name'] as string | undefined) || (metadata?.['given_name'] as string | undefined) || (metadata?.['preferred_username'] as string | undefined);
-          const nameFromIdentity = (identityData?.['name'] as string | undefined) || (identityData?.['full_name'] as string | undefined) || (identityData?.['given_name'] as string | undefined);
+            // Only use Google metadata if database fields are empty
+            if (!resolvedName) {
+              const nameFromMetadata = (metadata?.['full_name'] as string | undefined) || (metadata?.['name'] as string | undefined) || (metadata?.['given_name'] as string | undefined) || (metadata?.['preferred_username'] as string | undefined);
+              const nameFromIdentity = (identityData?.['name'] as string | undefined) || (identityData?.['full_name'] as string | undefined) || (identityData?.['given_name'] as string | undefined);
+              resolvedName = nameFromMetadata || nameFromIdentity || resolvedName;
+            }
+            
+            if (!resolvedAvatar) {
+              const avatarFromIdentity = (identityData?.['avatar_url'] as string | undefined) || (identityData?.['picture'] as string | undefined);
+              const avatarFromMetadata = (metadata?.['avatar_url'] as string | undefined) || (metadata?.['picture'] as string | undefined) || (metadata?.['profile_picture'] as string | undefined);
+              resolvedAvatar = avatarFromIdentity || avatarFromMetadata || null;
+            }
+          }
 
-          const nameFromProfile = `${data?.first_name || ''} ${data?.middle_name ? data.middle_name + ' ' : ''}${data?.last_name || ''}`.trim();
-          const resolvedName = nameFromMetadata || nameFromIdentity || nameFromProfile || data?.username || '';
-          setDisplayName(resolvedName);
-
-          let resolvedAvatar = avatarFromMetadata || avatarFromIdentity || null;
-
-          // Fallback: call Google userinfo endpoint using provider access token
+          // Priority 5: Final fallback to Google API if still no avatar
           if (!resolvedAvatar) {
             try {
               const { data: sessionData } = await supabase.auth.getSession();
@@ -78,8 +97,6 @@ const TeacherSettings: React.FC = () => {
                 if (resp.ok) {
                   const json = (await resp.json()) as Record<string, unknown>;
                   const apiPicture = (json['picture'] as string | undefined) || null;
-                  const apiName = (json['name'] as string | undefined) || (json['given_name'] as string | undefined) || undefined;
-                  if (!resolvedName && apiName) setDisplayName(apiName);
                   if (apiPicture) resolvedAvatar = apiPicture;
                 }
               }
@@ -88,9 +105,12 @@ const TeacherSettings: React.FC = () => {
             }
           }
 
+          // Priority 6: Generate initials avatar if no image available
           if (!resolvedAvatar && resolvedName) {
             resolvedAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(resolvedName)}`;
           }
+          
+          setDisplayName(resolvedName);
           setProfilePictureUrl(resolvedAvatar);
         }
       } catch (error) {
