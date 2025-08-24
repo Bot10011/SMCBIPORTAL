@@ -48,6 +48,7 @@ interface Enrollment {
 
 interface StudentProfile {
   id: string;
+  display_name?: string;
   first_name: string;
   last_name: string;
   email: string;
@@ -165,31 +166,46 @@ const TeacherDashboardOverview: React.FC = () => {
         
         if (error) throw error;
         
-        // 1) Try Google avatar from Supabase auth metadata/identities
-        let pictureUrl: string | null = null;
-        try {
-          const { data: authUserData } = await supabase.auth.getUser();
-          const authUserUnknown = authUserData?.user;
-          const authUserObj = authUserUnknown && typeof authUserUnknown === 'object'
-            ? (authUserUnknown as {
-                user_metadata?: Record<string, unknown> | null;
-                identities?: Array<{ provider?: string; identity_data?: Record<string, unknown> | null }> | null;
-              })
-            : undefined;
-
-          const identities = Array.isArray(authUserObj?.identities) ? authUserObj?.identities : [];
-          const googleIdentity = identities.find(i => i?.provider === 'google');
-          const identityData = googleIdentity?.identity_data || undefined;
-          const metadata = authUserObj?.user_metadata || undefined;
-
-          const avatarFromIdentity = (identityData?.['avatar_url'] as string | undefined) || (identityData?.['picture'] as string | undefined);
-          const avatarFromMetadata = (metadata?.['avatar_url'] as string | undefined) || (metadata?.['picture'] as string | undefined) || (metadata?.['profile_picture'] as string | undefined);
-          pictureUrl = avatarFromMetadata || avatarFromIdentity || null;
-        } catch {
-          // ignore
+        // Priority 1: Use avatar_url from database profile
+        let pictureUrl: string | null = data?.avatar_url || null;
+        
+        // Priority 2: Fallback to profile_picture_url from storage bucket
+        if (!pictureUrl && data?.profile_picture_url) {
+          const { data: signedUrlData, error: signedUrlError } = await supabase
+            .storage
+            .from('avatar')
+            .createSignedUrl(data.profile_picture_url, 60 * 60);
+          if (!signedUrlError && signedUrlData?.signedUrl) {
+            pictureUrl = signedUrlData.signedUrl;
+          }
         }
+        
+        // Priority 3: Fallback to Google metadata if database fields are empty
+        if (!pictureUrl) {
+          try {
+            const { data: authUserData } = await supabase.auth.getUser();
+            const authUserUnknown = authUserData?.user;
+            const authUserObj = authUserUnknown && typeof authUserUnknown === 'object'
+              ? (authUserUnknown as {
+                  user_metadata?: Record<string, unknown> | null;
+                  identities?: Array<{ provider?: string; identity_data?: Record<string, unknown> | null }> | null;
+                })
+              : undefined;
 
-        // 2) If still missing, call Google userinfo with provider_token
+            const identities = Array.isArray(authUserObj?.identities) ? authUserObj?.identities : [];
+            const googleIdentity = identities.find(i => i?.provider === 'google');
+            const identityData = googleIdentity?.identity_data || undefined;
+            const metadata = authUserObj?.user_metadata || undefined;
+
+            const avatarFromIdentity = (identityData?.['avatar_url'] as string | undefined) || (identityData?.['picture'] as string | undefined);
+            const avatarFromMetadata = (metadata?.['avatar_url'] as string | undefined) || (metadata?.['picture'] as string | undefined) || (metadata?.['profile_picture'] as string | undefined);
+            pictureUrl = avatarFromMetadata || avatarFromIdentity || null;
+          } catch {
+            // ignore
+          }
+        }
+        
+        // Priority 4: Final fallback to Google API if still no avatar
         if (!pictureUrl) {
           try {
             const { data: sessionData } = await supabase.auth.getSession();
@@ -205,17 +221,6 @@ const TeacherDashboardOverview: React.FC = () => {
             }
           } catch {
             // ignore network errors
-          }
-        }
-
-        // 3) Fallback to stored profile picture in storage bucket
-        if (!pictureUrl && data?.profile_picture_url) {
-          const { data: signedUrlData, error: signedUrlError } = await supabase
-            .storage
-            .from('avatar')
-            .createSignedUrl(data.profile_picture_url, 60 * 60);
-          if (!signedUrlError && signedUrlData?.signedUrl) {
-            pictureUrl = signedUrlData.signedUrl;
           }
         }
         
@@ -381,7 +386,7 @@ const TeacherDashboardOverview: React.FC = () => {
           
           const { data: studentProfiles, error: studentError } = await supabase
             .from('user_profiles')
-            .select('id, first_name, last_name, email')
+            .select('id, display_name, first_name, last_name, email')
             .in('id', studentIds);
           
           if (studentError) {
@@ -408,9 +413,19 @@ const TeacherDashboardOverview: React.FC = () => {
             const student = studentMap.get(enrollment.student_id);
             const subject = subjectMap.get(enrollment.subject_id);
             
+            // Priority: display_name > constructed name > fallback
+            let studentName = 'Unknown Student';
+            if (student) {
+              if (student.display_name && student.display_name.trim()) {
+                studentName = student.display_name;
+              } else if (student.first_name || student.last_name) {
+                studentName = `${student.first_name || ''} ${student.last_name || ''}`.trim();
+              }
+            }
+            
             return {
               id: enrollment.student_id,
-              name: `${student?.first_name || 'Unknown'} ${student?.last_name || 'Student'}`,
+              name: studentName,
               email: student?.email || 'No email',
               class_name: `${subject?.code || 'Unknown'} - ${subject?.name || 'Unknown Course'}`,
               status: enrollment.status
