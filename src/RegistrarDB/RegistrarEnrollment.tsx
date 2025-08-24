@@ -8,10 +8,8 @@ import { Download, Printer, Eye, Users, BookOpen, CheckCircle2, Loader2, UserChe
 interface Student {
   id: string;
   student_id: string;
-  first_name: string;
-  last_name: string;
+  display_name: string;        // Changed from first_name + last_name
   email: string;
-  course_id: string | null;
   year_level: string;
   enrollment_status: string;
   role: string;
@@ -393,11 +391,25 @@ const RegistrarEnrollment: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('user_profiles')
-        .select('*')
+        .select(`
+          id,
+          student_id,
+          display_name,
+          email,
+          year_level,
+          enrollment_status,
+          department,
+          semester,
+          role
+        `)
         .eq('role', 'student')
-        .order('last_name', { ascending: true });
+        .order('display_name', { ascending: true });
 
       if (error) throw error;
+      
+      // Log how many students were fetched
+      console.log(`Fetched ${data?.length || 0} students from database`);
+      
       setStudents(data || []);
     } catch (error) {
       console.error('Error fetching students:', error);
@@ -521,7 +533,7 @@ const RegistrarEnrollment: React.FC = () => {
         status: 'active',
         registrar: registrar,
         full_name: `${studentProfile.first_name} ${studentProfile.last_name}`,
-        department: courses.find(c => c.id === studentProfile.course_id)?.department || studentProfile.department || '',
+        department: studentProfile.department || '',
         email: studentProfile.email
       };
       console.log('COE Payload:', coePayload); // Debug log
@@ -570,10 +582,13 @@ const RegistrarEnrollment: React.FC = () => {
   };
 
   const filteredStudents = students.filter(student => {
+    // Handle cases where display_name might be null/undefined
+    const studentName = student.display_name || student.student_id || '';
+    const studentId = student.student_id || '';
+    
     const matchesSearch = 
-      student.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.student_id.toLowerCase().includes(searchTerm.toLowerCase());
+      studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      studentId.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesStatus = filterStatus === 'all' || student.enrollment_status === filterStatus;
     
@@ -696,11 +711,11 @@ const RegistrarEnrollment: React.FC = () => {
                   <tr key={student.id} className="hover:bg-blue-50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{student.student_id}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {student.last_name}, {student.first_name}
+                      {student.display_name}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{student.email}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{coeMap[student.id]?.year_level || ''}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{coeMap[student.id]?.department || 'Not Enrolled'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{student.year_level || ''}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{student.department || 'Not Enrolled'}</td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
                         ${student.enrollment_status === 'enrolled' ? 'bg-green-100 text-green-800' : 
