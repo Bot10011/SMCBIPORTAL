@@ -122,6 +122,7 @@ export const gradeService = {
       const key = `${grade.enrollment.student.id}`;
       if (!gradeMap.has(key)) {
         gradeMap.set(key, {
+          id: grade.id,  // Add the id property
           student_id: grade.enrollment.student.id,
           student_name: `${grade.enrollment.student.last_name}, ${grade.enrollment.student.first_name}`,
           subject_code: grade.enrollment.subject_code || '',
