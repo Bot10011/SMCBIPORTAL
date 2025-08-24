@@ -511,7 +511,7 @@ const LandingPage = () => {
                   {verificationStep === 'email' 
                     ? 'Reset your password' 
                     : verificationStep === 'reset-password'
-                    
+
                       ? ''
                       : 'Enter verification code'
                   }
@@ -642,13 +642,13 @@ const LandingPage = () => {
                     value={verificationCode}
                     onChange={(e) => setVerificationCode(e.target.value)}
                     placeholder="SMCBI-000000"
-                    maxLength={15}
+                    maxLength={13}
                     className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white text-center text-lg tracking-widest"
                   />
                   <button
                     onClick={async () => {
                       const code = verificationCode.trim();
-                      if (!code || !code.startsWith('SMCBI-')) { 
+                      if (!code || !code.startsWith('SMCBI-') || !/^SMCBI-\d{6}$/.test(code)) { 
                         toast.error('Please enter a valid verification code (SMCBI-######)'); 
                         return; 
                       }
