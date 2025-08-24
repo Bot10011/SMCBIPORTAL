@@ -1,11 +1,21 @@
 {
   "version": 2,
   "buildCommand": "npm run build",
+  "installCommand": "npm install --legacy-peer-deps",
   "outputDirectory": "dist",
+  "framework": "vite",
   "rewrites": [
     {
       "source": "/assets/(.*)",
       "destination": "/assets/$1"
+    },
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    },
+    {
+      "source": "/reset-password",
+      "destination": "/index.html"
     },
     {
       "source": "/(.*)",
