@@ -12,6 +12,7 @@ interface StudentProfile {
   section?: string | null;
   enrollment_status?: string | null;
   student_type?: string | null;
+  role?: string | null;
 }
 
 const YEAR_LEVELS = ['1st Year', '2nd Year', '3rd Year', '4th Year'] as const;
@@ -116,7 +117,7 @@ const ClassManagement: React.FC = () => {
           console.log('Trying to fetch all user_profiles without role filter...');
           const { data: allUsers, error: allUsersError } = await supabase
             .from('user_profiles')
-            .select('id, student_id, first_name, last_name, middle_name, year_level, section, enrollment_status, student_type');
+            .select('id, student_id, first_name, last_name, middle_name, year_level, section, enrollment_status, student_type, role');
           
           if (!allUsersError && allUsers) {
             console.log('Successfully fetched all users:', allUsers.length, 'users');
