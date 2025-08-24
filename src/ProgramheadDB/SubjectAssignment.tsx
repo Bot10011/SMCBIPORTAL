@@ -519,7 +519,7 @@ const SubjectAssignment: React.FC = () => {
     setNewAssignment({
       ...assignment,
       subject_id: assignment.subject_id, // Ensure subject_id is preserved
-      day: typeof assignment.day === 'string' ? assignment.day : Array.isArray(assignment.day) ? assignment.day.join(',') : '',
+      day: typeof assignment.day === 'string' ? assignment.day : '',
       semester: assignment.semester || '',
     });
     setModalState({
