@@ -86,15 +86,8 @@ const PasswordResetForm: React.FC<PasswordResetFormProps> = ({ email, onClose })
   
   return (
     <div className="space-y-4">
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4">
         <h3 className="text-lg font-semibold text-gray-800">Create New Password</h3>
-        <button
-          onClick={onClose}
-          className="w-6 h-6 flex items-center justify-center text-lg font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-full transition-colors duration-200"
-          aria-label="Close"
-        >
-          ×
-        </button>
       </div>
       <p className="text-sm text-gray-600 mb-4">
         Your verification code has been confirmed. Please create a new password for your account.
