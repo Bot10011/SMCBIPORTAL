@@ -39,15 +39,26 @@ const ClassList: React.FC = () => {
       if (!error && data) {
         // Flatten and filter
         const unique: Record<string, ClassGroup> = {};
-        data.forEach((row: { section: string; user_profiles: { year_level: string; department: string } }) => {
-          if (row.section && row.user_profiles?.year_level && row.user_profiles?.department) {
-            const key = `${row.user_profiles.department}|${row.user_profiles.year_level}|${row.section}`;
-            unique[key] = { program: row.user_profiles.department, year_level: row.user_profiles.year_level, section: row.section };
+        data.forEach((row) => {
+          if (row.section && row.user_profiles && Array.isArray(row.user_profiles) && row.user_profiles[0]?.year_level && row.user_profiles[0]?.department) {
+            const profile = row.user_profiles[0];
+            const key = `${profile.department}|${profile.year_level}|${row.section}`;
+            unique[key] = { program: profile.department, year_level: profile.year_level, section: row.section };
           }
         });
         setClassGroups(Object.values(unique));
-        setProgramOptions([...new Set(data.map((row: { user_profiles: { department: string } }) => row.user_profiles?.department).filter(Boolean))]);
-        setYearLevelOptions([...new Set(data.map((row: { user_profiles: { year_level: string } }) => row.user_profiles?.year_level).filter(Boolean))]);
+        setProgramOptions([...new Set(data.map((row) => {
+          if (Array.isArray(row.user_profiles) && row.user_profiles[0]?.department) {
+            return row.user_profiles[0].department;
+          }
+          return null;
+        }).filter(Boolean))]);
+        setYearLevelOptions([...new Set(data.map((row) => {
+          if (Array.isArray(row.user_profiles) && row.user_profiles[0]?.year_level) {
+            return row.user_profiles[0].year_level;
+          }
+          return null;
+        }).filter(Boolean))]);
         setSectionOptions([...new Set(data.map((row: { section: string }) => row.section).filter(Boolean))]);
       }
       setLoading(false);
