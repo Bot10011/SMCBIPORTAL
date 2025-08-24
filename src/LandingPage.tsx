@@ -555,8 +555,9 @@ const LandingPage = () => {
                     try {
                       const redirectTo = `${window.location.origin}/reset-password`;
                       
-                      console.log('Sending password reset request to:', email);
-                      console.log('API endpoint:', '/api/send-password-reset-email');
+                      console.log('🔍 Sending password reset request to:', email);
+                      console.log('🌐 API endpoint:', '/api/send-password-reset-email');
+                      console.log('📤 Request payload:', { email, redirectTo });
                       
                       // Use custom mailer API instead of Supabase
                       const response = await fetch('/api/send-password-reset-email', {
@@ -570,29 +571,52 @@ const LandingPage = () => {
                         }),
                       });
 
-                      console.log('Response status:', response.status);
-                      console.log('Response headers:', response.headers);
+                      console.log('📥 Response status:', response.status);
+                      console.log('📥 Response headers:', response.headers);
+                      console.log('📥 Response URL:', response.url);
                       
                       if (!response.ok) {
                         let errorMessage = 'Failed to send reset email';
+                        let errorDetails = null;
                         
                         try {
                           const result = await response.json();
-                          errorMessage = result.error || errorMessage;
-                          console.log('Error response:', result);
+                          errorMessage = result.error || result.message || errorMessage;
+                          errorDetails = result;
+                          console.log('❌ Error response:', result);
+                          console.log('🔍 Error details:', {
+                            status: response.status,
+                            statusText: response.statusText,
+                            error: result.error,
+                            message: result.message,
+                            details: result.details
+                          });
                         } catch (parseError) {
-                          console.error('Failed to parse error response:', parseError);
+                          console.error('❌ Failed to parse error response:', parseError);
                           errorMessage = `HTTP ${response.status}: ${response.statusText}`;
                         }
                         
+                        // Enhanced error handling with specific messages
                         if (response.status === 429) {
                           toast.error('Too many requests. Try again later.');
                           setRecoveryCooldown(60);
                         } else if (response.status === 404) {
                           toast.error('API endpoint not found. Please check server configuration.');
-                          console.error('404 Error - API endpoint not found');
+                          console.error('❌ 404 Error - API endpoint not found');
+                        } else if (response.status === 400) {
+                          if (errorMessage.includes('User not found')) {
+                            toast.error('Email not found in our system. Please check your email address or contact support.');
+                            console.error('❌ 400 Error - User not found:', errorDetails);
+                          } else {
+                            toast.error(errorMessage);
+                            console.error('❌ 400 Error - Bad request:', errorDetails);
+                          }
+                        } else if (response.status === 500) {
+                          toast.error('Server error. Please try again later or contact support.');
+                          console.error('❌ 500 Error - Server error:', errorDetails);
                         } else {
                           toast.error(errorMessage);
+                          console.error(`❌ ${response.status} Error:`, errorDetails);
                         }
                       } else {
                         try {
@@ -632,6 +656,42 @@ const LandingPage = () => {
                 {recoveryCooldown > 0 ? `Wait ${recoveryCooldown}s` : (sendingRecovery ? 'Sending…' : 'Send verification code')}
               </button>
               <div className="mt-3 text-xs text-gray-500">We'll send a verification code to your email. If you don't see it, check Spam.</div>
+              
+              {/* Debug button for troubleshooting */}
+              {process.env.NODE_ENV === 'development' && (
+                <button
+                  onClick={async () => {
+                    const username = forgotEmail.trim();
+                    if (!username) { toast.error('Please enter your email first'); return; }
+                    
+                    const email = `${username}@smcbi.edu.ph`;
+                    console.log('🔍 Debug: Testing user lookup for:', email);
+                    
+                    try {
+                      const response = await fetch('/api/debug-user-lookup', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email })
+                      });
+                      
+                      const result = await response.json();
+                      console.log('🔍 Debug result:', result);
+                      
+                      if (result.success) {
+                        toast.success('User found! Check console for details.');
+                      } else {
+                        toast.error(`Debug failed: ${result.error}`);
+                      }
+                    } catch (error) {
+                      console.error('Debug error:', error);
+                      toast.error('Debug request failed');
+                    }
+                  }}
+                  className="mt-2 w-full py-2 rounded-lg bg-gray-500 text-white text-sm hover:bg-gray-600 transition-all duration-200"
+                >
+                  🔍 Debug User Lookup
+                </button>
+              )}
                 </>
               ) : verificationStep === 'code' ? (
                 <>
