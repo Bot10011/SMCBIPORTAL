@@ -1,5 +1,5 @@
 // Fix for the toast issue - this creates a type-safe wrapper around react-hot-toast
-import { toast as originalToast, Toast } from 'react-hot-toast';
+import { toast as originalToast } from 'react-hot-toast';
 
 // Create a wrapper with the correct type definitions
 const toast = {
