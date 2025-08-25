@@ -142,7 +142,7 @@ const DashboardOverview: React.FC = () => {
   const fetchClassConflicts = async (): Promise<Array<{id: string, class_name: string, conflict: string}>> => {
     try {
       // Try to fetch class conflicts, but handle missing status column gracefully
-      let conflicts: Array<{id: string, subject?: {code?: string, name?: string}, student?: {student_id?: string, first_name?: string, last_name?: string}}> = [];
+      let conflicts: Array<{id: string, subject?: {code?: string, name?: string}[], student?: {student_id?: string, first_name?: string, last_name?: string}[]}> = [];
       try {
         const { data: conflictsData, error } = await supabase
           .from('enrollcourse')
@@ -164,7 +164,7 @@ const DashboardOverview: React.FC = () => {
       
       return conflicts?.map(conflict => ({
         id: conflict.id,
-        class_name: (conflict.subject as {code?: string})?.code || 'Unknown',
+        class_name: (conflict.subject && conflict.subject.length > 0 ? conflict.subject[0]?.code : undefined) || 'Unknown',
         conflict: 'Schedule conflict detected'
       })) || [];
     } catch (error) {
