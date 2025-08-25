@@ -12,7 +12,7 @@ interface TeacherProfile {
   username: string;
   first_name: string;
   last_name: string;
-  middle_name?: string;
+  middle_name?: string; 
   role: string;
   department?: string;
   is_active: boolean;
