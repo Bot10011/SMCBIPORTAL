@@ -8,7 +8,7 @@ import { createPortal } from 'react-dom';
 import Cropper from 'react-easy-crop';
 import { Area } from 'react-easy-crop';
 import './dashboard.css';
-
+ 
 // Utility function to crop image
 function getCroppedImg(
   imageSrc: string,
