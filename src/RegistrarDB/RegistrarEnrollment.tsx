@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
-import { Download, Printer, Eye, Users, BookOpen, CheckCircle2, Loader2, UserCheck, UserPlus } from 'lucide-react';
+import { Download, Printer, Eye, Users, BookOpen, CheckCircle2, UserCheck, UserPlus } from 'lucide-react';
 
 interface Student {
   id: string;
@@ -16,6 +16,7 @@ interface Student {
   enrolled_courses?: string[];
   department?: string;
   semester?: string;
+  avatar_url?: string;
 }
 interface Course {
   id: string;
@@ -37,6 +38,7 @@ interface COEData {
   year_level?: string;
   department?: string;
   email?: string;
+  avatar_url?: string;
   subjects?: { code: string; name: string; units: number }[];
 }
 
@@ -56,7 +58,8 @@ const COEModal = ({ coe, open, onClose }: { coe: COEData, open: boolean, onClose
         const logo = new Image();
         logo.src = '/img/logo.png';
         logo.onload = () => {
-          doc.addImage(logo, 'PNG', 85, 15, 25, 25);
+          // Center the logo: page width is 210, logo width is 25, so center at (210-25)/2 = 92.5
+          doc.addImage(logo, 'PNG', 92.5, 15, 25, 25);
           
           doc.setFontSize(18);
           doc.text('SMCBI', 105, 50, { align: 'center' });
@@ -64,6 +67,7 @@ const COEModal = ({ coe, open, onClose }: { coe: COEData, open: boolean, onClose
           doc.text('Certificate of Enrollment', 105, 60, { align: 'center' });
           doc.setFontSize(11);
           doc.text(`Date: ${new Date(coe.date_issued).toLocaleDateString()}`, 20, 70);
+          doc.text(`Course&Year: ${coe.department && coe.year_level ? `${coe.department}-${coe.year_level}` : coe.department || coe.year_level || 'N/A'}`, 120, 70);
           let y = 80;
           doc.text(`Student ID: ${coe.student_number || coe.student_id}`, 20, y);
           doc.text(`Full Name: ${coe.full_name || 'N/A'}`, 120, y);
@@ -71,10 +75,8 @@ const COEModal = ({ coe, open, onClose }: { coe: COEData, open: boolean, onClose
           doc.text(`School Year: ${coe.school_year}`, 20, y);
           doc.text(`Semester: ${coe.semester}`, 120, y);
           y += 7;
-          doc.text(`Year Level: ${coe.year_level || 'N/A'}`, 20, y);
-          doc.text(`Department: ${coe.department || 'N/A'}`, 120, y);
-          y += 7;
-          doc.text(`School Portal Email: ${coe.email || 'N/A'}`, 20, y);
+          doc.text(`Course&Year: ${coe.department && coe.year_level ? `${coe.department}-${coe.year_level}` : coe.department || coe.year_level || 'N/A'}`, 20, y);
+          doc.text(`School Portal Email: ${coe.email || 'N/A'}`, 120, y);
           autoTable(doc, {
             startY: y + 10,
             head: [['Course Code', 'Course Name', 'Units']],
@@ -109,14 +111,16 @@ const COEModal = ({ coe, open, onClose }: { coe: COEData, open: boolean, onClose
         const logo = new Image();
         logo.src = '/img/logo.png';
         logo.onload = () => {
-          doc.addImage(logo, 'PNG', 85, 15, 25, 25);                                                                                                                                                                                                                              
+          // Center the logo: page width is 210, logo width is 25, so center at (210-25)/2 = 92.5
+          doc.addImage(logo, 'PNG', 92.5, 15, 25, 25);
           
           doc.setFontSize(18);
           doc.text('SMCBI', 105, 50, { align: 'center' });
           doc.setFontSize(14);
           doc.text('Certificate of Enrollment', 105, 60, { align: 'center' });
           doc.setFontSize(11);
-          doc.text(`Date: ${new Date(coe.date_issued).toLocaleDateString()}`, 20, 70);                                                                                                                                                                                                                                                                                                                                                                    
+          doc.text(`Date: ${new Date(coe.date_issued).toLocaleDateString()}`, 20, 70);
+          doc.text(`Course&Year: ${coe.department && coe.year_level ? `${coe.department || 'N/A'}-${coe.year_level || 'N/A'}` : coe.department || coe.year_level || 'N/A'}`, 120, 70);
           let y = 80;
           doc.text(`Student ID: ${coe.student_number || coe.student_id}`, 20, y);
           doc.text(`Full Name: ${coe.full_name || 'N/A'}`, 120, y);
@@ -124,10 +128,8 @@ const COEModal = ({ coe, open, onClose }: { coe: COEData, open: boolean, onClose
           doc.text(`School Year: ${coe.school_year}`, 20, y);
           doc.text(`Semester: ${coe.semester}`, 120, y);
           y += 7;
-          doc.text(`Year Level: ${coe.year_level || 'N/A'}`, 20, y);
-          doc.text(`Department: ${coe.department || 'N/A'}`, 120, y);
-          y += 7;
-          doc.text(`School Portal Email: ${coe.email || 'N/A'}`, 20, y);
+          doc.text(`Course&Year: ${coe.department && coe.year_level ? `${coe.department}-${coe.year_level}` : coe.department || coe.year_level || 'N/A'}`, 20, y);
+          doc.text(`School Portal Email: ${coe.email || 'N/A'}`, 120, y);
           autoTable(doc, {
             startY: y + 10,
             head: [['Course Code', 'Course Name', 'Units']],
@@ -172,111 +174,124 @@ const COEModal = ({ coe, open, onClose }: { coe: COEData, open: boolean, onClose
       
       {/* Modal container */}
       <div
-        className="fixed inset-0 z-[100000] flex items-center justify-center p-4"
+        className="fixed inset-0 z-[100000] flex items-center justify-center p-2 sm:p-4"
         style={{ 
           minHeight: '100vh',
           pointerEvents: 'none'
         }}
       >
-        <div className="bg-white rounded-3xl shadow-2xl w-full max-w-5xl relative mx-4 flex flex-col overflow-y-auto"
+        <div className="bg-white/90 rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-3xl lg:max-w-4xl relative mx-2 sm:mx-4 flex flex-col overflow-y-auto"
           style={{ 
-            maxHeight: '98vh', 
+            maxHeight: '90vh', 
             boxSizing: 'border-box',
             pointerEvents: 'auto'
           }}>
           
-          {/* Enhanced Close Button */}
-          <button
-            onClick={onClose}
-            className="absolute w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center text-lg sm:text-xl font-bold text-white bg-red-500 hover:bg-red-600 rounded-full shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 animate-pop-in hover:scale-110 hover:rotate-90 -top-2 -right-2 sm:-top-3 sm:-right-3 z-50"
-            aria-label="Close"
-            style={{backgroundColor: 'rgb(239, 68, 68)', boxShadow: 'rgba(239, 68, 68, 0.3) 0px 2px 8px'}}
-          >
-            ×
-          </button>
-          {/* Action Buttons */}
-          <div className="flex justify-end gap-3 p-4">
-            <button
-              onClick={handleDownload}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-300 shadow-lg hover:shadow-xl font-semibold text-sm"
-            >
-              <Download className="w-4 h-4" /> Download PDF
-            </button>
-            <button
-              onClick={handlePrint}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-lg hover:from-gray-700 hover:to-gray-800 transition-all duration-300 shadow-lg hover:shadow-xl font-semibold text-sm"
-            >
-              <Printer className="w-4 h-4" /> Print
-            </button>
+                    {/* Header with Action Buttons and Close */}
+          <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-100">
+            {/* Left side - empty for balance */}
+            <div></div>
+            
+            {/* Center - Title */}
+            <div className="text-center">
+              <h1 className="text-sm sm:text-base font-bold text-gray-900">Certificate of Enrollment</h1>
+            </div>
+            
+            {/* Right side - Action buttons and close */}
+            <div className="flex items-center gap-2 sm:gap-3">
+              <button
+                onClick={handleDownload}
+                className="inline-flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-300 shadow-md hover:shadow-lg font-semibold text-xs sm:text-sm"
+              >
+                <Download className="w-3 h-3 sm:w-4 sm:h-4" /> 
+                <span className="hidden sm:inline">Download PDF</span>
+                <span className="sm:hidden">PDF</span>
+              </button>
+              <button
+                onClick={handlePrint}
+                className="inline-flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-lg hover:from-gray-700 hover:to-gray-800 transition-all duration-300 shadow-md hover:shadow-lg font-semibold text-xs sm:text-sm"
+              >
+                <Printer className="w-3 h-3 sm:w-4 sm:h-4" /> 
+                <span className="hidden sm:inline">Print</span>
+                <span className="sm:hidden">Print</span>
+              </button>
+              <button
+                onClick={onClose}
+                className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center text-lg sm:text-xl font-bold text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-full transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-400"
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
           </div>
 
-          {/* Header Section */}
-          <div className="text-center py-4 px-6 border-b border-gray-100">
-            <div className="flex flex-col items-center gap-2 mb-3">
-              <div className="w-16 h-16 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl flex items-center justify-center shadow-lg">
+          {/* SMCBI Logo and Date Section */}
+          <div className="text-center py-2 sm:py-3 px-3 sm:px-4 border-b border-gray-100">
+            <div className="flex flex-col items-center gap-1 sm:gap-2 mb-2 sm:mb-3">
+              <div className="w-10 h-10 sm:w-14 sm:h-14 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl flex items-center justify-center shadow-lg">
                 <img 
                   src="/img/logo.png" 
                   alt="SMCBI Logo" 
-                  className="w-12 h-12 object-contain"
+                  className="w-6 h-6 sm:w-10 sm:h-10 object-contain"
                 />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900 mb-1">SMCBI</h1>
-                <p className="text-lg text-gray-600 font-medium">Certificate of Enrollment</p>
+                <h1 className="text-lg sm:text-xl font-bold text-gray-900 mb-1">SMCBI</h1>
+                <p className="text-sm sm:text-base text-gray-600 font-medium">Certificate of Enrollment</p>
               </div>
             </div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
+            <div className="inline-flex items-center gap-2 px-2 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
               <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
               Date: {new Date(coe.date_issued).toLocaleDateString()}
             </div>
           </div>
 
           {/* Student Information Section */}
-          <div className="p-4">
-            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 mb-4">
-              <h2 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
-                <div className="w-6 h-6 bg-blue-600 rounded-lg flex items-center justify-center">
-                  <UserCheck className="w-4 h-4 text-white" />
+          <div className="p-2 sm:p-3">
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-2 sm:p-3 mb-3">
+              <h2 className="text-sm sm:text-base font-bold text-gray-900 mb-2 flex items-center gap-2">
+                <div className="w-4 h-4 sm:w-5 sm:h-5 bg-blue-600 rounded-lg flex items-center justify-center">
+                  <UserCheck className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
                 </div>
                 Student Information
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                 <div className="space-y-1">
                   <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Student ID</p>
-                  <p className="text-sm font-bold text-gray-900 bg-white px-3 py-1.5 rounded-lg shadow-sm">{coe.student_number || coe.student_id}</p>
+                  <p className="text-xs sm:text-sm font-bold text-gray-900 bg-white/90 px-2 py-1 rounded-lg shadow-sm">{coe.student_number || coe.student_id}</p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Full Name</p>
-                  <p className="text-sm font-bold text-gray-900 bg-white px-3 py-1.5 rounded-lg shadow-sm">{coe.full_name || 'N/A'}</p>
+                  <p className="text-xs sm:text-sm font-bold text-gray-900 bg-white/90 px-2 py-1 rounded-lg shadow-sm">{coe.full_name || 'N/A'}</p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">School Year</p>
-                  <p className="text-sm font-bold text-gray-900 bg-white px-3 py-1.5 rounded-lg shadow-sm">{coe.school_year}</p>
+                  <p className="text-xs sm:text-sm font-bold text-gray-900 bg-white/90 px-2 py-1 rounded-lg shadow-sm">{coe.school_year}</p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Semester</p>
-                  <p className="text-sm font-bold text-gray-900 bg-white px-3 py-1.5 rounded-lg shadow-sm">{coe.semester}</p>
+                  <p className="text-xs sm:text-sm font-bold text-gray-900 bg-white/90 px-2 py-1 rounded-lg shadow-sm">{coe.semester}</p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Year Level</p>
-                  <p className="text-sm font-bold text-gray-900 bg-white px-3 py-1.5 rounded-lg shadow-sm">{coe.year_level || 'N/A'}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Department</p>
-                  <p className="text-sm font-bold text-gray-900 bg-white px-3 py-1.5 rounded-lg shadow-sm">{coe.department || 'N/A'}</p>
-                </div>
-                <div className="space-y-1 md:col-span-2 lg:col-span-3">
                   <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">School Portal Email</p>
-                  <p className="text-sm font-bold text-gray-900 bg-white px-3 py-1.5 rounded-lg shadow-sm">{coe.email || 'N/A'}</p>
+                  <p className="text-xs sm:text-sm font-bold text-gray-900 bg-white/90 px-2 py-1 rounded-lg shadow-sm">{coe.email || 'N/A'}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Course&Year</p>
+                  <p className="text-xs sm:text-sm font-bold text-gray-900 bg-white/90  px-2 py-1 rounded-lg shadow-sm">
+                    {coe.department && coe.year_level 
+                      ? `${coe.department}-${coe.year_level}` 
+                      : coe.department || coe.year_level || 'N/A'}
+                  </p>
                 </div>
               </div>
             </div>
             {/* Enrolled Courses Section */}
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-              <div className="bg-gradient-to-r from-green-50 to-emerald-50 px-4 py-2 border-b border-gray-200">
-                <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                  <div className="w-6 h-6 bg-green-600 rounded-lg flex items-center justify-center">
-                    <BookOpen className="w-4 h-4 text-white" />
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 px-2 sm:px-3 py-1.5 border-b border-gray-200">
+                <h3 className="text-sm sm:text-base font-bold text-gray-900 flex items-center gap-2">
+                  <div className="w-4 h-4 sm:w-5 sm:h-5 bg-green-600 rounded-lg flex items-center justify-center">
+                    <BookOpen className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
                   </div>
                   Enrolled Courses
                 </h3>
@@ -285,24 +300,24 @@ const COEModal = ({ coe, open, onClose }: { coe: COEData, open: boolean, onClose
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Course Code</th>
-                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Course Name</th>
-                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Units</th>
+                      <th className="px-2 py-1.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Course Code</th>
+                      <th className="px-2 py-1.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Course Name</th>
+                      <th className="px-2 py-1.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Units</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-100">
                     {Array.isArray(coe.subjects) && coe.subjects.map((subject: { code: string; name: string; units: number }, idx: number) => (
                       <tr key={idx} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-2 whitespace-nowrap text-sm font-semibold text-blue-600">{subject.code}</td>
-                        <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">{subject.name}</td>
-                        <td className="px-4 py-2 whitespace-nowrap text-sm font-semibold text-gray-900">{subject.units}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap text-xs font-semibold text-blue-600">{subject.code}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap text-xs text-gray-900">{subject.name}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap text-xs font-semibold text-gray-900">{subject.units}</td>
                       </tr>
                     ))}
                     {/* Total Units Row */}
                     <tr className="bg-gradient-to-r from-blue-50 to-indigo-50">
-                      <td className="px-4 py-2"></td>
-                      <td className="px-4 py-2 text-right font-bold text-base text-gray-900">Total Units</td>
-                      <td className="px-4 py-2 font-bold text-base text-blue-600">{Array.isArray(coe.subjects) ? coe.subjects.reduce((sum: number, subj: { units: number }) => sum + (Number(subj.units) || 0), 0) : 0}</td>
+                      <td className="px-2 py-1.5"></td>
+                      <td className="px-2 py-1.5 text-right font-bold text-xs sm:text-sm text-gray-900">Total Units</td>
+                      <td className="px-2 py-1.5 font-bold text-xs sm:text-sm text-blue-600">{Array.isArray(coe.subjects) ? coe.subjects.reduce((sum: number, subj: { units: number }) => sum + (Number(subj.units) || 0), 0) : 0}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -310,25 +325,25 @@ const COEModal = ({ coe, open, onClose }: { coe: COEData, open: boolean, onClose
             </div>
 
             {/* Status and Certification Section */}
-            <div className="text-center py-4">
-              <div className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl shadow-lg mb-3">
-                <CheckCircle2 className="w-6 h-6" />
-                <span className="text-lg font-bold">ENROLLED</span>
+            <div className="text-center py-2 sm:py-3">
+              <div className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl shadow-lg mb-2">
+                <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span className="text-sm sm:text-base font-bold">ENROLLED</span>
               </div>
-              <p className="text-gray-600 text-sm max-w-2xl mx-auto leading-relaxed">
+              <p className="text-gray-600 text-xs max-w-2xl mx-auto leading-relaxed px-2">
                 This is to certify that the above-named student is officially enrolled in the above-mentioned program for the current academic year.
               </p>
             </div>
 
             {/* Registrar Signature Section */}
-            <div className="border-t border-gray-200 pt-4">
-              <div className="flex justify-between items-end">
+            <div className="border-t border-gray-200 pt-2 sm:pt-3">
+              <div className="flex flex-col sm:flex-row justify-between items-center sm:items-end gap-2 sm:gap-0">
                 <div className="text-center">
-                  <div className="w-24 h-12 border-b-2 border-gray-400 mb-1"></div>
-                  <p className="font-semibold text-gray-900 text-base">Registrar</p>
+                  <div className="w-16 h-8 sm:w-20 sm:h-10 border-b-2 border-gray-400 mb-1"></div>
+                  <p className="font-semibold text-gray-900 text-xs sm:text-sm">Registrar</p>
                   <p className="text-xs text-gray-600">Signature over printed name</p>
                 </div>
-                <div className="text-right text-xs text-gray-500">
+                <div className="text-center sm:text-right text-xs text-gray-500">
                   <p>Date: {new Date(coe.date_issued).toLocaleDateString()}</p>
                 </div>
               </div>
@@ -353,7 +368,6 @@ const RegistrarEnrollment: React.FC = () => {
   const [coeLoading, setCOELoading] = useState(false);
   const [coeError, setCOEError] = useState<string | null>(null);
   const [coeData, setCOEData] = useState<COEData | null>(null);
-  const [coeMap, setCOEMap] = useState<Record<string, COEData>>({});
 
   // Stats
   const totalStudents = students.length;
@@ -366,26 +380,7 @@ const RegistrarEnrollment: React.FC = () => {
     fetchCourses();
   }, []);
 
-  // Fetch latest COE for all students after students are loaded
-  useEffect(() => {
-    const fetchAllCOEs = async () => {
-      if (students.length === 0) return;
-      const coeMapTemp: Record<string, COEData> = {};
-      for (const student of students) {
-        const { data, error } = await supabase
-          .from('coe')
-          .select('*')
-          .eq('student_id', student.id)
-          .order('date_issued', { ascending: false })
-          .limit(1);
-        if (!error && data && data.length > 0) {
-          coeMapTemp[student.id] = data[0] as COEData;
-        }
-      }
-      setCOEMap(coeMapTemp);
-    };
-    fetchAllCOEs();
-  }, [students]);
+
 
   const fetchStudents = async () => {
     try {
@@ -400,7 +395,8 @@ const RegistrarEnrollment: React.FC = () => {
           enrollment_status,
           department,
           semester,
-          role
+          role,
+          avatar_url
         `)
         .eq('role', 'student')
         .order('display_name', { ascending: true });
@@ -532,7 +528,7 @@ const RegistrarEnrollment: React.FC = () => {
         subjects: enrolledSubjects,
         status: 'active',
         registrar: registrar,
-        full_name: `${studentProfile.first_name} ${studentProfile.last_name}`,
+        full_name: studentProfile.display_name,
         department: studentProfile.department || '',
         email: studentProfile.email
       };
@@ -611,18 +607,12 @@ const RegistrarEnrollment: React.FC = () => {
                 <div className="flex items-center gap-4 mt-2 text-xs text-white/80"></div>
               </div>
             </div>
-            <button
-              onClick={fetchStudents}
-              className="bg-white/20 backdrop-blur-sm text-white px-6 py-2 rounded-lg shadow-sm hover:bg-white/30 transition-all duration-300 font-semibold flex items-center gap-2"
-            >
-              <Loader2 className="w-4 h-4" />
-              Refresh List
-            </button>
+           
           </div>
         </div>
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 flex items-center gap-4">
+          <div className="bg-white/90 rounded-2xl p-6 shadow-lg border border-gray-100 flex items-center gap-4">
             <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
               <Users className="w-6 h-6 text-blue-600" />
             </div>
@@ -631,7 +621,7 @@ const RegistrarEnrollment: React.FC = () => {
               <p className="text-3xl font-bold text-gray-900">{totalStudents}</p>
             </div>
           </div>
-          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 flex items-center gap-4">
+          <div className="bg-white/90 rounded-2xl p-6 shadow-lg border border-gray-100 flex items-center gap-4">
             <div className="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
               <UserPlus className="w-6 h-6 text-yellow-600" />
             </div>
@@ -640,7 +630,7 @@ const RegistrarEnrollment: React.FC = () => {
               <p className="text-3xl font-bold text-gray-900">{pendingStudents}</p>
             </div>
           </div>
-          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 flex items-center gap-4">
+          <div className="bg-white/90 rounded-2xl p-6 shadow-lg border border-gray-100 flex items-center gap-4">
             <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
               <CheckCircle2 className="w-6 h-6 text-green-600" />
             </div>
@@ -651,7 +641,7 @@ const RegistrarEnrollment: React.FC = () => {
           </div>
         </div>
         {/* Search/Filter Bar */}
-        <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="bg-white/90 rounded-2xl p-6 shadow-lg border border-gray-100 mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="flex-1 max-w-md">
             <div className="relative">
               <input
@@ -682,7 +672,7 @@ const RegistrarEnrollment: React.FC = () => {
             <p className="text-gray-500 font-medium">Loading students...</p>
           </div>
         ) : filteredStudents.length === 0 ? (
-          <div className="bg-white rounded-2xl p-12 text-center shadow-lg border border-gray-100">
+          <div className="bg-white/90 rounded-2xl p-12 text-center shadow-lg border border-gray-100">
             <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-600 mb-2">No students found</h3>
             <p className="text-gray-500 mb-6">
@@ -697,25 +687,47 @@ const RegistrarEnrollment: React.FC = () => {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50 sticky top-0 z-10">
                 <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Profile Picture</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student ID</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Year Level</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Current Course</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Course&Year</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-white/90 divide-y divide-gray-200">
                 {filteredStudents.map((student) => (
                   <tr key={student.id} className="hover:bg-blue-50 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <div className="flex justify-center">
+                        {student.avatar_url ? (
+                          <img 
+                            src={student.avatar_url} 
+                            alt="Student Profile" 
+                            className="w-8 h-8 rounded-full object-cover border border-gray-200"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                              target.nextElementSibling?.classList.remove('hidden');
+                            }}
+                          />
+                        ) : null}
+                        <div className={`w-8 h-8 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center border border-gray-200 ${student.avatar_url ? 'hidden' : ''}`}>
+                          <UserCheck className="w-4 h-4 text-blue-600" />
+                        </div>
+                      </div>
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{student.student_id}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {student.display_name}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{student.email}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{student.year_level || ''}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{student.department || 'Not Enrolled'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {student.department && student.year_level 
+                        ? `${student.department}-${student.year_level}` 
+                        : student.department || 'Not Enrolled'}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
                         ${student.enrollment_status === 'enrolled' ? 'bg-green-100 text-green-800' : 
@@ -761,8 +773,8 @@ const RegistrarEnrollment: React.FC = () => {
         )}
 
         {/* Enrollment Modal */}
-        {showConfirmModal && selectedStudent && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+        {showConfirmModal && selectedStudent && createPortal(
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[99999]">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -784,10 +796,10 @@ const RegistrarEnrollment: React.FC = () => {
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
+                    <tbody className="bg-white/90 divide-y divide-gray-200">
                       <tr>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{selectedStudent.student_id}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{selectedStudent.last_name}, {selectedStudent.first_name}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{selectedStudent.display_name}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{selectedStudent.email}</td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
@@ -804,22 +816,80 @@ const RegistrarEnrollment: React.FC = () => {
                     </tbody>
                   </table>
                 </div>
-                <div className="mb-4">
-                  <h3 className="text-lg font-semibold text-gray-700 mb-2">Courses for Enrollment</h3>
-                    <div className="space-y-2">
-                    {selectedCourses.length === 0 ? (
-                      <div className="text-sm text-gray-500">No courses selected.</div>
-                    ) : (
-                      selectedCourses.map(courseId => {
-                        const course = courses.find(c => c.id === courseId);
-                        return course ? (
-                          <div key={courseId} className="text-sm text-gray-600">
-                            <span className="font-medium">{course.name}</span> ({course.code})
-                          </div>
-                        ) : null;
-                      })
-                    )}
-                  </div>
+                <div className="mb-6">
+                  <h3 className="text-lg font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                    <BookOpen className="w-5 h-5 text-blue-600" />
+                    Courses for Enrollment
+                  </h3>
+                  
+                  {selectedCourses.length === 0 ? (
+                    <div className="text-center py-6 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                      <BookOpen className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+                      <p className="text-gray-500 font-medium">No courses selected</p>
+                      <p className="text-sm text-gray-400">Please select courses to enroll this student</p>
+                    </div>
+                  ) : (
+                    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-3 border-b border-gray-200">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-semibold text-gray-700">Selected Courses</span>
+                          <span className="text-xs text-gray-500 bg-white px-2 py-1 rounded-full">
+                            {selectedCourses.length} course{selectedCourses.length !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <div className="max-h-64 overflow-y-auto">
+                        <div className="divide-y divide-gray-100">
+                          {selectedCourses.map((courseId, index) => {
+                            const course = courses.find(c => c.id === courseId);
+                            return course ? (
+                              <div key={courseId} className="px-4 py-3 hover:bg-gray-50 transition-colors">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                                        <span className="text-sm font-bold text-blue-600">{index + 1}</span>
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-semibold text-gray-900 truncate">{course.name}</p>
+                                        <p className="text-xs text-gray-500">Code: {course.code}</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2 ml-4">
+                                    <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-1 rounded-full">
+                                      {course.units} unit{course.units !== 1 ? 's' : ''}
+                                    </span>
+                                    <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
+                                      {course.department}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : null;
+                          })}
+                        </div>
+                      </div>
+                      
+                      {/* Summary */}
+                      <div className="bg-gradient-to-r from-green-50 to-emerald-50 px-4 py-3 border-t border-gray-200">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="font-semibold text-gray-700">Total Courses:</span>
+                          <span className="font-bold text-green-700">{selectedCourses.length}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm mt-1">
+                          <span className="font-semibold text-gray-700">Total Units:</span>
+                          <span className="font-bold text-green-700">
+                            {selectedCourses.reduce((total, courseId) => {
+                              const course = courses.find(c => c.id === courseId);
+                              return total + (course?.units || 0);
+                            }, 0)} units
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="flex justify-end gap-4">
                   <button
@@ -842,8 +912,8 @@ const RegistrarEnrollment: React.FC = () => {
               </div>
             </motion.div>
           </div>
-            
-          )}
+        , document.body
+        )}
 
         {/* COE Modal */}
         {coeModalOpen && coeData && createPortal(
@@ -854,23 +924,25 @@ const RegistrarEnrollment: React.FC = () => {
           />, 
           document.body
         )}
-        {coeModalOpen && coeLoading && (
+        {coeModalOpen && coeLoading && createPortal(
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-            <div className="bg-white rounded-xl shadow-xl p-8">
+            <div className="bg-white/90 rounded-xl shadow-xl p-8">
               <div className="flex items-center gap-2">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
                 <span className="text-gray-700">Loading COE...</span>
               </div>
             </div>
           </div>
+        , document.body
         )}
-        {coeModalOpen && coeError && !coeLoading && (
+        {coeModalOpen && coeError && !coeLoading && createPortal(
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-            <div className="bg-white rounded-xl shadow-xl p-8">
+            <div className="bg-white/90 rounded-xl shadow-xl p-8">
               <div className="text-red-600 font-medium">{coeError}</div>
               <button className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg" onClick={() => setCOEModalOpen(false)}>Close</button>
             </div>
           </div>
+        , document.body
         )}
       </div>
     </div>
