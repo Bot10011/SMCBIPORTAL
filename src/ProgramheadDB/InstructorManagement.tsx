@@ -6,8 +6,8 @@ import {
   Typography,
   Tabs,
   Tab,
-  Button, 
-  Dialog, 
+  Button,
+  Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
@@ -143,6 +143,7 @@ const InstructorManagement: React.FC = () => {
     selectedTeacherName: ''
   });
   const [courses, setCourses] = useState<Course[]>([]);
+  const [sections, setSections] = useState<any[]>([]);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [formSubmitting, setFormSubmitting] = useState(false);
   const [newAssignment, setNewAssignment] = useState<TeacherSubject>({
@@ -183,31 +184,152 @@ const InstructorManagement: React.FC = () => {
     loading: false
   });
 
-  // Fetch instructors on component mount
-  useEffect(() => {
-    fetchInstructors();
-    fetchCourses();
-  }, []);
-
-  // Fetch assignments when tab changes to Year Level Assigned Subjects
-  useEffect(() => {
-    if (tabValue === 1) {
-      fetchAssignments();
+  const fetchSections = async () => {
+    try {
+      console.log('Fetching sections...');
+      const { data, error } = await supabase
+        .from('sections')
+        .select('id, name, year_level')
+        .order('name', { ascending: true });
+ 
+      if (error) throw error;
+      
+      console.log('Fetched sections:', data);
+      
+      // Validate that sections have proper year_level data
+      const validSections = (data || []).filter(section => 
+        section.year_level !== null && 
+        section.year_level !== undefined && 
+        section.name && 
+        section.name.trim() !== ''
+      );
+      
+      console.log('Valid sections:', validSections);
+      setSections(validSections);
+    } catch (error) {
+      console.error('Error fetching sections:', error);
+      toast.error('Failed to load sections');
+      setSections([]);
     }
-  }, [tabValue]);
+  };
 
   const fetchCourses = async () => {
     try {
+      console.log('Starting fetchCourses...');
+      console.log('Supabase client:', supabase);
+      
+      // Fetch courses with all necessary fields
       const { data, error } = await supabase
         .from('courses')
         .select('*')
         .order('code', { ascending: true });
 
-      if (error) throw error;
-      setCourses(data || []);
+      console.log('Raw response:', { data, error });
+      
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
+      
+      console.log('Data received:', data);
+      console.log('Data type:', typeof data);
+      console.log('Data length:', data ? data.length : 'null');
+      
+      // Debug: Show raw year_level values
+      if (data && data.length > 0) {
+        console.log('Raw year_level values:', data.map(c => ({ id: c.id, year_level: c.year_level, type: typeof c.year_level })));
+        console.log('Sample course data:', data[0]);
+        console.log('All available fields in first course:', Object.keys(data[0]));
+        
+        // Check if year_level field exists and has values
+        const coursesWithYearLevel = data.filter(c => c.year_level && c.year_level !== null && c.year_level !== '');
+        console.log('Courses with year_level:', coursesWithYearLevel.length);
+        console.log('Courses without year_level:', data.length - coursesWithYearLevel.length);
+        
+        // Check semester values
+        console.log('Raw semester values:', data.map(c => ({ id: c.id, code: c.code, semester: c.semester, type: typeof c.semester })));
+        const coursesWithSemester = data.filter(c => c.semester && c.semester !== null && c.semester !== '');
+        console.log('Courses with semester:', coursesWithSemester.length);
+        console.log('Courses without semester:', data.length - coursesWithSemester.length);
+        console.log('Unique semester values:', Array.from(new Set(data.map(c => c.semester))));
+        
+        if (coursesWithYearLevel.length === 0) {
+          console.warn('WARNING: No courses have year_level values! This is why filtering fails.');
+          console.warn('You may need to populate the year_level field in the courses table.');
+        }
+       
+        if (coursesWithSemester.length === 0) {
+          console.warn('WARNING: No courses have semester values! This is why semester filtering fails.');
+          console.warn('You may need to populate the semester field in the courses table.');
+        }
+      }
+      
+      // Transform the data to ensure display_name is available
+      const transformedCourses = (data || []).map((course: any) => ({
+        ...course,
+        display_name: course.display_name || course.name || course.code,
+        // Assign default year level if missing
+        year_level: course.year_level || (() => {
+          // Try to extract year from course code or name
+          const code = String(course.code || '').toLowerCase();
+          const name = String(course.name || '').toLowerCase();
+          
+          if (code.includes('1') || name.includes('1') || code.includes('first') || name.includes('first')) return '1st Year';
+          if (code.includes('2') || name.includes('2') || code.includes('second') || name.includes('second')) return '2nd Year';
+          if (code.includes('3') || name.includes('3') || code.includes('third') || name.includes('third')) return '3rd Year';
+          if (code.includes('4') || name.includes('4') || code.includes('fourth') || name.includes('fourth')) return '4th Year';
+          
+          // Default to 1st Year if no pattern found
+          return '1st Year';
+        })(),
+        // Assign default semester if missing
+        semester: course.semester || (() => {
+          // Try to extract semester from course code or name
+          const code = String(course.code || '').toLowerCase();
+          const name = String(course.name || '').toLowerCase();
+          
+          // Check for summer courses first (highest priority)
+          if (code.includes('summer') || name.includes('summer') || 
+              code.includes('su') || name.includes('su') ||
+              code.includes('sm') || name.includes('sm') ||
+              code === 's' || code === 'sum') {
+            return 'Summer';
+          }
+          
+          // Check for second semester courses
+          if (code.includes('2') || name.includes('second') || 
+              code.includes('2nd') || name.includes('2nd') ||
+              code.includes('ii') || name.includes('ii')) {
+            return 'Second Semester';
+          }
+          
+          // Check for first semester courses (but be more careful to avoid mislabeling)
+          if ((code.includes('1') && !code.includes('10') && !code.includes('11') && !code.includes('12')) || 
+              name.includes('first') || 
+              code.includes('1st') || name.includes('1st') ||
+              (code.includes('i') && !code.includes('ii') && !code.includes('iii') && !code.includes('iv'))) {
+            return 'First Semester';
+          }
+          
+          // Default to First Semester if no pattern found
+          return 'First Semester';
+        })()
+      }));
+      
+      console.log('Fetched courses:', data);
+      console.log('Transformed courses:', transformedCourses);
+      console.log('Setting courses state with:', transformedCourses);
+      
+      setCourses(transformedCourses);
     } catch (error) {
       console.error('Error fetching courses:', error);
+      console.error('Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : 'No stack trace',
+        error
+      });
       toast.error('Failed to load courses');
+      setCourses([]);
     }
   };
 
@@ -291,6 +413,20 @@ const InstructorManagement: React.FC = () => {
       setLoading(false);
     }
   };
+
+  // Fetch instructors on component mount
+  useEffect(() => {
+    fetchInstructors();
+    fetchCourses();
+    fetchSections();
+  }, []);
+
+  // Fetch assignments when tab changes to Year Level Assigned Subjects
+  useEffect(() => {
+    if (tabValue === 1) {
+      fetchAssignments();
+    }
+  }, [tabValue]);
 
   const handleCreateInstructor = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -854,6 +990,18 @@ const InstructorManagement: React.FC = () => {
                     }}
                   >
                     Assign Instructor
+                  </Button>
+                </Grid>
+                <Grid item xs={12} sm={12} sx={{ display: 'flex', justifyContent: 'center', mt: 1 }}>
+                  <Button
+                    variant="outlined"
+                    onClick={() => {
+                      console.log('Manual test: fetching courses...');
+                      void fetchCourses();
+                    }}
+                    sx={{ ml: 2 }}
+                  >
+                    Test Fetch Courses
                   </Button>
                 </Grid>
               </Grid>
@@ -1798,10 +1946,10 @@ const InstructorManagement: React.FC = () => {
           full_name: `${instructor.first_name} ${instructor.middle_name ? instructor.middle_name + ' ' : ''}${instructor.last_name}`
         }))}
         courses={courses}
+        sections={sections}
       />
     </Box>
   );
 };
 
 export default InstructorManagement; 
-
