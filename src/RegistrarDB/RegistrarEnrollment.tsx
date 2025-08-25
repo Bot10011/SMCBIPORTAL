@@ -192,10 +192,7 @@ const COEModal = ({ coe, open, onClose }: { coe: COEData, open: boolean, onClose
             {/* Left side - empty for balance */}
             <div></div>
             
-            {/* Center - Title */}
-            <div className="text-center">
-              <h1 className="text-sm sm:text-base font-bold text-gray-900">Certificate of Enrollment</h1>
-            </div>
+           
             
             {/* Right side - Action buttons and close */}
             <div className="flex items-center gap-2 sm:gap-3">
