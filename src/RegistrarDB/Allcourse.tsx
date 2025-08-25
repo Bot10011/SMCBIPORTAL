@@ -137,9 +137,9 @@ export const RegistrarGradeViewer: React.FC = () => {
 
   return (
     <div className="min-h-screen from-blue-50 via-white to-indigo-50">
-      <div className="max-w-7xl mx-auto px-6 py-8">
+      <div className="mx-auto px-6 py-8">
         {/* Header Section */}
-        <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 rounded-2xl">
+        <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 rounded-2xl mb-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
@@ -161,7 +161,7 @@ export const RegistrarGradeViewer: React.FC = () => {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 mt-6">
           <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
             <div className="flex items-center justify-between">
               <div>
@@ -227,7 +227,11 @@ export const RegistrarGradeViewer: React.FC = () => {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid gap-6" style={{ 
+            gridTemplateColumns: `repeat(auto-fit, minmax(280px, 1fr))`,
+            maxHeight: 'calc(5 * (280px + 24px))',
+            overflowY: 'auto'
+          }}>
             {filteredCourses.map((course) => (
               <div
                 key={course.id}
