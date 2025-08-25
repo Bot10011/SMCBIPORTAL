@@ -11,7 +11,7 @@ import './dashboard.css';
 
 // Utility function to crop image
 function getCroppedImg(
-  imageSrc: string, 
+  imageSrc: string,
   crop: { x: number; y: number },
   zoom: number,
   aspect: number,
@@ -496,7 +496,7 @@ export default function CourseManagement() {
         } catch (cleanupError) {
           console.error('Error cleaning up course image:', cleanupError);
           // Don't fail the entire operation if image cleanup fails
-          toast.warning('Course deleted but image cleanup failed');
+          toast('Course deleted but image cleanup failed', { icon: '⚠️' });
         }
       }
 
@@ -627,7 +627,7 @@ export default function CourseManagement() {
         units: correctedUnits
       }));
       
-      toast.info(`Total units automatically adjusted from ${courseForm.units} to ${correctedUnits} to match LEC + LAB units`);
+      toast(`Total units automatically adjusted from ${courseForm.units} to ${correctedUnits} to match LEC + LAB units`, { icon: 'ℹ️' });
     }
     
     return true;
