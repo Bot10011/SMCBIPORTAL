@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
 import Announcement from './Announcement';
+import { createPortal } from 'react-dom';
 
 // Import admin-specific components and styles
 import UserManagement from './UserManagement';
@@ -28,6 +29,185 @@ const PageTransitionIndicator: React.FC<{ isActive: boolean }> = ({ isActive }) 
         />
       )}
     </AnimatePresence>
+  );
+};
+
+// Notification List Component for Settings Page
+const NotificationList: React.FC = () => {
+  const [notifications, setNotifications] = useState<Array<{
+    id: string;
+    title: string;
+    message: string;
+    severity: string;
+    audience: string;
+    priority?: number;
+    expires_at?: string;
+    created_at: string;
+    is_active: boolean;
+  }>>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchNotifications();
+    
+    // Set up real-time subscription for notifications
+    const notificationsSubscription = supabase
+      .channel('settings_notifications_changes')
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'notifications' 
+        }, 
+        () => {
+          fetchNotifications();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      notificationsSubscription.unsubscribe();
+    };
+  }, []);
+
+  const fetchNotifications = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (error) {
+        console.error('Error fetching notifications:', error);
+        return;
+      }
+
+      setNotifications(data || []);
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteNotification = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        toast.error('Failed to delete notification');
+        return;
+      }
+
+      toast.success('Notification deleted successfully');
+      fetchNotifications(); // Refresh the list
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+      toast.error('Failed to delete notification');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="text-sm text-gray-400 text-center py-4">
+        <div className="animate-spin w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full mx-auto mb-2"></div>
+        Loading notifications...
+      </div>
+    );
+  }
+
+  if (notifications.length === 0) {
+    return (
+      <div className="text-sm text-gray-400 text-center py-4">
+        No notifications found. Create your first notification above!
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {notifications.map((notification) => (
+        <motion.div
+          key={notification.id}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`p-3 rounded-lg border ${
+            notification.is_active 
+              ? 'bg-[#2f3133] border-gray-600' 
+              : 'bg-[#252728] border-gray-700 opacity-60'
+          }`}
+        >
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                  notification.severity === 'announcement' ? 'bg-purple-900 text-purple-300' :
+                  notification.severity === 'reminder' ? 'bg-orange-900 text-orange-300' :
+                  notification.severity === 'deadline' ? 'bg-red-800 text-red-200' :
+                  notification.severity === 'exam' ? 'bg-indigo-900 text-indigo-300' :
+                  notification.severity === 'meeting' ? 'bg-teal-900 text-teal-300' :
+                  notification.severity === 'advisory' ? 'bg-amber-900 text-amber-300' :
+                  notification.severity === 'info' ? 'bg-blue-900 text-blue-300' :
+                  notification.severity === 'success' ? 'bg-green-900 text-green-300' :
+                  notification.severity === 'warning' ? 'bg-yellow-900 text-yellow-300' :
+                  notification.severity === 'error' ? 'bg-red-900 text-red-300' :
+                  'bg-gray-900 text-gray-300'
+                }`}>
+                  {notification.severity}
+                </span>
+                <span className={`text-xs px-2 py-1 rounded-full ${
+                  notification.audience === 'all' ? 'bg-blue-800 text-blue-200' :
+                  notification.audience === 'instructor' ? 'bg-green-800 text-green-200' :
+                  'bg-purple-800 text-purple-200'
+                }`}>
+                  {notification.audience}
+                </span>
+                <span className={`text-xs px-2 py-1 rounded-full ${
+                  notification.priority === 1 ? 'bg-gray-700 text-gray-300' :
+                  notification.priority === 2 ? 'bg-blue-700 text-blue-300' :
+                  notification.priority === 3 ? 'bg-yellow-700 text-yellow-300' :
+                  notification.priority === 4 ? 'bg-orange-700 text-orange-300' :
+                  notification.priority === 5 ? 'bg-red-700 text-red-300' :
+                  'bg-gray-700 text-gray-300'
+                }`}>
+                  P{notification.priority}
+                </span>
+              </div>
+              <h6 className="text-sm font-semibold text-white mb-1">
+                {notification.title}
+              </h6>
+              <p className="text-xs text-gray-300 mb-2 line-clamp-2">
+                {notification.message}
+              </p>
+              <div className="flex items-center gap-2 text-xs text-gray-400">
+                <span>
+                  {new Date(notification.created_at).toLocaleDateString()} at {new Date(notification.created_at).toLocaleTimeString()}
+                </span>
+                {notification.expires_at && (
+                  <span className="text-orange-400">
+                    • Expires: {new Date(notification.expires_at).toLocaleDateString()} at {new Date(notification.expires_at).toLocaleTimeString()}
+                  </span>
+                )}
+              </div>
+            </div>
+            <button
+              onClick={() => handleDeleteNotification(notification.id)}
+              className="ml-2 p-1 text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded transition-colors"
+              title="Delete notification"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
+          </div>
+        </motion.div>
+      ))}
+    </div>
   );
 };
 
@@ -66,6 +246,88 @@ const SystemSettings = () => {
   const handlePasswordInputChange = (field: PasswordField, value: string) => {
     setPasswordForm(prev => ({ ...prev, [field]: value }));
   };
+
+  // Add notification creation state and handlers
+  const [showNotificationForm, setShowNotificationForm] = useState(false);
+  const [notificationForm, setNotificationForm] = useState({
+    title: '',
+    message: '',
+    severity: 'announcement',
+    audience: 'all',
+    priority: 1,
+    timeInterval: 'none',
+    timeValue: 1
+  });
+  const [creatingNotification, setCreatingNotification] = useState(false);
+
+  const handleCreateNotification = async () => {
+    try {
+      if (!user?.id) {
+        toast.error('No user found');
+        return;
+      }
+      if (!notificationForm.title || !notificationForm.message) {
+        toast.error('Please fill out all notification fields');
+        return;
+      }
+
+      setCreatingNotification(true);
+
+      // Calculate expiration date if time interval is set
+      let expiresAt = null;
+      if (notificationForm.timeInterval !== 'none' && notificationForm.timeValue > 0) {
+        const now = new Date();
+        switch (notificationForm.timeInterval) {
+          case 'hours':
+            expiresAt = new Date(now.getTime() + (notificationForm.timeValue * 60 * 60 * 1000));
+            break;
+          case 'days':
+            expiresAt = new Date(now.getTime() + (notificationForm.timeValue * 24 * 60 * 60 * 1000));
+            break;
+          case 'weeks':
+            expiresAt = new Date(now.getTime() + (notificationForm.timeValue * 7 * 24 * 60 * 60 * 1000));
+            break;
+          case 'months':
+            expiresAt = new Date(now.getTime() + (notificationForm.timeValue * 30 * 24 * 60 * 60 * 1000));
+            break;
+          default:
+            expiresAt = null;
+        }
+      }
+
+      const { error } = await supabase
+        .from('notifications')
+        .insert([{
+          title: notificationForm.title,
+          message: notificationForm.message,
+          severity: notificationForm.severity,
+          audience: notificationForm.audience,
+          priority: notificationForm.priority,
+          expires_at: expiresAt,
+          created_by: user.id,
+          is_active: true
+        }]);
+
+      if (error) {
+        throw error;
+      }
+
+      toast.success('Notification created successfully');
+      setNotificationForm({ title: '', message: '', severity: 'announcement', audience: 'all', priority: 1, timeInterval: 'none', timeValue: 1 });
+      setShowNotificationForm(false);
+      
+      // Refresh notifications in the dashboard
+      // This will trigger the real-time subscription to update the notification list
+      
+    } catch (err) {
+      console.error('Error creating notification:', err);
+      toast.error('Failed to create notification');
+    } finally {
+      setCreatingNotification(false);
+    }
+  };
+
+
 
   const handleUpdatePassword = async () => {
     try {
@@ -298,18 +560,18 @@ const SystemSettings = () => {
             <div className="flex items-center gap-6 mb-8">
               <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-lg">
                 {accountProfile?.first_name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
-              </div>
+          </div>
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-3">
                   <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
                   <span className="text-purple-400 text-sm font-medium uppercase tracking-wide">{user?.role || 'Administrator'}</span>
-                </div>
+          </div>
                 <h5 className="text-xl font-bold text-white mb-2">
                   {`${accountProfile?.first_name ?? ''} ${accountProfile?.middle_name ?? ''} ${accountProfile?.last_name ?? ''}`.trim() || 'User Profile'}
                 </h5>
                 <p className="text-gray-400 text-sm">{user?.email || 'No email available'}</p>
-              </div>
-            </div>
+          </div>
+          </div>
 
            
 
@@ -332,15 +594,15 @@ const SystemSettings = () => {
                     className="w-full px-4 py-3 border border-gray-600 rounded-lg bg-[#1c1c1d] text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Enter full name"
                   />
-                </div>
+          </div>
                 <button className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors duration-200 flex items-center gap-2">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                   Update Name
                 </button>
-              </div>
-            </div>
+          </div>
+        </div>
           </div>
 
           {/* Password Change Section */}
@@ -360,30 +622,30 @@ const SystemSettings = () => {
                   disabled={changingPassword}
                   placeholder="Enter current password"
                 />
-              </div>
+          </div>
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-gray-300">New Password</label>
-                <input
+              <input
                   type="password"
                   value={passwordForm.newPassword}
                   onChange={(e) => handlePasswordInputChange('newPassword', e.target.value)}
                   className="w-full px-4 py-3 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-[#252728] text-white placeholder-gray-400 text-sm"
                   disabled={changingPassword}
                   placeholder="Enter new password"
-                />
-              </div>
+              />
+            </div>
               <div className="space-y-2 sm:col-span-2 lg:grid-cols-1">
                 <label className="block text-sm font-medium text-gray-300">Confirm Password</label>
-                <input
+              <input
                   type="password"
                   value={passwordForm.confirmPassword}
                   onChange={(e) => handlePasswordInputChange('confirmPassword', e.target.value)}
                   className="w-full px-4 py-3 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-[#252728] text-white placeholder-gray-400 text-sm"
                   disabled={changingPassword}
                   placeholder="Confirm new password"
-                />
-              </div>
+              />
             </div>
+              </div>
             <div className="flex justify-end">
               <button
                 onClick={handleUpdatePassword}
@@ -407,9 +669,9 @@ const SystemSettings = () => {
                 )}
               </button>
             </div>
+            </div>
           </div>
-        </div>
-      </motion.div>
+        </motion.div>
 
         {/* General Settings */}
         <motion.div
@@ -424,7 +686,7 @@ const SystemSettings = () => {
             <h3 className="text-lg font-semibold text-white">General Settings</h3>
           </div>
           <div className="space-y-4">
-            <div>
+              <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">System Name</label>
               <input
                 type="text"
@@ -434,7 +696,7 @@ const SystemSettings = () => {
                 disabled={saving}
               />
             </div>
-            <div>
+              <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">System Version</label>
               <input
                 type="text"
@@ -465,6 +727,213 @@ const SystemSettings = () => {
         </motion.div>
 
         
+
+        {/* Notification Management */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.25 }}
+          className="neumorphic-dark p-6"
+          style={{ backgroundColor: '#2f3133' }}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <Bell className="w-6 h-6 text-green-400" />
+              <h3 className="text-lg font-semibold text-white">Notification Management</h3>
+            </div>
+            <button
+              onClick={() => setShowNotificationForm(!showNotificationForm)}
+              className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors duration-200 flex items-center gap-2"
+            >
+              {showNotificationForm ? (
+                <>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  Cancel
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Create Notification
+                </>
+              )}
+            </button>
+          </div>
+
+          {showNotificationForm && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="bg-[#252728] rounded-lg p-4 border border-gray-600 mb-4"
+            >
+              <h5 className="text-sm font-semibold text-gray-200 mb-4 flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                Create New Notification
+              </h5>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Title *</label>
+                  <input
+                    type="text"
+                    value={notificationForm.title}
+                    onChange={(e) => setNotificationForm(prev => ({ ...prev, title: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent bg-[#1c1c1d] text-white placeholder-gray-400 text-sm"
+                    placeholder="Enter notification title"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Severity *</label>
+                  <select
+                    value={notificationForm.severity}
+                    onChange={(e) => setNotificationForm(prev => ({ ...prev, severity: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent bg-[#1c1c1d] text-white text-sm"
+                    required
+                  >
+                    <option value="announcement">Announcement</option>
+                    <option value="reminder">Reminder</option>
+                    <option value="deadline">Deadline</option>
+                    <option value="exam">Exam</option>
+                    <option value="meeting">Meeting</option>
+                    <option value="advisory">Advisory</option>
+                    <option value="info">Info</option>
+                    <option value="success">Success</option>
+                    <option value="warning">Warning</option>
+                    <option value="error">Error</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Audience *</label>
+                  <select
+                    value={notificationForm.audience}
+                    onChange={(e) => setNotificationForm(prev => ({ ...prev, audience: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent bg-[#1c1c1d] text-white text-sm"
+                    required
+                  >
+                    <option value="all">All Users</option>
+                    <option value="instructor">Instructors Only</option>
+                    <option value="student">Students Only</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Priority</label>
+                  <select
+                    value={notificationForm.priority}
+                    onChange={(e) => setNotificationForm(prev => ({ ...prev, priority: parseInt(e.target.value) }))}
+                    className="w-full px-3 py-2 border border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent bg-[#1c1c1d] text-white text-sm"
+                  >
+                    <option value={1}>Low (1)</option>
+                    <option value={2}>Normal (2)</option>
+                    <option value={3}>Important (3)</option>
+                    <option value={4}>Urgent (4)</option>
+                    <option value={5}>Critical (5)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Time Interval Section */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-300 mb-2">Time Interval (Optional)</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <select
+                      value={notificationForm.timeInterval}
+                      onChange={(e) => setNotificationForm(prev => ({ ...prev, timeInterval: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent bg-[#1c1c1d] text-white text-sm"
+                    >
+                      <option value="none">No Expiration</option>
+                      <option value="hours">Hours</option>
+                      <option value="days">Days</option>
+                      <option value="weeks">Weeks</option>
+                      <option value="months">Months</option>
+                    </select>
+                  </div>
+                  <div>
+                    <input
+                      type="number"
+                      value={notificationForm.timeValue}
+                      onChange={(e) => setNotificationForm(prev => ({ ...prev, timeValue: parseInt(e.target.value) || 1 }))}
+                      min="1"
+                      max="365"
+                      disabled={notificationForm.timeInterval === 'none'}
+                      className="w-full px-3 py-2 border border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent bg-[#1c1c1d] text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      placeholder="Value"
+                    />
+                  </div>
+                </div>
+                {notificationForm.timeInterval !== 'none' && (
+                  <p className="text-xs text-gray-400 mt-1">
+                    Notification will expire in {notificationForm.timeValue} {notificationForm.timeInterval}
+                  </p>
+                )}
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-300 mb-2">Message</label>
+                <textarea
+                  value={notificationForm.message}
+                  onChange={(e) => setNotificationForm(prev => ({ ...prev, message: e.target.value }))}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent bg-[#1c1c1d] text-white placeholder-gray-400 text-sm resize-none"
+                  placeholder="Enter notification message"
+                />
+              </div>
+
+
+
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setShowNotificationForm(false)}
+                  className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white text-sm font-medium rounded-lg transition-colors duration-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreateNotification}
+                  disabled={creatingNotification}
+                  className={`px-6 py-2 rounded-lg text-white font-medium flex items-center gap-2 ${
+                    creatingNotification ? 'bg-gray-600 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'
+                  }`}
+                >
+                  {creatingNotification ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      Create Notification
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Display existing notifications */}
+          <div className="mt-6">
+            <h5 className="text-sm font-semibold text-gray-200 mb-4 flex items-center gap-2">
+              <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+              Recent Notifications
+            </h5>
+            
+            <div className="space-y-3 max-h-64 overflow-y-auto custom-dashboard-scrollbar">
+              {/* Fetch and display existing notifications */}
+              <NotificationList />
+            </div>
+          </div>
+        </motion.div>
 
         {/* Backup & System Settings */}
         <motion.div
@@ -626,16 +1095,16 @@ const DashboardCard: React.FC<{
       style={{ backgroundColor: '#252728' }}
 
     >
-              <div className="p-5">
-          <div className="flex items-center justify-between">
-            <div>
+      <div className="p-5">
+        <div className="flex items-center justify-between">
+          <div>
               <p className="text-sm font-medium text-gray-300">{title}</p>
               <h3 className="mt-1 text-2xl font-bold text-white">
-                {isNaN(numericValue) ? value : count.toLocaleString()}
-              </h3>
-              <p className="mt-1 text-xs text-gray-400">{subtitle}</p>
-            </div>
-            <div className={`p-3 rounded-lg ${color.replace('border', 'bg').replace('-600', '-100')}`}>
+              {isNaN(numericValue) ? value : count.toLocaleString()}
+            </h3>
+            <p className="mt-1 text-xs text-gray-400">{subtitle}</p>
+          </div>
+          <div className={`p-3 rounded-lg ${color.replace('border', 'bg').replace('-600', '-100')}`}>
             <motion.div 
               initial={{ scale: 1 }}
               animate={{ scale: [1, 1.2, 1] }}
@@ -668,6 +1137,18 @@ const DashboardCard: React.FC<{
 // Admin Dashboard Overview Component with real data
 const DashboardOverview: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
+  const [showNotificationsModal, setShowNotificationsModal] = useState(false);
+  const [showNotificationForm, setShowNotificationForm] = useState(false);
+  const [creatingNotification, setCreatingNotification] = useState(false);
+  const [notificationForm, setNotificationForm] = useState({
+    title: '',
+    message: '',
+    severity: 'announcement',
+    audience: 'all',
+    priority: 1,
+    timeInterval: 'none',
+    timeValue: 1
+  });
   const [stats, setStats] = useState({
     totalUsers: 0,
     totalCourses: 0,
@@ -681,18 +1162,54 @@ const DashboardOverview: React.FC = () => {
     icon: React.ComponentType<{ className?: string }>;
   }>>([]);
   const [notifications, setNotifications] = useState<Array<{
-    id: number;
+    id: string;
     type: string;
     message: string;
     time: string;
     read: boolean;
+    severity: string;
+    title: string;
+    expires_at?: string;
   }>>([]);
 
   const { user } = useAuth();
 
   useEffect(() => {
     fetchDashboardData();
-    // Removed auto-refresh interval to prevent periodic refreshes
+    // Set up real-time subscription for notifications
+    const notificationsSubscription = supabase
+      .channel('notifications_changes')
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'notifications' 
+        }, 
+        () => {
+          fetchNotifications();
+        }
+      )
+      .subscribe();
+
+    // Set up real-time subscription for user profiles
+    const userProfilesSubscription = supabase
+      .channel('user_profiles_changes')
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'user_profiles' 
+        }, 
+        () => {
+          fetchDashboardData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      notificationsSubscription.unsubscribe();
+      userProfilesSubscription.unsubscribe();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -720,26 +1237,8 @@ const DashboardOverview: React.FC = () => {
         activeUsers
       });
 
-      // Generate recent activity (in a real app, this would come from a logs table)
-      const activities = [
-        { type: 'user', message: 'New user registered', time: '2 hours ago', icon: Users },
-        { type: 'course', message: 'Course updated', time: '4 hours ago', icon: BookOpen },
-        { type: 'program', message: 'Program created', time: '6 hours ago', icon: GraduationCap },
-        { type: 'system', message: 'System backup completed', time: '8 hours ago', icon: Database },
-        { type: 'user', message: 'User profile updated', time: '10 hours ago', icon: Users }
-      ];
-
-      setRecentActivity(activities);
-
-      // Generate notifications
-      const newNotifications = [
-        { id: 1, type: 'info', message: 'System maintenance scheduled for tonight', time: '1 hour ago', read: false },
-        { id: 2, type: 'success', message: 'Database backup completed successfully', time: '2 hours ago', read: false },
-        { id: 3, type: 'warning', message: 'Storage usage is at 75%', time: '4 hours ago', read: true },
-        { id: 4, type: 'error', message: 'Failed login attempt detected', time: '6 hours ago', read: true }
-      ];
-
-      setNotifications(newNotifications);
+      // Generate recent activity from real data
+      await generateRecentActivity();
 
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -749,8 +1248,306 @@ const DashboardOverview: React.FC = () => {
     }
   }, []);
 
+  // Generate recent activity from real database events
+  const generateRecentActivity = useCallback(async () => {
+    try {
+      const activities = [];
+
+      // Get recent user registrations
+      const { data: recentUsers } = await supabase
+        .from('user_profiles')
+        .select('created_at, display_name, role')
+        .order('created_at', { ascending: false })
+        .limit(3);
+
+      if (recentUsers && recentUsers.length > 0) {
+        recentUsers.forEach(user => {
+          const timeAgo = getTimeAgo(user.created_at);
+          activities.push({
+            type: 'user',
+            message: `New ${user.role} registered: ${user.display_name || 'Unknown User'}`,
+            time: timeAgo,
+            icon: Users
+          });
+        });
+      }
+
+      // Get recent course updates
+      const { data: recentCourses } = await supabase
+        .from('courses')
+        .select('updated_at, course_name')
+        .not('updated_at', 'is', null)
+        .order('updated_at', { ascending: false })
+        .limit(2);
+
+      if (recentCourses && recentCourses.length > 0) {
+        recentCourses.forEach(course => {
+          const timeAgo = getTimeAgo(course.updated_at);
+          activities.push({
+            type: 'course',
+            message: `Course updated: ${course.course_name}`,
+            time: timeAgo,
+            icon: BookOpen
+          });
+        });
+      }
+
+      // Get recent program updates
+      const { data: recentPrograms } = await supabase
+        .from('programs')
+        .select('updated_at, program_name')
+        .not('updated_at', 'is', null)
+        .order('updated_at', { ascending: false })
+        .limit(1);
+
+      if (recentPrograms && recentPrograms.length > 0) {
+        recentPrograms.forEach(program => {
+          const timeAgo = getTimeAgo(program.updated_at);
+          activities.push({
+            type: 'program',
+            message: `Program updated: ${program.program_name}`,
+            time: timeAgo,
+            icon: GraduationCap
+          });
+        });
+      }
+
+      // Get recent login sessions for system activity
+      const { data: recentLogins } = await supabase
+        .from('login_sessions')
+        .select('login_time, user_agent')
+        .order('login_time', { ascending: false })
+        .limit(1);
+
+      if (recentLogins && recentLogins.length > 0) {
+        const timeAgo = getTimeAgo(recentLogins[0].login_time);
+        activities.push({
+          type: 'system',
+          message: 'User login activity detected',
+          time: timeAgo,
+          icon: Activity
+        });
+      }
+
+      // Sort activities by time (most recent first)
+      activities.sort((a, b) => {
+        const timeA = getTimeInMinutes(a.time);
+        const timeB = getTimeInMinutes(b.time);
+        return timeA - timeB;
+      });
+
+      setRecentActivity(activities.slice(0, 5));
+
+    } catch (error) {
+      console.error('Error generating recent activity:', error);
+    }
+  }, []);
+
+  // Fetch real notifications from database
+  const fetchNotifications = useCallback(async () => {
+    try {
+      // Fetch notifications based on user role and audience
+      let query = supabase
+        .from('notifications')
+        .select('*')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      // Filter by audience based on user role
+      if (user?.role === 'admin' || user?.role === 'superadmin') {
+        // Admins can see all notifications
+        query = query.in('audience', ['all', 'instructor', 'student']);
+      } else if (user?.role === 'instructor') {
+        // Instructors can see instructor and all notifications
+        query = query.in('audience', ['instructor', 'all']);
+      } else if (user?.role === 'student') {
+        // Students can see student and all notifications
+        query = query.in('audience', ['student', 'all']);
+      }
+
+      const { data: dbNotifications, error: dbError } = await query;
+
+      if (dbError) {
+        console.error('Error fetching notifications:', dbError);
+        toast.error('Failed to load notifications');
+        return;
+      }
+
+      // Generate system notifications
+      const systemNotifications = await generateSystemNotifications();
+
+      // Combine and format notifications
+      const allNotifications = [];
+
+      // Add database notifications
+      if (dbNotifications && dbNotifications.length > 0) {
+        dbNotifications.forEach(notif => {
+          allNotifications.push({
+            id: notif.id,
+            type: notif.severity,
+            message: notif.message,
+            title: notif.title,
+            time: getTimeAgo(notif.created_at),
+            read: false, // You can implement read tracking later
+            severity: notif.severity,
+            expires_at: notif.expires_at
+          });
+        });
+      }
+
+      // Add system notifications
+      allNotifications.push(...systemNotifications);
+
+      // Sort by time (most recent first)
+      allNotifications.sort((a, b) => {
+        const timeA = getTimeInMinutes(a.time);
+        const timeB = getTimeInMinutes(b.time);
+        return timeA - timeB;
+      });
+
+      setNotifications(allNotifications.slice(0, 10));
+
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+      toast.error('Failed to load notifications');
+    }
+  }, [user?.role]);
+
+  // Generate system notifications based on database state
+  const generateSystemNotifications = useCallback(async () => {
+    const systemNotifications = [];
+
+    try {
+      // Check for failed login attempts
+      const { data: failedLogins } = await supabase
+        .from('login_sessions')
+        .select('created_at')
+        .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+        .limit(1);
+
+      if (failedLogins && failedLogins.length > 0) {
+        systemNotifications.push({
+          id: 'system-failed-logins',
+          type: 'warning',
+          message: 'Failed login attempts detected in the last 24 hours',
+          title: 'Security Alert',
+          time: '1 hour ago',
+          read: false,
+          severity: 'warning'
+        });
+      }
+
+      // Check storage usage (simulated)
+      const { data: userCount } = await supabase
+        .from('user_profiles')
+        .select('id', { count: 'exact' });
+
+      if (userCount && userCount.length > 1000) {
+        systemNotifications.push({
+          id: 'system-storage-warning',
+          type: 'warning',
+          message: 'Storage usage is approaching capacity limit',
+          title: 'Storage Warning',
+          time: '2 hours ago',
+          read: false,
+          severity: 'warning'
+        });
+      }
+
+      // Check for system maintenance needs
+      const { data: systemSettings } = await supabase
+        .from('system_settings')
+        .select('maintenance_mode, debug_mode')
+        .eq('id', 1)
+        .single();
+
+      if (systemSettings?.maintenance_mode) {
+        systemNotifications.push({
+          id: 'system-maintenance',
+          type: 'info',
+          message: 'System is currently in maintenance mode',
+          title: 'Maintenance Notice',
+          time: '30 minutes ago',
+          read: false,
+          severity: 'info'
+        });
+      }
+
+      if (systemSettings?.debug_mode) {
+        systemNotifications.push({
+          id: 'system-debug-mode',
+          type: 'info',
+          message: 'Debug mode is currently enabled',
+          title: 'Debug Mode Active',
+          time: '1 hour ago',
+          read: false,
+          severity: 'info'
+        });
+      }
+
+      // Check for new user registrations
+      const { data: newUsers } = await supabase
+        .from('user_profiles')
+        .select('created_at')
+        .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+        .limit(1);
+
+      if (newUsers && newUsers.length > 0) {
+        systemNotifications.push({
+          id: 'system-new-users',
+          type: 'success',
+          message: 'New user registrations in the last 24 hours',
+          title: 'User Activity',
+          time: '3 hours ago',
+          read: false,
+          severity: 'success'
+        });
+      }
+
+    } catch (error) {
+      console.error('Error generating system notifications:', error);
+    }
+
+    return systemNotifications;
+  }, []);
+
+  // Helper function to get time ago
+  const getTimeAgo = (timestamp: string | Date): string => {
+    const now = new Date();
+    const past = new Date(timestamp);
+    const diffInMs = now.getTime() - past.getTime();
+    const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
+    const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+    const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+
+    if (diffInMinutes < 1) return 'Just now';
+    if (diffInMinutes < 60) return `${diffInMinutes} minutes ago`;
+    if (diffInHours < 24) return `${diffInHours} hours ago`;
+    if (diffInDays < 7) return `${diffInDays} days ago`;
+    return past.toLocaleDateString();
+  };
+
+  // Helper function to get time in minutes for sorting
+  const getTimeInMinutes = (timeString: string): number => {
+    if (timeString === 'Just now') return 0;
+    if (timeString.includes('minutes')) {
+      const minutes = parseInt(timeString.match(/(\d+)/)?.[1] || '0');
+      return minutes;
+    }
+    if (timeString.includes('hours')) {
+      const hours = parseInt(timeString.match(/(\d+)/)?.[1] || '0');
+      return hours * 60;
+    }
+    if (timeString.includes('days')) {
+      const days = parseInt(timeString.match(/(\d+)/)?.[1] || '0');
+      return days * 24 * 60;
+    }
+    return 999999; // For dates, put them at the end
+  };
+
   // Memoized notification handling
-  const markNotificationAsRead = useCallback((id: number) => {
+  const markNotificationAsRead = useCallback((id: string) => {
     setNotifications(prev => 
       prev.map(notif => 
         notif.id === id ? { ...notif, read: true } : notif
@@ -764,6 +1561,93 @@ const DashboardOverview: React.FC = () => {
     [notifications]
   );
 
+  // Handle notification creation
+  const handleCreateNotification = async () => {
+    try {
+      if (!user?.id) {
+        toast.error('No user found');
+        return;
+      }
+      if (!notificationForm.title || !notificationForm.message) {
+        toast.error('Please fill out all notification fields');
+        return;
+      }
+
+      setCreatingNotification(true);
+
+      // Calculate expiration date if time interval is set
+      let expiresAt = null;
+      if (notificationForm.timeInterval !== 'none' && notificationForm.timeValue > 0) {
+        const now = new Date();
+        switch (notificationForm.timeInterval) {
+          case 'hours':
+            expiresAt = new Date(now.getTime() + (notificationForm.timeValue * 60 * 60 * 1000));
+            break;
+          case 'days':
+            expiresAt = new Date(now.getTime() + (notificationForm.timeValue * 24 * 60 * 60 * 1000));
+            break;
+          case 'weeks':
+            expiresAt = new Date(now.getTime() + (notificationForm.timeValue * 7 * 24 * 60 * 60 * 1000));
+            break;
+          case 'months':
+            expiresAt = new Date(now.getTime() + (notificationForm.timeValue * 30 * 24 * 60 * 60 * 1000));
+            break;
+          default:
+            expiresAt = null;
+        }
+      }
+
+      const { error } = await supabase
+        .from('notifications')
+        .insert([{
+          title: notificationForm.title,
+          message: notificationForm.message,
+          severity: notificationForm.severity,
+          audience: notificationForm.audience,
+          priority: notificationForm.priority,
+          expires_at: expiresAt,
+          created_by: user.id,
+          is_active: true
+        }]);
+
+      if (error) {
+        throw error;
+      }
+
+      toast.success('Notification sent successfully to all users!');
+      setNotificationForm({ title: '', message: '', severity: 'announcement', audience: 'all', priority: 1, timeInterval: 'none', timeValue: 1 });
+      setShowNotificationForm(false);
+      
+      // Refresh notifications
+      fetchNotifications();
+      
+    } catch (err) {
+      console.error('Error creating notification:', err);
+      toast.error('Failed to send notification');
+    } finally {
+      setCreatingNotification(false);
+    }
+  };
+
+  // Fetch notifications when component mounts
+  useEffect(() => {
+    fetchNotifications();
+  }, [fetchNotifications]);
+
+  // Close notifications modal when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (showNotificationsModal && !target.closest('.notifications-modal')) {
+        setShowNotificationsModal(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showNotificationsModal]);
 
 
   return (
@@ -809,21 +1693,207 @@ const DashboardOverview: React.FC = () => {
                 Refresh
               </motion.button>
               <div className="relative">
-                <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm border border-white/30">
-                  <Bell className="w-5 h-5 text-white cursor-pointer" />
-                  {unreadCount > 0 && (
-                    <motion.span 
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center text-[10px] font-bold"
+                
+                
+                {/* Notifications Popup Modal */}
+                {showNotificationsModal && createPortal(
+                  <>
+                    {/* Backdrop */}
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="fixed inset-0 bg-black/20 z-[999998] notifications-modal-backdrop"
+                      onClick={() => setShowNotificationsModal(false)}
+                      style={{
+                        zIndex: 999998,
+                        position: 'fixed',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        backgroundColor: 'rgba(0, 0, 0, 0.2)'
+                      }}
+                    />
+                    
+                    {/* Modal */}
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                      transition={{ duration: 0.2 }}
+                      className="notifications-modal fixed right-6 top-20 w-96 bg-[#252728] rounded-xl shadow-2xl border border-gray-700 z-[999999] max-h-[500px] overflow-hidden"
+                      style={{
+                        zIndex: 999999,
+                        position: 'fixed',
+                        top: '5rem',
+                        right: '1.5rem',
+                        width: '24rem',
+                        maxHeight: '500px',
+                        backgroundColor: '#252728',
+                        borderRadius: '0.75rem',
+                        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.8), 0 10px 10px -5px rgba(0, 0, 0, 0.4)',
+                        border: '1px solid #4b5563',
+                        isolation: 'isolate'
+                      }}
                     >
-                      {unreadCount}
-                    </motion.span>
-                  )}
-                </div>
-              </div>
+                    {/* Modal Header */}
+                    <div className="flex items-center justify-between p-4 border-b border-gray-700 bg-[#2f3133] relative z-[999999]">
+                      <h3 className="text-lg font-semibold text-white">Notifications</h3>
+                      <button
+                        onClick={() => setShowNotificationsModal(false)}
+                        className="p-1 text-gray-400 hover:text-white hover:bg-gray-600 rounded-lg transition-colors duration-200"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                    
+                    {/* Notifications List */}
+                    <div className="max-h-[400px] overflow-y-auto custom-dashboard-scrollbar relative z-[999999]">
+                      {notifications.length === 0 ? (
+                        <div className="p-6 text-center">
+                          <div className="w-16 h-16 mx-auto mb-3 bg-gray-700 rounded-full flex items-center justify-center">
+                            <Bell className="w-8 h-8 text-gray-400" />
+                          </div>
+                          <p className="text-gray-400 text-sm">No notifications</p>
+                          <p className="text-gray-500 text-xs mt-1">You're all caught up!</p>
+                        </div>
+                      ) : (
+                        <div className="p-2">
+                          {notifications.map((notification, i) => (
+                            <motion.div 
+                              key={notification.id}
+                              initial={{ opacity: 0, x: 20 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ duration: 0.3, delay: i * 0.1 }}
+                              onClick={() => markNotificationAsRead(notification.id)}
+                              className={`p-3 rounded-lg cursor-pointer transition-colors duration-200 hover:bg-[#2f3133] mb-2 ${
+                                notification.read ? 'bg-[#252728]' : 'bg-[#2f3133]'
+                              }`}
+                            >
+                              <div className="flex items-start space-x-3">
+                                <div 
+                                  className={`p-2 rounded-full flex-shrink-0 ${
+                                    notification.severity === 'info' ? 'bg-blue-900' : 
+                                    notification.severity === 'success' ? 'bg-green-900' : 
+                                    notification.severity === 'warning' ? 'bg-yellow-900' : 
+                                    notification.severity === 'error' ? 'bg-red-900' :
+                                    notification.severity === 'announcement' ? 'bg-purple-900' :
+                                    notification.severity === 'reminder' ? 'bg-orange-900' :
+                                    notification.severity === 'deadline' ? 'bg-red-800' :
+                                    notification.severity === 'exam' ? 'bg-indigo-900' :
+                                    notification.severity === 'meeting' ? 'bg-teal-900' :
+                                    notification.severity === 'advisory' ? 'bg-amber-900' : 'bg-gray-900'
+                                  }`}
+                                >
+                                  {notification.severity === 'announcement' ? (
+                                    <svg className="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.5a.5.5 0 01.5-.5h1a.5.5 0 01.5.5v1a.5.5 0 01-.5.5h-1a.5.5 0 01-.5-.5v-1zM11 11a1 1 0 011-1h1a1 1 0 011 1v1a1 1 0 01-1 1h-1a1 1 0 01-1-1v-1zM11 16.5a.5.5 0 01.5-.5h1a.5.5 0 01.5.5v1a.5.5 0 01-.5.5h-1a.5.5 0 01-.5-.5v-1zM5.5 11a.5.5 0 01.5-.5h1a.5.5 0 01.5.5v1a.5.5 0 01-.5.5h-1a.5.5 0 01-.5-.5v-1zM16.5 11a.5.5 0 01.5-.5h1a.5.5 0 01.5.5v1a.5.5 0 01-.5.5h-1a.5.5 0 01-.5-.5v-1z" />
+                                    </svg>
+                                  ) : notification.severity === 'reminder' ? (
+                                    <svg className="w-4 h-4 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                  ) : notification.severity === 'deadline' ? (
+                                    <svg className="w-4 h-4 text-red-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                  ) : notification.severity === 'exam' ? (
+                                    <svg className="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                  ) : notification.severity === 'meeting' ? (
+                                    <svg className="w-4 h-4 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                    </svg>
+                                  ) : notification.severity === 'advisory' ? (
+                                    <svg className="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                                    </svg>
+                                  ) : notification.severity === 'info' ? (
+                                    <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                  ) : notification.severity === 'success' ? (
+                                    <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                  ) : notification.severity === 'warning' ? (
+                                    <svg className="w-4 h-4 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                                    </svg>
+                                  ) : notification.severity === 'error' ? (
+                                    <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                  ) : (
+                                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  {notification.title && (
+                                    <p className={`text-xs font-semibold uppercase tracking-wide mb-1 ${
+                                      notification.read ? 'text-gray-400' : 'text-gray-200'
+                                    }`}>
+                                      {notification.title}
+                                    </p>
+                                  )}
+                                  <p className={`text-sm font-medium ${
+                                    notification.read ? 'text-gray-300' : 'text-white'
+                                  } line-clamp-2`}>
+                                    {notification.message}
+                                  </p>
+                                  <div className="flex items-center gap-2 text-xs text-gray-400 mt-1">
+                                    <span>{notification.time}</span>
+                                    {notification.expires_at && (
+                                      <span className="text-orange-400">
+                                        • Expires: {getTimeAgo(notification.expires_at)}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                {!notification.read && (
+                                  <motion.div 
+                                    initial={{ scale: 0 }}
+                                    animate={{ scale: 1 }}
+                                    className="w-2 h-2 bg-blue-400 rounded-full flex-shrink-0"
+                                  />
+                                )}
+                              </div>
+                            </motion.div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Modal Footer */}
+                    <div className="p-3 border-t border-gray-700 bg-[#2f3133] relative z-[999999]">
+                      <div className="flex items-center justify-between text-xs text-gray-400">
+                        <span>{unreadCount} unread</span>
+                        <button
+                          onClick={() => {
+                            // Mark all as read functionality
+                            setNotifications(prev => 
+                              prev.map(notif => ({ ...notif, read: true }))
+                            );
+                          }}
+                          className="text-blue-400 hover:text-blue-300 transition-colors duration-200"
+                        >
+                          Mark all as read
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                </>,
+                document.body
+              )}
             </div>
           </div>
+        </div>
         </div>
       </motion.div>
 
@@ -943,7 +2013,7 @@ const DashboardOverview: React.FC = () => {
                 delay={0.1}
               />
               <DashboardCard 
-                title="Active Courses" 
+                title="Active Subjects"
                 value={stats.totalCourses} 
                 subtitle="↑ 5% from last week" 
                 icon={<BookOpen className="w-6 h-6 text-green-600" />}
@@ -1013,77 +2083,147 @@ const DashboardOverview: React.FC = () => {
                   ))}
                 </div>
               </motion.div>
+
+              {/* Notification Creation Section - Right Side */}
               <motion.div 
-                className="admindashboard-notifications-card neumorphic-dark p-6 rounded-xl h-[300px]"
+                className="admindashboard-notification-card neumorphic-dark p-6 rounded-xl h-[300px]"
                 style={{ backgroundColor: '#252728' }}
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.5, delay: 0.4 }}
               >
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-white">Notifications</h3>
-                  <div className="relative">
-                    <Bell className="w-5 h-5 text-gray-400" />
-                    {unreadCount > 0 && (
-                      <motion.span 
-                        initial={{ scale: 0 }}
-                        animate={{ 
-                          scale: [1, 1.2, 1],
-                          boxShadow: [
-                            '0 0 0 0 rgba(239, 68, 68, 0.7)',
-                            '0 0 0 5px rgba(239, 68, 68, 0)', 
-                            '0 0 0 0 rgba(239, 68, 68, 0.7)'
-                          ]
-                        }}
-                        transition={{ duration: 2, repeat: Infinity }}
-                        className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"
-                      />
-                    )}
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-blue-600/20">
+                      <Bell className="w-5 h-5 text-blue-400" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-white">Send Notification</h3>
                   </div>
+                  <button
+                    onClick={() => setShowNotificationForm(!showNotificationForm)}
+                    className={`p-2 rounded-lg transition-colors duration-200 ${
+                      showNotificationForm 
+                        ? 'bg-gray-600 hover:bg-gray-700 text-white' 
+                        : 'bg-blue-600 hover:bg-blue-700 text-white'
+                    }`}
+                  >
+                    {showNotificationForm ? (
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    ) : (
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                    )}
+                  </button>
                 </div>
-                <div className="space-y-4 overflow-y-auto h-[220px] custom-dashboard-scrollbar pr-2">
-                  {notifications.map((notification, i) => (
-                    <motion.div 
-                      key={notification.id}
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ duration: 0.5, delay: 0.5 + (i * 0.1) }}
-                      onClick={() => markNotificationAsRead(notification.id)}
-                      className={`p-3 rounded-lg cursor-pointer ${
-                        notification.read ? 'bg-[#252728]' : 'bg-[#2f3133]'
-                      }`}
-                    >
-                      <div className="flex items-start space-x-3">
-                        <div 
-                          className={`p-2 rounded-full ${
-                            notification.type === 'info' ? 'bg-blue-900' : 
-                            notification.type === 'success' ? 'bg-green-900' : 
-                            notification.type === 'warning' ? 'bg-yellow-900' : 'bg-red-900'
-                          }`}
+
+                {!showNotificationForm ? (
+                  <div className="text-center py-6">
+                    <div className="w-12 h-12 mx-auto mb-3 bg-blue-600/20 rounded-full flex items-center justify-center">
+                      <Bell className="w-6 h-6 text-blue-400" />
+                    </div>
+                    <p className="text-gray-400 text-sm mb-1">Create notifications for all users</p>
+                    <p className="text-gray-500 text-xs">Click the + button to get started</p>
+                  </div>
+                ) : (
+                  <div className="space-y-0">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-300 mb-1">Title *</label>
+                      <input
+                        type="text"
+                        value={notificationForm.title}
+                        onChange={(e) => setNotificationForm(prev => ({ ...prev, title: e.target.value }))}
+                        className="w-full px-2 py-1.5 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-[#1c1c1d] text-white placeholder-gray-400 text-xs"
+                        placeholder="Enter notification title"
+                        required
+                      />
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-300 mb-1">Severity *</label>
+                        <select
+                          value={notificationForm.severity}
+                          onChange={(e) => setNotificationForm(prev => ({ ...prev, severity: e.target.value }))}
+                          className="w-full px-2 py-1.5 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-[#1c1c1d] text-white text-xs"
+                          required
                         >
-                          <div className={`w-4 h-4 ${
-                            notification.type === 'info' ? 'text-blue-400' : 
-                            notification.type === 'success' ? 'text-green-400' : 
-                            notification.type === 'warning' ? 'text-yellow-400' : 'text-red-400'
-                          }`} />
-                        </div>
-                        <div className="flex-1">
-                          <p className={`text-sm font-medium ${
-                            notification.read ? 'text-gray-300' : 'text-white'
-                          }`}>
-                            {notification.message}
-                          </p>
-                          <p className="text-xs text-gray-400 mt-1">
-                            {notification.time}
-                          </p>
-                        </div>
-                        {!notification.read && (
-                          <div className="w-2 h-2 bg-blue-400 rounded-full" />
-                        )}
+                          <option value="announcement">Announcement</option>
+                          <option value="reminder">Reminder</option>
+                          <option value="deadline">Deadline</option>
+                          <option value="exam">Exam</option>
+                          <option value="meeting">Meeting</option>
+                          <option value="advisory">Advisory</option>
+                          <option value="info">Info</option>
+                          <option value="success">Success</option>
+                          <option value="warning">Warning</option>
+                          <option value="error">Error</option>
+                        </select>
                       </div>
-                    </motion.div>
-                  ))}
-                </div>
+
+                                              <div>
+                          <label className="block text-xs font-medium text-gray-300 mb-1">Audience *</label>
+                          <select
+                            value={notificationForm.audience}
+                            onChange={(e) => setNotificationForm(prev => ({ ...prev, audience: e.target.value }))}
+                            className="w-full px-2 py-1.5 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-[#1c1c1d] text-white text-xs"
+                            required
+                          >
+                            <option value="all">All Users</option>
+                            <option value="admin">Admins Only</option>
+                            <option value="instructor">Instructors Only</option>
+                            <option value="student">Students Only</option>
+                            <option value="registrar">Registrar Only</option>
+                            <option value="programhead">Program Heads Only</option>
+                          </select>
+                        </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-300 mb-1">Message *</label>
+                      <textarea
+                        value={notificationForm.message}
+                        onChange={(e) => setNotificationForm(prev => ({ ...prev, message: e.target.value }))}
+                        rows={2}
+                        className="w-full px-2 py-1.5 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-[#1c1c1d] text-white placeholder-gray-400 text-xs resize-none"
+                        placeholder="Enter notification message..."
+                        required
+                      />
+                    </div>
+
+                    <div className="flex gap-2 pt-1">
+                      <button
+                        onClick={() => setShowNotificationForm(false)}
+                        className="flex-1 px-2 py-1.5 bg-gray-600 hover:bg-gray-700 text-white text-xs font-medium rounded-lg transition-colors duration-200"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleCreateNotification}
+                        disabled={creatingNotification}
+                        className={`flex-1 px-2 py-1.5 rounded-lg text-white font-medium flex items-center justify-center gap-1.5 transition-colors duration-200 ${
+                          creatingNotification 
+                            ? 'bg-blue-600 cursor-not-allowed' 
+                            : 'bg-blue-600 hover:bg-blue-700'
+                        }`}
+                      >
+                        {creatingNotification ? (
+                          <>
+                            <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                            <span className="text-xs">Sending...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Bell className="w-3 h-3" />
+                            <span className="text-xs">Send</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </motion.div>
             </div>
           </motion.div>
