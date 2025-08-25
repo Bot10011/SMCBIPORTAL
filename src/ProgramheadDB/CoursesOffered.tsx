@@ -11,7 +11,7 @@ import './dashboard.css';
 
 // Utility function to crop image
 function getCroppedImg(
-  imageSrc: string,
+  imageSrc: string, 
   crop: { x: number; y: number },
   zoom: number,
   aspect: number,
