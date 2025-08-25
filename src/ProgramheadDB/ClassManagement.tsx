@@ -5,7 +5,7 @@ import { toast } from 'react-hot-toast';
 interface StudentProfile {
   id: string; // UUID
   student_id?: string; // human-readable id
-  first_name?: string;
+  first_name?: string; 
   last_name?: string; 
   middle_name?: string;
   year_level?: string;
@@ -589,4 +589,5 @@ const ClassManagement: React.FC = () => {
 };
 
 export default ClassManagement;
+
 
