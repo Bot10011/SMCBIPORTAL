@@ -1,589 +1,924 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { toast } from 'react-hot-toast';
+import { Search, RefreshCw, ChevronDown, ChevronRight, Edit, Trash2 } from 'lucide-react';
 
-interface StudentProfile {
-  id: string; // UUID
-  student_id?: string; // human-readable id
-  first_name?: string; 
-  last_name?: string; 
-  middle_name?: string;
-  year_level?: string;
+type StudentRow = {
+  id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  middle_name?: string | null;
+  student_id?: string | null;
+  year_level?: number | string | null;
   section?: string | null;
-  enrollment_status?: string | null;
-  student_type?: string | null;
-  role?: string | null;
-}
+  is_active?: boolean;
+};
 
-const YEAR_LEVELS = ['1st Year', '2nd Year', '3rd Year', '4th Year'] as const;
-type YearLevel = typeof YEAR_LEVELS[number];
-
-const MAX_STUDENTS_PER_SECTION = 40;
-
-const getNextSectionLabel = (existing: string[]): string => {
-  // Existing labels like 'A', 'B', 'C' ...
-  const used = new Set(existing.map(s => (s || '').toUpperCase()).filter(Boolean));
-  // Try A..Z
-  for (let i = 0; i < 26; i++) {
-    const label = String.fromCharCode('A'.charCodeAt(0) + i);
-    if (!used.has(label)) return label;
-  }
-  // If we ever exceed Z, fall back to AA, AB, AC...
-  let prefixIndex = 0;
-  while (true) {
-    const prefix = String.fromCharCode('A'.charCodeAt(0) + (prefixIndex % 26)) + String.fromCharCode('A'.charCodeAt(0) + Math.floor(prefixIndex / 26));
-    if (!used.has(prefix)) return prefix;
-    prefixIndex++;
-  }
+type SectionRow = {
+  id: string;
+  name: string;
+  year_level: number | null;
+  academic_year?: string | null;
 };
 
 const ClassManagement: React.FC = () => {
   const [loading, setLoading] = useState(false);
-  const [students, setStudents] = useState<StudentProfile[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [students, setStudents] = useState<StudentRow[]>([]);
+  const [query, setQuery] = useState('');
+  const [studentYearFilter, setStudentYearFilter] = useState<'all' | number>('all');
+  const [assignmentFilter, setAssignmentFilter] = useState<'all' | 'assigned' | 'unassigned'>('all');
+  const [expandedYears, setExpandedYears] = useState<Record<string, boolean>>({});
+  const [activeTab, setActiveTab] = useState<'unassigned' | 'sections'>('unassigned');
 
-  const loadStudents = async () => {
-    setLoading(true);
+  // Sections tab state
+  const [sections, setSections] = useState<SectionRow[]>([]);
+  const [sectionYear, setSectionYear] = useState<number>(1);
+  const [newSection, setNewSection] = useState<{ name: string; year_level: number; academic_year: string }>({ name: '', year_level: 1, academic_year: '' });
+  const [selectedSectionId, setSelectedSectionId] = useState<string>('');
+  const [selectedStudentIds, setSelectedStudentIds] = useState<Record<string, boolean>>({});
+  const [createLoading, setCreateLoading] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [viewingSection, setViewingSection] = useState<SectionRow | null>(null);
+  const [sectionStudentsLoading, setSectionStudentsLoading] = useState(false);
+  const [sectionStudents, setSectionStudents] = useState<StudentRow[]>([]);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingSection, setEditingSection] = useState<SectionRow | null>(null);
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [autoAssignLoading, setAutoAssignLoading] = useState(false);
+  const [autoAssignError, setAutoAssignError] = useState<string | null>(null);
+  const [sectionStudentCounts, setSectionStudentCounts] = useState<Record<string, number>>({});
+
+  function getNextSectionName(baseName: string | null | undefined): string {
+    const name = (baseName || '').trim();
+    if (!name) return 'A';
+    const match = name.match(/([A-Za-z])$/);
+    if (!match) return 'A';
+    const last = match[1].toUpperCase();
+    if (last === 'Z') return 'A';
+    return String.fromCharCode(last.charCodeAt(0) + 1);
+  }
+
+  function getDefaultAcademicYear(): string {
+    const now = new Date();
+    const year = now.getMonth() >= 5 ? now.getFullYear() : now.getFullYear() - 1; // academic year often starts mid-year
+    const next = year + 1;
+    return `${year}-${next}`;
+  }
+
+  async function autoAssignSections() {
+    setAutoAssignLoading(true);
+    setAutoAssignError(null);
     try {
-      console.log('Starting to load students...');
-      
-      // Try multiple approaches to get students
-      let studentsArray: StudentProfile[] = [];
-      
-      // Approach 1: Try to get students from enrollcourse table
-      try {
-        console.log('Trying to fetch from enrollcourse table...');
-        const { data: enrollments, error: enrollError } = await supabase
-          .from('enrollcourse')
-          .select(`
-            student_id,
-            student:user_profiles!student_id(
-              id,
-              student_id,
-              first_name,
-              last_name,
-              middle_name,
-              year_level,
-              section,
-              enrollment_status,
-              student_type
-            )
-          `);
-        
-        if (!enrollError && enrollments && enrollments.length > 0) {
-          console.log('Successfully fetched from enrollcourse:', enrollments.length, 'enrollments');
-          
-          // Extract unique students from enrollments
-          const uniqueStudents = new Map<string, StudentProfile>();
-          
-          enrollments.forEach((enrollment: any) => {
-            if (enrollment.student && !uniqueStudents.has(enrollment.student.id)) {
-              uniqueStudents.set(enrollment.student.id, enrollment.student);
-            }
-          });
-          
-          studentsArray = Array.from(uniqueStudents.values()).filter(s => s.year_level);
-          console.log('Extracted students from enrollments:', studentsArray.length);
-        } else {
-          console.warn('No enrollments found or error:', enrollError);
-        }
-      } catch (e) {
-        console.warn('Enrollment fetch failed:', e);
-      }
-      
-      // Approach 2: If no students from enrollments, try direct user_profiles
-      if (studentsArray.length === 0) {
-        try {
-          console.log('Trying to fetch directly from user_profiles...');
-          const { data: directStudents, error: directError } = await supabase
-            .from('user_profiles')
-            .select('id, student_id, first_name, last_name, middle_name, year_level, section, enrollment_status, student_type')
-            .eq('role', 'student');
-          
-          if (!directError && directStudents) {
-            console.log('Successfully fetched from user_profiles:', directStudents.length, 'students');
-            studentsArray = directStudents.filter(s => s.year_level);
-            console.log('Filtered students with year_level:', studentsArray.length);
-          } else {
-            console.warn('Direct user_profiles fetch failed:', directError);
-          }
-        } catch (e) {
-          console.warn('Direct user_profiles fetch failed:', e);
-        }
-      }
-      
-      // Approach 3: If still no students, try without role filter
-      if (studentsArray.length === 0) {
-        try {
-          console.log('Trying to fetch all user_profiles without role filter...');
-          const { data: allUsers, error: allUsersError } = await supabase
-            .from('user_profiles')
-            .select('id, student_id, first_name, last_name, middle_name, year_level, section, enrollment_status, student_type, role');
-          
-          if (!allUsersError && allUsers) {
-            console.log('Successfully fetched all users:', allUsers.length, 'users');
-            // Filter for users that look like students (have student_id or year_level)
-            studentsArray = allUsers.filter(s => 
-              s.student_id || s.year_level || 
-              (s.first_name && s.last_name && !s.role) // Assume users with names but no role are students
-            );
-            console.log('Filtered potential students:', studentsArray.length);
-          } else {
-            console.warn('All users fetch failed:', allUsersError);
-          }
-        } catch (e) {
-          console.warn('All users fetch failed:', e);
-        }
-      }
-      
-      // Log final results
-      console.log('Final students array:', studentsArray);
-      console.log('Students with year_level:', studentsArray.filter(s => s.year_level).length);
-      console.log('Students without year_level:', studentsArray.filter(s => !s.year_level).length);
-      
-      // Set students even if some don't have year_level (we'll handle this in the UI)
-      setStudents(studentsArray);
-      
-      if (studentsArray.length === 0) {
-        toast.error('No students found. Please check the database connection and data.');
-      } else {
-        toast.success(`Loaded ${studentsArray.length} students`);
-      }
-      
-    } catch (e) {
-      console.error('Failed to load students:', e);
-      toast.error('Failed to load students');
-    } finally {
-      setLoading(false);
-    }
-  };
+      // Refresh latest sections
+      await fetchSections();
 
-  const studentsByYear = useMemo(() => {
-    const map: Record<YearLevel, StudentProfile[]> = {
-      '1st Year': [],
-      '2nd Year': [],
-      '3rd Year': [],
-      '4th Year': []
-    };
-    
-    console.log('Processing students for year grouping:', students.length);
-    
-    for (const s of students) {
-      const yl = (s.year_level || '').trim();
-      console.log(`Student ${s.first_name} ${s.last_name}: year_level = "${yl}"`);
-      
-      if (YEAR_LEVELS.includes(yl as YearLevel)) {
-        map[yl as YearLevel].push(s);
-        console.log(`Added to ${yl}`);
-      } else if (yl) {
-        console.log(`Unknown year level: "${yl}"`);
-      } else {
-        console.log(`No year level for student: ${s.first_name} ${s.last_name}`);
+      const targetYear = Number(sectionYear);
+
+      // 1) Get all unassigned students with year level for the selected year only
+      const { data: unassigned, error: unassignedError } = await supabase
+        .from('user_profiles')
+        .select('id, year_level')
+        .eq('role', 'student')
+        .is('section', null);
+      if (unassignedError) throw unassignedError;
+      const unassignedForYear = (unassigned || []).filter(s => Number((s as { year_level: number | string | null }).year_level || 0) === targetYear);
+
+      // 2) Build current section counts for selected year by reading assigned students
+      const { data: assignedRows, error: assignedError } = await supabase
+        .from('user_profiles')
+        .select('id, section')
+        .not('section', 'is', null);
+      if (assignedError) throw assignedError;
+      const sectionCounts = new Map<string, number>();
+      const targetYearSectionIds = new Set(
+        sections.filter(s => Number(s.year_level || 0) === targetYear).map(s => s.id)
+      );
+      (assignedRows || []).forEach(row => {
+        const sec = (row as { section: string | null }).section;
+        if (sec && targetYearSectionIds.has(sec)) sectionCounts.set(sec, (sectionCounts.get(sec) || 0) + 1);
+      });
+
+      // 3) Group sections by year level for quick access
+      const sectionsByYear = new Map<number, SectionRow[]>();
+      sections.forEach(s => {
+        const yl = Number(s.year_level || 0);
+        if (!sectionsByYear.has(yl)) sectionsByYear.set(yl, []);
+        sectionsByYear.get(yl)!.push(s);
+      });
+      // Sort sections by name for a stable order
+      sectionsByYear.forEach(list => list.sort((a, b) => (a.name || '').localeCompare(b.name || '')));
+
+      // 4) Prepare batch updates per section id
+      const updatesBySection = new Map<string, string[]>();
+
+      for (const student of unassignedForYear) {
+        const year = targetYear;
+
+        // Ensure we have a section list for this year
+        if (!sectionsByYear.has(year)) sectionsByYear.set(year, []);
+        let yearSections = sectionsByYear.get(year)!;
+
+        // Find first section with available capacity (< 40)
+        let target: SectionRow | null = null;
+        for (const sec of yearSections) {
+          const count = sectionCounts.get(sec.id) || 0;
+          if (count < 40) { target = sec; break; }
+        }
+
+        // If none available, create a new section by incrementing the last letter
+        if (!target) {
+          // Use last existing section as base for naming
+          const base = yearSections.length > 0 ? yearSections[yearSections.length - 1] : null;
+          const newName = `IT ${year}${getNextSectionName(base?.name || 'A')}`;
+          const academicYear = base?.academic_year || getDefaultAcademicYear();
+          const { data: created, error: createErr } = await supabase
+            .from('sections')
+            .insert([{ name: newName, year_level: year, academic_year: academicYear }])
+            .select('id, name, year_level, academic_year')
+            .single();
+          if (createErr) throw createErr;
+          const createdSection = created as SectionRow;
+          // Push to local structures
+          yearSections.push(createdSection);
+          sectionsByYear.set(year, yearSections);
+          sectionCounts.set(createdSection.id, 0);
+          setSections(prev => [...prev, createdSection]);
+          target = createdSection;
+        }
+
+        if (target) {
+          const current = sectionCounts.get(target.id) || 0;
+          if (current >= 40) continue; // safety guard
+          sectionCounts.set(target.id, current + 1);
+          const list = updatesBySection.get(target.id) || [];
+          list.push((student as { id: string }).id);
+          updatesBySection.set(target.id, list);
+        }
       }
+
+      // 5) Perform batch updates per section id
+      for (const [sectionId, studentIds] of updatesBySection.entries()) {
+        if (studentIds.length === 0) continue;
+        const { error: updErr } = await supabase
+          .from('user_profiles')
+          .update({ section: sectionId })
+          .in('id', studentIds);
+        if (updErr) throw updErr;
+      }
+
+      // Refresh unassigned list
+      await fetchStudents();
+    } catch (e: unknown) {
+      const msg = (e as { message?: string })?.message || 'Auto-assign failed';
+      setAutoAssignError(msg);
+      console.error('Auto-assign error:', e);
+    } finally {
+      setAutoAssignLoading(false);
     }
-    
-    console.log('Final year grouping:', {
-      '1st Year': map['1st Year'].length,
-      '2nd Year': map['2nd Year'].length,
-      '3rd Year': map['3rd Year'].length,
-      '4th Year': map['4th Year'].length
-    });
-    
-    return map;
-  }, [students]);
+  }
 
   useEffect(() => {
-    loadStudents();
+    void fetchStudents();
+    void fetchSections();
   }, []);
 
-  const assignSingleStudentForYear = async (studentId: string, year: YearLevel) => {
+  async function fetchStudents() {
+    setLoading(true);
+    setError(null);
     try {
       const { data, error } = await supabase
         .from('user_profiles')
-        .select('id, section')
+        .select('id, email, first_name, last_name, middle_name, student_id, year_level, section, is_active, role')
         .eq('role', 'student')
-        .eq('year_level', year);
+        .order('year_level', { ascending: true })
+        .order('last_name', { ascending: true });
+
       if (error) throw error;
 
-      const counts: Record<string, number> = {};
-      for (const row of (data as Array<{ id: string; section: string | null }> | null) || []) {
-        const label = (row.section || '').toUpperCase();
-        if (!label) continue;
-        counts[label] = (counts[label] || 0) + 1;
-      }
+      const sanitized = (data || []).map((row: any) => ({
+        id: row.id,
+        email: row.email,
+        first_name: row.first_name,
+        last_name: row.last_name,
+        middle_name: row.middle_name ?? null,
+        student_id: row.student_id ?? null,
+        year_level: row.year_level ?? null,
+        section: row.section ?? null,
+        is_active: row.is_active,
+      })) as StudentRow[];
 
-      const labels = Object.keys(counts).sort();
-      let chosen = '';
-      for (const l of labels) {
-        if (counts[l] < MAX_STUDENTS_PER_SECTION) {
-          chosen = l;
-          break;
-        }
-      }
-      if (!chosen) {
-        chosen = getNextSectionLabel(labels);
-      }
-
-      const { error: updErr } = await supabase
-        .from('user_profiles')
-        .update({ section: chosen })
-        .eq('id', studentId);
-      if (updErr) throw updErr;
-      toast.success(`Assigned student to section ${chosen} (${year})`);
-    } catch (e) {
-      console.error('Assign single student failed', e);
-      toast.error('Failed to assign section for new student');
-    }
-  };
-
-  useEffect(() => {
-    // Listen for newly created students and auto-assign their section
-    const channel = supabase
-      .channel('user_profiles_new_student_auto_assign')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'user_profiles' }, async (payload) => {
-        try {
-          const s = payload.new as any;
-          if (!s) return;
-          if (String(s.role) !== 'student') return;
-          const yl = String(s.year_level || '').trim();
-          const year = (YEAR_LEVELS.find(y => y.toLowerCase() === yl.toLowerCase()) as YearLevel | undefined);
-          if (!year) return;
-          // Only auto-assign if no section yet
-          if (s.section && String(s.section).trim() !== '') return;
-          await assignSingleStudentForYear(String(s.id), year);
-          await loadStudents();
-        } catch (err) {
-          console.error('Realtime auto-assign error', err);
-        }
-      })
-      .subscribe();
-
-    // Also listen for new enrollments
-    const enrollmentChannel = supabase
-      .channel('enrollcourse_new_enrollment_auto_assign')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'enrollcourse' }, async (payload) => {
-        try {
-          const enrollment = payload.new as any;
-          if (!enrollment) return;
-          
-          // Get the student profile for this enrollment
-          const { data: studentData, error: studentError } = await supabase
-            .from('user_profiles')
-            .select('id, year_level, section')
-            .eq('id', enrollment.student_id)
-            .single();
-          
-          if (studentError || !studentData) return;
-          
-          const yl = String(studentData.year_level || '').trim();
-          const year = (YEAR_LEVELS.find(y => y.toLowerCase() === yl.toLowerCase()) as YearLevel | undefined);
-          if (!year) return;
-          
-          // Only auto-assign if no section yet
-          if (studentData.section && String(studentData.section).trim() !== '') return;
-          
-          await assignSingleStudentForYear(String(studentData.id), year);
-          await loadStudents();
-        } catch (err) {
-          console.error('Realtime enrollment auto-assign error', err);
-        }
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-      supabase.removeChannel(enrollmentChannel);
-    };
-  }, []);
-
-  const autoAssignForYear = async (year: YearLevel) => {
-    try {
-      setLoading(true);
-      console.log(`Starting auto-assign for ${year}`);
-      
-      // Fetch current sections distribution for provided year
-      const current = studentsByYear[year] || [];
-      console.log(`Found ${current.length} students for ${year}`);
-      
-      // Work on a mutable copy of counts per section
-      const counts: Record<string, number> = {};
-      for (const s of current) {
-        const label = (s.section || '').toUpperCase();
-        if (!label) continue;
-        counts[label] = (counts[label] || 0) + 1;
-      }
-      
-      // Existing labels
-      const existingLabels = Object.keys(counts);
-      console.log(`Existing sections for ${year}:`, existingLabels);
-      
-      // Find students to assign: unassigned students
-      const toAssign = current.filter(s => !s.section || String(s.section).trim() === '');
-      console.log(`Students to assign for ${year}:`, toAssign.length);
-
-      if (toAssign.length === 0) {
-        toast(`No students to assign for ${year}`);
-        return;
-      }
-
-      // Start with section A if no sections exist
-      let currentSection = 'A';
-      if (existingLabels.length > 0) {
-        currentSection = getNextSectionLabel(existingLabels);
-      }
-
-      // Assign students to sections
-      const updates: { id: string; section: string }[] = [];
-      let sectionCount = 0;
-
-      for (const student of toAssign) {
-        // If current section is full, move to next
-        if (sectionCount >= MAX_STUDENTS_PER_SECTION) {
-          currentSection = getNextSectionLabel([...existingLabels, ...updates.map(u => u.section)]);
-          sectionCount = 0;
-        }
-        
-        updates.push({ id: student.id, section: currentSection });
-        sectionCount++;
-      }
-
-      console.log(`Updating ${updates.length} students with sections:`, updates);
-
-      // Test update with a single student first
-      if (updates.length > 0) {
-        const testUpdate = updates[0];
-        console.log('Testing update with:', testUpdate);
-        
-        const { data: testResult, error: testError } = await supabase
-          .from('user_profiles')
-          .update({ section: testUpdate.section })
-          .eq('id', testUpdate.id)
-          .select();
-        
-        if (testError) {
-          console.error('Test update failed:', testError);
-          throw testError;
-        }
-        
-        console.log('Test update successful:', testResult);
-      }
-
-      // Perform updates in chunks to avoid payload size issues
-      const chunkSize = 50;
-      for (let i = 0; i < updates.length; i += chunkSize) {
-        const chunk = updates.slice(i, i + chunkSize);
-        const { error } = await supabase
-          .from('user_profiles')
-          .upsert(chunk, { onConflict: 'id' });
-        if (error) throw error;
-      }
-
-      toast.success(`Assigned ${updates.length} student(s) to sections for ${year}`);
-      await loadStudents();
-    } catch (e) {
-      console.error('Auto-assign failed', e);
-      toast.error('Failed to auto-assign sections');
+      setStudents(sanitized);
+    } catch (e: any) {
+      setError(e?.message || 'Failed to load students');
+      setStudents([]);
     } finally {
       setLoading(false);
     }
-  };
+  }
+
+  async function fetchSections() {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data, error } = await supabase
+        .from('sections')
+        .select('id, name, year_level, academic_year')
+        .order('year_level', { ascending: true })
+        .order('name', { ascending: true });
+      if (error) throw error;
+      setSections((data || []) as SectionRow[]);
+      // Fetch student counts for each section
+      await fetchSectionStudentCounts();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch sections');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function fetchSectionStudentCounts() {
+    try {
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('section')
+        .eq('role', 'student')
+        .not('section', 'is', null);
+      if (error) throw error;
+      
+      const counts: Record<string, number> = {};
+      (data || []).forEach(student => {
+        if (student.section) {
+          counts[student.section] = (counts[student.section] || 0) + 1;
+        }
+      });
+      setSectionStudentCounts(counts);
+    } catch (err) {
+      console.error('Failed to fetch section student counts:', err);
+    }
+  }
+
+  async function handleCreateSection() {
+    if (!newSection.name.trim()) {
+      setCreateError('Section name is required');
+      return;
+    }
+    setCreateLoading(true);
+    setCreateError(null);
+    try {
+      const { data, error } = await supabase
+        .from('sections')
+        .insert([{ name: newSection.name.trim(), year_level: newSection.year_level, academic_year: newSection.academic_year || null }])
+        .select('id, name, year_level, academic_year')
+        .single();
+      if (error) throw error;
+      setSections(prev => [...prev, data as SectionRow].sort((a, b) => (Number(a.year_level) - Number(b.year_level)) || a.name.localeCompare(b.name)));
+      setNewSection({ name: '', year_level: newSection.year_level, academic_year: newSection.academic_year });
+      // keep the filter aligned to created section year
+      setSectionYear(Number(data?.year_level ?? newSection.year_level));
+      setShowCreateModal(false);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to create section';
+      setCreateError(msg);
+      console.error('Failed to create section:', e);
+    } finally {
+      setCreateLoading(false);
+    }
+  }
+
+  async function handleEditSection() {
+    if (!editingSection || !editingSection.name.trim()) {
+      setEditError('Section name is required');
+      return;
+    }
+    setEditLoading(true);
+    setEditError(null);
+    try {
+      const { data, error } = await supabase
+        .from('sections')
+        .update({ 
+          name: editingSection.name.trim(), 
+          year_level: editingSection.year_level, 
+          academic_year: editingSection.academic_year || null 
+        })
+        .eq('id', editingSection.id)
+        .select('id, name, year_level, academic_year')
+        .single();
+      if (error) throw error;
+      setSections(prev => prev.map(s => s.id === editingSection.id ? data as SectionRow : s).sort((a, b) => (Number(a.year_level) - Number(b.year_level)) || a.name.localeCompare(b.name)));
+      setShowEditModal(false);
+      setEditingSection(null);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to update section';
+      setEditError(msg);
+      console.error('Failed to update section:', e);
+    } finally {
+      setEditLoading(false);
+    }
+  }
+
+  async function handleDeleteSection(sectionId: string) {
+    if (!confirm('Are you sure you want to delete this section? This will unassign all students from this section.')) return;
+    setDeleteLoading(sectionId);
+    try {
+      // First unassign all students from this section
+      const { error: unassignError } = await supabase
+        .from('user_profiles')
+        .update({ section: null })
+        .eq('section', sectionId);
+      if (unassignError) throw unassignError;
+
+      // Then delete the section
+      const { error } = await supabase
+        .from('sections')
+        .delete()
+        .eq('id', sectionId);
+      if (error) throw error;
+
+      setSections(prev => prev.filter(s => s.id !== sectionId));
+      if (viewingSection?.id === sectionId) {
+        setViewingSection(null);
+        setSectionStudents([]);
+      }
+    } catch (e) {
+      console.error('Failed to delete section:', e);
+      alert('Failed to delete section. Please try again.');
+    } finally {
+      setDeleteLoading(null);
+    }
+  }
+
+  function openEditModal(section: SectionRow) {
+    setEditingSection({ ...section });
+    setEditError(null);
+    setShowEditModal(true);
+  }
+
+  async function handleAssignSelected() {
+    const ids = Object.entries(selectedStudentIds).filter(([, v]) => v).map(([k]) => k);
+    if (!selectedSectionId || ids.length === 0) return;
+    try {
+      const { error } = await supabase
+        .from('user_profiles')
+        .update({ section: selectedSectionId })
+        .in('id', ids);
+      if (error) throw error;
+      // Refresh students list
+      await fetchStudents();
+      setSelectedStudentIds({});
+    } catch (e) {
+      console.error('Failed to assign students:', e);
+    }
+  }
+
+  async function fetchStudentsBySection(sectionId: string) {
+    setSectionStudentsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('id, email, first_name, last_name, middle_name, student_id, year_level, section, is_active, role')
+        .eq('role', 'student')
+        .eq('section', sectionId)
+        .order('last_name', { ascending: true });
+      if (error) throw error;
+      setSectionStudents((data || []) as StudentRow[]);
+    } catch (e) {
+      console.error('Failed to load section students:', e);
+      setSectionStudents([]);
+    } finally {
+      setSectionStudentsLoading(false);
+    }
+  }
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    let base = students;
+    // Assignment filter
+    if (assignmentFilter === 'assigned') base = base.filter(s => !!s.section);
+    if (assignmentFilter === 'unassigned') base = base.filter(s => !s.section);
+    // Year filter
+    if (studentYearFilter !== 'all') base = base.filter(s => String(s.year_level || '') === String(studentYearFilter));
+    if (!q) return base;
+    return base.filter(s => {
+      const name = `${s.last_name}, ${s.first_name} ${s.middle_name || ''}`.toLowerCase();
+      return (
+        (s.student_id || '').toLowerCase().includes(q) ||
+        name.includes(q) ||
+        (s.email || '').toLowerCase().includes(q)
+      );
+    });
+  }, [students, query, assignmentFilter, studentYearFilter]);
+
+  const yearLevels = useMemo(() => {
+    const levels = new Set<number | string>();
+    filtered.forEach(s => {
+      if (s.year_level !== null && s.year_level !== undefined && s.year_level !== '') {
+        levels.add(s.year_level as any);
+      }
+    });
+    // Default to 1-4 if empty
+    if (levels.size === 0) return [1, 2, 3, 4];
+    return Array.from(levels).sort((a: any, b: any) => {
+      const na = Number(a);
+      const nb = Number(b);
+      if (Number.isNaN(na) || Number.isNaN(nb)) return String(a).localeCompare(String(b));
+      return na - nb;
+    });
+  }, [filtered]);
+
+  const groupedByYear = useMemo(() => {
+    const groups = new Map<string, StudentRow[]>();
+    filtered.forEach(s => {
+      const key = s.year_level === null || s.year_level === undefined || s.year_level === '' ? 'Unknown' : String(s.year_level);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(s);
+    });
+    return groups;
+  }, [filtered]);
+
+  function toggleYear(key: string) {
+    setExpandedYears(prev => ({ ...prev, [key]: !prev[key] }));
+  }
+
+  function getSectionName(sectionId: string | null | undefined): string {
+    if (!sectionId) return 'Unassigned';
+    const s = sections.find(sec => sec.id === sectionId);
+    return s ? s.name : 'Unassigned';
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br via-white to-indigo-50 py-6 px-3 md:px-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-6 bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-5 rounded-2xl shadow">
-          {/* Debug Info */}
-          <div className="mb-4 p-3 bg-white/10 rounded-lg">
-            <div className="text-white/90 text-sm">
-              <strong>Debug Info:</strong> Total students loaded: {students.length} | 
-              Students with year level: {students.filter(s => s.year_level).length} |
-              Students with sections: {students.filter(s => s.section).length}
-            </div>
-          </div>
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-            <div>
-              <h1 className="text-xl md:text-2xl font-bold text-white">Class Management</h1>
-              <p className="text-white/80 text-sm">Automatically assign new students to sections with a maximum of {MAX_STUDENTS_PER_SECTION} students per section.</p>
-            </div>
-            <div className="flex gap-2 items-center">
+    <div className="p-4 md:p-6">
+      <div 
+        className="mb-6 bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-5 shadow-lg rounded-xl"
+        style={{ marginLeft: '-0.5rem', marginRight: '-0.5rem' }}
+      >
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-4">
+            <h2 className="text-xl font-bold text-white tracking-tight">Class Management</h2>
+            <div className="flex items-center rounded-md bg-white/15 p-1 text-white">
               <button
-                onClick={loadStudents}
-                disabled={loading}
-                className="px-4 py-2 text-sm font-semibold text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-60"
+                className={`px-3 py-1.5 text-sm font-medium rounded ${activeTab === 'unassigned' ? 'bg-white/90 text-blue-700' : 'text-white/90 hover:bg-white/20'}`}
+                onClick={() => setActiveTab('unassigned')}
               >
-                {loading ? 'Loading...' : 'Refresh Students'}
+                Student List
               </button>
               <button
-                onClick={() => {
-                  YEAR_LEVELS.forEach(year => {
-                    const yearStudents = studentsByYear[year] || [];
-                    const unassigned = yearStudents.filter(s => !s.section || String(s.section).trim() === '');
-                    if (unassigned.length > 0) {
-                      autoAssignForYear(year);
-                    }
-                  });
-                }}
-                disabled={loading}
-                className="px-4 py-2 text-sm font-semibold text-white bg-orange-600 rounded-lg hover:bg-orange-700 disabled:opacity-60"
+                className={`px-3 py-1.5 text-sm font-medium rounded ${activeTab === 'sections' ? 'bg-white/90 text-blue-700' : 'text-white/90 hover:bg-white/20'}`}
+                onClick={() => setActiveTab('sections')}
               >
-                {loading ? 'Assigning...' : 'Force Auto-Assign All'}
+                Section List
+              </button>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-white/80" />
+              <input
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                placeholder="Search ID, name, email"
+                className="w-64 rounded-md border border-white/20 bg-white/10 pl-9 pr-3 py-2 text-sm text-white placeholder-white/80 outline-none focus:ring-2 focus:ring-white/50"
+              />
+            </div>
+            <button
+              onClick={() => fetchStudents()}
+              className="inline-flex items-center gap-2 rounded-md bg-white/15 px-3 py-2 text-sm font-medium text-white hover:bg-white/25 disabled:opacity-60"
+              disabled={loading}
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              {loading ? 'Refreshing' : 'Refresh'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {error && (
+        <div className="mb-4 rounded border border-red-300 bg-red-50 p-3 text-red-700">
+          {error}
+        </div>
+      )}
+
+      {loading && (
+        <div className="rounded border border-gray-200 bg-white p-6 text-gray-600">Loading…</div>
+      )}
+
+      {activeTab === 'unassigned' && !loading && filtered.length === 0 && !error && (
+        <div className="rounded border border-green-200 bg-green-50 p-6 text-green-700">
+          {query ? 'No matching students found.' : 'No students match the selected filters.'}
+        </div>
+      )}
+
+      {activeTab === 'unassigned' && !loading && filtered.length > 0 && (
+        <div className="space-y-8">
+          {/* Filters for student list */}
+          <div className="mb-2 flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-600">Year</span>
+              <select
+                className="rounded-md border border-gray-300 px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                value={studentYearFilter}
+                onChange={e => setStudentYearFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+              >
+                <option value="all">All</option>
+                {[1,2,3,4].map(y => (<option key={y} value={y}>{y}</option>))}
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-600">Assignment</span>
+              <select
+                className="rounded-md border border-gray-300 px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                value={assignmentFilter}
+                onChange={e => setAssignmentFilter(e.target.value as any)}
+              >
+                <option value="all">All</option>
+                <option value="assigned">Assigned</option>
+                <option value="unassigned">Unassigned</option>
+              </select>
+            </div>
+          </div>
+          {yearLevels.map((yl) => {
+            const key = String(yl);
+            const list = groupedByYear.get(key) || [];
+            if (list.length === 0) return null;
+            return (
+              <div key={key}>
+                <button
+                  onClick={() => toggleYear(key)}
+                  className="mb-3 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-left shadow-sm hover:bg-gray-50"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      {expandedYears[key] ? <ChevronDown className="h-4 w-4 text-gray-600" /> : <ChevronRight className="h-4 w-4 text-gray-600" />}
+                      <h3 className="text-base font-semibold text-gray-800">Year Level: {key}</h3>
+                    </div>
+                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">{list.length} student{list.length > 1 ? 's' : ''}</span>
+                  </div>
+                </button>
+                {expandedYears[key] !== false && (
+                  <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
+                    <table className="min-w-full table-fixed divide-y divide-gray-200">
+                      <colgroup>
+                        <col className="w-40" />
+                        <col className="w-[22rem]" />
+                        <col className="w-[26rem]" />
+                        <col className="w-24" />
+                        <col className="w-28" />
+                      </colgroup>
+                      <thead className="bg-gray-50 sticky top-0 z-10">
+                      <tr>
+                        <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">Student No.</th>
+                        <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">Name</th>
+                        <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">Email</th>
+                        <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">Year Level</th>
+                        <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">Section</th>
+                      </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {list.map((s, idx) => (
+                          <tr key={s.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                            <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900">{s.student_id || '—'}</td>
+                            <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900 truncate">
+                              {s.last_name}, {s.first_name}{s.middle_name ? ` ${s.middle_name}` : ''}
+                            </td>
+                            <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700 truncate">{s.email}</td>
+                            <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700">{s.year_level ?? '—'}</td>
+                            <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700">{getSectionName(s.section as any)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {activeTab === 'sections' && (
+        <div className="space-y-6">
+          {/* Create Section trigger */}
+          <div className="flex justify-end">
+            <button
+              onClick={() => { setCreateError(null); setShowCreateModal(true); }}
+              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            >
+              + Create Section
+            </button>
+          </div>
+
+          {/* Sections Grid */}
+          <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-base font-semibold text-gray-800">Section List</h3>
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-gray-600">Year Level</label>
+                <select
+                  className="rounded-md border border-gray-300 px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                  value={sectionYear}
+                  onChange={e => setSectionYear(Number(e.target.value))}
+                >
+                  {[1,2,3,4].map(y => (<option key={y} value={y}>{y}</option>))}
+                </select>
+                <button
+                  onClick={autoAssignSections}
+                  disabled={autoAssignLoading}
+                  className="ml-2 rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  {autoAssignLoading ? 'Assigning…' : 'Auto-Assign Sections'}
+                </button>
+              </div>
+            </div>
+            {autoAssignError && (
+              <div className="mb-3 rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">{autoAssignError}</div>
+            )}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {sections.filter(s => Number(s.year_level) === Number(sectionYear)).length === 0 && (
+                <div className="col-span-full text-sm text-gray-600">No sections for Year {sectionYear}. Create one above.</div>
+              )}
+              {sections.filter(s => Number(s.year_level) === Number(sectionYear)).map(sec => (
+                <button
+                  key={sec.id}
+                  onClick={() => {
+                    setViewingSection(sec);
+                    void fetchStudentsBySection(sec.id);
+                    setShowViewModal(true);
+                  }}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setViewingSection(sec); void fetchStudentsBySection(sec.id); setShowViewModal(true); } }}
+                  className="flex flex-col items-start gap-2 rounded-lg border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-4 shadow-sm transition hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-400"
+                >
+                  <div className="flex w-full items-start justify-between">
+                    <div className="flex-1 text-left">
+                      <h3 className="font-semibold text-gray-900 text-left">{sec.name}</h3>
+                      <p className="text-sm text-gray-600 text-left">Year {sec.year_level}</p>
+                      <div className="mt-2 flex items-center gap-2">
+                        <div className="rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700">
+                          {sectionStudentCounts[sec.id] || 0} students
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex gap-1 ml-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingSection(sec);
+                          setShowEditModal(true);
+                        }}
+                        className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                        title="Edit section"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void handleDeleteSection(sec.id);
+                        }}
+                        className="rounded p-1 text-gray-400 hover:bg-red-100 hover:text-red-600"
+                        title="Delete section"
+                        disabled={deleteLoading === sec.id}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                  {sec.academic_year && (
+                    <div className="text-xs text-gray-600 text-left mt-1">AY: {sec.academic_year}</div>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Assign Students */}
+          <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+            <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3">
+                <select
+                  className="rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                  value={sectionYear}
+                  onChange={e => setSectionYear(Number(e.target.value))}
+                >
+                  {[1,2,3,4].map(y => (<option key={y} value={y}>Year Level: {y}</option>))}
+                </select>
+                <select
+                  className="rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                  value={selectedSectionId}
+                  onChange={e => setSelectedSectionId(e.target.value)}
+                >
+                  <option value="">Select Section</option>
+                  {sections.filter(s => Number(s.year_level) === Number(sectionYear)).map(s => (
+                    <option key={s.id} value={s.id}>{s.name}{s.academic_year ? ` (${s.academic_year})` : ''}</option>
+                  ))}
+                </select>
+              </div>
+              <button
+                onClick={handleAssignSelected}
+                disabled={!selectedSectionId || Object.values(selectedStudentIds).every(v => !v)}
+                className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                Assign Selected Students
+              </button>
+            </div>
+
+            <div className="overflow-x-auto rounded-lg border border-gray-200">
+              <table className="min-w-full table-fixed divide-y divide-gray-200">
+                <colgroup>
+                  <col className="w-10" />
+                  <col className="w-40" />
+                  <col className="w-[22rem]" />
+                  <col className="w-[26rem]" />
+                </colgroup>
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-2"></th>
+                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">Student No.</th>
+                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">Name</th>
+                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">Email</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {students
+                    .filter(s => String(s.year_level || '') === String(sectionYear) && !s.section)
+                    .map((s, idx) => (
+                      <tr key={s.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                        <td className="px-4 py-2">
+                          <input
+                            type="checkbox"
+                            checked={!!selectedStudentIds[s.id]}
+                            onChange={e => setSelectedStudentIds(prev => ({ ...prev, [s.id]: e.target.checked }))}
+                          />
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900">{s.student_id || '—'}</td>
+                        <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900 truncate">{s.last_name}, {s.first_name}{s.middle_name ? ` ${s.middle_name}` : ''}</td>
+                        <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700 truncate">{s.email}</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* View Assigned Students Modal */}
+          {showViewModal && viewingSection && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center">
+              <div className="absolute inset-0 bg-black/40" onClick={() => setShowViewModal(false)} />
+              <div className="relative z-10 w-full max-w-4xl rounded-xl bg-white p-5 shadow-2xl">
+                <div className="mb-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-semibold text-gray-800">Section: {viewingSection.name}</h3>
+                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">Year {viewingSection.year_level ?? '—'}</span>
+                    {viewingSection.academic_year && (
+                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">AY {viewingSection.academic_year}</span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setShowViewModal(false)}
+                    className="rounded-md bg-gray-100 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-200"
+                  >
+                    Close
+                  </button>
+                </div>
+                {sectionStudentsLoading ? (
+                  <div className="rounded border border-gray-200 bg-white p-6 text-gray-600">Loading…</div>
+                ) : (
+                  <div className="overflow-x-auto rounded-lg border border-gray-200">
+                    <table className="min-w-full table-fixed divide-y divide-gray-200">
+                      <colgroup>
+                        <col className="w-40" />
+                        <col className="w-[22rem]" />
+                        <col className="w-[26rem]" />
+                        <col className="w-24" />
+                      </colgroup>
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">Student No.</th>
+                          <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">Name</th>
+                          <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">Email</th>
+                          <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">Year</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {sectionStudents.length === 0 && (
+                          <tr>
+                            <td colSpan={4} className="px-4 py-4 text-center text-sm text-gray-600">No students assigned yet.</td>
+                          </tr>
+                        )}
+                        {sectionStudents.map((s, idx) => (
+                          <tr key={s.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                            <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900">{s.student_id || '—'}</td>
+                            <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900 truncate">{s.last_name}, {s.first_name}{s.middle_name ? ` ${s.middle_name}` : ''}</td>
+                            <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700 truncate">{s.email}</td>
+                            <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700">{s.year_level ?? '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Create Section Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowCreateModal(false)} />
+          <div className="relative z-10 w-full max-w-lg rounded-xl bg-white p-5 shadow-2xl">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-base font-semibold text-gray-800">Create Section</h3>
+              <button className="rounded-md bg-gray-100 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-200" onClick={() => setShowCreateModal(false)}>Close</button>
+            </div>
+            {createError && (
+              <div className="mb-3 rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">{createError}</div>
+            )}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <input
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Section name"
+                value={newSection.name}
+                onChange={e => setNewSection(prev => ({ ...prev, name: e.target.value }))}
+              />
+              <select
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                value={newSection.year_level}
+                onChange={e => setNewSection(prev => ({ ...prev, year_level: Number(e.target.value) }))}
+              >
+                {[1,2,3,4].map(y => (<option key={y} value={y}>{y} Year</option>))}
+              </select>
+              <input
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Academic Year (e.g., 2024-2025)"
+                value={newSection.academic_year}
+                onChange={e => setNewSection(prev => ({ ...prev, academic_year: e.target.value }))}
+              />
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <button className="rounded-md px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" onClick={() => setShowCreateModal(false)}>Cancel</button>
+              <button
+                onClick={handleCreateSection}
+                disabled={createLoading}
+                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {createLoading ? 'Adding…' : 'Add Section'}
               </button>
             </div>
           </div>
         </div>
+      )}
 
-                 {YEAR_LEVELS.map((year) => {
-           const list = studentsByYear[year] || [];
-           const sectionsMap: Record<string, StudentProfile[]> = {};
-           
-           // Group students by section, including unassigned ones
-           for (const s of list) {
-             const label = (s.section || '').toUpperCase();
-             const key = label || '(none)';
-             if (!sectionsMap[key]) sectionsMap[key] = [];
-             sectionsMap[key].push(s);
-           }
-           
-           // Always show the year level even if no students
-           if (list.length === 0) {
-             return (
-               <div key={year} className="mb-8">
-                 <div className="flex items-center justify-between mb-4">
-                   <h2 className="text-lg font-semibold text-gray-800">{year}</h2>
-                   <button
-                     onClick={() => autoAssignForYear(year)}
-                     disabled={loading}
-                     className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-60"
-                   >
-                     {loading ? 'Assigning...' : 'Auto-Assign Sections'}
-                   </button>
-                 </div>
-                 <div className="bg-white rounded-2xl shadow p-4 border border-gray-100">
-                   <div className="text-center py-8 text-gray-500">
-                     No students enrolled in {year}
-                   </div>
-                 </div>
-               </div>
-             );
-           }
-           
-           return (
-             <div key={year} className="mb-8">
-               <div className="flex items-center justify-between mb-4">
-                 <h2 className="text-lg font-semibold text-gray-800">{year}</h2>
-                 <button
-                   onClick={() => autoAssignForYear(year)}
-                   disabled={loading}
-                   className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-60"
-                 >
-                   {loading ? 'Assigning...' : 'Auto-Assign Sections'}
-                 </button>
-               </div>
-               
-               {/* Section Cards */}
-               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                 {Object.entries(sectionsMap).map(([label, arr]) => (
-                   <div key={label} className={`bg-white rounded-2xl shadow p-4 border ${
-                     label === '(none)' ? 'border-orange-200 bg-orange-50' : 'border-gray-100'
-                   }`}>
-                     <div className="flex items-center justify-between mb-2">
-                       <div className="font-semibold text-gray-800">
-                         {label === '(none)' ? 'Unassigned' : `Section ${label}`}
-                       </div>
-                       <div className="text-sm text-gray-500">{arr.length}/{MAX_STUDENTS_PER_SECTION}</div>
-                     </div>
-                     <div className="text-xs text-gray-500">{year}</div>
-                     {label === '(none)' && (
-                       <div className="mt-2 text-xs text-orange-600 font-medium">
-                         Click "Auto-Assign Sections" to assign these students
-                       </div>
-                     )}
-                   </div>
-                 ))}
-               </div>
-               
-               {/* Students Table */}
-               <div className="bg-white rounded-2xl shadow p-4 border border-gray-100">
-                 <div className="flex justify-between items-center mb-3">
-                   <div className="font-semibold text-gray-800">Students - {year}</div>
-                   <div className="text-sm text-gray-500">
-                     {list.length} total | {list.filter(s => s.section).length} assigned | {list.filter(s => !s.section).length} unassigned
-                   </div>
-                 </div>
-                 <div className="overflow-x-auto">
-                   <table className="min-w-full">
-                     <thead className="bg-gray-50">
-                       <tr>
-                         <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                         <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student ID</th>
-                         <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                         <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Section</th>
-                       </tr>
-                     </thead>
-                     <tbody className="bg-white divide-y divide-gray-100">
-                       {list.map(s => (
-                         <tr key={s.id} className={!s.section ? 'bg-orange-50' : ''}>
-                           <td className="px-3 py-2 text-sm text-gray-800">{[s.last_name, s.middle_name, s.first_name].filter(Boolean).join(' ')}</td>
-                           <td className="px-3 py-2 text-sm text-gray-700">{s.student_id || s.id}</td>
-                           <td className="px-3 py-2 text-sm text-gray-700">{s.enrollment_status || '—'}</td>
-                           <td className={`px-3 py-2 text-sm font-semibold ${
-                             !s.section ? 'text-orange-600' : 'text-gray-900'
-                           }`}>
-                             {s.section || 'Unassigned'}
-                           </td>
-                         </tr>
-                       ))}
-                     </tbody>
-                   </table>
-                 </div>
-               </div>
-             </div>
-           );
-         })}
-         
-         {/* Show students without year levels */}
-         {(() => {
-           const studentsWithoutYear = students.filter(s => !s.year_level || s.year_level.trim() === '');
-           if (studentsWithoutYear.length > 0) {
-             return (
-               <div className="mb-8">
-                 <div className="flex items-center justify-between mb-4">
-                   <h2 className="text-lg font-semibold text-gray-800 text-orange-600">Students Without Year Level</h2>
-                   <span className="text-sm text-gray-500">{studentsWithoutYear.length} students</span>
-                 </div>
-                 <div className="bg-white rounded-2xl shadow p-4 border border-orange-200">
-                   <div className="text-sm text-orange-600 mb-3">
-                     These students need to have their year level set before they can be assigned to sections.
-                   </div>
-                   <div className="overflow-x-auto">
-                     <table className="min-w-full">
-                       <thead className="bg-orange-50">
-                         <tr>
-                           <th className="px-3 py-2 text-left text-xs font-medium text-orange-700 uppercase tracking-wider">Name</th>
-                           <th className="px-3 py-2 text-left text-xs font-medium text-orange-700 uppercase tracking-wider">Student ID</th>
-                           <th className="px-3 py-2 text-left text-xs font-medium text-orange-700 uppercase tracking-wider">Status</th>
-                           <th className="px-3 py-2 text-left text-xs font-medium text-orange-700 uppercase tracking-wider">Year Level</th>
-                         </tr>
-                       </thead>
-                       <tbody className="bg-white divide-y divide-orange-100">
-                         {studentsWithoutYear.map(s => (
-                           <tr key={s.id} className="bg-orange-50">
-                             <td className="px-3 py-2 text-sm text-gray-800">{[s.last_name, s.middle_name, s.first_name].filter(Boolean).join(' ')}</td>
-                             <td className="px-3 py-2 text-sm text-gray-700">{s.student_id || s.id}</td>
-                             <td className="px-3 py-2 text-sm text-gray-700">{s.enrollment_status || '—'}</td>
-                             <td className="px-3 py-2 text-sm text-orange-600 font-semibold">{s.year_level || 'Not Set'}</td>
-                           </tr>
-                         ))}
-                       </tbody>
-                     </table>
-                   </div>
-                 </div>
-               </div>
-             );
-           }
-           return null;
-         })()}
-      </div>
+      {/* Edit Section Modal */}
+      {showEditModal && editingSection && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowEditModal(false)} />
+          <div className="relative z-10 w-full max-w-lg rounded-xl bg-white p-5 shadow-2xl">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-base font-semibold text-gray-800">Edit Section</h3>
+              <button className="rounded-md bg-gray-100 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-200" onClick={() => setShowEditModal(false)}>Close</button>
+            </div>
+            {editError && (
+              <div className="mb-3 rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">{editError}</div>
+            )}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <input
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Section name"
+                value={editingSection.name}
+                onChange={e => setEditingSection(prev => prev ? { ...prev, name: e.target.value } : null)}
+              />
+              <select
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                value={editingSection.year_level || 1}
+                onChange={e => setEditingSection(prev => prev ? { ...prev, year_level: Number(e.target.value) } : null)}
+              >
+                {[1,2,3,4].map(y => (<option key={y} value={y}>{y} Year</option>))}
+              </select>
+              <input
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Academic Year (e.g., 2024-2025)"
+                value={editingSection.academic_year || ''}
+                onChange={e => setEditingSection(prev => prev ? { ...prev, academic_year: e.target.value } : null)}
+              />
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <button className="rounded-md px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" onClick={() => setShowEditModal(false)}>Cancel</button>
+              <button
+                onClick={handleEditSection}
+                disabled={editLoading}
+                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {editLoading ? 'Updating…' : 'Update Section'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
