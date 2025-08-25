@@ -63,6 +63,7 @@ interface Course {
   created_at?: string;
   updated_at?: string;
   summer?: boolean;
+  semester?: string;
   year_level?: string;
 }
 
@@ -84,6 +85,7 @@ export default function CourseManagement() {
     units: 3,
     image_url: '',
     summer: false,
+    semester: '',
     year_level: ''
   });
 
@@ -108,6 +110,14 @@ export default function CourseManagement() {
   const [courseImages, setCourseImages] = useState<{ [id: string]: string }>({});
   const [imageLoading, setImageLoading] = useState<{ [id: string]: boolean }>({});
   const [imageError, setImageError] = useState<{ [id: string]: boolean }>({});
+
+  // Normalize semester values to match database constraint
+  const normalizeSemesterValue = useCallback((value: string): string => {
+    if (!value) return '';
+    if (value === 'First Semester') return '1st Semester';
+    if (value === 'Second Semester') return '2nd Semester';
+    return value;
+  }, []);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null;
@@ -394,6 +404,7 @@ export default function CourseManagement() {
             units: courseForm.units,
             image_url: imagePath,
             summer: courseForm.summer,
+            semester: courseForm.summer ? null : normalizeSemesterValue(courseForm.semester),
             year_level: courseForm.year_level
           })
           .eq('id', selectedCourse.id)
@@ -415,7 +426,7 @@ export default function CourseManagement() {
         // Insert new course
         ({ error } = await supabase
           .from('courses')
-          .insert([{ ...courseForm, image_url: imagePath, summer: courseForm.summer, year_level: courseForm.year_level }])
+          .insert([{ ...courseForm, image_url: imagePath, summer: courseForm.summer, semester: courseForm.summer ? null : normalizeSemesterValue(courseForm.semester), year_level: courseForm.year_level }])
           .select()
           .single());
       }
@@ -423,7 +434,7 @@ export default function CourseManagement() {
       if (error) throw error;
       toast.success(selectedCourse ? 'Course updated successfully' : 'Course added successfully');
       setShowAddModal(false);
-      setCourseForm({ code: '', name: '', units: 3, image_url: '', summer: false, year_level: '' });
+      setCourseForm({ code: '', name: '', units: 3, image_url: '', summer: false, semester: '', year_level: '' });
       setImageFile(null);
       setSelectedCourse(null);
       setShowCropModal(false);
@@ -778,7 +789,7 @@ export default function CourseManagement() {
                 </div>
               </div>
 
-              {/* Second row: Subject Name, Summer (as select) */}
+              {/* Second row: Subject Name, Semester */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Subject Name</label>
@@ -792,14 +803,16 @@ export default function CourseManagement() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Type</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Semester</label>
                   <select
-                    value={courseForm.summer ? 'Summer' : 'Regular'}
-                    onChange={e => setCourseForm({ ...courseForm, summer: e.target.value === 'Summer' })}
+                    value={courseForm.semester}
+                    onChange={e => setCourseForm({ ...courseForm, semester: e.target.value, summer: e.target.value === 'Summer' })}
                     className="w-full px-3 py-2 border border-gray-300 bg-white rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-sm"
                     required
                   >
-                    <option value="Regular">Regular</option>
+                    <option value="">Select Semester</option>
+                    <option value="1st Semester">1st Semester</option>
+                    <option value="2nd Semester">2nd Semester</option>
                     <option value="Summer">Summer</option>
                   </select>
                 </div>
@@ -1313,6 +1326,7 @@ export default function CourseManagement() {
                               units: course.units,
                               image_url: course.image_url || '',
                               summer: course.summer || false,
+                              semester: normalizeSemesterValue(course.semester || (course.summer ? 'Summer' : '')),
                               year_level: course.year_level || ''
                             });
                             setImageFile(null);
@@ -1333,15 +1347,26 @@ export default function CourseManagement() {
                       <span className="bg-gray-100 text-gray-800 text-xs font-semibold px-3 py-1 rounded-full">
                         {course.year_level}
                       </span>
-                      {course.summer ? (
-                        <span className="inline-flex items-center gap-1 bg-yellow-100 text-yellow-800 text-xs font-bold px-2 py-1 rounded-full">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="inline-block w-3 h-3"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-                          Summer
-                        </span>
+                      {course.semester || course.summer ? (
+                        course.summer ? (
+                          <span className="inline-flex items-center gap-1 bg-yellow-100 text-yellow-800 text-xs font-bold px-3 py-1 rounded-full">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="inline-block w-4 h-4"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                            Summer
+                          </span>
+                        ) : (
+                          normalizeSemesterValue(course.semester!) === '1st Semester' ? (
+                            <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full">1st Sem</span>
+                          ) : normalizeSemesterValue(course.semester!) === '2nd Semester' ? (
+                            <span className="inline-flex items-center gap-1 bg-green-100 text-green-800 text-xs font-bold px-3 py-1 rounded-full">2nd Sem</span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 bg-yellow-100 text-yellow-800 text-xs font-bold px-3 py-1 rounded-full">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="inline-block w-4 h-4"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                              Summer
+                            </span>
+                          )
+                        )
                       ) : (
-                        <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded-full">
-                          Regular
-                        </span>
+                        <span className="inline-flex items-center gap-1 bg-gray-100 text-gray-800 text-xs font-bold px-3 py-1 rounded-full">Regular</span>
                       )}
                     </div>
                     {/* Subject Name with Code */}
@@ -1362,7 +1387,7 @@ export default function CourseManagement() {
                         <th className="px-6 py-4 text-left text-sm font-semibold text-white uppercase tracking-wider">Year Level</th>
                         <th className="px-6 py-4 text-left text-sm font-semibold text-white uppercase tracking-wider">Subject Name</th>
                         <th className="px-6 py-4 text-left text-sm font-semibold text-white uppercase tracking-wider">Subject Image</th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-white uppercase tracking-wider">Summer</th>
+                        <th className="px-6 py-4 text-left text-sm font-semibold text-white uppercase tracking-wider">Semester</th>
                         <th className="px-6 py-4 text-left text-sm font-semibold text-white uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
@@ -1423,17 +1448,28 @@ export default function CourseManagement() {
                               )}
                             </div>
                           </td>
-                          {/* Summer */}
+                          {/* Semester */}
                           <td className="px-6 py-4">
-                            {course.summer ? (
-                              <span className="inline-flex items-center gap-1 bg-yellow-100 text-yellow-800 text-xs font-bold px-3 py-1 rounded-full">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="inline-block w-4 h-4"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-                                Summer
-                              </span>
+                            {course.semester || course.summer ? (
+                              course.summer ? (
+                                <span className="inline-flex items-center gap-1 bg-yellow-100 text-yellow-800 text-xs font-bold px-3 py-1 rounded-full">
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="inline-block w-4 h-4"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                                  Summer
+                                </span>
+                              ) : (
+                                normalizeSemesterValue(course.semester!) === '1st Semester' ? (
+                                  <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full">1st Sem</span>
+                                ) : normalizeSemesterValue(course.semester!) === '2nd Semester' ? (
+                                  <span className="inline-flex items-center gap-1 bg-green-100 text-green-800 text-xs font-bold px-3 py-1 rounded-full">2nd Sem</span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 bg-yellow-100 text-yellow-800 text-xs font-bold px-3 py-1 rounded-full">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="inline-block w-4 h-4"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                                    Summer
+                                  </span>
+                                )
+                              )
                             ) : (
-                              <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full">
-                                Regular
-                              </span>
+                              <span className="inline-flex items-center gap-1 bg-gray-100 text-gray-800 text-xs font-bold px-3 py-1 rounded-full">Regular</span>
                             )}
                           </td>
                           {/* Actions */}
@@ -1450,6 +1486,7 @@ export default function CourseManagement() {
                                      units: course.units,
                                      image_url: course.image_url || '',
                                      summer: course.summer || false,
+                                     semester: normalizeSemesterValue(course.semester || (course.summer ? 'Summer' : '')),
                                      year_level: course.year_level || ''
                                    });
                                    setImageFile(null);
