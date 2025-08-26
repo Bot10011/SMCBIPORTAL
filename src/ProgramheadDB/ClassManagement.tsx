@@ -13,7 +13,7 @@ type StudentRow = {
   section?: string | null;
   is_active?: boolean;
 };
-
+ 
 type SectionRow = {
   id: string; 
   name: string;
@@ -924,5 +924,6 @@ const ClassManagement: React.FC = () => {
 };
 
 export default ClassManagement;
+
 
 
