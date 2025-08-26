@@ -15,7 +15,7 @@ type StudentRow = {
 };
 
 type SectionRow = {
-  id: string;
+  id: string; 
   name: string;
   year_level: number | null;
   academic_year?: string | null;
