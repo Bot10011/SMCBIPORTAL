@@ -9,7 +9,7 @@ import {
   Button,
   Dialog,
   DialogTitle,
-  DialogContent, 
+  DialogContent,
   DialogActions,
   TextField,
   FormControl,
@@ -135,6 +135,29 @@ const InstructorManagement: React.FC = () => {
     department: 'BSIT', // default to BSIT
     password: 'TempPass@123',
   });
+
+  // Edit Instructor State
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editForm, setEditForm] = useState({
+    id: '',
+    firstName: '',
+    middleName: '',
+    lastName: '',
+    email: '',
+    role: 'instructor' as 'teacher' | 'instructor',
+    department: 'BSIT',
+    is_active: true,
+  });
+
+  // Delete Confirmation State
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [instructorToDelete, setInstructorToDelete] = useState<Instructor | null>(null);
+
+  // View Instructor State
+  const [viewDialogOpen, setViewDialogOpen] = useState(false);
+  const [instructorToView, setInstructorToView] = useState<Instructor | null>(null);
 
   // Subject Assignment Modal State
   const [subjectAssignmentModal, setSubjectAssignmentModal] = useState({
@@ -412,6 +435,130 @@ const InstructorManagement: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Edit Instructor Functions
+  const handleEditInstructor = (instructor: Instructor) => {
+    setEditForm({
+      id: instructor.id,
+      firstName: instructor.first_name,
+      middleName: instructor.middle_name || '',
+      lastName: instructor.last_name,
+      email: instructor.email,
+      role: instructor.role,
+      department: instructor.department || 'BSIT',
+      is_active: instructor.is_active,
+    });
+    setEditDialogOpen(true);
+  };
+
+  const handleUpdateInstructor = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setEditing(true);
+    try {
+      const { error } = await supabase
+        .from('user_profiles')
+        .update({
+          first_name: editForm.firstName,
+          middle_name: editForm.middleName,
+          last_name: editForm.lastName,
+          role: editForm.role,
+          department: editForm.department,
+          is_active: editForm.is_active,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', editForm.id);
+
+      if (error) throw error;
+
+      toast.success('Instructor updated successfully!');
+      setEditDialogOpen(false);
+      resetEditForm();
+      fetchInstructors();
+    } catch (error) {
+      console.error('Error updating instructor:', error);
+      toast.error('Failed to update instructor');
+    } finally {
+      setEditing(false);
+    }
+  };
+
+  const resetEditForm = () => {
+    setEditForm({
+      id: '',
+      firstName: '',
+      middleName: '',
+      lastName: '',
+      email: '',
+      role: 'instructor',
+      department: 'BSIT',
+      is_active: true,
+    });
+  };
+
+  // Delete Instructor Functions
+  const handleDeleteInstructor = (instructor: Instructor) => {
+    setInstructorToDelete(instructor);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteInstructor = async () => {
+    if (!instructorToDelete) return;
+    
+    setDeleting(true);
+    try {
+      // First, check if instructor has any subject assignments
+      const { data: assignments, error: assignmentError } = await supabase
+        .from('teacher_subjects')
+        .select('id')
+        .eq('teacher_id', instructorToDelete.id);
+
+      if (assignmentError) throw assignmentError;
+
+      if (assignments && assignments.length > 0) {
+        toast.error('Cannot delete instructor with active subject assignments. Please remove assignments first.');
+        setDeleteDialogOpen(false);
+        setInstructorToDelete(null);
+        return;
+      }
+
+      // Delete from user_profiles
+      const { error: profileError } = await supabase
+        .from('user_profiles')
+        .delete()
+        .eq('id', instructorToDelete.id);
+
+      if (profileError) throw profileError;
+
+      // Note: We don't delete the auth user for security reasons
+      // The auth user will remain but won't be able to access the system
+
+      toast.success('Instructor deleted successfully!');
+      setDeleteDialogOpen(false);
+      setInstructorToDelete(null);
+      fetchInstructors();
+    } catch (error) {
+      console.error('Error deleting instructor:', error);
+      toast.error('Failed to delete instructor');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const resetDeleteDialog = () => {
+    setDeleteDialogOpen(false);
+    setInstructorToDelete(null);
+  };
+
+  // View Instructor Functions
+  const handleViewInstructor = (instructor: Instructor) => {
+    setInstructorToView(instructor);
+    setViewDialogOpen(true);
+  };
+
+  const closeViewDialog = () => {
+    setViewDialogOpen(false);
+    setInstructorToView(null);
   };
 
   // Fetch instructors on component mount
@@ -924,16 +1071,34 @@ const InstructorManagement: React.FC = () => {
                         <TableCell>
                           <IconButton 
                             size="small" 
+                            color="info"
+                            onClick={() => handleViewInstructor(instructor)}
+                            title="View Instructor"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </IconButton>
+                          <IconButton 
+                            size="small" 
                             color="success"
                             onClick={() => handleAssignSubject(instructor)}
                             title="Assign Subject"
                           >
                             <Plus className="w-4 h-4" />
                           </IconButton>
-                          <IconButton size="small" color="primary">
+                          <IconButton 
+                            size="small" 
+                            color="primary"
+                            onClick={() => handleEditInstructor(instructor)}
+                            title="Edit Instructor"
+                          >
                             <Edit className="w-4 h-4" />
                           </IconButton>
-                          <IconButton size="small" color="error">
+                          <IconButton 
+                            size="small" 
+                            color="error"
+                            onClick={() => handleDeleteInstructor(instructor)}
+                            title="Delete Instructor"
+                          >
                             <Trash2 className="w-4 h-4" />
                           </IconButton>
                         </TableCell>
@@ -1923,6 +2088,514 @@ const InstructorManagement: React.FC = () => {
             </DialogActions>
           </form>
         )}
+      </Dialog>
+
+      {/* Edit Instructor Dialog */}
+      <Dialog 
+        open={editDialogOpen} 
+        onClose={() => setEditDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)'
+          }
+        }}
+      >
+        <DialogTitle 
+          sx={{
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            color: 'white',
+            py: 3,
+            px: 4,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2
+          }}
+        >
+          <Edit className="w-6 h-6" />
+          Edit Instructor
+        </DialogTitle>
+        
+        <form onSubmit={handleUpdateInstructor}>
+          <DialogContent sx={{ p: 4 }}>
+            <Grid container spacing={3}>
+              <Grid item xs={12} sm={4}>
+                <TextField
+                  fullWidth
+                  label="First Name"
+                  value={editForm.firstName}
+                  onChange={(e) => setEditForm(f => ({ ...f, firstName: e.target.value }))}
+                  required
+                />
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <TextField
+                  fullWidth
+                  label="Middle Name"
+                  value={editForm.middleName}
+                  onChange={(e) => setEditForm(f => ({ ...f, middleName: e.target.value }))}
+                />
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <TextField
+                  fullWidth
+                  label="Last Name"
+                  value={editForm.lastName}
+                  onChange={(e) => setEditForm(f => ({ ...f, lastName: e.target.value }))}
+                  required
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Email"
+                  value={editForm.email}
+                  InputProps={{ readOnly: true }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      backgroundColor: '#f3f4f6'
+                    }
+                  }}
+                  helperText="Email cannot be changed"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <FormControl fullWidth>
+                  <InputLabel>Role</InputLabel>
+                  <Select
+                    value={editForm.role}
+                    label="Role"
+                    onChange={(e) => setEditForm(f => ({ ...f, role: e.target.value as 'teacher' | 'instructor' }))}
+                  >
+                    <MenuItem value="teacher">Teacher</MenuItem>
+                    <MenuItem value="instructor">Instructor</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <FormControl fullWidth>
+                  <InputLabel>Department</InputLabel>
+                  <Select
+                    value={editForm.department}
+                    label="Department"
+                    onChange={(e) => setEditForm(f => ({ ...f, department: e.target.value }))}
+                  >
+                    <MenuItem value="BSIT">BSIT</MenuItem>
+                    <MenuItem value="BSBA">BSBA</MenuItem>
+                    <MenuItem value="BSA">BSA</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12}>
+                <FormControl fullWidth>
+                  <InputLabel>Status</InputLabel>
+                  <Select
+                    value={editForm.is_active ? 'true' : 'false'}
+                    label="Status"
+                    onChange={(e) => setEditForm(f => ({ ...f, is_active: e.target.value === 'true' }))}
+                  >
+                    <MenuItem value="true">Active</MenuItem>
+                    <MenuItem value="false">Inactive</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+            </Grid>
+          </DialogContent>
+          
+          <DialogActions sx={{ p: 3, background: '#f8fafc' }}>
+            <Button 
+              onClick={() => {
+                setEditDialogOpen(false);
+                resetEditForm();
+              }}
+              disabled={editing}
+            >
+              Cancel
+            </Button>
+            <Button 
+              type="submit" 
+              variant="contained"
+              disabled={editing}
+              sx={{
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%)',
+                }
+              }}
+            >
+              {editing ? 'Updating...' : 'Update Instructor'}
+            </Button>
+          </DialogActions>
+        </form>
+      </Dialog>
+
+      {/* View Instructor Dialog */}
+      <Dialog
+        open={viewDialogOpen}
+        onClose={closeViewDialog}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)'
+          }
+        }}
+      >
+        {instructorToView && (
+          <>
+            <DialogTitle 
+              sx={{
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                color: 'white',
+                py: 3,
+                px: 4,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Eye className="w-6 h-6" />
+                <Typography variant="h6" sx={{ fontWeight: '600', fontSize: '1.1rem' }}>
+                  Instructor Details
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <IconButton
+                  onClick={() => handleEditInstructor(instructorToView)}
+                  sx={{ 
+                    color: 'white', 
+                    p: 1,
+                    '&:hover': { 
+                      bg: 'rgba(255, 255, 255, 0.1)'
+                    }
+                  }}
+                  size="medium"
+                >
+                  <Edit className="w-5 h-5" />
+                </IconButton>
+                <IconButton
+                  onClick={closeViewDialog}
+                  sx={{ color: 'white', p: 1 }}
+                  size="medium"
+                >
+                  <X className="w-5 h-5" />
+                </IconButton>
+              </Box>
+            </DialogTitle>
+            
+            <DialogContent sx={{ p: 4 }}>
+              <Grid container spacing={3}>
+                {/* Basic Information */}
+                <Grid item xs={12}>
+                  <Card sx={{ p: 3, bg: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                    <Typography variant="h6" sx={{ fontWeight: '600', color: '#374151', mb: 2 }}>
+                      Basic Information
+                    </Typography>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} sm={4}>
+                        <Box sx={{ 
+                          bg: 'white', 
+                          p: 2, 
+                          borderRadius: 1, 
+                          border: '1px solid #e5e7eb',
+                          textAlign: 'center'
+                        }}>
+                          <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: '600', textTransform: 'uppercase' }}>
+                            First Name
+                          </Typography>
+                          <Typography variant="body1" sx={{ fontWeight: '600', color: '#111827', mt: 0.5 }}>
+                            {instructorToView.first_name}
+                          </Typography>
+                        </Box>
+                      </Grid>
+                      <Grid item xs={12} sm={4}>
+                        <Box sx={{ 
+                          bg: 'white', 
+                          p: 2, 
+                          borderRadius: 1, 
+                          border: '1px solid #e5e7eb',
+                          textAlign: 'center'
+                        }}>
+                          <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: '600', textTransform: 'uppercase' }}>
+                            Middle Name
+                          </Typography>
+                          <Typography variant="body1" sx={{ fontWeight: '600', color: '#111827', mt: 0.5 }}>
+                            {instructorToView.middle_name || 'N/A'}
+                          </Typography>
+                        </Box>
+                      </Grid>
+                      <Grid item xs={12} sm={4}>
+                        <Box sx={{ 
+                          bg: 'white', 
+                          p: 2, 
+                          borderRadius: 1, 
+                          border: '1px solid #e5e7eb',
+                          textAlign: 'center'
+                        }}>
+                          <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: '600', textTransform: 'uppercase' }}>
+                            Last Name
+                          </Typography>
+                          <Typography variant="body1" sx={{ fontWeight: '600', color: '#111827', mt: 0.5 }}>
+                            {instructorToView.last_name}
+                          </Typography>
+                        </Box>
+                      </Grid>
+                    </Grid>
+                  </Card>
+                </Grid>
+
+                {/* Contact & Role Information */}
+                <Grid item xs={12}>
+                  <Card sx={{ p: 3, bg: '#f0f9ff', border: '1px solid #bae6fd' }}>
+                    <Typography variant="h6" sx={{ fontWeight: '600', color: '#0c4a6e', mb: 2 }}>
+                      Contact & Role Information
+                    </Typography>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} sm={6}>
+                        <Box sx={{ 
+                          bg: 'white', 
+                          p: 2, 
+                          borderRadius: 1, 
+                          border: '1px solid #bae6fd',
+                          textAlign: 'center'
+                        }}>
+                          <Typography variant="caption" sx={{ color: '#0369a1', fontWeight: '600', textTransform: 'uppercase' }}>
+                            Email Address
+                          </Typography>
+                          <Typography variant="body1" sx={{ fontWeight: '600', color: '#0c4a6e', mt: 0.5 }}>
+                            {instructorToView.email}
+                          </Typography>
+                        </Box>
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <Box sx={{ 
+                          bg: 'white', 
+                          p: 2, 
+                          borderRadius: 1, 
+                          border: '1px solid #bae6fd',
+                          textAlign: 'center'
+                        }}>
+                          <Typography variant="caption" sx={{ color: '#0369a1', fontWeight: '600', textTransform: 'uppercase' }}>
+                            Role
+                          </Typography>
+                          <Chip 
+                            label={instructorToView.role.charAt(0).toUpperCase() + instructorToView.role.slice(1)}
+                            size="small"
+                            sx={{ 
+                              bgcolor: instructorToView.role === 'instructor' ? '#fef3c7' : '#dbeafe',
+                              color: instructorToView.role === 'instructor' ? '#92400e' : '#1e40af',
+                              fontSize: '0.75rem',
+                              fontWeight: '600',
+                              mt: 0.5
+                            }}
+                          />
+                        </Box>
+                      </Grid>
+                    </Grid>
+                  </Card>
+                </Grid>
+
+                {/* Department & Status */}
+                <Grid item xs={12}>
+                  <Card sx={{ p: 3, bg: '#f0fdf4', border: '1px solid #bbf7d0' }}>
+                    <Typography variant="h6" sx={{ fontWeight: '600', color: '#14532d', mb: 2 }}>
+                      Department & Status
+                    </Typography>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} sm={6}>
+                        <Box sx={{ 
+                          bg: 'white', 
+                          p: 2, 
+                          borderRadius: 1, 
+                          border: '1px solid #bbf7d0',
+                          textAlign: 'center'
+                        }}>
+                          <Typography variant="caption" sx={{ color: '#15803d', fontWeight: '600', textTransform: 'uppercase' }}>
+                            Department
+                          </Typography>
+                          <Typography variant="body1" sx={{ fontWeight: '600', color: '#14532d', mt: 0.5 }}>
+                            {instructorToView.department || 'N/A'}
+                          </Typography>
+                        </Box>
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <Box sx={{ 
+                          bg: 'white', 
+                          p: 2, 
+                          borderRadius: 1, 
+                          border: '1px solid #bbf7d0',
+                          textAlign: 'center'
+                        }}>
+                          <Typography variant="caption" sx={{ color: '#15803d', fontWeight: '600', textTransform: 'uppercase' }}>
+                            Status
+                          </Typography>
+                          <Chip 
+                            label={instructorToView.is_active ? 'Active' : 'Inactive'}
+                            size="small"
+                            color={instructorToView.is_active ? 'success' : 'default'}
+                            sx={{ 
+                              fontSize: '0.75rem',
+                              fontWeight: '600',
+                              mt: 0.5
+                            }}
+                          />
+                        </Box>
+                      </Grid>
+                    </Grid>
+                  </Card>
+                </Grid>
+
+                {/* Account Information */}
+                <Grid item xs={12}>
+                  <Card sx={{ p: 3, bg: '#fef3c7', border: '1px solid #f59e0b' }}>
+                    <Typography variant="h6" sx={{ fontWeight: '600', color: '#92400e', mb: 2 }}>
+                      Account Information
+                    </Typography>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} sm={6}>
+                        <Box sx={{ 
+                          bg: 'white', 
+                          p: 2, 
+                          borderRadius: 1, 
+                          border: '1px solid #f59e0b',
+                          textAlign: 'center'
+                        }}>
+                          <Typography variant="caption" sx={{ color: '#b45309', fontWeight: '600', textTransform: 'uppercase' }}>
+                            Created Date
+                          </Typography>
+                          <Typography variant="body1" sx={{ fontWeight: '600', color: '#92400e', mt: 0.5 }}>
+                            {new Date(instructorToView.created_at).toLocaleDateString()}
+                          </Typography>
+                        </Box>
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <Box sx={{ 
+                          bg: 'white', 
+                          p: 2, 
+                          borderRadius: 1, 
+                          border: '1px solid #f59e0b',
+                          textAlign: 'center'
+                        }}>
+                          <Typography variant="caption" sx={{ color: '#b45309', fontWeight: '600', textTransform: 'uppercase' }}>
+                            Last Updated
+                          </Typography>
+                          <Typography variant="body1" sx={{ fontWeight: '600', color: '#92400e', mt: 0.5 }}>
+                            {new Date(instructorToView.updated_at).toLocaleDateString()}
+                          </Typography>
+                        </Box>
+                      </Grid>
+                    </Grid>
+                  </Card>
+                </Grid>
+              </Grid>
+            </DialogContent>
+            
+            <DialogActions sx={{ p: 3, background: '#f8fafc' }}>
+              <Button 
+                onClick={closeViewDialog}
+                variant="outlined"
+              >
+                Close
+              </Button>
+              <Button 
+                onClick={() => handleEditInstructor(instructorToView)}
+                variant="contained"
+                sx={{
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  '&:hover': {
+                    background: 'linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%)',
+                  }
+                }}
+              >
+                Edit Instructor
+              </Button>
+            </DialogActions>
+          </>
+        )}
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={resetDeleteDialog}
+        maxWidth="sm"
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)'
+          }
+        }}
+      >
+        <DialogTitle 
+          sx={{
+            background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+            color: 'white',
+            py: 3,
+            px: 4,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2
+          }}
+        >
+          <Trash2 className="w-6 h-6" />
+          Delete Instructor
+        </DialogTitle>
+        
+        <DialogContent sx={{ p: 4 }}>
+          <Typography variant="body1" sx={{ mb: 2 }}>
+            Are you sure you want to delete this instructor?
+          </Typography>
+          {instructorToDelete && (
+            <Box sx={{ 
+              bg: '#fef2f2', 
+              p: 3, 
+              borderRadius: 2, 
+              border: '1px solid #fecaca',
+              mb: 2
+            }}>
+              <Typography variant="h6" sx={{ color: '#dc2626', mb: 1 }}>
+                {instructorToDelete.first_name} {instructorToDelete.middle_name ? instructorToDelete.middle_name + ' ' : ''}{instructorToDelete.last_name}
+              </Typography>
+              <Typography variant="body2" sx={{ color: '#6b7280' }}>
+                {instructorToDelete.email}
+              </Typography>
+              <Typography variant="body2" sx={{ color: '#6b7280' }}>
+                {instructorToDelete.role.charAt(0).toUpperCase() + instructorToDelete.role.slice(1)} • {instructorToDelete.department}
+              </Typography>
+            </Box>
+          )}
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            <Typography variant="body2">
+              <strong>Warning:</strong> This action cannot be undone. The instructor will be permanently removed from the system.
+            </Typography>
+          </Alert>
+        </DialogContent>
+        
+        <DialogActions sx={{ p: 3, background: '#f8fafc' }}>
+          <Button 
+            onClick={resetDeleteDialog}
+            disabled={deleting}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={confirmDeleteInstructor}
+            variant="contained"
+            disabled={deleting}
+            sx={{
+              background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+              '&:hover': {
+                background: 'linear-gradient(135deg, #b91c1c 0%, #991b1b 100%)',
+              }
+            }}
+          >
+            {deleting ? 'Deleting...' : 'Delete Instructor'}
+          </Button>
+        </DialogActions>
       </Dialog>
 
       {/* Subject Assignment Modal */}
