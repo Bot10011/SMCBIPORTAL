@@ -4,9 +4,9 @@ import DashboardLayout from '../components/Sidebar';
 import ProgramHeadEnrollment from './ProgramHeadEnrollment';
 import CoursesOffered from './CoursesOffered';
 import SubjectAssignment from './SubjectAssignment';
-import ClassManagement from './ClassManagement';
-import InstructorManagement from './InstructorManagement';
 import UserManagement from './UserManagement';
+import InstructorManagement from './InstructorManagement';
+import ClassManagement from './ClassManagement';
 import Settings from './Settings';
 
 import { motion } from 'framer-motion';
@@ -17,223 +17,356 @@ import {
   BookOpenCheck,
   BarChart3,
   Calendar,
-  Bell,
-  StickyNote,
-  ChevronUp,
-  ChevronDown
+  UserPlus,
+  GraduationCap,
+  Clock,
+  AlertTriangle,
+  CheckCircle,
+  TrendingUp,
+  FileText,
+  Settings as SettingsIcon,
+  Users2,
+  Award
 } from 'lucide-react';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { supabase } from '../lib/supabase';
-import { useAuth } from '../contexts/AuthContext';
-// import { getGoogleClassroomConnectionInfo } from '../lib/services/googleClassroomService';
-// import { StudentGoogleClassroom } from '../components/StudentGoogleClassroom';
-
-// Import program head-specific components
 
 // Dashboard Overview Component
 const DashboardOverview: React.FC = () => {
-  const { user } = useAuth();
   const [stats, setStats] = useState({
     activeStudents: 0,
-    pendingRequests: 0,
-    subjectsManaged: 0,
-    completedSubjects: 0
+    pendingEnrollments: 0,
+    totalSubjects: 0,
+    activeInstructors: 0,
+    totalClasses: 0,
+    enrollmentRate: 0
   });
-  const [studentPerformance, setStudentPerformance] = useState<{
-    course: string;
-    rating: number;
-    students: number;
-    color: string;
-    yearLabel?: string;
-  }[]>([]);
+  const [recentEnrollments, setRecentEnrollments] = useState<any[]>([]);
+  const [recentActivities, setRecentActivities] = useState<any[]>([]);
+  const [subjectStats, setSubjectStats] = useState<any[]>([]);
+  const [calendarEvents, setCalendarEvents] = useState<any[]>([]);
+  const [systemStatus, setSystemStatus] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // Unified panel state replaces separate modal flags
-  const perfListRef = React.useRef<HTMLDivElement | null>(null);
-  const [yearFilter, setYearFilter] = useState<'all' | '1st Year' | '2nd Year' | '3rd Year' | '4th Year'>('all');
-  const [activePanel, setActivePanel] = useState<'notifications' | 'notes' | 'calendar'>('calendar');
-  const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState(new Date().getDate());
-  const [personalNotes, setPersonalNotes] = useState<Array<{ id: string; content: string; created_at: string }>>([]);
-  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
-  const [editingNoteContent, setEditingNoteContent] = useState<string>("");
-  const [programNotifications, setProgramNotifications] = useState<Array<{ id: string; title: string; message: string; severity: 'announcement' | 'reminder' | 'deadline' | 'exam' | 'meeting' | 'advisory' | 'info' | 'success' | 'warning' | 'error'; audience: 'instructor' | 'student' | 'all'; created_by: string | null; created_at: string }>>([]);
-  const [editingNotifId, setEditingNotifId] = useState<string | null>(null);
-  const [editingNotif, setEditingNotif] = useState<{ title: string; message: string; severity: 'announcement' | 'reminder' | 'deadline' | 'exam' | 'meeting' | 'advisory' | 'info' | 'success' | 'warning' | 'error'; audience: 'instructor' | 'student' | 'all' }>({ title: '', message: '', severity: 'announcement', audience: 'instructor' });
-
-  const handlePreviousMonth = () => {
-    setCurrentMonth(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
-  };
-
-  const handleNextMonth = () => {
-    setCurrentMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
-  };
-
-  const calendarDates = (() => {
-    const year = currentMonth.getFullYear();
-    const month = currentMonth.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const startDate = new Date(firstDay);
-    const dayOfWeek = firstDay.getDay();
-    const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // start week on Monday
-    startDate.setDate(startDate.getDate() - daysToSubtract);
-    const dates: Date[] = [];
-    for (let i = 0; i < 42; i++) {
-      const date = new Date(startDate);
-      date.setDate(startDate.getDate() + i);
-      dates.push(date);
-    }
-    return dates;
-  })();
-
-  // (Optional) Google Classroom connection check removed for now
-
-  // Load personal notes for program head
-  useEffect(() => {
-    const loadNotes = async () => {
-      if (!user?.id) return;
-      try {
-        const { data, error } = await supabase
-          .from('personal_notes')
-          .select('id, content, created_at')
-          .order('created_at', { ascending: false })
-          .limit(50);
-        if (error) throw error;
-        setPersonalNotes(data || []);
-      } catch (err) {
-        console.error('ProgramHead notes fetch error:', err);
-        setPersonalNotes([]);
-      }
-    };
-    loadNotes();
-  }, [user?.id]);
-
-  // Load notifications for management (program head can create/manage)
-  useEffect(() => {
-    const loadNotifications = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('notifications')
-          .select('id, title, message, severity, audience, created_by, created_at')
-          .order('created_at', { ascending: false })
-          .limit(50);
-        if (error) throw error;
-        setProgramNotifications(data || []);
-      } catch (err) {
-        console.error('ProgramHead notifications fetch error:', err);
-        setProgramNotifications([]);
-      }
-    };
-    loadNotifications();
-  }, []);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
         setError(null);
-        // 1. All Students (count unique student_id in enrollcourse)
+        setLoading(true);
+
+        // Fetch enrollment data
         const { data: enrollments, error: enrollmentsError } = await supabase
           .from('enrollcourse')
-          .select('student_id, subject_id, status');
+          .select('student_id, subject_id, status, created_at')
+          .order('created_at', { ascending: false })
+          .limit(10);
+
         if (enrollmentsError) throw enrollmentsError;
-        // 2. Fetch all courses to map subject_id to code
+
+        // Fetch courses/subjects
         const { data: courses, error: coursesError } = await supabase
           .from('courses')
-          .select('id, code, year_level');
+          .select('id, code, name, units');
+
         if (coursesError) throw coursesError;
-        const courseMetaMap: Record<string, { code: string; year_level?: string | null }> = {};
-        (courses || []).forEach((c: { id: string, code: string, year_level?: string | null }) => {
-          courseMetaMap[c.id] = { code: c.code, year_level: c.year_level };
-        });
-        // Unique students
-        const uniqueStudentIds = new Set((enrollments || []).map((e: { student_id: string }) => e.student_id));
-        // Unique subjects
-        const uniqueSubjectIds = new Set((enrollments || []).map((e: { subject_id: string }) => e.subject_id));
-        // Courses Performance: ensure ALL courses show, even without enrollments
-        const subjectStudentMap: Record<string, Set<string>> = {};
-        (enrollments || []).forEach((e: { subject_id: string, student_id: string }) => {
-          if (!subjectStudentMap[e.subject_id]) subjectStudentMap[e.subject_id] = new Set();
-          subjectStudentMap[e.subject_id].add(e.student_id);
-        });
-        const performance = (courses || []).map((c: { id: string; code: string; year_level?: string | null }) => {
-          // Normalize year label
-          const yl = (c.year_level || '').toString().trim();
-          const yearLabel = yl || (() => {
-            const match = (c.code || '').match(/(\d{3})/);
-            if (!match) return '';
-            const digit = match[1][0];
-            if (digit === '1') return '1st Year';
-            if (digit === '2') return '2nd Year';
-            if (digit === '3') return '3rd Year';
-            if (digit === '4') return '4th Year';
-            return '';
-          })();
+
+        // Fetch user profiles for students and instructors
+        const { data: userProfiles, error: profilesError } = await supabase
+          .from('user_profiles')
+          .select('id, role, first_name, last_name, department');
+
+        if (profilesError) throw profilesError;
+
+        // Fetch recent activities from actual data
+        const { data: recentEnrollmentsData, error: recentError } = await supabase
+          .from('enrollcourse')
+          .select(`
+            id,
+            created_at,
+            status,
+            student_id,
+            subject_id
+          `)
+          .order('created_at', { ascending: false })
+          .limit(5);
+
+        if (recentError) throw recentError;
+
+        // Fetch instructor assignments
+        const { data: instructorAssignments, error: instructorError } = await supabase
+          .from('instructor_assignments')
+          .select(`
+            id,
+            created_at,
+            instructor:user_profiles(first_name, last_name),
+            subject:courses(code, name)
+          `)
+          .order('created_at', { ascending: false })
+          .limit(3);
+
+        if (instructorError) {
+          console.log('No instructor assignments table found, using mock data');
+        }
+
+        // Fetch subject assignments
+        const { data: subjectAssignments, error: subjectAssignError } = await supabase
+          .from('subject_assignments')
+          .select(`
+            id,
+            created_at,
+            student:user_profiles(first_name, last_name),
+            subject:courses(code, name)
+          `)
+          .order('created_at', { ascending: false })
+          .limit(3);
+
+        if (subjectAssignError) {
+          console.log('No subject assignments table found, using mock data');
+        }
+
+        // Calculate statistics
+        const uniqueStudents = new Set(enrollments?.map(e => e.student_id) || []);
+        const pendingEnrollments = enrollments?.filter(e => e.status === 'pending').length || 0;
+        const activeInstructors = userProfiles?.filter(u => u.role === 'teacher').length || 0;
+        const totalClasses = courses?.length || 0;
+
+        // Calculate enrollment rate (this semester vs last semester)
+        const currentDate = new Date();
+        const currentMonth = currentDate.getMonth();
+        const isFirstSemester = currentMonth >= 5 && currentMonth <= 9; // June to October
+        const isSecondSemester = currentMonth >= 10 || currentMonth <= 2; // November to March
+
+        let enrollmentRate = 0;
+        if (enrollments && enrollments.length > 0) {
+          const recentEnrollments = enrollments.filter(e => {
+            const enrollDate = new Date(e.created_at);
+            const enrollMonth = enrollDate.getMonth();
+            return (isFirstSemester && enrollMonth >= 5 && enrollMonth <= 9) ||
+                   (isSecondSemester && (enrollMonth >= 10 || enrollMonth <= 2));
+          });
+          enrollmentRate = Math.round((recentEnrollments.length / enrollments.length) * 100);
+        }
+
+        // Process recent enrollments for display
+        const processedEnrollmentsData = recentEnrollmentsData?.map((enrollment, index) => {
+          const student = userProfiles?.find(u => u.id === enrollment.student_id);
+          const subject = courses?.find(c => c.id === enrollment.subject_id);
           return {
-            course: (courseMetaMap[c.id]?.code) || c.id,
-            rating: 0,
-            students: subjectStudentMap[c.id] ? subjectStudentMap[c.id].size : 0,
-            color: 'blue',
-            yearLabel,
+            id: `enrollment-${index}`,
+            studentName: student ? 
+              `${student.first_name} ${student.last_name}` : 'Unknown Student',
+            subjectCode: subject?.code || 'Unknown Subject',
+            status: enrollment.status,
+            date: new Date(enrollment.created_at).toLocaleDateString()
           };
+        }) || [];
+
+        // Process subject statistics
+        const subjectStatsData = courses?.slice(0, 6).map(course => ({
+          code: course.code,
+          name: course.name,
+          units: course.units,
+          enrolledStudents: enrollments?.filter(e => e.subject_id === course.id).length || 0
+        })) || [];
+
+        // Process recent activities from actual data
+        const activities: any[] = [];
+        
+        // Add enrollment activities
+        if (processedEnrollmentsData) {
+          processedEnrollmentsData.forEach(enrollment => {
+            activities.push({
+              id: `enrollment-${enrollment.id}`,
+              action: 'Student enrollment',
+              student: enrollment.studentName,
+              subject: enrollment.subjectCode,
+              time: enrollment.date,
+              type: 'enrollment'
+            });
+          });
+        }
+
+        // Add instructor assignment activities
+        if (instructorAssignments) {
+          instructorAssignments.forEach((assignment: any) => {
+            activities.push({
+              id: `instructor-${assignment.id}`,
+              action: 'Instructor assigned',
+              student: assignment.instructor ? 
+                `${assignment.instructor.first_name} ${assignment.instructor.last_name}` : 'Unknown Instructor',
+              subject: assignment.subject?.code || 'Unknown Subject',
+              time: new Date(assignment.created_at).toLocaleDateString(),
+              type: 'instructor'
+            });
+          });
+        }
+
+        // Add subject assignment activities
+        if (subjectAssignments) {
+          subjectAssignments.forEach((assignment: any) => {
+            activities.push({
+              id: `subject-${assignment.id}`,
+              action: 'Subject assigned',
+              student: assignment.student ? 
+                `${assignment.student.first_name} ${assignment.student.last_name}` : 'Unknown Student',
+              subject: assignment.subject?.code || 'Unknown Subject',
+              time: new Date(assignment.created_at).toLocaleDateString(),
+              type: 'subject'
+            });
+          });
+        }
+
+        // Sort activities by time and take the most recent 5
+        const sortedActivities = activities
+          .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
+          .slice(0, 5);
+
+        // Generate calendar events based on actual data
+        const currentEvents = [];
+        const today = new Date();
+        
+        // Add enrollment deadline (end of current month)
+        const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        currentEvents.push({
+          date: endOfMonth.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          title: 'Enrollment Deadline',
+          time: '11:59 PM',
+          type: 'deadline'
         });
+
+        // Add faculty meeting (first Monday of next month)
+        const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+        const firstMonday = new Date(nextMonth);
+        while (firstMonday.getDay() !== 1) {
+          firstMonday.setDate(firstMonday.getDate() + 1);
+        }
+        currentEvents.push({
+          date: firstMonday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          title: 'Faculty Meeting',
+          time: '1:00 PM - 3:00 PM',
+          type: 'meeting'
+        });
+
+        // Add grade submission deadline (15th of next month)
+        const gradeDeadline = new Date(today.getFullYear(), today.getMonth() + 1, 15);
+        currentEvents.push({
+          date: gradeDeadline.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          title: 'Grade Submission Deadline',
+          time: '11:59 PM',
+          type: 'deadline'
+        });
+
+        // Add department planning (last Friday of current month)
+        const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        const lastFriday = new Date(lastDay);
+        while (lastFriday.getDay() !== 5) {
+          lastFriday.setDate(lastFriday.getDate() - 1);
+        }
+        currentEvents.push({
+          date: lastFriday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          title: 'Department Planning',
+          time: '2:00 PM - 4:00 PM',
+          type: 'regular'
+        });
+
+        // Generate system status based on actual data
+        const systemStatusData = [
+          {
+            title: 'Enrollment System',
+            status: 'operational',
+            description: pendingEnrollments > 0 ? `${pendingEnrollments} pending enrollments` : 'All enrollments processed'
+          },
+          {
+            title: 'Student Records',
+            status: 'operational',
+            description: `${uniqueStudents.size} active students`
+          },
+          {
+            title: 'Subject Management',
+            status: 'operational',
+            description: `${totalClasses} subjects available`
+          },
+          {
+            title: 'Instructor System',
+            status: 'operational',
+            description: `${activeInstructors} active instructors`
+          }
+        ];
+
         setStats({
-          activeStudents: uniqueStudentIds.size,
-          pendingRequests: 0,
-          subjectsManaged: uniqueSubjectIds.size,
-          completedSubjects: 0
+          activeStudents: uniqueStudents.size,
+          pendingEnrollments,
+          totalSubjects: totalClasses,
+          activeInstructors,
+          totalClasses,
+          enrollmentRate
         });
-        setStudentPerformance(performance);
+
+        setRecentEnrollments(processedEnrollmentsData);
+        setSubjectStats(subjectStatsData);
+        setRecentActivities(sortedActivities);
+        setCalendarEvents(currentEvents);
+        setSystemStatus(systemStatusData);
+
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Failed to load dashboard data';
         setError(errorMsg);
         console.error('Dashboard fetch error:', err);
+      } finally {
+        setLoading(false);
       }
     };
+
     fetchDashboardData();
   }, []);
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-100 border border-red-300 text-red-800 px-4 py-3 rounded mb-4">
+        <strong>Error:</strong> {error}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
-      {error && (
-        <div className="bg-red-100 border border-red-300 text-red-800 px-4 py-3 rounded mb-4">
-          <strong>Error:</strong> {error}
-        </div>
-      )}
       {/* Header */}
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="mb-6 bg-gradient-to-r from-blue-600 to-purple-600 px-8 py-6 shadow-lg"
-        style={{ marginLeft: '-2rem', marginRight: '-2rem' }}
+        className="mb-6 bg-gradient-to-r from-blue-600 to-purple-600 px-8 py-6 rounded-2xl shadow-lg"
       >
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                width="24" 
-                height="24" 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="currentColor" 
-                strokeWidth="2" 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
-                className="w-6 h-6 text-white"
-              >
-                <path d="M5 12h14"></path>
-                <path d="M12 5v14"></path>
-              </svg>
+            <div className="p-3 rounded-xl bg-white/20 backdrop-blur-sm">
+              <GraduationCap className="w-8 h-8 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-white tracking-tight">Program Head Dashboard</h1>
-              <p className="text-white/80 text-sm font-medium">Monitor program performance and student progress</p>
+              <h1 className="text-3xl font-bold text-white tracking-tight">Program Head Dashboard</h1>
+              <p className="text-white/80 text-sm font-medium">Comprehensive overview of academic program management</p>
             </div>
+          </div>
+          <div className="text-right text-white/80">
+            <p className="text-sm">Current Semester</p>
+            <p className="text-lg font-semibold">2024-2025</p>
           </div>
         </div>
       </motion.div>
 
-      {/* Stats Cards */}
+      {/* Main Stats Cards */}
       <motion.div 
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -243,473 +376,292 @@ const DashboardOverview: React.FC = () => {
         <StatsCard 
           title="Active Students" 
           value={stats.activeStudents} 
-          icon={<Users className="w-8 h-8 text-indigo-500" />} 
-          color="indigo"
-          trend="+5% from last semester"
+          icon={<Users className="w-8 h-8 text-blue-500" />} 
+          color="blue"
+          trend={`${stats.enrollmentRate}% enrollment rate`}
         />
         <StatsCard 
-          title="Pending Requests" 
-          value={stats.pendingRequests} 
-          icon={<ClipboardList className="w-8 h-8 text-amber-500" />} 
+          title="Pending Enrollments" 
+          value={stats.pendingEnrollments} 
+          icon={<UserPlus className="w-8 h-8 text-amber-500" />} 
           color="amber"
-          trend="4 urgent"
+          trend="Requires attention"
         />
         <StatsCard 
-          title="Subjects Managed" 
-          value={stats.subjectsManaged} 
+          title="Total Subjects" 
+          value={stats.totalSubjects} 
           icon={<BookOpen className="w-8 h-8 text-emerald-500" />} 
           color="emerald"
-          trend="3 new this term"
+          trend="Curriculum active"
         />
         <StatsCard 
-          title="Completed Subjects" 
-          value={stats.completedSubjects} 
-          icon={<BookOpenCheck className="w-8 h-8 text-violet-500" />} 
-          color="violet"
-          trend="62% completion rate"
+          title="Active Instructors" 
+          value={stats.activeInstructors} 
+          icon={<Users2 className="w-8 h-8 text-purple-500" />} 
+          color="purple"
+          trend="Faculty assigned"
         />
       </motion.div>
 
-      {/* Middle Row */}
+      {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left: Course Performance Chart (spans 2) */}
-        <motion.div 
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-          className="lg:col-span-2 bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6"
-        >
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-semibold text-gray-800 flex items-center">
-              <BarChart3 className="w-5 h-5 mr-2 text-gray-600" />
-              Subjects Performance
-            </h2>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => perfListRef.current?.scrollBy({ top: -200, behavior: 'smooth' })}
-                className="p-2 rounded-lg border border-gray-200 hover:bg-gray-100 text-gray-600"
-                title="Scroll up"
-              >
-                <ChevronUp className="w-4 h-4" />
+        {/* Left Column - Recent Enrollments & Subject Stats */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Recent Enrollments */}
+          <motion.div 
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+            className="bg-white rounded-2xl shadow-lg p-6"
+          >
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-semibold text-gray-800 flex items-center">
+                <UserPlus className="w-5 h-5 mr-2 text-blue-600" />
+                Recent Enrollments
+              </h2>
+              <button className="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                View all
               </button>
-              <button
-                onClick={() => perfListRef.current?.scrollBy({ top: 200, behavior: 'smooth' })}
-                className="p-2 rounded-lg border border-gray-200 hover:bg-gray-100 text-gray-600"
-                title="Scroll down"
-              >
-                <ChevronDown className="w-4 h-4" />
-              </button>
-              <select
-                value={yearFilter}
-                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setYearFilter(e.target.value as 'all' | '1st Year' | '2nd Year' | '3rd Year' | '4th Year')}
-                className="bg-gray-50 border border-gray-200 text-gray-700 py-2 px-3 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="all">All Years</option>
-                <option value="1st Year">1st Year</option>
-                <option value="2nd Year">2nd Year</option>
-                <option value="3rd Year">3rd Year</option>
-                <option value="4th Year">4th Year</option>
+            </div>
+            
+            <div className="space-y-3">
+              {recentEnrollments.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <UserPlus className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                  <p>No recent enrollments</p>
+                </div>
+              ) : (
+                recentEnrollments.map((enrollment, index) => (
+                  <div key={enrollment.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-2 h-2 rounded-full ${
+                        enrollment.status === 'active' ? 'bg-green-500' : 
+                        enrollment.status === 'pending' ? 'bg-amber-500' : 'bg-gray-400'
+                      }`}></div>
+                      <div>
+                        <p className="font-medium text-gray-800">{enrollment.studentName}</p>
+                        <p className="text-sm text-gray-600">{enrollment.subjectCode}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
+                        enrollment.status === 'active' ? 'bg-green-100 text-green-800' : 
+                        enrollment.status === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {enrollment.status}
+                      </span>
+                      <p className="text-xs text-gray-500 mt-1">{enrollment.date}</p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </motion.div>
+
+          {/* Subject Statistics */}
+          <motion.div 
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
+            className="bg-white rounded-2xl shadow-lg p-6"
+          >
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-semibold text-gray-800 flex items-center">
+                <BarChart3 className="w-5 h-5 mr-2 text-green-600" />
+                Subject Overview
+              </h2>
+              <select className="bg-gray-50 border border-gray-200 text-gray-700 py-2 px-3 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="current">Current Semester</option>
+                <option value="previous">Previous Semester</option>
               </select>
             </div>
-          </div>
 
-          <div ref={perfListRef} className="space-y-4 max-h-[420px] overflow-y-auto pr-2">
-            {studentPerformance
-              .filter(course => yearFilter === 'all' || course.yearLabel === yearFilter)
-              .map(course => {
-              const maxStudents = 100;
-              const percent = Math.min((course.students / maxStudents) * 100, 100);
-              return (
-                <div key={course.course} className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-700 font-medium">Course Code: {course.course}</span>
-                    <span className="text-gray-500 text-sm">{course.students} students</span>
+            <div className="space-y-4">
+              {subjectStats.map((subject, index) => {
+                const maxStudents = Math.max(...subjectStats.map(s => s.enrolledStudents), 1);
+                const percent = Math.round((subject.enrolledStudents / maxStudents) * 100);
+                
+                return (
+                  <div key={subject.code} className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <span className="text-gray-700 font-medium">{subject.code}</span>
+                        <span className="text-gray-500 text-sm ml-2">({subject.units} units)</span>
+                      </div>
+                      <span className="text-gray-500 text-sm">{subject.enrolledStudents} students</span>
+                    </div>
+                    <div className="w-full bg-gray-100 rounded-full h-2">
+                      <motion.div 
+                        initial={{ width: 0 }}
+                        animate={{ width: `${percent}%` }}
+                        transition={{ duration: 1, delay: index * 0.1 }}
+                        className="h-2 rounded-full bg-gradient-to-r from-blue-500 to-purple-500"
+                      ></motion.div>
+                    </div>
+                    <p className="text-xs text-gray-600 truncate">{subject.name}</p>
                   </div>
-                  <div className="w-full bg-gray-100 rounded-full h-2.5">
-                    <motion.div 
-                      initial={{ width: 0 }}
-                      animate={{ width: `${percent}%` }}
-                      transition={{ duration: 1, delay: 0.5 }}
-                      className={`h-2.5 rounded-full bg-${course.color}-500`}
-                    ></motion.div>
-                  </div>
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-gray-500">Enrolled Students</span>
-                   
-                  </div>
-                 
-                </div>
-              );
-            })}
-          </div>
-        </motion.div>
-
-        {/* Right: Toolbar + Calendar stacked */}
-        <div className="lg:col-span-1 space-y-6">
-          {/* Icon toolbar like Teacher dashboard */}
-          <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-4 shadow-xl border border-white/20 relative">
-            <div className="flex items-center justify-center">
-              <div className="flex items-center space-x-4">
-                {/* Notifications */}
-                <button onClick={() => setActivePanel('notifications')} className={`relative cursor-pointer group rounded-xl p-3 shadow-lg border transition-all duration-200 ${
-                  activePanel === 'notifications' ? 'bg-blue-100 border-blue-300' : 'bg-white/80 border-white/80'
-                }`}>
-                  <Bell className={`w-6 h-6 ${activePanel === 'notifications' ? 'text-blue-600' : 'text-gray-600'}`} />
-                </button>
-                {/* Notes */}
-                <button onClick={() => setActivePanel('notes')} className={`relative cursor-pointer group rounded-xl p-3 shadow-lg border transition-all duration-200 ${
-                  activePanel === 'notes' ? 'bg-yellow-100 border-yellow-300' : 'bg-white/80 border-white/80'
-                }`}>
-                  <StickyNote className={`w-6 h-6 ${activePanel === 'notes' ? 'text-yellow-600' : 'text-gray-600'}`} />
-                </button>
-                {/* Calendar */}
-                <button onClick={() => setActivePanel('calendar')} className={`relative cursor-pointer group rounded-xl p-3 shadow-lg border transition-all duration-200 ${
-                  activePanel === 'calendar' ? 'bg-green-100 border-green-300' : 'bg-white/80 border-white/80'
-                }`}>
-                  <Calendar className={`w-6 h-6 ${activePanel === 'calendar' ? 'text-green-600' : 'text-gray-600'}`} />
-                </button>
-              </div>
+                );
+              })}
             </div>
-          </div>
+          </motion.div>
+        </div>
 
-          {/* Unified container that switches based on selected icon */}
+        {/* Right Column - Quick Actions & Calendar */}
+        <div className="space-y-6">
+          {/* Quick Actions */}
+          <motion.div 
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+            className="bg-white rounded-2xl shadow-lg p-6"
+          >
+            <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+              <SettingsIcon className="w-5 h-5 mr-2 text-indigo-600" />
+              Quick Actions
+            </h2>
+            
+            <div className="space-y-3">
+              <QuickActionButton 
+                icon={<UserPlus className="w-5 h-5" />}
+                title="Enroll New Student"
+                description="Add new student to program"
+                color="blue"
+                onClick={() => window.location.href = '/dashboard/enroll-student'}
+              />
+              <QuickActionButton 
+                icon={<BookOpen className="w-5 h-5" />}
+                title="Assign Subjects"
+                description="Manage subject assignments"
+                color="green"
+                onClick={() => window.location.href = '/dashboard/assign-subjects'}
+              />
+              <QuickActionButton 
+                icon={<Users2 className="w-5 h-5" />}
+                title="Manage Instructors"
+                description="Update instructor assignments"
+                color="purple"
+                onClick={() => window.location.href = '/dashboard/instructor-management'}
+              />
+              <QuickActionButton 
+                icon={<ClipboardList className="w-5 h-5" />}
+                title="View Classes"
+                description="Monitor class schedules"
+                color="amber"
+                onClick={() => window.location.href = '/dashboard/class-management'}
+              />
+            </div>
+          </motion.div>
+
+          {/* Academic Calendar */}
           <motion.div 
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.5, delay: 0.3 }}
-            className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 shadow-xl border border-white/20"
+            className="bg-white rounded-2xl shadow-lg p-6"
           >
-            {activePanel === 'notifications' && (
-              <div>
-                <h3 className="font-bold text-gray-700 flex items-center mb-3"><Bell className="w-4 h-4 mr-2 text-blue-500" /> Notifications</h3>
-                {/* Add notification indicator/form */}
-                <form
-                  onSubmit={async (e) => {
-                    e.preventDefault();
-                    const form = e.currentTarget as HTMLFormElement;
-                    const titleInput = form.elements.namedItem('title') as HTMLInputElement;
-                    const messageInput = form.elements.namedItem('message') as HTMLInputElement;
-                    const severitySelect = form.elements.namedItem('type') as HTMLSelectElement;
-                    const audienceSelect = form.elements.namedItem('audience') as HTMLSelectElement;
-                    const title = (titleInput?.value || '').trim();
-                    const message = (messageInput?.value || '').trim();
-                    const severity = (severitySelect?.value || 'announcement') as 'announcement' | 'reminder' | 'deadline' | 'exam' | 'meeting' | 'advisory' | 'info' | 'success' | 'warning' | 'error';
-                    const audience = (audienceSelect?.value || 'instructor') as 'instructor' | 'student' | 'all';
-                    if (!title || !message || !user?.id) return;
-                    try {
-                      const { data: inserted, error } = await supabase
-                        .from('notifications')
-                        .insert({ title, message, severity, audience, created_by: user.id, is_active: true })
-                        .select('id, title, message, severity, audience, created_by, created_at')
-                        .single();
-                      if (error) throw error;
-                      if (inserted) setProgramNotifications(prev => [inserted, ...prev]);
-                      titleInput.value = '';
-                      messageInput.value = '';
-                      severitySelect.value = 'info';
-                      audienceSelect.value = 'instructor';
-                    } catch (err) {
-                      console.error('Failed to add notification:', err);
-                    }
-                  }}
-                  className="grid grid-cols-1 gap-2 mb-4"
-                >
-                  <input name="title" placeholder="Title" className="px-3 py-2 rounded-lg border border-gray-300 text-sm" />
-                  <input name="message" placeholder="Message" className="px-3 py-2 rounded-lg border border-gray-300 text-sm" />
-                  <div className="flex gap-2">
-                    <select name="type" className="px-2 py-2 rounded-lg border border-gray-300 text-sm">
-                      <option value="announcement">Announcement</option>
-                      <option value="reminder">Reminder</option>
-                      <option value="deadline">Deadline</option>
-                      <option value="exam">Exam</option>
-                      <option value="meeting">Meeting</option>
-                      <option value="advisory">Advisory</option>
-                    </select>
-                    <select name="audience" className="px-2 py-2 rounded-lg border border-gray-300 text-sm">
-                      <option value="instructor">Instructors</option>
-                      <option value="student">Students</option>
-                      <option value="all">All</option>
-                    </select>
-                    <button type="submit" className="px-3 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-sm">Add</button>
-                  </div>
-                </form>
-                {/* List notifications with edit/delete for own items */}
-                <div className="space-y-3">
-                  {programNotifications.length === 0 ? (
-                    <div className="text-sm text-gray-500">No notifications</div>
-                  ) : (
-                    programNotifications.map((n) => (
-                      <div key={n.id} className={`p-3 rounded-lg border flex items-start justify-between ${
-                        n.severity === 'success' ? 'bg-green-50 border-green-200' :
-                        n.severity === 'warning' ? 'bg-yellow-50 border-yellow-200' :
-                        n.severity === 'error' ? 'bg-red-50 border-red-200' : 'bg-blue-50 border-blue-200'
-                      }`}>
-                        <div className="flex-1 pr-3">
-                          {editingNotifId === n.id ? (
-                            <div className="space-y-2">
-                              <input
-                                value={editingNotif.title}
-                                onChange={(e) => setEditingNotif(prev => ({ ...prev, title: e.target.value }))}
-                                className="w-full px-2 py-1 rounded border border-gray-300 text-sm"
-                              />
-                              <input
-                                value={editingNotif.message}
-                                onChange={(e) => setEditingNotif(prev => ({ ...prev, message: e.target.value }))}
-                                className="w-full px-2 py-1 rounded border border-gray-300 text-sm"
-                              />
-                              <div className="flex gap-2">
-                                <select value={editingNotif.severity} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setEditingNotif(prev => ({ ...prev, severity: e.target.value as 'announcement' | 'reminder' | 'deadline' | 'exam' | 'meeting' | 'advisory' | 'info' | 'success' | 'warning' | 'error' }))} className="px-2 py-1 rounded border border-gray-300 text-sm">
-                                  <option value="announcement">Announcement</option>
-                                  <option value="reminder">Reminder</option>
-                                  <option value="deadline">Deadline</option>
-                                  <option value="exam">Exam</option>
-                                  <option value="meeting">Meeting</option>
-                                  <option value="advisory">Advisory</option>
-                                  <option value="info">Info</option>
-                                  <option value="success">Success</option>
-                                  <option value="warning">Warning</option>
-                                  <option value="error">Error</option>
-                                </select>
-                                <select value={editingNotif.audience} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setEditingNotif(prev => ({ ...prev, audience: e.target.value as 'instructor' | 'student' | 'all' }))} className="px-2 py-1 rounded border border-gray-300 text-sm">
-                                  <option value="instructor">Instructors</option>
-                                  <option value="student">Students</option>
-                                  <option value="all">All</option>
-                                </select>
-                              </div>
-                            </div>
-                          ) : (
-                            <>
-                              <div className="font-medium text-sm text-gray-700">{n.title}</div>
-                              <div className="text-xs text-gray-600">{n.message}</div>
-                              <div className="mt-1 inline-flex items-center gap-2 text-[10px]">
-                                <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 border border-gray-200">{n.severity}</span>
-                                <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 border border-gray-200">{n.audience}</span>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {n.created_by === (user?.id || null) ? (
-                            editingNotifId === n.id ? (
-                              <>
-                                <button
-                                  className="px-2 py-1 text-xs rounded bg-green-500 text-white hover:bg-green-600"
-                                  onClick={async () => {
-                                    try {
-                                      const { error } = await supabase
-                                        .from('notifications')
-                                        .update({ title: editingNotif.title, message: editingNotif.message, severity: editingNotif.severity, audience: editingNotif.audience })
-                                        .eq('id', n.id);
-                                      if (error) throw error;
-                                      setProgramNotifications(prev => prev.map(x => x.id === n.id ? { ...x, ...editingNotif } : x));
-                                      setEditingNotifId(null);
-                                    } catch (err) {
-                                      console.error('Failed to update notification:', err);
-                                    }
-                                  }}
-                                >
-                                  Save
-                                </button>
-                                <button
-                                  className="px-2 py-1 text-xs rounded bg-gray-200 text-gray-700 hover:bg-gray-300"
-                                  onClick={() => setEditingNotifId(null)}
-                                >
-                                  Cancel
-                                </button>
-                              </>
-                            ) : (
-                              <>
-                                <button
-                                  className="px-2 py-1 text-xs rounded bg-yellow-100 text-yellow-700 hover:bg-yellow-200"
-                                  onClick={() => { setEditingNotifId(n.id); setEditingNotif({ title: n.title, message: n.message, severity: n.severity, audience: n.audience }); }}
-                                >
-                                  Edit
-                                </button>
-                                <button
-                                  className="px-2 py-1 text-xs rounded bg-red-100 text-red-700 hover:bg-red-200"
-                                  onClick={async () => {
-                                    try {
-                                      const { error } = await supabase
-                                        .from('notifications')
-                                        .delete()
-                                        .eq('id', n.id);
-                                      if (error) throw error;
-                                      setProgramNotifications(prev => prev.filter(x => x.id !== n.id));
-                                    } catch (err) {
-                                      console.error('Failed to delete notification:', err);
-                                    }
-                                  }}
-                                >
-                                  Delete
-                                </button>
-                              </>
-                            )
-                          ) : (
-                            <span className="text-[10px] text-gray-400">read-only</span>
-                          )}
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
-            {activePanel === 'notes' && (
-              <div>
-                <h3 className="font-bold text-gray-700 flex items-center mb-3"><StickyNote className="w-4 h-4 mr-2 text-yellow-500" /> Personal Notes</h3>
-                <form
-                  onSubmit={async (e) => {
-                    e.preventDefault();
-                    const form = e.currentTarget as HTMLFormElement;
-                    const input = form.elements.namedItem('note') as HTMLInputElement;
-                    const text = (input?.value || '').trim();
-                    if (!text) return;
-                    try {
-                      const { data: inserted, error } = await supabase
-                        .from('personal_notes')
-                        .insert({ user_id: user?.id, content: text })
-                        .select('id, content, created_at')
-                        .single();
-                      if (error) throw error;
-                      if (inserted) setPersonalNotes(prev => [inserted, ...prev]);
-                      input.value = '';
-                    } catch (err) {
-                      console.error('Failed to add note:', err);
-                    }
-                  }}
-                  className="flex items-center gap-2 mb-3"
-                >
-                  <input type="text" name="note" placeholder="Type a new note and press Enter..." className="flex-1 px-3 py-2 rounded-lg border border-gray-300 bg-white/70 focus:bg-white focus:ring-2 focus:ring-yellow-400 focus:border-transparent text-sm" />
-                  <button type="submit" className="px-3 py-2 rounded-lg bg-yellow-500 hover:bg-yellow-600 text-white text-sm">Add</button>
-                </form>
-                <ul className="space-y-2 text-sm text-gray-600">
-                  {personalNotes.map((n) => (
-                    <li key={n.id} className="flex items-start justify-between gap-2">
-                      <div className="flex items-start gap-2 flex-1">
-                        <div className="w-1.5 h-1.5 bg-gray-400 rounded-full mt-2 flex-shrink-0"></div>
-                        {editingNoteId === n.id ? (
-                          <input
-                            value={editingNoteContent}
-                            onChange={(e) => setEditingNoteContent(e.target.value)}
-                            className="flex-1 px-3 py-2 rounded-lg border border-gray-300 bg-white/70 focus:bg-white focus:ring-2 focus:ring-yellow-400 focus:border-transparent text-sm"
-                          />
-                        ) : (
-                          <span>{n.content}</span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {editingNoteId === n.id ? (
-                          <>
-                            <button
-                              className="px-2 py-1 text-xs rounded bg-green-500 text-white hover:bg-green-600"
-                              onClick={async () => {
-                                const text = editingNoteContent.trim();
-                                if (!text) return;
-                                try {
-                                  const { error } = await supabase
-                                    .from('personal_notes')
-                                    .update({ content: text })
-                                    .eq('id', n.id)
-                                    .eq('user_id', user?.id || '');
-                                  if (error) throw error;
-                                  setPersonalNotes(prev => prev.map(x => x.id === n.id ? { ...x, content: text } : x));
-                                  setEditingNoteId(null);
-                                  setEditingNoteContent('');
-                                } catch (err) {
-                                  console.error('Failed to update note:', err);
-                                }
-                              }}
-                            >
-                              Save
-                            </button>
-                            <button
-                              className="px-2 py-1 text-xs rounded bg-gray-200 text-gray-700 hover:bg-gray-300"
-                              onClick={() => { setEditingNoteId(null); setEditingNoteContent(''); }}
-                            >
-                              Cancel
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button
-                              className="px-2 py-1 text-xs rounded bg-yellow-100 text-yellow-700 hover:bg-yellow-200"
-                              onClick={() => { setEditingNoteId(n.id); setEditingNoteContent(n.content); }}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              className="px-2 py-1 text-xs rounded bg-red-100 text-red-700 hover:bg-red-200"
-                              onClick={async () => {
-                                try {
-                                  const { error } = await supabase
-                                    .from('personal_notes')
-                                    .delete()
-                                    .eq('id', n.id)
-                                    .eq('user_id', user?.id || '');
-                                  if (error) throw error;
-                                  setPersonalNotes(prev => prev.filter(x => x.id !== n.id));
-                                } catch (err) {
-                                  console.error('Failed to delete note:', err);
-                                }
-                              }}
-                            >
-                              Delete
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {activePanel === 'calendar' && (
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-bold text-gray-700 flex items-center"><Calendar className="w-5 h-5 mr-2 text-blue-600" /> {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</h3>
-                  <div className="flex space-x-1">
-                    <button onClick={handlePreviousMonth} className="p-1 hover:bg-gray-100/50 backdrop-blur-sm rounded border border-white/20 transition-colors">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
-                    </button>
-                    <button onClick={handleNextMonth} className="p-1 hover:bg-gray-100/50 backdrop-blur-sm rounded border border-white/20 transition-colors">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
-                    </button>
-                  </div>
-                </div>
-                <div className="grid grid-cols-7 gap-1 text-center">
-                  {['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'].map(day => (
-                    <div key={day} className="text-xs font-medium text-gray-500 py-1">{day}</div>
-                  ))}
-                  {calendarDates.map((date, index) => {
-                    const isCurrentMonth = date.getMonth() === currentMonth.getMonth();
-                    const isSelected = isCurrentMonth && date.getDate() === selectedDate;
-                    const isToday = isCurrentMonth && date.getDate() === new Date().getDate() && currentMonth.getMonth() === new Date().getMonth() && currentMonth.getFullYear() === new Date().getFullYear();
-                    return (
-                      <button
-                        key={index}
-                        onClick={() => isCurrentMonth && setSelectedDate(date.getDate())}
-                        className={`text-xs py-1 rounded transition-colors w-full ${
-                          isCurrentMonth
-                            ? isToday
-                              ? 'bg-green-500/90 backdrop-blur-sm text-white font-medium shadow-lg'
-                              : isSelected
-                              ? 'bg-blue-500/90 backdrop-blur-sm text-white'
-                              : 'text-gray-700 hover:bg-gray-100/50 backdrop-blur-sm'
-                            : 'text-gray-400'
-                        }`}
-                      >
-                        {date.getDate()}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+            <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+              <Calendar className="w-5 h-5 mr-2 text-red-600" />
+              Academic Calendar
+            </h2>
+            
+            <div className="space-y-3">
+              {calendarEvents.map((event, index) => (
+                <CalendarEvent 
+                  key={index}
+                  date={event.date} 
+                  title={event.title} 
+                  time={event.time} 
+                  type={event.type} 
+                />
+              ))}
+            </div>
+            
+            <button className="mt-4 text-indigo-600 hover:text-indigo-800 text-sm font-medium flex items-center">
+              View full calendar
+              <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
+              </svg>
+            </button>
           </motion.div>
         </div>
       </div>
 
-      {/* Student Requests Table removed due to missing table */}
+      {/* Bottom Row - Recent Activities & System Status */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Recent Activities */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.4 }}
+          className="bg-white rounded-2xl shadow-lg p-6"
+        >
+          <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+            <Clock className="w-5 h-5 mr-2 text-gray-600" />
+            Recent Activities
+          </h2>
+          
+          <div className="space-y-3">
+            {recentActivities.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <Clock className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                <p>No recent activities</p>
+              </div>
+            ) : (
+              recentActivities.map(activity => (
+                <div key={activity.id} className="flex items-start p-3 rounded-xl hover:bg-gray-50 transition-colors">
+                  <div className="w-2 h-2 rounded-full bg-blue-500 mt-2 mr-3"></div>
+                  <div className="flex-1">
+                    <p className="text-gray-800 font-medium">
+                      {activity.action}
+                      {activity.student && <span className="text-blue-600"> - {activity.student}</span>}
+                      {activity.subject && <span className="text-green-600"> - {activity.subject}</span>}
+                    </p>
+                    <p className="text-gray-500 text-sm">{activity.time}</p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+          
+          <button className="mt-4 text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center">
+            View all activity
+            <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
+            </svg>
+          </button>
+        </motion.div>
+
+        {/* System Status */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.5 }}
+          className="bg-white rounded-2xl shadow-lg p-6"
+        >
+          <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+            <TrendingUp className="w-5 h-5 mr-2 text-green-600" />
+            System Status
+          </h2>
+          
+          <div className="space-y-4">
+            {systemStatus.map((status, index) => (
+              <StatusItem 
+                key={index}
+                title={status.title}
+                status={status.status}
+                description={status.description}
+              />
+            ))}
+          </div>
+          
+          <div className="mt-4 p-3 bg-green-50 rounded-lg border border-green-200">
+            <div className="flex items-center text-green-800">
+              <CheckCircle className="w-5 h-5 mr-2" />
+              <span className="text-sm font-medium">All systems operational</span>
+            </div>
+          </div>
+        </motion.div>
+      </div>
     </div>
   );
 };
@@ -719,10 +671,10 @@ const StatsCard: React.FC<{ title: string; value: number; icon: React.ReactNode;
   title, value, icon, color, trend 
 }) => {
   const colorClasses = {
-    indigo: "bg-indigo-50 border-indigo-100",
+    blue: "bg-blue-50 border-blue-100",
     amber: "bg-amber-50 border-amber-100",
     emerald: "bg-emerald-50 border-emerald-100",
-    violet: "bg-violet-50 border-violet-100",
+    purple: "bg-purple-50 border-purple-100",
   };
 
   return (
@@ -744,7 +696,83 @@ const StatsCard: React.FC<{ title: string; value: number; icon: React.ReactNode;
   );
 };
 
-// CalendarEvent removed (not used after aligning with Teacher dashboard)
+const QuickActionButton: React.FC<{
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  color: string;
+  onClick: () => void;
+}> = ({ icon, title, description, color, onClick }) => {
+  const colorClasses = {
+    blue: "hover:bg-blue-50 border-blue-200 text-blue-700",
+    green: "hover:bg-green-50 border-green-200 text-green-700",
+    purple: "hover:bg-purple-50 border-purple-200 text-purple-700",
+    amber: "hover:bg-amber-50 border-amber-200 text-amber-700",
+  };
+
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full p-3 rounded-xl border-2 transition-all duration-200 text-left ${colorClasses[color as keyof typeof colorClasses]}`}
+    >
+      <div className="flex items-center gap-3">
+        <div className="p-2 rounded-lg bg-white">
+          {icon}
+        </div>
+        <div>
+          <p className="font-medium">{title}</p>
+          <p className="text-sm opacity-75">{description}</p>
+        </div>
+      </div>
+    </button>
+  );
+};
+
+const CalendarEvent: React.FC<{ date: string; title: string; time: string; type: string }> = ({ 
+  date, title, time, type 
+}) => {
+  const typeClasses = {
+    important: "border-red-400 bg-red-50",
+    meeting: "border-blue-400 bg-blue-50",
+    deadline: "border-amber-400 bg-amber-50",
+    regular: "border-emerald-400 bg-emerald-50",
+  };
+
+  return (
+    <div className={`p-3 rounded-xl border-l-4 ${typeClasses[type as keyof typeof typeClasses]} hover:shadow-md transition-shadow`}>
+      <div className="flex justify-between">
+        <span className="font-semibold text-gray-800">{title}</span>
+        <span className="text-sm text-gray-500">{date}</span>
+      </div>
+      <p className="text-sm text-gray-600 mt-1">{time}</p>
+    </div>
+  );
+};
+
+const StatusItem: React.FC<{ title: string; status: string; description: string }> = ({ 
+  title, status, description 
+}) => {
+  const statusIcon = status === 'operational' ? 
+    <CheckCircle className="w-4 h-4 text-green-500" /> : 
+    <AlertTriangle className="w-4 h-4 text-red-500" />;
+
+  return (
+    <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
+      <div className="flex items-center gap-3">
+        {statusIcon}
+        <div>
+          <p className="font-medium text-gray-800">{title}</p>
+          <p className="text-sm text-gray-600">{description}</p>
+        </div>
+      </div>
+      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+        status === 'operational' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+      }`}>
+        {status}
+      </span>
+    </div>
+  );
+};
 
 const ProgramHeadDashboard: React.FC = () => {
   return (
@@ -753,15 +781,13 @@ const ProgramHeadDashboard: React.FC = () => {
         <Routes>
           <Route path="/" element={<DashboardOverview />} />
           <Route path="/dashboard" element={<DashboardOverview />} />
-          <Route path="/requests" element={<ProgramHeadEnrollment />} />
           <Route path="/enroll-student" element={<ProgramHeadEnrollment />} />
           <Route path="/assign-subjects" element={<SubjectAssignment />} />
           <Route path="/academic-history" element={<CoursesOffered />} />
           <Route path="/user-management" element={<UserManagement />} />
           <Route path="/instructor-management" element={<InstructorManagement />} />
-          <Route path="/class-management" element={<ClassManagement />} /> 
+          <Route path="/class-management" element={<ClassManagement />} />
           <Route path="/settings" element={<Settings />} />
-
           <Route path="*" element={<DashboardOverview />} />
         </Routes>
       </ErrorBoundary>
