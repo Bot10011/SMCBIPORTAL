@@ -77,6 +77,8 @@ interface EnrollmentRow {
     year_level?: string;
     student_id?: string;
     profile_picture_url?: string;
+    avatar_url?: string;
+    display_name?: string;
   } | {
     id: string;
     email: string;
@@ -89,6 +91,8 @@ interface EnrollmentRow {
     year_level?: string;
     student_id?: string;
     profile_picture_url?: string;
+    avatar_url?: string;
+    display_name?: string;
   }[];
 }
 
@@ -178,11 +182,23 @@ const ClassManagement: React.FC = () => {
     
     try {
       // 1. First verify the subject exists
-      const { data: subjectData, error: subjectError } = await supabase
+      // Build a robust subject verification query that narrows to a single row
+      let subjectQuery = supabase
         .from('teacher_subjects')
-        .select('id, subject_id, course:courses(id, code, name)')
-        .eq('subject_id', subjectId)
-        .single();
+        .select('id, subject_id, teacher_id, section, academic_year, course:courses(id, code, name)')
+        .eq('subject_id', subjectId);
+
+      if (user?.id) {
+        subjectQuery = subjectQuery.eq('teacher_id', user.id);
+      }
+      if (selectedClass?.section) {
+        subjectQuery = subjectQuery.eq('section', selectedClass.section);
+      }
+      if (selectedClass?.academic_year) {
+        subjectQuery = subjectQuery.eq('academic_year', selectedClass.academic_year);
+      }
+
+      const { data: subjectData, error: subjectError } = await subjectQuery.maybeSingle();
 
       console.log('📚 Subject Verification:', { 
         found: !!subjectData, 
@@ -241,6 +257,8 @@ const ClassManagement: React.FC = () => {
             year_level,
             student_id,
             profile_picture_url,
+            display_name,
+            avatar_url,
             created_at,
             updated_at
           )
@@ -383,9 +401,39 @@ const ClassManagement: React.FC = () => {
         
         console.log('Processing student:', student.id, student.email);
         
-        // Get display name and avatar from Supabase Auth (Google OAuth data)
-        let displayName = '';
-        let avatarUrl = '';
+        // Prefer database-provided display name and avatar first (use typed access)
+        const dbStudent: {
+          id: string;
+          email: string;
+          role: string;
+          student_status?: string;
+          first_name: string;
+          last_name: string;
+          middle_name?: string;
+          is_active: boolean;
+          year_level?: string;
+          student_id?: string;
+          profile_picture_url?: string;
+          avatar_url?: string;
+          display_name?: string;
+        } = student as unknown as {
+          id: string;
+          email: string;
+          role: string;
+          student_status?: string;
+          first_name: string;
+          last_name: string;
+          middle_name?: string;
+          is_active: boolean;
+          year_level?: string;
+          student_id?: string;
+          profile_picture_url?: string;
+          avatar_url?: string;
+          display_name?: string;
+        };
+
+        let displayName = dbStudent.display_name || '';
+        let avatarUrl = dbStudent.avatar_url || dbStudent.profile_picture_url || '';
         
         console.log(`🔍 [${student.id}] Starting auth data fetch for:`, student.email);
         
@@ -441,61 +489,8 @@ const ClassManagement: React.FC = () => {
             }
           }
           
-          // Method 2: Try to get auth data using admin API (only if we have permission)
-          if (!displayName || !avatarUrl) {
-            console.log(`🔍 [${student.id}] Trying admin API method...`);
-            try {
-              const { data: authData, error: authError } = await supabase.auth.admin.getUserById(student.id);
-              
-              if (authError) {
-                console.error(`❌ [${student.id}] Admin API error:`, {
-                  error: authError,
-                  message: authError.message,
-                  status: authError.status,
-                  name: authError.name
-                });
-                
-                // If it's a permission error, suggest the solution
-                if (authError.status === 403) {
-                  console.warn(`⚠️ [${student.id}] Admin API permission denied. This is expected for non-admin users.`);
-                  console.warn(`💡 Solution: Users can only access their own auth data. For other users, we need to store profile data in the database.`);
-                }
-              } else if (!authData?.user) {
-                console.warn(`⚠️ [${student.id}] Admin API returned no user data:`, {
-                  authData,
-                  hasUser: !!authData?.user,
-                  userId: authData?.user?.id
-                });
-              } else {
-                console.log(`✅ [${student.id}] Admin API success, user data:`, {
-                  userId: authData.user.id,
-                  email: authData.user.email,
-                  userMetadata: authData.user.user_metadata,
-                  identities: authData.user.identities,
-                  hasMetadata: !!authData.user.user_metadata,
-                  metadataKeys: authData.user.user_metadata ? Object.keys(authData.user.user_metadata) : [],
-                  hasIdentities: !!authData.user.identities,
-                  identityCount: authData.user.identities?.length || 0
-                });
-                
-                // Try to get display name
-                const authName = getAuthDisplayName(authData.user);
-                if (authName && !displayName) {
-                  displayName = authName;
-                  console.log(`✅ [${student.id}] Using admin API display name:`, authName);
-                }
-                
-                // Try to get avatar
-                const authAvatar = getAuthAvatarUrl(authData.user);
-                if (authAvatar && !avatarUrl) {
-                  avatarUrl = authAvatar;
-                  console.log(`✅ [${student.id}] Using admin API avatar:`, authAvatar);
-                }
-              }
-            } catch (adminErr) {
-              console.error(`❌ [${student.id}] Admin API exception:`, adminErr);
-            }
-          }
+          // Note: Admin API calls removed - users can only access their own auth data
+          // For other users, we rely on the database profile data that's already available
           
           // Method 3: Try to get from Google Userinfo API if we have a provider token
           if (!displayName || !avatarUrl) {
@@ -706,11 +701,22 @@ const ClassManagement: React.FC = () => {
     }
   }
 
-  // Calculate GA (General Average)
-  const calculateAverageGrade = (prelimGrade: number | undefined, midtermGrade: number | undefined, finalGrade: number | undefined): number | null => {
-    const grades = [prelimGrade, midtermGrade, finalGrade].filter(g => g !== undefined && g !== null) as number[];
-    if (grades.length === 0) return null;
-    return Math.round((grades.reduce((sum, g) => sum + g, 0) / grades.length) * 100) / 100;
+  // Calculate GA (General Average) - only used variant below
+
+  // Calculate GA only when all three grading periods have values
+  const calculateGAWhenComplete = (
+    prelimGrade: number | undefined,
+    midtermGrade: number | undefined,
+    finalGrade: number | undefined
+  ): number | null => {
+    if (
+      prelimGrade === undefined || prelimGrade === null ||
+      midtermGrade === undefined || midtermGrade === null ||
+      finalGrade === undefined || finalGrade === null
+    ) {
+      return null;
+    }
+    return Math.round(((prelimGrade + midtermGrade + finalGrade) / 3) * 100) / 100;
   };
 
   // Calculate statistics for the current class
@@ -782,17 +788,59 @@ const ClassManagement: React.FC = () => {
         return;
       }
 
-      // Update grades in database
-      const { error } = await supabase
+      // Avoid duplicate grade rows: find existing record for (student, subject, AY, section)
+      const key = {
+        student_id: student.id,
+        subject_id: selectedClass?.subject_id || null,
+        academic_year: selectedClass?.academic_year || null,
+        section: selectedClass?.section || null,
+      };
+
+      const { data: existingGrade, error: findErr } = await supabase
         .from('grades')
-        .upsert({
-          id: student.grade_id,
-          student_id: student.id,
-          prelim_grade: prelimGrade,
-          midterm_grade: midtermGrade,
-          final_grade: finalGrade,
-          updated_at: new Date().toISOString()
-        });
+        .select('id, graded_by')
+        .eq('student_id', key.student_id)
+        .eq('subject_id', key.subject_id)
+        .eq('academic_year', key.academic_year)
+        .eq('section', key.section)
+        .maybeSingle();
+
+      if (findErr && findErr.code !== 'PGRST116') {
+        // PGRST116 is no rows when using single; ignore
+        throw findErr;
+      }
+
+      let error: unknown = null;
+      if (existingGrade && existingGrade.id) {
+        // Update existing row: keep graded_by/metadata untouched
+        const { error: updateErr } = await supabase
+          .from('grades')
+          .update({
+            prelim_grade: prelimGrade,
+            midterm_grade: midtermGrade,
+            final_grade: finalGrade,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingGrade.id);
+        error = updateErr;
+      } else {
+        // Insert new row on first grading; set graded_by/context once
+        const { error: insertErr } = await supabase
+          .from('grades')
+          .insert({
+            student_id: key.student_id,
+            subject_id: key.subject_id,
+            academic_year: key.academic_year,
+            section: key.section,
+            graded_by: user?.id || null,
+            prelim_grade: prelimGrade,
+            midterm_grade: midtermGrade,
+            final_grade: finalGrade,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          });
+        error = insertErr;
+      }
 
       if (error) {
         console.error('Error saving grades:', error);
@@ -910,7 +958,7 @@ const ClassManagement: React.FC = () => {
       s.midterm_grade ?? '',
       s.final_grade ?? '',
       (() => {
-        const avg = calculateAverageGrade(s.prelim_grade, s.midterm_grade, s.final_grade);
+        const avg = calculateGAWhenComplete(s.prelim_grade, s.midterm_grade, s.final_grade);
         return avg ?? '';
       })()
     ]);
@@ -948,7 +996,7 @@ const ClassManagement: React.FC = () => {
           <td style="padding:8px;border:1px solid #ddd; text-align:center;">${s.prelim_grade ?? ''}</td>
           <td style="padding:8px;border:1px solid #ddd; text-align:center;">${s.midterm_grade ?? ''}</td>
           <td style="padding:8px;border:1px solid #ddd; text-align:center;">${s.final_grade ?? ''}</td>
-          <td style="padding:8px;border:1px solid #ddd; text-align:center;">${(() => { const g = [s.prelim_grade, s.midterm_grade, s.final_grade].filter(x=>x!==undefined && x!==null); if (g.length===0) return ''; const avg = Math.round((g.reduce((a,b)=>a+(b as number),0)/g.length)*100)/100; return avg; })()}</td>
+          <td style="padding:8px;border:1px solid #ddd; text-align:center;">${(() => { const avg = calculateGAWhenComplete(s.prelim_grade, s.midterm_grade, s.final_grade); return avg ?? ''; })()}</td>
         </tr>`)
       .join('');
     win.document.write(`
@@ -1483,7 +1531,7 @@ const ClassManagement: React.FC = () => {
                                 </td>
                                 <td className="px-2 py-4 whitespace-nowrap text-center">
                                   {(() => {
-                                    const avg = calculateAverageGrade(student.prelim_grade, student.midterm_grade, student.final_grade);
+                                    const avg = calculateGAWhenComplete(student.prelim_grade, student.midterm_grade, student.final_grade);
                                     return (
                                       <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${avg !== null ? (avg >= 75 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800') : 'bg-gray-100 text-gray-800'}`}>
                                         {avg !== null ? avg : 'N/A'}
