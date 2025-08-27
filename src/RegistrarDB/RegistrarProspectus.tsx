@@ -22,19 +22,18 @@ import {
   Chip,
   Avatar,
 } from '@mui/material';
-import { Search, School, Person, Event, MenuBook } from '@mui/icons-material';
+import { Search, MenuBook } from '@mui/icons-material';
+import { MenuItem } from '@mui/material';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
 
 interface Student {
   id: string;
   student_id: string;
-  first_name: string;
-  middle_name?: string;
-  last_name: string;
+  display_name: string;
+  avatar_url?: string;
   student_type: string;
   year_level: number;
-  department: string;
   enrollment_status: string;
   created_at: string;
 }
@@ -45,17 +44,42 @@ const RegistrarProspectus: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterYear, setFilterYear] = useState('');
   const [filterType, setFilterType] = useState('');
-  const [filterDepartment, setFilterDepartment] = useState('');
   
   // Prospectus modal states
   const [isProspectusModalOpen, setIsProspectusModalOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  const [studentGrades, setStudentGrades] = useState<any[]>([]);
-  const [studentEnrollments, setStudentEnrollments] = useState<any[]>([]);
-  const [studentConfirmations, setStudentConfirmations] = useState<any[]>([]);
+  const [studentGrades, setStudentGrades] = useState<Array<{
+    id: string;
+    student_id: string;
+    subject_code: string;
+    subject_name: string;
+    prelim_grade: number | null;
+    midterm_grade: number | null;
+    final_grade: number | null;
+    remarks: string | null;
+    year_level: string | null;
+    semester: string | null;
+    academic_year: string | null;
+  }>>([]);
+  const [studentEnrollments, setStudentEnrollments] = useState<Array<{
+    subject_id: string;
+    status: string;
+    subject?: { code: string }[];
+  }>>([]);
   const [loadingGrades, setLoadingGrades] = useState(false);
   const [prospectusContentRef] = useState<React.RefObject<HTMLDivElement>>(React.createRef());
-  const [courses, setCourses] = useState<any[]>([]);
+  const [courses, setCourses] = useState<Array<{
+    id: string;
+    code: string;
+    name: string;
+    units: number;
+    lec_units?: number;
+    lab_units?: number;
+    hours_per_week?: number;
+    semester?: string;
+    summer?: boolean;
+    prerequisites?: string[];
+  }>>([]);
 
   useEffect(() => {
     loadStudents();
@@ -67,7 +91,7 @@ const RegistrarProspectus: React.FC = () => {
       setLoading(true);
       const { data, error } = await supabase
         .from('user_profiles')
-        .select('*')
+        .select('id, student_id, display_name, avatar_url, student_type, year_level, enrollment_status, created_at')
         .eq('role', 'student')
         .order('created_at', { ascending: false });
 
@@ -116,8 +140,7 @@ const RegistrarProspectus: React.FC = () => {
     // Fetch student data for prospectus
     await Promise.all([
       fetchStudentGrades(student.student_id),
-      fetchStudentEnrollments(student.student_id),
-      fetchStudentConfirmations(student.student_id)
+      fetchStudentEnrollments(student.student_id)
     ]);
   };
 
@@ -126,7 +149,6 @@ const RegistrarProspectus: React.FC = () => {
     setSelectedStudent(null);
     setStudentGrades([]);
     setStudentEnrollments([]);
-    setStudentConfirmations([]);
   };
 
   const fetchStudentGrades = async (formattedStudentId: string) => {
@@ -211,66 +233,26 @@ const RegistrarProspectus: React.FC = () => {
       }
       
       if (data) {
-        setStudentEnrollments(data as any);
+        setStudentEnrollments(data);
       }
     } catch (e) {
       console.error('Error fetching enrollments by formatted ID', e);
     }
   };
 
-  const fetchStudentConfirmations = async (formattedStudentId: string) => {
-    try {
-      // First get the UUID from user_profiles using the formatted student_id
-      const { data: profileData, error: profileError } = await supabase
-        .from('user_profiles')
-        .select('id')
-        .eq('student_id', formattedStudentId)
-        .single();
-      
-      if (profileError) {
-        console.error('Error finding user profile:', profileError);
-        return;
-      }
-      
-      // Now fetch confirmations using the UUID
-      const { data, error } = await supabase
-        .from('subject_actions')
-        .select('subject_code, status')
-        .eq('student_id', profileData.id)
-        .eq('action_type', 'confirm');
-      
-      if (error) {
-        console.error('Error fetching confirmations:', error);
-        return;
-      }
-      
-      console.log('Fetched confirmations:', data);
-      if (data) {
-        setStudentConfirmations(data);
-      }
-    } catch (e) {
-      console.error('Error fetching confirmations by formatted ID', e);
-    }
-  };
+
 
   const getEnrollmentStatus = (courseId: string, courseCode?: string) => {
     let rec = studentEnrollments.find(e => e.subject_id === courseId);
     
     if (!rec && courseCode) {
-      rec = studentEnrollments.find(e => e.subject?.code === courseCode);
+      rec = studentEnrollments.find(e => e.subject?.[0]?.code === courseCode);
     }
     
     return rec?.status || 'not enrolled';
   };
 
-  const getConfirmationStatus = (subjectCode: string) => {
-    const confirmation = studentConfirmations.find(c => c.subject_code === subjectCode);
-    console.log(`Checking confirmation for ${subjectCode}:`, confirmation);
-    console.log('All confirmations:', studentConfirmations);
-    // If a confirmation record exists, it means the student has confirmed this subject
-    // The status in the database is 'pending' but for display purposes, we show 'confirmed'
-    return confirmation ? 'confirmed' : 'pending';
-  };
+
 
   const getSubjectGrades = (subjectCode: string) => {
     return studentGrades.find(grade => grade.subject_code === subjectCode);
@@ -283,29 +265,20 @@ const RegistrarProspectus: React.FC = () => {
     return Math.round((sum / grades.length) * 100) / 100;
   };
 
-  const getYearLabel = (year: string | number) => {
-    const y = String(year);
-    if (y === '1' || /1st/.test(y)) return '1st Year';
-    if (y === '2' || /2nd/.test(y)) return '2nd Year';
-    if (y === '3' || /3rd/.test(y)) return '3rd Year';
-    if (y === '4' || /4th/.test(y)) return '4th Year';
-    return 'Year';
-  };
+
 
   const filteredStudents = students.filter(student => {
     const matchesSearch = 
-      student.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      student.display_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       student.student_id?.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesYear = !filterYear || student.year_level.toString() === filterYear;
     const matchesType = !filterType || student.student_type === filterType;
-    const matchesDepartment = !filterDepartment || student.department === filterDepartment;
     
-    return matchesSearch && matchesYear && matchesType && matchesDepartment;
+    return matchesSearch && matchesYear && matchesType;
   });
 
-  const getStudentTypeColor = (type: string) => {
+  const getStudentTypeColor = (type: string): 'success' | 'primary' | 'warning' | 'info' | 'default' => {
     switch (type) {
       case 'Freshman': return 'success';
       case 'Regular': return 'primary';
@@ -315,7 +288,7 @@ const RegistrarProspectus: React.FC = () => {
     }
   };
 
-  const getEnrollmentStatusColor = (status: string) => {
+  const getEnrollmentStatusColor = (status: string): 'success' | 'primary' | 'warning' | 'info' | 'error' | 'default' => {
     switch (status) {
       case 'enrolled': return 'success';
       case 'pending': return 'warning';
@@ -335,14 +308,26 @@ const RegistrarProspectus: React.FC = () => {
   return (
     <Box sx={{ p: 3 }}>
       {/* Header */}
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" sx={{ fontWeight: 700, color: '#1f2937', mb: 1 }}>
-          Student Prospectus Management
-        </Typography>
-        <Typography variant="body1" color="text.secondary">
-          View and manage student academic prospectuses
-        </Typography>
-      </Box>
+      <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 rounded-2xl mb-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-file-text w-6 h-6 text-white">
+                <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path>
+                <path d="M14 2v4a2 2 0 0 0 2 2h4"></path>
+                <path d="M10 9H8"></path>
+                <path d="M16 13H8"></path>
+                <path d="M16 17H8"></path>
+              </svg>
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-white tracking-tight">Student Prospectus Management</h1>
+              <p className="text-white/80 text-sm font-medium">View and manage student academic prospectuses</p>
+              <div className="flex items-center gap-4 mt-2 text-xs text-white/80"></div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Filters */}
       <Card sx={{ mb: 3, borderRadius: 2 }}>
@@ -364,51 +349,36 @@ const RegistrarProspectus: React.FC = () => {
               />
             </Grid>
             <Grid item xs={12} md={2}>
-              <TextField
-                select
-                fullWidth
-                label="Year Level"
-                value={filterYear}
-                onChange={(e) => setFilterYear(e.target.value)}
-              >
-                <option value="">All Years</option>
-                <option value="1">1st Year</option>
-                <option value="2">2nd Year</option>
-                <option value="3">3rd Year</option>
-                <option value="4">4th Year</option>
-              </TextField>
+                             <TextField
+                 select
+                 fullWidth
+                 label="Year Level"
+                 value={filterYear}
+                 onChange={(e) => setFilterYear(e.target.value)}
+               >
+                 <MenuItem value="">All Years</MenuItem>
+                 <MenuItem value="1">1st Year</MenuItem>
+                 <MenuItem value="2">2nd Year</MenuItem>
+                 <MenuItem value="3">3rd Year</MenuItem>
+                 <MenuItem value="4">4th Year</MenuItem>
+               </TextField>
             </Grid>
             <Grid item xs={12} md={2}>
-              <TextField
-                select
-                fullWidth
-                label="Student Type"
-                value={filterType}
-                onChange={(e) => setFilterType(e.target.value)}
-              >
-                <option value="">All Types</option>
-                <option value="Freshman">Freshman</option>
-                <option value="Regular">Regular</option>
-                <option value="Irregular">Irregular</option>
-                <option value="Transferee">Transferee</option>
-              </TextField>
+                             <TextField
+                 select
+                 fullWidth
+                 label="Student Type"
+                 value={filterType}
+                 onChange={(e) => setFilterType(e.target.value)}
+               >
+                 <MenuItem value="">All Types</MenuItem>
+                 <MenuItem value="Freshman">Freshman</MenuItem>
+                 <MenuItem value="Regular">Regular</MenuItem>
+                 <MenuItem value="Irregular">Irregular</MenuItem>
+                 <MenuItem value="Transferee">Transferee</MenuItem>
+               </TextField>
             </Grid>
-            <Grid item xs={12} md={2}>
-              <TextField
-                select
-                fullWidth
-                label="Department"
-                value={filterDepartment}
-                onChange={(e) => setFilterDepartment(e.target.value)}
-              >
-                <option value="">All Departments</option>
-                <option value="BSIT">BSIT</option>
-                <option value="BSBA">BSBA</option>
-                <option value="BEED">BEED</option>
-                <option value="BSED">BSED</option>
-              </TextField>
-            </Grid>
-            <Grid item xs={12} md={2}>
+            <Grid item xs={12} md={3}>
               <Button
                 fullWidth
                 variant="outlined"
@@ -427,17 +397,15 @@ const RegistrarProspectus: React.FC = () => {
         <CardContent sx={{ p: 0 }}>
           <TableContainer>
             <Table>
-              <TableHead>
-                <TableRow sx={{ background: '#f9fafb' }}>
-                  <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Student</TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Student ID</TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Year Level</TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Type</TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Department</TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Enrollment Status</TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Actions</TableCell>
-                </TableRow>
-              </TableHead>
+                             <TableHead>
+                 <TableRow sx={{ background: '#f9fafb' }}>
+                   <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Student</TableCell>
+                   <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Year Level</TableCell>
+                   <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Type</TableCell>
+                   <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Enrollment Status</TableCell>
+                   <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Actions</TableCell>
+                 </TableRow>
+               </TableHead>
               <TableBody>
                 {filteredStudents.map((student) => (
                   <TableRow 
@@ -447,26 +415,24 @@ const RegistrarProspectus: React.FC = () => {
                       transition: 'background-color 0.2s ease'
                     }}
                   >
-                    <TableCell>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                        <Avatar sx={{ bgcolor: '#3b82f6', width: 40, height: 40 }}>
-                          {student.first_name?.[0]}{student.last_name?.[0]}
-                        </Avatar>
-                        <Box>
-                          <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                            {student.first_name} {student.middle_name} {student.last_name}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {student.student_id}
-                          </Typography>
-                        </Box>
-                      </Box>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
-                        {student.student_id}
-                      </Typography>
-                    </TableCell>
+                                         <TableCell>
+                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                         <Avatar 
+                           src={student.avatar_url} 
+                           sx={{ bgcolor: '#3b82f6', width: 40, height: 40 }}
+                         >
+                           {student.display_name?.[0]}
+                         </Avatar>
+                         <Box>
+                           <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                             {student.display_name}
+                           </Typography>
+                           <Typography variant="caption" color="text.secondary">
+                             {student.student_id}
+                           </Typography>
+                         </Box>
+                       </Box>
+                     </TableCell>
                     <TableCell>
                       <Chip 
                         label={`${student.year_level}${student.year_level === 1 ? 'st' : student.year_level === 2 ? 'nd' : student.year_level === 3 ? 'rd' : 'th'} Year`}
@@ -474,25 +440,20 @@ const RegistrarProspectus: React.FC = () => {
                         size="small"
                       />
                     </TableCell>
-                    <TableCell>
-                      <Chip 
-                        label={student.student_type}
-                        color={getStudentTypeColor(student.student_type) as any}
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                        {student.department}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Chip 
-                        label={student.enrollment_status || 'Not Enrolled'}
-                        color={getEnrollmentStatusColor(student.enrollment_status || 'not enrolled') as any}
-                        size="small"
-                      />
-                    </TableCell>
+                                         <TableCell>
+                       <Chip 
+                         label={student.student_type}
+                         color={getStudentTypeColor(student.student_type)}
+                         size="small"
+                       />
+                     </TableCell>
+                                          <TableCell>
+                       <Chip 
+                         label={student.enrollment_status || 'Not Enrolled'}
+                         color={getEnrollmentStatusColor(student.enrollment_status || 'not enrolled')}
+                         size="small"
+                       />
+                     </TableCell>
                     <TableCell>
                                              <Button
                          variant="outlined"
@@ -517,7 +478,7 @@ const RegistrarProspectus: React.FC = () => {
           {filteredStudents.length === 0 && (
             <Box sx={{ p: 4, textAlign: 'center', color: '#6b7280' }}>
               <Typography variant="body1">
-                {searchTerm || filterYear || filterType || filterDepartment 
+                {searchTerm || filterYear || filterType 
                   ? 'No students match the current filters' 
                   : 'No students found'}
               </Typography>
@@ -592,7 +553,7 @@ const RegistrarProspectus: React.FC = () => {
                 textAlign: 'center',
                 mb: 2
               }}>
-                {selectedStudent?.first_name} {selectedStudent?.middle_name} {selectedStudent?.last_name}
+                {selectedStudent?.display_name}
               </Typography>
 
               {/* Student Information */}
@@ -628,14 +589,7 @@ const RegistrarProspectus: React.FC = () => {
                         {selectedStudent?.year_level}
                       </Typography>
                     </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
-                        Department
-                      </Typography>
-                      <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                        {selectedStudent?.department}
-                      </Typography>
-                    </Grid>
+                    
                   </Grid>
                 </CardContent>
               </Card>
@@ -773,7 +727,7 @@ const RegistrarProspectus: React.FC = () => {
                            </TableRow>
                         </TableHead>
                         <TableBody>
-                          {courses.filter((s:any) => !s.summer && String(s.semester || '').toLowerCase().includes('1')).map((subject, idx) => (
+                          {courses.filter((s) => !s.summer && String(s.semester || '').toLowerCase().includes('1')).map((subject, idx) => (
                             <TableRow 
                               key={subject.id} 
                               sx={{ 
@@ -934,7 +888,7 @@ const RegistrarProspectus: React.FC = () => {
                            </TableRow>
                         </TableHead>
                         <TableBody>
-                          {courses.filter((s:any) => !s.summer && String(s.semester || '').toLowerCase().includes('2')).map((subject, idx) => (
+                          {courses.filter((s) => !s.summer && String(s.semester || '').toLowerCase().includes('2')).map((subject, idx) => (
                             <TableRow key={subject.id} sx={{ background: idx % 2 === 0 ? '#f0f9ff' : '#ffffff' }}>
                               <TableCell sx={{ fontWeight: 600, fontFamily: 'monospace', fontSize: '0.875rem', color: '#0369a1' }}>{subject.code}</TableCell>
                               <TableCell sx={{ fontSize: '0.875rem', color: '#075985', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{subject.name}</TableCell>
@@ -1016,7 +970,7 @@ const RegistrarProspectus: React.FC = () => {
                            </TableRow>
                         </TableHead>
                         <TableBody>
-                          {courses.filter((s:any) => s.summer).map((subject, idx) => (
+                          {courses.filter((s) => s.summer).map((subject, idx) => (
                             <TableRow key={subject.id} sx={{ background: idx % 2 === 0 ? '#fff7ed' : '#ffffff' }}>
                               <TableCell sx={{ fontWeight: 600, fontFamily: 'monospace', fontSize: '0.875rem', color: '#92400e' }}>{subject.code}</TableCell>
                               <TableCell sx={{ fontSize: '0.875rem', color: '#7c2d12', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{subject.name}</TableCell>
