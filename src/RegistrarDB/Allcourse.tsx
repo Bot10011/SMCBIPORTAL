@@ -11,6 +11,7 @@ interface Course {
   name: string;
   description: string;
   units: number;
+  department: string;
   created_at?: string;
   image_url?: string;
 }
@@ -20,6 +21,7 @@ export const RegistrarGradeViewer: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [yearFilter, setYearFilter] = useState<string>('');
   const [courseImages, setCourseImages] = useState<{ [id: string]: string }>({});
   const [imageLoading, setImageLoading] = useState<{ [id: string]: boolean }>({});
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
@@ -27,7 +29,7 @@ export const RegistrarGradeViewer: React.FC = () => {
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [subjectDetails, setSubjectDetails] = useState<{
     teachers: string[];
-    students: string[];
+    students: { name: string; avatar_url: string | null; year_level: string | number | null; section: string | null; school_id: string | null }[];
   } | null>(null);
 
   useEffect(() => {
@@ -44,6 +46,30 @@ export const RegistrarGradeViewer: React.FC = () => {
     };
     fetchCourses();
   }, []);
+
+  // Map of courseId -> year level from courses table
+  const [courseYearsMap, setCourseYearsMap] = useState<Map<string, string>>(new Map());
+
+  useEffect(() => {
+    const fetchCourseYears = async () => {
+      if (!courses.length) return;
+      const { data } = await supabase
+        .from('courses')
+        .select('id, year_level');
+      const map = new Map<string, string>();
+      (data || []).forEach((course: { id: string; year_level: string | null }) => {
+        if (course.id && course.year_level) {
+          // Handle "1st Year", "2nd Year", etc. format
+          const yearMatch = String(course.year_level).match(/^(\d+)/);
+          if (yearMatch) {
+            map.set(course.id, yearMatch[1]);
+          }
+        }
+      });
+      setCourseYearsMap(map);
+    };
+    fetchCourseYears();
+  }, [courses]);
 
   useEffect(() => {
     const fetchImages = async () => {
@@ -87,9 +113,9 @@ export const RegistrarGradeViewer: React.FC = () => {
     if (teacherIds.length > 0) {
       const { data: teacherRows } = await supabase
         .from('user_profiles')
-        .select('first_name, last_name')
+        .select('display_name')
         .in('id', teacherIds);
-      teachers = teacherRows ? teacherRows.map(t => `${t.first_name} ${t.last_name}`) : [];
+      teachers = teacherRows ? teacherRows.map(t => t.display_name as string).filter(Boolean) : [];
     }
     // 2. Get students enrolled in this subject
     const { data: enrollments } = await supabase
@@ -97,23 +123,37 @@ export const RegistrarGradeViewer: React.FC = () => {
       .select('student_id')
       .eq('subject_id', courseId);
     const studentIds = enrollments?.map(e => e.student_id) || [];
-    let students: string[] = [];
+    let students: { name: string; avatar_url: string | null; year_level: string | number | null; section: string | null; school_id: string | null }[] = [];
     if (studentIds.length > 0) {
       const { data: studentRows } = await supabase
         .from('user_profiles')
-        .select('first_name, last_name')
+        .select('display_name, avatar_url, year_level, section, student_id')
         .in('id', studentIds);
-      students = studentRows ? studentRows.map(s => `${s.first_name} ${s.last_name}`) : [];
+      students = studentRows
+        ? studentRows.map(s => ({
+            name: (s.display_name as string) || 'Unknown',
+            avatar_url: (s.avatar_url as string) || null,
+            year_level: (s.year_level as string | number | null) ?? null,
+            section: (s.section as string | null) ?? null,
+            school_id: (s.student_id as string | null) ?? null
+          }))
+        : [];
     }
+    // Sort students alphabetically by name
+    students.sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }));
     setSubjectDetails({ teachers, students });
     setDetailsLoading(false);
   };
 
-  const filteredCourses = courses.filter(
-    (course) =>
+  const filteredCourses = courses.filter((course) => {
+    const matchesSearch =
       course.name.toLowerCase().includes(search.toLowerCase()) ||
-      course.code.toLowerCase().includes(search.toLowerCase())
-  );
+      course.code.toLowerCase().includes(search.toLowerCase());
+    if (!matchesSearch) return false;
+    if (!yearFilter) return true;
+    const courseYear = courseYearsMap.get(course.id || '');
+    return courseYear === yearFilter;
+  });
 
   if (loading) {
     return (
@@ -162,7 +202,7 @@ export const RegistrarGradeViewer: React.FC = () => {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 mt-6">
-          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+          <div className="bg-white/90 rounded-2xl p-6 shadow-lg border border-gray-100">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-600 text-sm font-medium">Total Subjects</p>
@@ -173,7 +213,7 @@ export const RegistrarGradeViewer: React.FC = () => {
               </div>
             </div>
           </div>
-          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+          <div className="bg-white/90 rounded-2xl p-6 shadow-lg border border-gray-100">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-600 text-sm font-medium">Average Units</p>
@@ -186,7 +226,7 @@ export const RegistrarGradeViewer: React.FC = () => {
               </div>
             </div>
           </div>
-          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+          <div className="bg-white/90 rounded-2xl p-6 shadow-lg border border-gray-100">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-600 text-sm font-medium">Active Subjects</p>
@@ -200,7 +240,7 @@ export const RegistrarGradeViewer: React.FC = () => {
         </div>
 
         {/* Search Section */}
-        <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 mb-8">
+        <div className="bg-white/90 rounded-2xl p-6 shadow-lg border border-gray-100 mb-8">
           <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
             <div className="flex-1 max-w-md">
               <div className="relative">
@@ -214,12 +254,25 @@ export const RegistrarGradeViewer: React.FC = () => {
                 />
               </div>
             </div>
+            <div className="w-full lg:w-48">
+              <select
+                value={yearFilter}
+                onChange={(e) => setYearFilter(e.target.value)}
+                className="w-full py-3 px-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              >
+                <option value="">All Year Levels</option>
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+              </select>
+            </div>
           </div>
         </div>
 
         {/* Subjects Display */}
         {filteredCourses.length === 0 ? (
-          <div className="bg-white rounded-2xl p-12 text-center shadow-lg border border-gray-100">
+          <div className="bg-white/90 rounded-2xl p-12 text-center shadow-lg border border-gray-100">
             <BookOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-600 mb-2">No subjects found</h3>
             <p className="text-gray-500 mb-6">
@@ -235,7 +288,7 @@ export const RegistrarGradeViewer: React.FC = () => {
             {filteredCourses.map((course) => (
               <div
                 key={course.id}
-                className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden hover:shadow-xl transition-all duration-300 group"
+                className="bg-white/90 rounded-2xl shadow-lg border border-gray-100 overflow-hidden hover:shadow-xl transition-all duration-300 group"
               >
                 <div className="relative h-32 bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center overflow-hidden">
                   {imageLoading[String(course.id)] ? (
@@ -291,32 +344,61 @@ export const RegistrarGradeViewer: React.FC = () => {
       </div>
       {detailsOpen && selectedCourse && createPortal(
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-xl shadow-xl max-w-lg w-full relative">
+          <div className="bg-white p-6 rounded-xl shadow-xl max-w-3xl w-full relative">
             <button onClick={() => setDetailsOpen(false)} className="absolute top-2 right-2 text-gray-500 text-2xl">&times;</button>
-            <h2 className="text-2xl font-bold mb-4 text-blue-700">Subject Details</h2>
-            <div className="mb-4">
-              <span className="font-semibold text-gray-700">Subject:</span>
-              <span className="ml-2 text-gray-900">{selectedCourse.name}</span>
+            <h2 className="text-2xl font-bold mb-4 text-black">Subject Details</h2>
+            <div className="mb-4 flex items-center justify-between gap-4">
+              <div className="flex-1">
+                <div className="text-sm text-gray-500">Subject</div>
+                <div className="text-gray-900 font-semibold">{selectedCourse.name}</div>
+              </div>
+              <div className="flex-1 text-right">
+                <div className="text-sm text-gray-500">Instructor</div>
+                <div className="text-gray-900 font-semibold">{subjectDetails?.teachers.length ? subjectDetails.teachers.join(', ') : 'N/A'}</div>
+              </div>
             </div>
             {detailsLoading ? (
               <div className="text-center py-8 text-blue-600 font-semibold">Loading...</div>
             ) : subjectDetails ? (
               <>
-                <div className="mb-4">
-                  <span className="font-semibold text-gray-700">Teacher(s):</span>
-                  <span className="ml-2 text-gray-900">{subjectDetails.teachers.length > 0 ? subjectDetails.teachers.join(', ') : 'N/A'}</span>
+                <div className="mb-2 font-semibold text-gray-700 flex items-center justify-between">
+                  <span>Enrolled Students</span>
+                  <span className="text-sm bg-blue-100 text-blue-800 px-3 py-1 rounded-full">{subjectDetails?.students.length || 0}</span>
                 </div>
-                <div className="mb-2 font-semibold text-gray-700">Enrolled Students:</div>
-                <div className="max-h-64 overflow-y-auto border rounded-lg bg-gray-50 p-2">
-                  <ul className="list-decimal ml-6">
-                    {subjectDetails.students.length === 0 ? (
-                      <li className="text-gray-500">No students enrolled</li>
-                    ) : (
-                      subjectDetails.students.map((student, idx) => (
-                        <li key={idx} className="text-gray-800 py-1 border-b last:border-b-0">{student}</li>
-                      ))
-                    )}
-                  </ul>
+                <div className="max-h-64 overflow-y-auto border rounded-lg bg-gray-50 p-3">
+                  {subjectDetails.students.length === 0 ? (
+                    <div className="text-gray-500 px-2">No students enrolled</div>
+                  ) : (
+                    <ul className="divide-y">
+                      {subjectDetails.students.map((student, idx) => (
+                        <li key={idx} className="py-2 flex items-center gap-3">
+                          <img
+                            src={student.avatar_url || '/img/user-avatar.png'}
+                            alt={student.name}
+                            className="w-8 h-8 rounded-full border"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = '/img/user-avatar.png';
+                            }}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-gray-900 font-medium truncate">{student.name}</div>
+                            <div className="text-xs text-gray-600 flex items-center gap-2">
+                              {(() => {
+                                const yearRaw = String(student.year_level ?? '');
+                                const yearMatch = yearRaw.match(/^(\d+)/);
+                                const yearNum = yearMatch ? yearMatch[1] : '';
+                                const department = selectedCourse?.department || 'BSIT';
+                                const courseYear = yearNum ? `${department}-${yearNum}` : department;
+                                const sectionPart = student.section ? ` ${student.section}` : '';
+                                return <span className="font-semibold">{`${courseYear}${sectionPart}`}</span>;
+                              })()}
+                              <span className="ml-2 text-gray-500">{student.school_id ?? '-'}</span>
+                            </div>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               </>
             ) : (
