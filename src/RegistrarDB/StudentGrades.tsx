@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { Loader2, CheckCircle2, Clock, BookOpen, ChevronRight, Search } from 'lucide-react';
+import { Loader2, CheckCircle2, Clock, BookOpen, ChevronRight, Search, Users } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface Grade {
@@ -16,6 +16,7 @@ interface Grade {
   updated_at: string;
   is_released: boolean;
   student_name?: string;
+  avatar_url?: string;
   school_id?: string;
   general_average?: number | null;
   year_level?: string;
@@ -25,8 +26,10 @@ interface Grade {
   student_status?: string;
   enrollment_status?: string;
   student_type?: string;
+  subject_id?: string | null;
   course_id?: string;
   course_code?: string;
+  course_name?: string;
   teacher_name?: string;
 }
 
@@ -40,6 +43,7 @@ interface YearLevelSectionSubject {
   year_level: string;
   section: string;
   subject: string;
+  subject_name: string;
   studentCount: number;
 }
 
@@ -53,6 +57,7 @@ export default function StudentGrades() {
   const [selectedSection, setSelectedSection] = useState<string>('');
   const [selectedSubject, setSelectedSubject] = useState<string>('');
   const [showSelection, setShowSelection] = useState(true);
+  const [showSubjects, setShowSubjects] = useState(false); // New state for subjects view
 
   const [yearLevelSectionSubjects, setYearLevelSectionSubjects] = useState<YearLevelSectionSubject[]>([]);
   
@@ -60,12 +65,33 @@ export default function StudentGrades() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedYearFilter, setSelectedYearFilter] = useState<string>('');
   const [selectedSectionFilter, setSelectedSectionFilter] = useState<string>('');
-  const [showStudentView, setShowStudentView] = useState(false);
-  const [selectedStudent, setSelectedStudent] = useState<any>(null);
-  const [studentSubjects, setStudentSubjects] = useState<any[]>([]);
   
   // State for bulk actions
   const [bulkUpdating, setBulkUpdating] = useState(false);
+
+  // Helper function to convert section UUIDs to readable names
+  const getSectionDisplayName = (sectionValue: string): string => {
+    console.log('Converting section:', sectionValue);
+    
+    // If it's already a simple letter (A, B, C, D), return as is
+    if (/^[A-Z]$/.test(sectionValue)) {
+      console.log('Section is already a letter:', sectionValue);
+      return sectionValue;
+    }
+    
+    // If it's a UUID, convert to a readable format
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sectionValue)) {
+      // Extract first 8 characters and make it readable
+      const shortId = sectionValue.substring(0, 8);
+      const result = `Section ${shortId.toUpperCase()}`;
+      console.log('Converted UUID to:', result);
+      return result;
+    }
+    
+    // If it's neither, return as is
+    console.log('Section is neither letter nor UUID, returning as is:', sectionValue);
+    return sectionValue;
+  };
 
   useEffect(() => {
     fetchGrades();
@@ -81,7 +107,7 @@ export default function StudentGrades() {
       // First, get all students with their year level and section info
       const { data: studentsData, error: studentsError } = await supabase
         .from('user_profiles')
-        .select('id, student_id, first_name, last_name, middle_name, year_level, section, program_id, student_status, enrollment_status, student_type')
+        .select('id, student_id, display_name, avatar_url, year_level, section, program_id, student_status, enrollment_status, student_type')
         .eq('role', 'student')
         .not('year_level', 'is', null)
         .not('section', 'is', null);
@@ -124,9 +150,9 @@ export default function StudentGrades() {
         });
       });
       
-      // Sort by year level and section
+      // Sort by year level (as '1'..'4') and section
       yearLevelSectionsArray.sort((a, b) => {
-        const yearOrder = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
+        const yearOrder = ['1', '2', '3', '4'];
         const aYearIndex = yearOrder.indexOf(a.year_level);
         const bYearIndex = yearOrder.indexOf(b.year_level);
         
@@ -155,11 +181,309 @@ export default function StudentGrades() {
       
       console.log('Grades data:', gradesData?.length || 0, 'records');
       
+      // Build lookup maps for graded_by (teacher) and subject_id (course)
+      const gradedByIds = Array.from(new Set((gradesData || []).map(g => g.graded_by).filter(Boolean)));
+      const subjectIdsFromGrades = Array.from(new Set((gradesData || []).map(g => g.subject_id).filter(Boolean)));
+
+      // Fetch teacher display names
+      const teachersById = new Map<string, { display_name?: string; first_name?: string; last_name?: string }>();
+      if (gradedByIds.length > 0) {
+        const { data: teachersData } = await supabase
+          .from('user_profiles')
+          .select('id, display_name, first_name, last_name')
+          .in('id', gradedByIds as string[]);
+        (teachersData || []).forEach(t => teachersById.set(t.id, { display_name: t.display_name, first_name: t.first_name, last_name: t.last_name }));
+      }
+
+      // Fetch course codes for subject ids
+      const coursesById = new Map<string, { code?: string; name?: string }>();
+      if (subjectIdsFromGrades.length > 0) {
+        const { data: coursesData } = await supabase
+          .from('courses')
+          .select('id, code, name')
+          .in('id', subjectIdsFromGrades as string[]);
+        (coursesData || []).forEach(c => coursesById.set(c.id, { code: c.code, name: c.name }));
+      }
+      
+      // Fetch enrollments to get course information
+      const { data: enrollmentsData, error: enrollmentsError } = await supabase
+        .from('enrollcourse')
+        .select(`
+          id,
+          student_id,
+          subject_id,
+          status,
+          course:courses (id, code, name)
+        `)
+        .in('student_id', studentIds);
+        
+      if (enrollmentsError) {
+        console.error('Enrollments error:', enrollmentsError);
+      }
+      
+      console.log('Enrollments data:', enrollmentsData?.length || 0, 'records');
+      if (enrollmentsData && enrollmentsData.length > 0) {
+        console.log('Sample enrollment:', enrollmentsData[0]);
+      }
+      
+      // Create enrollment map for quick lookup keyed by student_id+subject_id
+      type EnrollmentRow = {
+        id: string;
+        student_id: string;
+        subject_id: string | null;
+        status: string;
+        course: { id: string; code: string; name: string } | null;
+      };
+      const enrollmentMap = new Map<string, EnrollmentRow>();
+      (enrollmentsData || []).forEach(enrollment => {
+        // Handle case where course might be an array
+        const course = Array.isArray(enrollment.course) ? enrollment.course[0] : enrollment.course;
+        console.log('Processing enrollment:', {
+          student_id: enrollment.student_id,
+          subject_id: enrollment.subject_id,
+          course: course
+        });
+        const key = `${enrollment.student_id}-${enrollment.subject_id}`;
+        enrollmentMap.set(key, { ...enrollment, course });
+      });
+      
+      console.log('Enrollment map contents:', Array.from(enrollmentMap.entries()).map(([key, value]) => ({
+        key,
+        subject_id: value.subject_id,
+        course_id: value.course?.id,
+        course_code: value.course?.code
+      })));
+      
+      // Debug: Check what sections and year levels we have in student data
+      const studentSections = [...new Set(studentsData.map(s => s.section))];
+      const studentYearLevels = [...new Set(studentsData.map(s => s.year_level))];
+      console.log('Student sections found:', studentSections);
+      console.log('Student year levels found:', studentYearLevels);
+      
+      // Fetch teacher information for courses
+      const courseIds = (enrollmentsData || []).map(e => {
+        const course = Array.isArray(e.course) ? e.course[0] : e.course;
+        return course?.id;
+      }).filter(Boolean);
+      
+      console.log('Course IDs for teacher lookup:', courseIds);
+      
+      // Get current academic period (you may need to adjust this based on your system)
+      const currentDate = new Date();
+      const currentYear = currentDate.getFullYear();
+      const currentMonth = currentDate.getMonth() + 1;
+      
+      // Determine academic year and semester
+      let academicYear, semester;
+      if (currentMonth >= 6 && currentMonth <= 10) {
+        academicYear = `${currentYear}-${currentYear + 1}`;
+        semester = '1st Semester';
+      } else if (currentMonth >= 11 || currentMonth <= 3) {
+        academicYear = `${currentYear}-${currentYear + 1}`;
+        semester = '2nd Semester';
+      } else {
+        academicYear = `${currentYear}-${currentYear + 1}`;
+        semester = 'Summer';
+      }
+      
+      console.log('Current academic period:', { academicYear, semester });
+      
+      // First, try to get teacher subjects for the current academic period
+      let { data: teacherSubjectsData, error: teacherSubjectsError } = await supabase
+        .from('teacher_subjects')
+        .select(`
+          id,
+          teacher_id,
+          subject_id,
+          section,
+          academic_year,
+          semester,
+          year_level,
+          teacher:user_profiles!teacher_subjects_teacher_id_fkey (id, display_name, first_name, last_name)
+        `)
+        .in('subject_id', courseIds)
+        .eq('is_active', true)
+        .eq('academic_year', academicYear)
+        .eq('semester', semester);
+        
+      // If no data found for current period, try without academic period filters
+      if (!teacherSubjectsData || teacherSubjectsData.length === 0) {
+        console.log('No teacher subjects found for current period, trying without filters...');
+        const { data: unfilteredTeacherSubjects, error: unfilteredError } = await supabase
+          .from('teacher_subjects')
+          .select(`
+            id,
+            teacher_id,
+            subject_id,
+            section,
+            academic_year,
+            semester,
+            year_level,
+            teacher:user_profiles!teacher_subjects_teacher_id_fkey (id, display_name, first_name, last_name)
+          `)
+          .in('subject_id', courseIds)
+          .eq('is_active', true);
+          
+        if (unfilteredError) {
+          console.error('Error fetching unfiltered teacher subjects:', unfilteredError);
+        } else {
+          teacherSubjectsData = unfilteredTeacherSubjects;
+          teacherSubjectsError = null; // Clear the error since we got data
+          console.log('Found', teacherSubjectsData?.length || 0, 'teacher subjects without period filters');
+        }
+      }
+        
+      if (teacherSubjectsError) {
+        console.error('Teacher subjects error:', teacherSubjectsError);
+        console.error('Error details:', {
+          message: teacherSubjectsError.message,
+          details: teacherSubjectsError.details,
+          hint: teacherSubjectsError.hint
+        });
+      }
+      
+      // Create teacher map for quick lookup
+      // Normalize year levels to numeric strings '1'..'4' to match processed grades
+      const normalizeYearLevelToNumeric = (value?: string | null): string => {
+        if (!value) return 'Unknown';
+        const v = value.toString().toLowerCase();
+        if (v.startsWith('1')) return '1';
+        if (v.startsWith('2')) return '2';
+        if (v.startsWith('3')) return '3';
+        if (v.startsWith('4')) return '4';
+        if (['1','2','3','4'].includes(value)) return value;
+        return 'Unknown';
+      };
+
+      // Key: `${subject_id}-${section}-${year_level}` to match specific course-section-year combinations
+      const teacherMap = new Map();
+      (teacherSubjectsData || []).forEach(ts => {
+        const teacher = Array.isArray(ts.teacher) ? ts.teacher[0] : ts.teacher;
+        const normalizedYear = normalizeYearLevelToNumeric(ts.year_level);
+        console.log('Processing teacher subject:', {
+          id: ts.id,
+          teacher_id: ts.teacher_id,
+          subject_id: ts.subject_id,
+          section: ts.section,
+          year_level: ts.year_level,
+          normalizedYear,
+          teacher: teacher
+        });
+        
+        // Create a composite key for more specific matching
+        const key = `${ts.subject_id}-${ts.section}-${normalizedYear}`;
+        teacherMap.set(key, teacher);
+        
+        // Also store by just subject_id for fallback
+        teacherMap.set(ts.subject_id, teacher);
+      });
+      
+      console.log('Teacher map created with keys:', Array.from(teacherMap.keys()));
+      
+            console.log('Teacher subjects data:', teacherSubjectsData?.length || 0, 'records');
+      if (teacherSubjectsData && teacherSubjectsData.length > 0) {
+        console.log('Sample teacher subject:', teacherSubjectsData[0]);
+        console.log('Teacher map contents:', Array.from(teacherMap.entries()));
+        
+        // Show all available teacher-subject combinations
+        console.log('Available teacher-subject combinations:');
+        teacherSubjectsData.forEach((ts, index) => {
+          const teacher = Array.isArray(ts.teacher) ? ts.teacher[0] : ts.teacher;
+          console.log(`${index + 1}. Course: ${ts.subject_id}, Section: ${ts.section}, Year: ${ts.year_level}, Teacher: ${teacher?.first_name} ${teacher?.last_name}`);
+        });
+        
+        // Debug: Check what sections and year levels are available in teacher_subjects
+        const teacherSubjectSections = [...new Set(teacherSubjectsData.map(ts => ts.section))];
+        const teacherSubjectYearLevels = [...new Set(teacherSubjectsData.map(ts => ts.year_level))];
+        console.log('Teacher subject sections available:', teacherSubjectSections);
+        console.log('Teacher subject year levels available:', teacherSubjectYearLevels);
+      } else {
+        console.warn('No teacher subjects found. You may need to insert sample data:');
+        console.warn(`
+          -- Sample SQL to insert teacher-subject assignments:
+          -- INSERT INTO teacher_subjects (teacher_id, subject_id, section, academic_year, semester, year_level, is_active)
+          -- VALUES 
+          --   ('teacher-uuid-here', 'course-uuid-here', 'A', '2024-2025', '1st Semester', '3rd Year', true);
+          
+          -- To get the required UUIDs, run these queries:
+          -- SELECT id, first_name, last_name FROM user_profiles WHERE role = 'teacher' LIMIT 1;
+          -- SELECT id, course_code, course_name FROM courses LIMIT 1;
+        `);
+        
+        // Let's also check what's actually in the teacher_subjects table
+        console.log('Checking what exists in teacher_subjects table...');
+        const { data: allTeacherSubjects, error: checkError } = await supabase
+          .from('teacher_subjects')
+          .select('*')
+          .limit(5);
+          
+        if (checkError) {
+          console.error('Error checking teacher_subjects table:', checkError);
+        } else {
+          console.log('All teacher_subjects records:', allTeacherSubjects);
+        }
+      }
+      
+      // Fallback: If no teacher subjects found, try to get teacher info directly
+      if (!teacherSubjectsData || teacherSubjectsData.length === 0) {
+        console.warn('No teacher subjects found, trying fallback approach...');
+        
+        // Get all teacher profiles
+        const { data: allTeachers, error: teachersError } = await supabase
+          .from('user_profiles')
+          .select('id, first_name, last_name, role')
+          .eq('role', 'teacher');
+          
+        if (teachersError) {
+          console.error('Fallback teachers fetch error:', teachersError);
+        } else {
+          console.log('Fallback: Found', allTeachers?.length || 0, 'teachers');
+          
+          // Try to find any teacher subjects (without filters)
+          const { data: anyTeacherSubjects, error: anyTeacherError } = await supabase
+            .from('teacher_subjects')
+            .select(`
+              id, teacher_id, subject_id, section, year_level,
+              teacher:user_profiles!teacher_subjects_teacher_id_fkey (id, display_name, first_name, last_name)
+            `)
+            .limit(10);
+            
+                if (anyTeacherError) {
+        console.error('Error fetching any teacher subjects:', anyTeacherError);
+      } else if (anyTeacherSubjects && anyTeacherSubjects.length > 0) {
+        console.log('Found', anyTeacherSubjects.length, 'teacher subjects (unfiltered)');
+        console.log('Sample:', anyTeacherSubjects[0]);
+        
+        // Use these for mapping
+        anyTeacherSubjects.forEach(ts => {
+          const teacher = Array.isArray(ts.teacher) ? ts.teacher[0] : ts.teacher;
+          const key = `${ts.subject_id}-${ts.section}-${ts.year_level}`;
+          teacherMap.set(key, teacher);
+          teacherMap.set(ts.subject_id, teacher);
+        });
+        
+        console.log('Updated teacher map with unfiltered data:', Array.from(teacherMap.entries()));
+      } else {
+            // Last resort: assign default teacher to all courses
+            (enrollmentsData || []).forEach(enrollment => {
+              const course = Array.isArray(enrollment.course) ? enrollment.course[0] : enrollment.course;
+              if (course?.id && !teacherMap.has(course.id)) {
+                const defaultTeacher = allTeachers?.[0];
+                if (defaultTeacher) {
+                  teacherMap.set(course.id, defaultTeacher);
+                  console.log('Assigned default teacher to course:', course.id);
+                }
+              }
+            });
+          }
+        }
+      }
+      
       // Fetch programs data
       const programIds = (studentsData || []).map(s => s.program_id).filter(Boolean);
       const { data: programsData, error: programsError } = await supabase
         .from('programs')
-        .select('id, name, code')
+        .select('id, name, major')
         .in('id', programIds);
       
       if (programsError) {
@@ -168,47 +492,21 @@ export default function StudentGrades() {
       
       const programMap = new Map();
       (programsData || []).forEach(p => {
-        programMap.set(p.id, { name: p.name, code: p.code });
+        programMap.set(p.id, { name: p.name, code: p.major || 'N/A' });
       });
 
-      // Fetch courses data if subject_id exists in grades (subject_id actually references courses)
-      const courseIds = (gradesData || []).map(g => g.subject_id).filter(Boolean);
-      const coursesMap = new Map();
-      if (courseIds.length > 0) {
-        const { data: coursesData, error: coursesError } = await supabase
-          .from('courses')
-          .select('id, code')
-          .in('id', courseIds);
-        
-        if (coursesError) {
-          console.error('Error fetching courses:', coursesError);
-        } else {
-          (coursesData || []).forEach(c => {
-            coursesMap.set(c.id, { code: c.code });
-          });
-        }
-      }
-
-      // Fetch teacher data if graded_by exists in grades
-      const teacherIds = (gradesData || []).map(g => g.graded_by).filter(Boolean);
-      const teachersMap = new Map();
-      if (teacherIds.length > 0) {
-        const { data: teachersData, error: teachersError } = await supabase
-          .from('user_profiles')
-          .select('id, first_name, last_name')
-          .in('id', teacherIds);
-        
-        if (teachersError) {
-          console.error('Error fetching teachers:', teachersError);
-        } else {
-          (teachersData || []).forEach(t => {
-            teachersMap.set(t.id, { first_name: t.first_name, last_name: t.last_name });
-          });
-        }
-      }
+      // Course and teacher data is now fetched through the join above
       
       const processedGrades = (gradesData || []).map(g => {
         const student = studentMap.get(g.student_id);
+        const mapYearLevelToNumericString = (num?: number | null, fallback?: string | null): string => {
+          if (num === 1) return '1';
+          if (num === 2) return '2';
+          if (num === 3) return '3';
+          if (num === 4) return '4';
+          const fb = (fallback ?? '').toString();
+          return ['1', '2', '3', '4'].includes(fb) ? fb : 'Unknown';
+        };
         
         // Calculate General Average
         const grades = [g.prelim_grade, g.midterm_grade, g.final_grade].filter(grade => grade !== null && grade !== undefined);
@@ -216,36 +514,110 @@ export default function StudentGrades() {
           ? Math.round((grades.reduce((sum, grade) => sum + (grade || 0), 0) / grades.length) * 100) / 100
           : null;
         
+        // Get enrollment data for this student and subject
+        const enrollmentKey = `${g.student_id}-${g.subject_id || ''}`;
+        const enrollment = enrollmentMap.get(enrollmentKey);
+        
         return {
           ...g,
-          student_name: student
-            ? `${student.last_name}, ${student.first_name}${student.middle_name ? ' ' + student.middle_name : ''}`
-            : '',
+          student_name: student?.display_name || 'Unknown Student',
+          avatar_url: student?.avatar_url || null,
           school_id: student?.student_id || g.student_id,
           general_average,
-          year_level: student?.year_level || 'Unknown',
-          section: student?.section || 'Unknown',
+          // Normalize year_level to '1' | '2' | '3' | '4'
+          year_level: mapYearLevelToNumericString((g as { year_level?: number | null }).year_level, student?.year_level),
+          section: (() => {
+            const sectionValue = (g as { section?: string | null }).section || student?.section || 'Unknown';
+            console.log('Processing section for student:', g.student_id, 'Value:', sectionValue);
+            return sectionValue;
+          })(),
           program_name: student?.program_id ? programMap.get(student.program_id)?.name || 'Unknown Program' : 'Unknown Program',
           program_code: student?.program_id ? programMap.get(student.program_id)?.code || 'UNK' : 'UNK',
           student_status: student?.student_status || 'Unknown',
           enrollment_status: student?.enrollment_status || 'Unknown',
           student_type: student?.student_type || 'Unknown',
-          course_id: g.subject_id,
-          course_code: g.subject_id ? coursesMap.get(g.subject_id)?.code || 'Unknown' : 'Unknown',
-          teacher_name: g.graded_by ? `${teachersMap.get(g.graded_by)?.first_name || ''} ${teachersMap.get(g.graded_by)?.last_name || ''}`.trim() || 'Unknown Teacher' : 'Unknown Teacher',
+          course_id: g.subject_id || enrollment?.course?.id || null,
+          course_code: (() => {
+            // Prefer course by grades.subject_id; fallback to enrollment course
+            const codeFromGrades = g.subject_id ? coursesById.get(g.subject_id)?.code : undefined;
+            const code = codeFromGrades || enrollment?.course?.code;
+            return code || 'Unknown';
+          })(),
+          course_name: (() => {
+            // Prefer course by grades.subject_id; fallback to enrollment course
+            const nameFromGrades = g.subject_id ? coursesById.get(g.subject_id)?.name : undefined;
+            const name = nameFromGrades || enrollment?.course?.name;
+            return name || 'Unknown';
+          })(),
+          teacher_name: (() => {
+            // Prefer graded_by profile display_name only
+            if (g.graded_by) {
+              const t = teachersById.get(g.graded_by);
+              if (t && t.display_name && t.display_name.trim()) return t.display_name.trim();
+            }
+            // Fallback to teacherMap using composite key subject_id-section-year
+            const compositeKey = `${g.subject_id || ''}-${(g as { section?: string | null; year_level?: number | null }).section || ''}-${mapYearLevelToNumericString((g as { year_level?: number | null }).year_level as number | null, student?.year_level)}`;
+            const mappedTeacher = teacherMap.get(compositeKey) || (g.subject_id ? teacherMap.get(g.subject_id) : undefined);
+            if (mappedTeacher && (mappedTeacher as { display_name?: string }).display_name && (mappedTeacher as { display_name?: string }).display_name!.trim()) {
+              return (mappedTeacher as { display_name: string }).display_name.trim();
+            }
+            return 'Not Assigned';
+          })(),
         };
       });
       
-      console.log('Processed grades:', processedGrades.length, 'records');
+      // Store processed grades for rendering and bulk actions
       setGrades(processedGrades);
-      
 
+      console.log('Processed grades:', processedGrades.length, 'records');
+      console.log('Sample processed grade:', processedGrades[0]);
+      console.log('Enrollment map size:', enrollmentMap.size);
+      console.log('Teacher map size:', teacherMap.size);
+      
+      // Summary of data processing
+      console.log('=== DATA PROCESSING SUMMARY ===');
+      console.log('Students fetched:', studentsData?.length || 0);
+      console.log('Grades fetched:', gradesData?.length || 0);
+      console.log('Enrollments fetched:', enrollmentsData?.length || 0);
+      console.log('Teacher subjects fetched:', teacherSubjectsData?.length || 0);
+      console.log('Programs fetched:', programsData?.length || 0);
+      
+      // Debug: Show sample grades data
+      if (gradesData && gradesData.length > 0) {
+        console.log('Sample grades data:', gradesData.slice(0, 3).map(g => ({
+          id: g.id,
+          student_id: g.student_id,
+          year_level: g.year_level,
+          section: g.section,
+          subject_id: g.subject_id,
+          graded_by: g.graded_by
+        })));
+      }
+      
+      // Debug: Show processed grades
+      if (processedGrades.length > 0) {
+        console.log('Sample processed grades:', processedGrades.slice(0, 3).map(g => ({
+          id: g.id,
+          student_id: g.student_id,
+          year_level: g.year_level,
+          section: g.section,
+          course_code: g.course_code,
+          teacher_name: g.teacher_name
+        })));
+      }
       
       // Create year level, section, and subject combinations
       const yearLevelSectionSubjectMap = new Map<string, Map<string, Set<string>>>();
       
       processedGrades.forEach(grade => {
-        if (grade.year_level && grade.section && grade.course_code) {
+        // Only process grades with valid year_level and section (not "Unknown")
+        if (grade.year_level && 
+            grade.year_level !== 'Unknown' && 
+            grade.section && 
+            grade.section !== 'Unknown' && 
+            grade.course_code && 
+            grade.course_code !== 'Unknown') {
+          
           const key = `${grade.year_level}-${grade.section}`;
           if (!yearLevelSectionSubjectMap.has(key)) {
             yearLevelSectionSubjectMap.set(key, new Map());
@@ -268,20 +640,29 @@ export default function StudentGrades() {
               g.section === sectionName && 
               g.course_code === subject
             ).length;
+            const subjectName = (() => {
+              const match: Grade | undefined = processedGrades.find(g => 
+                g.year_level === yearLevel &&
+                g.section === sectionName &&
+                g.course_code === subject
+              );
+              return match?.course_name || 'Unknown';
+            })();
             
             yearLevelSectionSubjectsArray.push({
               year_level: yearLevel,
               section: sectionName,
               subject: subject,
+              subject_name: subjectName,
               studentCount
             });
           });
         });
       });
       
-      // Sort by year level, section, and subject
+      // Sort by year level ('1'..'4'), section, and subject
       yearLevelSectionSubjectsArray.sort((a, b) => {
-        const yearOrder = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
+        const yearOrder = ['1', '2', '3', '4'];
         const aYearIndex = yearOrder.indexOf(a.year_level);
         const bYearIndex = yearOrder.indexOf(b.year_level);
         
@@ -298,6 +679,20 @@ export default function StudentGrades() {
       
       setYearLevelSectionSubjects(yearLevelSectionSubjectsArray);
       
+      // Debug: Show year level section subjects
+      console.log('Year level section subjects created:', yearLevelSectionSubjectsArray.length);
+      if (yearLevelSectionSubjectsArray.length > 0) {
+        console.log('Sample year level section subjects:', yearLevelSectionSubjectsArray.slice(0, 3));
+      }
+      
+      // Check for missing data
+      // Note: skip logging gradesWithoutEnrollments to keep console clean and linter satisfied
+      
+      // Removed unused enrollmentsWithoutTeachers calculation to satisfy linter
+      // Note: silently tolerate missing teacher assignments; UI falls back to 'Not Assigned'
+      
+      console.log('=== END SUMMARY ===');
+      
     } catch (error) {
       console.error('Error fetching data:', error);
       setError('Failed to load data');
@@ -312,201 +707,43 @@ export default function StudentGrades() {
 
   const handleBackToSelection = () => {
     setShowSelection(true);
-    setSearchTerm('');
-    setShowStudentView(false);
-    setSelectedStudent(null);
-    setStudentSubjects([]);
+    setShowSubjects(false);
+    setSelectedYearLevel('');
+    setSelectedSection('');
+    setSelectedSubject('');
   };
 
-  // Function to fetch student subjects and grades
-  const fetchStudentSubjects = async (studentId: string) => {
-    try {
-      // Fetch all grades for the specific student
-      const { data: studentGrades, error: gradesError } = await supabase
-        .from('grades')
-        .select('*')
-        .eq('student_id', studentId)
-        .order('created_at', { ascending: false });
-
-      if (gradesError) {
-        console.error('Error fetching student grades:', gradesError);
-        toast.error('Failed to load student grades');
-        return;
-      }
-
-      // Fetch course information for each grade
-      const courseIds = studentGrades.map(g => g.subject_id).filter(Boolean);
-      const { data: coursesData, error: coursesError } = await supabase
-        .from('courses')
-        .select('id, code, name, units, subject_type')
-        .in('id', courseIds);
-
-      if (coursesError) {
-        console.error('Error fetching courses:', coursesError);
-      }
-
-      const coursesMap = new Map();
-      (coursesData || []).forEach(c => {
-        coursesMap.set(c.id, c);
-      });
-
-      // Process student subjects with grades
-      const processedSubjects = studentGrades.map(grade => {
-        const course = coursesMap.get(grade.subject_id);
-        const grades = [grade.prelim_grade, grade.midterm_grade, grade.final_grade].filter(g => g !== null && g !== undefined);
-        const general_average = grades.length > 0 
-          ? Math.round((grades.reduce((sum, g) => sum + (g || 0), 0) / grades.length) * 100) / 100
-          : null;
-
-        return {
-          ...grade,
-          course_code: course?.code || 'Unknown',
-          course_name: course?.name || 'Unknown Course',
-          units: course?.units || 0,
-          subject_type: course?.subject_type || 'Unknown',
-          general_average,
-          is_complete: grade.prelim_grade !== null && grade.midterm_grade !== null && grade.final_grade !== null
-        };
-      });
-
-      setStudentSubjects(processedSubjects);
-    } catch (error) {
-      console.error('Error fetching student subjects:', error);
-      toast.error('Failed to load student subjects');
-    }
+  // New function to handle section card clicks
+  const handleSectionClick = (yearLevel: string, section: string) => {
+    setSelectedYearLevel(yearLevel);
+    setSelectedSection(section);
+    setShowSelection(false);
+    setShowSubjects(true);
   };
 
-  // Function to handle viewing individual student
-  const handleViewStudent = async (student: any) => {
-    setSelectedStudent(student);
-    await fetchStudentSubjects(student.id);
-    setShowSelection(false); // Hide the selection interface
-    setShowStudentView(true); // Show the student view
+  // New function to handle subject selection
+  const handleSubjectClick = (subject: string) => {
+    setSelectedSubject(subject);
+    setShowSubjects(false);
   };
 
-  // Function to release grades for a specific subject
-  const handleReleaseSubjectGrades = async (subjectId: string, studentId: string) => {
-    try {
-      const { error } = await supabase
-        .from('grades')
-        .update({ is_released: true })
-        .eq('id', subjectId);
-
-      if (!error) {
-        // Update local state
-        setStudentSubjects(prev => 
-          prev.map(subject => 
-            subject.id === subjectId ? { ...subject, is_released: true } : subject
-          )
-        );
-        
-        // Update main grades state
-        setGrades(prev => 
-          prev.map(grade => 
-            grade.id === subjectId ? { ...grade, is_released: true } : grade
-          )
-        );
-        
-        toast.success('Grades released successfully');
-      } else {
-        toast.error('Failed to release grades');
-      }
-    } catch (error) {
-      console.error('Error releasing grades:', error);
-      toast.error('Failed to release grades');
-    }
-  };
-
-  // Function to hide grades for a specific subject
-  const handleHideSubjectGrades = async (subjectId: string, studentId: string) => {
-    try {
-      const { error } = await supabase
-        .from('grades')
-        .update({ is_released: false })
-        .eq('id', subjectId);
-
-      if (!error) {
-        // Update local state
-        setStudentSubjects(prev => 
-          prev.map(subject => 
-            subject.id === subjectId ? { ...subject, is_released: false } : subject
-          )
-        );
-        
-        // Update main grades state
-        setGrades(prev => 
-          prev.map(grade => 
-            grade.id === subjectId ? { ...grade, is_released: false } : grade
-          )
-        );
-        
-        toast.success('Grades hidden successfully');
-      } else {
-        toast.error('Failed to hide grades');
-      }
-    } catch (error) {
-      console.error('Error hiding grades:', error);
-      toast.error('Failed to hide grades');
-    }
-  };
-
-  // Function to get all students for search
-  const getAllStudents = () => {
-    const studentMap = new Map();
-    grades.forEach(grade => {
-      if (!studentMap.has(grade.student_id)) {
-        studentMap.set(grade.student_id, {
-          id: grade.student_id,
-          student_name: grade.student_name,
-          school_id: grade.school_id,
-          year_level: grade.year_level,
-          section: grade.section,
-          program_name: grade.program_name
-        });
-      }
-    });
-    return Array.from(studentMap.values());
-  };
-
-  // Get filtered students for search
-  const getFilteredStudentsForSearch = () => {
-    if (!searchTerm.trim()) return [];
-    
-    const allStudents = getAllStudents();
-    const searchLower = searchTerm.toLowerCase();
-    
-    const filtered = allStudents.filter(student => 
-      (student.student_name && student.student_name.toLowerCase().includes(searchLower)) ||
-      (student.school_id && student.school_id.toLowerCase().includes(searchLower)) ||
-      (student.id && student.id.toLowerCase().includes(searchLower))
-    );
-    
-    return filtered;
+  // New function to go back to subjects view
+  const handleBackToSubjects = () => {
+    setShowSubjects(true);
+    setSelectedSubject('');
   };
 
   // Get filtered students based on selection
   const getFilteredStudents = () => {
     if (!selectedYearLevel || !selectedSection || !selectedSubject) return [];
     
-    let filtered = grades.filter(grade => 
+    const filtered = grades.filter(grade => 
       grade.year_level === selectedYearLevel && 
       grade.section === selectedSection &&
       grade.course_code === selectedSubject
-    );
+    ).sort((a, b) => (a.student_name || '').localeCompare(b.student_name || ''));
     
-    // Apply student search filter
-    if (searchTerm.trim()) {
-      const searchLower = searchTerm.toLowerCase();
-      filtered = filtered.filter(grade => 
-        (grade.student_name && grade.student_name.toLowerCase().includes(searchLower)) ||
-        (grade.school_id && grade.school_id.toLowerCase().includes(searchLower)) ||
-        (grade.student_id && grade.student_id.toLowerCase().includes(searchLower))
-      );
-    }
-    
-    // Sort by student name
-    filtered.sort((a, b) => (a.student_name || '').localeCompare(b.student_name || ''));
-    
+    console.log('Filtered students:', filtered.length, 'for', selectedYearLevel, 'Section', selectedSection, 'Subject', selectedSubject);
     return filtered;
   };
 
@@ -576,6 +813,20 @@ export default function StudentGrades() {
   const releasedGrades = grades.filter(g => g.is_released).length;
   const pendingGrades = grades.filter(g => !g.is_released).length;
 
+  // Get students for a given combination (year, section, subject)
+  const getStudentsForCombination = (yearLevel: string, section: string, subject: string) => {
+    return grades
+      .filter(g => g.year_level === yearLevel && g.section === section && g.course_code === subject)
+      .slice(0, 8); // cap to 8 avatars for layout
+  };
+
+  // Get total student count for a combination
+  const getTotalStudentCount = (yearLevel: string, section: string, subject: string) => {
+    return grades
+      .filter(g => g.year_level === yearLevel && g.section === section && g.course_code === subject)
+      .length;
+  };
+
   return (
     <div className="min-h-screen from-blue-50 via-white to-indigo-50 py-8">
       <div className="max-w-7xl mx-auto px-4">
@@ -596,7 +847,7 @@ export default function StudentGrades() {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl p-6 shadow-sm border border-blue-200/50 hover:shadow-md transition-all duration-300">
+          <div className="bg-white/90 rounded-2xl p-6 shadow-sm border border-blue-200/50 hover:shadow-md transition-all duration-300">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-blue-700 text-sm font-semibold uppercase tracking-wide mb-1">Total Grades</p>
@@ -609,7 +860,7 @@ export default function StudentGrades() {
             </div>
           </div>
           
-          <div className="bg-gradient-to-br from-amber-50 to-amber-100 rounded-2xl p-6 shadow-sm border border-amber-200/50 hover:shadow-md transition-all duration-300">
+          <div className="bg-white/90 rounded-2xl p-6 shadow-sm border border-amber-200/50 hover:shadow-md transition-all duration-300">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-amber-700 text-sm font-semibold uppercase tracking-wide mb-1">Pending</p>
@@ -622,7 +873,7 @@ export default function StudentGrades() {
             </div>
           </div>
           
-          <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-2xl p-6 shadow-sm border border-emerald-200/50 hover:shadow-md transition-all duration-300">
+          <div className="bg-white/90 rounded-2xl p-6 shadow-sm border border-emerald-200/50 hover:shadow-md transition-all duration-300">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-emerald-700 text-sm font-semibold uppercase tracking-wide mb-1">Released</p>
@@ -645,129 +896,51 @@ export default function StudentGrades() {
           <div className="bg-red-100 text-red-700 rounded-xl p-6 text-center font-semibold">{error}</div>
                 ) : showSelection ? (
           // Fast Selection Interface
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-8">
+          <div className="bg-white/90 rounded-2xl shadow-lg border border-gray-100 p-8">
             <div className="text-center mb-8">
               <h2 className="text-2xl font-bold text-gray-800 mb-2">Quick Grade Management</h2>
               <p className="text-gray-600">Click on any combination to view and manage student grades</p>
             </div>
             
             <div className="max-w-6xl mx-auto">
-              {/* Search and Filter Controls */}
-              <div className="mb-6 space-y-4">
-                {/* Unified Search Bar */}
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder="Search for students, year levels, sections, or subjects..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full px-4 py-3 pl-12 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white"
-                  />
-                  <Search className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 transform -translate-y-1/2" />
-                  {searchTerm && (
-                    <button
-                      onClick={() => setSearchTerm('')}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 px-2 py-1 text-sm text-gray-500 hover:text-gray-700 transition-colors"
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
-                
-                {/* Student Search Results */}
-                {searchTerm.trim() && getFilteredStudentsForSearch().length > 0 && (
-                  <div className="bg-white border border-gray-200 rounded-xl shadow-lg max-h-64 overflow-y-auto">
-                    <div className="p-3 border-b border-gray-200 bg-blue-50">
-                      <h4 className="font-semibold text-blue-700">Student Search Results</h4>
-                    </div>
-                    {getFilteredStudentsForSearch().map((student) => (
-                      <div
-                        key={student.id}
-                        className="p-3 border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
-                        onClick={() => handleViewStudent(student)}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="font-medium text-gray-900">{student.student_name}</div>
-                            <div className="text-sm text-gray-600">
-                              ID: {student.school_id} | {student.year_level} Section {student.section}
-                            </div>
-                          </div>
-                          <button 
-                            className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleViewStudent(student);
-                            }}
-                          >
-                            View
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                    <div className="p-3 bg-blue-50 border-t border-blue-200">
-                      <p className="text-sm text-blue-700 font-medium">
-                        Found {getFilteredStudentsForSearch().length} student(s)
-                      </p>
-                    </div>
+              {/* Search and Filter Controls - single line */}
+              <div className="mb-6">
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="relative flex-1 min-w-[260px]">
+                    <input
+                      type="text"
+                      placeholder="Search by year level, section, or subject..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full h-12 px-4 pl-12 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white/90"
+                    />
+                    <Search className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 transform -translate-y-1/2" />
                   </div>
-                )}
-                
-                {/* No Student Results Message */}
-                {searchTerm.trim() && getFilteredStudentsForSearch().length === 0 && (
-                  <div className="bg-white border border-gray-200 rounded-xl p-6 text-center">
-                    <Search className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                    <h4 className="text-lg font-semibold text-gray-600 mb-2">No Students Found</h4>
-                    <p className="text-gray-500">Try searching with a different name, ID, or school ID.</p>
-                  </div>
-                )}
-                
-                {/* Section/Subject Search Results Summary */}
-                {searchTerm.trim() && (
-                  <div className="bg-white border border-gray-200 rounded-xl p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="font-semibold text-gray-700">Section/Subject Search Results</h4>
-                      <span className="text-sm text-gray-500">
-                        {yearLevelSectionSubjects.filter(item => {
-                          const searchLower = searchTerm.toLowerCase();
-                          return item.year_level.toLowerCase().includes(searchLower) ||
-                                 item.section.toLowerCase().includes(searchLower) ||
-                                 item.subject.toLowerCase().includes(searchLower);
-                        }).length} combinations found
-                      </span>
-                    </div>
-                    <p className="text-sm text-gray-600">
-                      Use the filters below to narrow down year levels and sections, or click on any combination card to view students.
-                    </p>
-                  </div>
-                )}
-                
-                {/* Quick Filter Buttons */}
-                <div className="flex flex-wrap gap-2">
+
                   {/* Year Level Filter */}
                   <select
                     value={selectedYearFilter}
                     onChange={(e) => setSelectedYearFilter(e.target.value)}
-                    className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white text-sm"
+                    className="w-44 h-12 px-4 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white/90 text-sm"
                   >
                     <option value="">All Year Levels</option>
                     {[...new Set(yearLevelSectionSubjects.map(item => item.year_level))].sort().map(year => (
                       <option key={year} value={year}>{year}</option>
                     ))}
                   </select>
-                  
+
                   {/* Section Filter */}
                   <select
                     value={selectedSectionFilter}
                     onChange={(e) => setSelectedSectionFilter(e.target.value)}
-                    className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white text-sm"
+                    className="w-44 h-12 px-4 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white/90 text-sm"
                   >
                     <option value="">All Sections</option>
                     {[...new Set(yearLevelSectionSubjects.map(item => item.section))].sort().map(section => (
-                      <option key={section} value={section}>Section {section}</option>
+                      <option key={section} value={section}>Section {getSectionDisplayName(section)}</option>
                     ))}
                   </select>
-                  
+
                   {/* Clear Filters Button */}
                   {(searchTerm || selectedYearFilter || selectedSectionFilter) && (
                     <button
@@ -778,7 +951,7 @@ export default function StudentGrades() {
                       }}
                       className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors"
                     >
-                      Clear All Filters
+                      Clear Filters
                     </button>
                   )}
                 </div>
@@ -788,9 +961,10 @@ export default function StudentGrades() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {yearLevelSectionSubjects
                   .filter(item => {
+                    const sectionDisplayName = getSectionDisplayName(item.section);
                     const matchesSearch = !searchTerm || 
                       item.year_level.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                      item.section.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                      sectionDisplayName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                       item.subject.toLowerCase().includes(searchTerm.toLowerCase());
                     
                     const matchesYearFilter = !selectedYearFilter || item.year_level === selectedYearFilter;
@@ -801,12 +975,7 @@ export default function StudentGrades() {
                   .map((item) => (
                   <div
                     key={`${item.year_level}-${item.section}-${item.subject}`}
-                    onClick={() => {
-                      setSelectedYearLevel(item.year_level);
-                      setSelectedSection(item.section);
-                      setSelectedSubject(item.subject);
-                      setShowSelection(false);
-                    }}
+                    onClick={() => handleSectionClick(item.year_level, item.section)}
                     className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl p-6 border border-blue-200 hover:border-blue-400 hover:shadow-lg transition-all duration-200 cursor-pointer transform hover:scale-105"
                   >
                     <div className="flex items-center justify-between mb-3">
@@ -823,10 +992,37 @@ export default function StudentGrades() {
                     
                     <div className="space-y-2">
                       <div className="text-lg font-bold text-gray-800">
-                        Section {item.section}
+                        Section {getSectionDisplayName(item.section)}
                       </div>
-                      <div className="text-sm font-medium text-gray-600">
-                        {item.subject}
+                      <div className="flex -space-x-2 items-center">
+                        {getStudentsForCombination(item.year_level, item.section, item.subject).map((s) => (
+                          <img
+                            key={s.id}
+                            src={s.avatar_url || "/img/user-avatar.png"}
+                            alt={s.student_name || 'Student'}
+                            title={s.student_name || ''}
+                            className="w-6 h-6 rounded-full border-2 border-white shadow-sm"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.src = "/img/user-avatar.png";
+                            }}
+                          />
+                        ))}
+                        {(() => {
+                          const totalCount = getTotalStudentCount(item.year_level, item.section, item.subject);
+                          const displayedCount = getStudentsForCombination(item.year_level, item.section, item.subject).length;
+                          
+                          if (totalCount === 0) {
+                            return <span className="text-sm font-medium text-gray-500">No students</span>;
+                          } else if (totalCount > displayedCount) {
+                            return (
+                              <div className="w-6 h-6 rounded-full bg-blue-100 border-2 border-white shadow-sm flex items-center justify-center">
+                                <span className="text-xs font-bold text-blue-600">+{totalCount - displayedCount}</span>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
                       </div>
                     </div>
                     
@@ -843,9 +1039,10 @@ export default function StudentGrades() {
               {/* Results Counter */}
               {(() => {
                 const filteredResults = yearLevelSectionSubjects.filter(item => {
+                  const sectionDisplayName = getSectionDisplayName(item.section);
                   const matchesSearch = !searchTerm || 
                     item.year_level.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    item.section.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    sectionDisplayName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                     item.subject.toLowerCase().includes(searchTerm.toLowerCase());
                   
                   const matchesYearFilter = !selectedYearFilter || item.year_level === selectedYearFilter;
@@ -896,8 +1093,8 @@ export default function StudentGrades() {
               })()}
             </div>
           </div>
-        ) : showStudentView ? (
-          // Individual Student View
+        ) : showSubjects ? (
+          // Subjects List View
           <div className="space-y-6">
             {/* Back Button and Header */}
             <div className="flex items-center justify-between">
@@ -911,259 +1108,97 @@ export default function StudentGrades() {
               <div className="text-center flex-1">
                 <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-4 rounded-xl shadow-lg inline-block">
                   <h2 className="text-2xl font-bold">
-                    Student Profile
+                    BSIT-{selectedYearLevel.replace(/\D/g, '')} Section {getSectionDisplayName(selectedSection)}
                   </h2>
-                  {selectedStudent && (
-                    <div className="mt-3 text-base font-medium">
-                      <span className="mr-6">{selectedStudent.student_name}</span>
-                      <span>ID: {selectedStudent.school_id}</span>
-                    </div>
-                  )}
+                  <p className="text-white/80 text-base mt-2">Select a subject to view enrolled students and grades</p>
                 </div>
               </div>
-              <div className="w-32"></div>
+              <div className="w-32"></div> {/* Spacer to balance the layout */}
             </div>
 
-            {/* Student Information Card */}
-            {selectedStudent && (
-              <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="text-center">
-                    <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full mx-auto mb-3 flex items-center justify-center">
-                      <span className="text-2xl font-bold text-white">
-                        {selectedStudent.student_name?.charAt(0) || 'S'}
-                      </span>
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-800">{selectedStudent.student_name}</h3>
-                    <p className="text-gray-600">Student</p>
-                  </div>
-                  <div className="space-y-3">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Student ID:</span>
-                      <span className="font-medium">{selectedStudent.school_id}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Year Level:</span>
-                      <span className="font-medium">{selectedStudent.year_level}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Section:</span>
-                      <span className="font-medium">Section {selectedStudent.section}</span>
-                    </div>
-                  </div>
-                  <div className="space-y-3">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Program:</span>
-                      <span className="font-medium">{selectedStudent.program_name}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Total Subjects:</span>
-                      <span className="font-medium">{studentSubjects.length}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Total Units:</span>
-                      <span className="font-medium">
-                        {studentSubjects.reduce((sum, s) => sum + (s.units || 0), 0)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Completed:</span>
-                      <span className="font-medium">
-                        {studentSubjects.filter(s => s.is_complete).length}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Major Subjects:</span>
-                      <span className="font-medium">
-                        {studentSubjects.filter(s => s.subject_type?.toLowerCase() === 'major').length}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Minor Subjects:</span>
-                      <span className="font-medium">
-                        {studentSubjects.filter(s => s.subject_type?.toLowerCase() === 'minor').length}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Subjects and Grades Table */}
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
-              <div className="bg-gradient-to-r from-blue-50 to-purple-50 px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-800">Enrolled Subjects & Grades</h3>
-                <p className="text-sm text-gray-600">Manage grade visibility for each subject</p>
-              </div>
-              
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gradient-to-r from-blue-600 to-purple-600 text-white">
-                    <tr>
-                      <th className="px-6 py-4 text-left font-semibold">Subject</th>
-                      <th className="px-6 py-4 text-left font-semibold">Course Code</th>
-                      <th className="px-6 py-4 text-center font-semibold">Units</th>
-                      <th className="px-6 py-4 text-center font-semibold">Subject Type</th>
-                      <th className="px-6 py-4 text-center font-semibold">Prelim</th>
-                      <th className="px-6 py-4 text-center font-semibold">Midterm</th>
-                      <th className="px-6 py-4 text-center font-semibold">Final</th>
-                      <th className="px-6 py-4 text-center font-semibold">Average</th>
-                      <th className="px-6 py-4 text-center font-semibold">Status</th>
-                      <th className="px-6 py-4 text-center font-semibold">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {studentSubjects.map((subject, index) => (
-                      <tr key={subject.id} className={`hover:bg-gray-50 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-                        <td className="px-6 py-4">
-                          <div>
-                            <div className="font-semibold text-gray-900">{subject.course_name}</div>
-                            <div className="text-sm text-gray-600">ID: {subject.id}</div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-600 font-medium">
-                          {subject.course_code}
-                        </td>
-                        <td className="px-6 py-4 text-center text-sm text-gray-600">
-                          {subject.units}
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
-                            subject.subject_type?.toLowerCase() === 'major' 
-                              ? 'bg-purple-100 text-purple-800' 
-                              : subject.subject_type?.toLowerCase() === 'minor'
-                              ? 'bg-blue-100 text-blue-800'
-                              : 'bg-gray-100 text-gray-800'
-                          }`}>
-                            {subject.subject_type || 'Unknown'}
+            {/* Subjects Grid */}
+            <div className="bg-white/90 rounded-2xl shadow-lg border border-gray-100 p-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {yearLevelSectionSubjects
+                  .filter(item => 
+                    item.year_level === selectedYearLevel && 
+                    item.section === selectedSection
+                  )
+                  .map((item) => (
+                    <div
+                      key={`${item.year_level}-${item.section}-${item.subject}`}
+                      onClick={() => handleSubjectClick(item.subject)}
+                      className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 border border-green-200 hover:border-green-400 hover:shadow-lg transition-all duration-200 cursor-pointer transform hover:scale-105"
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                          <span className="text-sm font-medium text-green-700">
+                            {item.subject}
                           </span>
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <div className="font-bold text-lg">
-                            {subject.prelim_grade ?? '-'}
-                            {(subject.prelim_grade === null || subject.prelim_grade === undefined) && (
-                              <span className="text-red-500 ml-1">*</span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <div className="font-bold text-lg">
-                            {subject.midterm_grade ?? '-'}
-                            {(subject.midterm_grade === null || subject.midterm_grade === undefined) && (
-                              <span className="text-red-500 ml-1">*</span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <div className="font-bold text-lg">
-                            {subject.final_grade ?? '-'}
-                            {(subject.final_grade === null || subject.final_grade === undefined) && (
-                              <span className="text-red-500 ml-1">*</span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <div className="font-bold text-xl text-blue-800">
-                            {subject.general_average !== null && subject.general_average !== undefined 
-                              ? subject.general_average.toFixed(2) 
-                              : '-'}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          {subject.is_complete ? (
-                            <span className="px-3 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                              Complete
-                            </span>
-                          ) : (
-                            <span className="px-3 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
-                              Incomplete
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <div className="flex items-center justify-center gap-2">
-                            {subject.is_released ? (
-                              <button
-                                onClick={() => handleHideSubjectGrades(subject.id, subject.student_id)}
-                                className="px-3 py-1 text-xs font-semibold rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors"
-                              >
-                                Hide
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => handleReleaseSubjectGrades(subject.id, subject.student_id)}
-                                className="px-3 py-1 text-xs font-semibold rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors"
-                              >
-                                Release
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                    
-                    {/* Summary Row */}
-                    {studentSubjects.length > 0 && (
-                      <tr className="bg-gradient-to-r from-gray-50 to-blue-50 border-t-2 border-blue-200">
-                        <td className="px-6 py-4">
-                          <div className="font-semibold text-gray-800">Summary</div>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-600 font-medium">
-                          Total
-                        </td>
-                        <td className="px-6 py-4 text-center text-sm font-semibold text-blue-800">
-                          {studentSubjects.reduce((sum, s) => sum + (s.units || 0), 0)}
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <div className="flex flex-col gap-1 text-xs">
-                            <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-full">
-                              Major: {studentSubjects.filter(s => s.subject_type?.toLowerCase() === 'major').length}
-                            </span>
-                            <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full">
-                              Minor: {studentSubjects.filter(s => s.subject_type?.toLowerCase() === 'minor').length}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-center text-sm font-semibold text-gray-600">
-                          -
-                        </td>
-                        <td className="px-6 py-4 text-center text-sm font-semibold text-gray-600">
-                          -
-                        </td>
-                        <td className="px-6 py-4 text-center text-sm font-semibold text-gray-600">
-                          -
-                        </td>
-                        <td className="px-6 py-4 text-center text-sm font-semibold text-blue-800">
+                        </div>
+                        <span className="text-xs font-medium text-green-600 bg-green-100 px-2 py-1 rounded-full">
+                          {item.studentCount} students
+                        </span>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <div className="text-lg font-bold text-gray-800">
+                          {item.subject_name}
+                        </div>
+                        {/* Removed year level and section line as requested */}
+                        <div className="flex -space-x-2 items-center">
+                          {getStudentsForCombination(item.year_level, item.section, item.subject).map((s) => (
+                            <img
+                              key={s.id}
+                              src={s.avatar_url || "/img/user-avatar.png"}
+                              alt={s.student_name || 'Student'}
+                              title={s.student_name || ''}
+                              className="w-6 h-6 rounded-full border-2 border-white shadow-sm"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.src = "/img/user-avatar.png";
+                              }}
+                            />
+                          ))}
                           {(() => {
-                            const allGrades = studentSubjects.flatMap(s => [
-                              s.prelim_grade, s.midterm_grade, s.final_grade
-                            ]).filter(g => g !== null && g !== undefined);
-                            return allGrades.length > 0 
-                              ? (allGrades.reduce((sum, g) => sum + (g || 0), 0) / allGrades.length).toFixed(2)
-                              : '-';
+                            const totalCount = getTotalStudentCount(item.year_level, item.section, item.subject);
+                            const displayedCount = getStudentsForCombination(item.year_level, item.section, item.subject).length;
+                            
+                            if (totalCount === 0) {
+                              return <span className="text-sm font-medium text-gray-500">No students</span>;
+                            } else if (totalCount > displayedCount) {
+                              return (
+                                <div className="w-6 h-6 rounded-full bg-green-100 border-2 border-white shadow-sm flex items-center justify-center">
+                                  <span className="text-xs font-bold text-green-600">+{totalCount - displayedCount}</span>
+                                </div>
+                              );
+                            }
+                            return null;
                           })()}
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <span className="px-3 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
-                            {studentSubjects.filter(s => s.is_complete).length} Complete
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <span className="px-3 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                            {studentSubjects.filter(s => s.is_released).length} Released
-                          </span>
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+                        </div>
+                      </div>
+                      
+                      <div className="mt-4 pt-3 border-t border-green-200">
+                        <div className="flex items-center justify-between text-xs text-gray-500">
+                          <span>Click to view students</span>
+                          <Users className="w-4 h-4" />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
               </div>
               
-              {studentSubjects.length === 0 && (
+              {yearLevelSectionSubjects.filter(item => 
+                item.year_level === selectedYearLevel && 
+                item.section === selectedSection
+              ).length === 0 && (
                 <div className="text-center py-12">
-                  <BookOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold text-gray-600 mb-2">No Subjects Found</h3>
-                  <p className="text-gray-500">This student has no enrolled subjects or grades recorded.</p>
+                  <div className="text-gray-400 mb-4">
+                    <BookOpen className="w-16 h-16 mx-auto" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-600 mb-2">No Subjects Available</h3>
+                  <p className="text-gray-500">No subjects found for the selected year level and section.</p>
                 </div>
               )}
             </div>
@@ -1174,42 +1209,73 @@ export default function StudentGrades() {
             {/* Back Button and Header */}
             <div className="flex items-center justify-between">
               <button
-                onClick={handleBackToSelection}
+                onClick={handleBackToSubjects}
                 className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"
               >
                 <ChevronRight className="w-4 h-4 rotate-180" />
-                Back to Selection
+                Back to Subjects
               </button>
-                      <div className="text-center flex-1">
-          <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-4 rounded-xl shadow-lg inline-block">
-            <h2 className="text-2xl font-bold">
-              BSIT-{selectedYearLevel.replace(/\D/g, '')} Section {selectedSection}
-            </h2>
-            {getFilteredStudents().length > 0 && (
-              <div className="mt-3 text-base font-medium">
-                <span className="mr-6">Subject: {getFilteredStudents()[0]?.course_code || 'Unknown'}</span>
-                <span>Teacher: {getFilteredStudents()[0]?.teacher_name || 'Unknown'}</span>
+              <div className="text-center flex-1">
+                <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-4 rounded-xl shadow-lg inline-block">
+                  <h2 className="text-2xl font-bold">
+                    BSIT-{selectedYearLevel.replace(/\D/g, '')} Section {getSectionDisplayName(selectedSection)}
+                  </h2>
+                  {getFilteredStudents().length > 0 && (
+                    <div className="mt-3 text-base font-medium">
+                      <span className="mr-6">
+                        Subject: {(() => {
+                          const student = getFilteredStudents()[0];
+                          const courseCode = student?.course_code;
+                          if (courseCode && courseCode !== 'Unknown') {
+                            return courseCode;
+                          }
+                          
+                          // Debug: Show why course_code is missing
+                          console.log('Header Debug - Student data:', {
+                            id: student?.id,
+                            student_id: student?.student_id,
+                            course_code: student?.course_code,
+                            course_id: student?.course_id
+                          });
+                          
+                          return courseCode || 'Unknown (Check console for debug info)';
+                        })()}
+                      </span>
+                      <span>
+                        Instructor: {(() => {
+                          const student = getFilteredStudents()[0];
+                          const teacherName = student?.teacher_name;
+                          if (teacherName && teacherName !== 'Not Assigned') {
+                            return teacherName;
+                          }
+                          
+                          // Debug: Show why teacher_name is missing
+                          console.log('Header Debug - Teacher lookup:', {
+                            student_id: student?.student_id,
+                            year_level: student?.year_level,
+                            section: student?.section,
+                            teacher_name: student?.teacher_name
+                          });
+                          
+                          return teacherName || 'Not Assigned (Check console for debug info)';
+                        })()}
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
-            )}
-          </div>
-        </div>
               <div className="w-32"></div> {/* Spacer to balance the layout */}
             </div>
 
             {/* Students Table - Only show when both year level and section are selected */}
             {selectedYearLevel && selectedSection ? (
-              <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+              <div className="bg-white/90 rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
                 {/* Bulk Action Controls */}
                 <div className="bg-gradient-to-r from-blue-50 to-purple-50 px-6 py-4 border-b border-gray-200">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
                       <span className="text-sm font-medium text-gray-700">
-                        {getFilteredStudents().length} students in {selectedYearLevel} Section {selectedSection}
-                        {searchTerm && (
-                          <span className="text-blue-600 ml-2">
-                            (filtered by "{searchTerm}")
-                          </span>
-                        )}
+                        {getFilteredStudents().length} students in {selectedYearLevel} Section {getSectionDisplayName(selectedSection)}
                       </span>
                     </div>
                     <div className="flex items-center gap-3">
@@ -1253,20 +1319,6 @@ export default function StudentGrades() {
                   </div>
                 </div>
                 
-                {/* Search Results Summary */}
-                <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm text-gray-600">
-                      {getFilteredStudents().length} students found
-                      {searchTerm && (
-                        <span className="text-blue-600 ml-2">
-                          (filtered by "{searchTerm}")
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead className="bg-gradient-to-r from-blue-600 to-purple-600 text-white">
@@ -1284,16 +1336,20 @@ export default function StudentGrades() {
                     </thead>
                     <tbody className="divide-y divide-gray-200">
                       {getFilteredStudents().map((grade, index) => (
-                        <tr key={grade.id} className={`hover:bg-gray-50 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                        <tr key={grade.id} className={`hover:bg-gray-50 transition-colors ${index % 2 === 0 ? 'bg-white/90' : 'bg-gray-50'}`}>
                           <td className="px-6 py-4">
-                            <div>
+                            <div className="flex items-center gap-3">
+                              <img
+                                src={grade.avatar_url || "/img/user-avatar.png"}
+                                alt={grade.student_name || 'Student'}
+                                className="w-10 h-10 rounded-full border-2 border-gray-200 shadow-sm"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.src = "/img/user-avatar.png";
+                                }}
+                              />
                               <div className="font-semibold text-gray-900">
                                 {grade.student_name || 'Unknown Student'}
-                              </div>
-                              <div className="flex gap-1 mt-1">
-                                <span className="px-2 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-800">
-                                  BSIT
-                                </span>
                               </div>
                             </div>
                           </td>
