@@ -119,7 +119,7 @@ const COEModal = ({ coe, open, onClose }: { coe: COEData, open: boolean, onClose
           doc.setFontSize(14);
           doc.text('Certificate of Enrollment', 105, 60, { align: 'center' });
           doc.setFontSize(11);
-          doc.text(`Date: ${new Date(coe.date_issued).toLocaleDateString()}`, 20, 70);
+          doc.text(`Date: ${new Date(coe.date_issued).toLocaleDateString()}`, 20, 70);                                                                                                                                                                                                                                                                                                                                                                    
           doc.text(`Course&Year: ${coe.department && coe.year_level ? `${coe.department || 'N/A'}-${coe.year_level || 'N/A'}` : coe.department || coe.year_level || 'N/A'}`, 120, 70);
           let y = 80;
           doc.text(`Student ID: ${coe.student_number || coe.student_id}`, 20, y);
@@ -196,29 +196,29 @@ const COEModal = ({ coe, open, onClose }: { coe: COEData, open: boolean, onClose
             
             {/* Right side - Action buttons and close */}
             <div className="flex items-center gap-2 sm:gap-3">
-              <button
+          <button
                 onClick={handleDownload}
                 className="inline-flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-300 shadow-md hover:shadow-lg font-semibold text-xs sm:text-sm"
               >
                 <Download className="w-3 h-3 sm:w-4 sm:h-4" /> 
                 <span className="hidden sm:inline">Download PDF</span>
                 <span className="sm:hidden">PDF</span>
-              </button>
-              <button
+          </button>
+            <button
                 onClick={handlePrint}
                 className="inline-flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-lg hover:from-gray-700 hover:to-gray-800 transition-all duration-300 shadow-md hover:shadow-lg font-semibold text-xs sm:text-sm"
-              >
+            >
                 <Printer className="w-3 h-3 sm:w-4 sm:h-4" /> 
                 <span className="hidden sm:inline">Print</span>
                 <span className="sm:hidden">Print</span>
-              </button>
-              <button
+            </button>
+            <button
                 onClick={onClose}
                 className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center text-lg sm:text-xl font-bold text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-full transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-400"
                 aria-label="Close"
-              >
+            >
                 ×
-              </button>
+            </button>
             </div>
           </div>
 
@@ -819,7 +819,7 @@ const RegistrarEnrollment: React.FC = () => {
                     Courses for Enrollment
                   </h3>
                   
-                  {selectedCourses.length === 0 ? (
+                    {selectedCourses.length === 0 ? (
                     <div className="text-center py-6 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
                       <BookOpen className="w-12 h-12 text-gray-400 mx-auto mb-2" />
                       <p className="text-gray-500 font-medium">No courses selected</p>
@@ -839,8 +839,8 @@ const RegistrarEnrollment: React.FC = () => {
                       <div className="max-h-64 overflow-y-auto">
                         <div className="divide-y divide-gray-100">
                           {selectedCourses.map((courseId, index) => {
-                            const course = courses.find(c => c.id === courseId);
-                            return course ? (
+                        const course = courses.find(c => c.id === courseId);
+                        return course ? (
                               <div key={courseId} className="px-4 py-3 hover:bg-gray-50 transition-colors">
                                 <div className="flex items-center justify-between">
                                   <div className="flex-1">
@@ -863,10 +863,10 @@ const RegistrarEnrollment: React.FC = () => {
                                     </span>
                                   </div>
                                 </div>
-                              </div>
-                            ) : null;
+                          </div>
+                        ) : null;
                           })}
-                        </div>
+                  </div>
                       </div>
                       
                       {/* Summary */}
@@ -910,7 +910,7 @@ const RegistrarEnrollment: React.FC = () => {
             </motion.div>
           </div>
         , document.body
-        )}
+          )}
 
         {/* COE Modal */}
         {coeModalOpen && coeData && createPortal(
