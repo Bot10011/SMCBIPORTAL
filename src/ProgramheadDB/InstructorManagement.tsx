@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   Box,
   Card,
-  CardContent,
   Typography,
   Tabs,
   Tab,
@@ -22,7 +21,6 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Paper,
   Chip,
   IconButton,
   Alert,
@@ -37,7 +35,6 @@ import {
   Edit, 
   Trash2, 
   Search, 
-  Filter,
   GraduationCap,
   BookOpen,
   Users,
@@ -74,7 +71,7 @@ interface TeacherSubject {
   created_at?: string;
   teacher_name?: string;
   teacher_role?: string;
-  teacher_profile_picture?: string;
+  teacher_profile_picture?: string | null;
   subject_code?: string;
   subject_name?: string;
   subject_units?: number;
@@ -166,7 +163,6 @@ const InstructorManagement: React.FC = () => {
     selectedTeacherName: ''
   });
   const [courses, setCourses] = useState<Course[]>([]);
-  const [sections, setSections] = useState<any[]>([]);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [formSubmitting, setFormSubmitting] = useState(false);
   const [newAssignment, setNewAssignment] = useState<TeacherSubject>({
@@ -207,34 +203,7 @@ const InstructorManagement: React.FC = () => {
     loading: false
   });
 
-  const fetchSections = async () => {
-    try {
-      console.log('Fetching sections...');
-      const { data, error } = await supabase
-        .from('sections')
-        .select('id, name, year_level')
-        .order('name', { ascending: true });
- 
-      if (error) throw error;
-      
-      console.log('Fetched sections:', data);
-      
-      // Validate that sections have proper year_level data
-      const validSections = (data || []).filter(section => 
-        section.year_level !== null && 
-        section.year_level !== undefined && 
-        section.name && 
-        section.name.trim() !== ''
-      );
-      
-      console.log('Valid sections:', validSections);
-      setSections(validSections);
-    } catch (error) {
-      console.error('Error fetching sections:', error);
-      toast.error('Failed to load sections');
-      setSections([]);
-    }
-  };
+
 
   const fetchCourses = async () => {
     try {
@@ -288,7 +257,7 @@ const InstructorManagement: React.FC = () => {
       }
       
       // Transform the data to ensure display_name is available
-      const transformedCourses = (data || []).map((course: any) => ({
+      const transformedCourses = (data || []).map((course: { id: string; code: string; name: string; description: string; units: number; year_level?: string; semester?: string; display_name?: string; department?: string }) => ({
         ...course,
         display_name: course.display_name || course.name || course.code,
         // Assign default year level if missing
@@ -387,7 +356,7 @@ const InstructorManagement: React.FC = () => {
       if (error) throw error;
 
       // Transform the data to match our interface
-      const transformedAssignments = (data || []).map((assignment: any) => ({
+      const transformedAssignments = (data || []).map((assignment: { id: string; teacher_id: string; subject_id: string; section: string; academic_year: string; semester: string; year_level: string; is_active: boolean; day?: string; time?: string; created_at?: string; teacher?: { first_name: string; last_name: string; middle_name?: string; role: string; department?: string; profile_picture_url?: string }; subject?: { code: string; name: string; units: number; year_level: string; semester: string } }) => ({
         id: assignment.id,
         teacher_id: assignment.teacher_id,
         subject_id: assignment.subject_id,
@@ -565,7 +534,6 @@ const InstructorManagement: React.FC = () => {
   useEffect(() => {
     fetchInstructors();
     fetchCourses();
-    fetchSections();
   }, []);
 
   // Fetch assignments when tab changes to Year Level Assigned Subjects
@@ -2619,7 +2587,6 @@ const InstructorManagement: React.FC = () => {
           full_name: `${instructor.first_name} ${instructor.middle_name ? instructor.middle_name + ' ' : ''}${instructor.last_name}`
         }))}
         courses={courses}
-        sections={sections}
       />
     </Box>
   );
