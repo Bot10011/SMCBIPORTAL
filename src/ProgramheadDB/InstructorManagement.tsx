@@ -829,7 +829,7 @@ const InstructorManagement: React.FC = () => {
     <Box sx={{ 
       minHeight: '100vh',
       p: { xs: 2, sm: 4 },
-      background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)'
+   
     }}>
       {/* Header */}
       <Box sx={{ 
