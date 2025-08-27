@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Routes, Route, useNavigate } from 'react-router-dom';
 import DashboardLayout from '../components/Sidebar';
 import RegistrarEnrollment from './RegistrarEnrollment';
+import RegistrarProspectus from './RegistrarProspectus';
 import { motion } from 'framer-motion';
 import ClassList from './ClassList';
 import Settings from './Settings';
@@ -622,7 +623,8 @@ const RegistrarDashboard: React.FC = () => {
         <Route path="/subject-review" element={<RegistrarGradeViewer />} />
         <Route path="/student-grades" element={<StudentGrades />} />
         <Route path="/class-list" element={<ClassList />} />
-        <Route path="/settings" element={<Settings />} />
+        <Route path="/prospectus" element={<RegistrarProspectus />} />
+        <Route path="/profile" element={<Settings />} />
         <Route path="*" element={<DashboardOverview />} />
       </Routes>
     </DashboardLayout>
