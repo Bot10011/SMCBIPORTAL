@@ -173,7 +173,7 @@ const COEModal = ({ coe, open, onClose }: { coe: COERecord, open: boolean, onClo
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
-          className="coe-modal bg-white rounded-2xl shadow-xl p-8 border border-gray-100 w-full max-w-xl relative mx-4 flex flex-col"
+          className="coe-modal bg-white rounded-2xl shadow-xl p-4 sm:p-8 border border-gray-100 w-full max-w-xl relative mx-4 flex flex-col"
           style={{ 
             maxHeight: '90vh', 
             overflowY: 'auto', 
@@ -184,108 +184,118 @@ const COEModal = ({ coe, open, onClose }: { coe: COERecord, open: boolean, onClo
         >
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 text-2xl font-bold"
+            className="absolute top-2 right-2 sm:top-4 sm:right-4 text-gray-400 hover:text-gray-700 text-2xl font-bold p-2"
             aria-label="Close"
           >
             &times;
           </button>
-          <div className="flex justify-end gap-2 mb-4">
+          
+          {/* Mobile-optimized action buttons */}
+          <div className="flex flex-col sm:flex-row gap-2 mb-4 mt-2 sm:mt-0">
             <button
               onClick={handleDownload}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
             >
               <Download className="w-4 h-4" /> Download
             </button>
             <button
               onClick={handlePrint}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm"
             >
               <Printer className="w-4 h-4" /> Print
             </button>
           </div>
-          <div className="text-center mb-8">
+          
+          <div className="text-center mb-6 sm:mb-8">
             <div className="flex flex-col items-center gap-3 mb-4">
               <img 
                 src="/img/logo.png" 
                 alt="SMCBI Logo" 
-                className="w-20 h-20 object-contain"
+                className="w-16 h-16 sm:w-20 sm:h-20 object-contain"
               />
               <div>
-                <h1 className="text-3xl font-bold text-gray-900">SMCBI</h1>
-                <p className="text-gray-600 mt-1">Certificate of Enrollment</p>
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">SMCBI</h1>
+                <p className="text-sm sm:text-base text-gray-600 mt-1">Certificate of Enrollment</p>
               </div>
             </div>
-            <p className="text-gray-500">Date: {coe.date_issued ? new Date(coe.date_issued).toLocaleDateString() : 'N/A'}</p>
+            <p className="text-sm text-gray-500">Date: {coe.date_issued ? new Date(coe.date_issued).toLocaleDateString() : 'N/A'}</p>
           </div>
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          
+          <div className="space-y-4 sm:space-y-6">
+            {/* Mobile-optimized student info grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
               <div>
-                <p className="text-sm text-gray-500">Student ID</p>
-                <p className="font-medium">{coe.student_number || coe.student_id}</p>
+                <p className="text-xs sm:text-sm text-gray-500">Student ID</p>
+                <p className="text-sm sm:text-base font-medium break-words">{coe.student_number || coe.student_id}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">Full Name</p>
-                <p className="font-medium">{coe.full_name || 'N/A'}</p>
+                <p className="text-xs sm:text-sm text-gray-500">Full Name</p>
+                <p className="text-sm sm:text-base font-medium break-words">{coe.full_name || 'N/A'}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">School Year</p>
-                <p className="font-medium">{coe.school_year}</p>
+                <p className="text-xs sm:text-sm text-gray-500">School Year</p>
+                <p className="text-sm sm:text-base font-medium">{coe.school_year}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">Semester</p>
-                <p className="font-medium">{coe.semester}</p>
+                <p className="text-xs sm:text-sm text-gray-500">Semester</p>
+                <p className="text-sm sm:text-base font-medium">{coe.semester}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">Year Level</p>
-                <p className="font-medium">{coe.year_level || 'N/A'}</p>
+                <p className="text-xs sm:text-sm text-gray-500">Year Level</p>
+                <p className="text-sm sm:text-base font-medium">{coe.year_level || 'N/A'}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">Program</p>
-                <p className="font-medium">{coe.department || 'N/A'}</p>
+                <p className="text-xs sm:text-sm text-gray-500">Program</p>
+                <p className="text-sm sm:text-base font-medium break-words">{coe.department || 'N/A'}</p>
               </div>
-              <div>
-                <p className="text-sm text-gray-500">Email</p>
-                <p className="font-medium">{coe.email || 'N/A'}</p>
+              <div className="sm:col-span-2">
+                <p className="text-xs sm:text-sm text-gray-500">Email</p>
+                <p className="text-sm sm:text-base font-medium break-words">{coe.email || 'N/A'}</p>
               </div>
             </div>
-            <div className="mt-8">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Enrolled Courses</h3>
+            
+            <div className="mt-6 sm:mt-8">
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-4">Enrolled Courses</h3>
               <div className="rounded-xl border border-gray-200 overflow-hidden w-full shadow-sm">
-                <table className="coe-certificate-table min-w-full bg-white">
-                  <thead>
-                    <tr className="bg-blue-600 rounded-t-xl">
-                      <th className="px-4 py-2 text-left text-xs font-bold text-white rounded-tl-xl">Course Code</th>
-                      <th className="px-4 py-2 text-left text-xs font-bold text-white">Course Name</th>
-                      <th className="px-4 py-2 text-left text-xs font-bold text-white rounded-tr-xl">Units</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Array.isArray(coe.subjects) && coe.subjects.map((subject, idx) => (
-                      <tr key={idx}>
-                        <td className="px-4 py-2 text-sm text-gray-900">{subject.code}</td>
-                        <td className="px-4 py-2 text-sm text-gray-900">{subject.name}</td>
-                        <td className="px-4 py-2 text-sm text-gray-900">{subject.units}</td>
+                <div className="overflow-x-auto">
+                  <table className="coe-certificate-table min-w-full bg-white">
+                    <thead>
+                      <tr className="bg-blue-600 rounded-t-xl">
+                        <th className="px-2 sm:px-4 py-2 text-left text-xs font-bold text-white rounded-tl-xl">Code</th>
+                        <th className="px-2 sm:px-4 py-2 text-left text-xs font-bold text-white">Course Name</th>
+                        <th className="px-2 sm:px-4 py-2 text-left text-xs font-bold text-white rounded-tr-xl">Units</th>
                       </tr>
-                    ))}
-                    {/* Total Units Row */}
-                    <tr>
-                      <td></td>
-                      <td className="px-4 py-2 text-right text-sm text-gray-900">Total Units</td>
-                      <td className="px-4 py-2 font-bold text-gray-900">{Array.isArray(coe.subjects) ? coe.subjects.reduce((sum, subj) => sum + (Number(subj.units) || 0), 0) : 0}</td>
-                    </tr>
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {Array.isArray(coe.subjects) && coe.subjects.map((subject, idx) => (
+                        <tr key={idx}>
+                          <td className="px-2 sm:px-4 py-2 text-xs sm:text-sm text-gray-900 font-mono">{subject.code}</td>
+                          <td className="px-2 sm:px-4 py-2 text-xs sm:text-sm text-gray-900 break-words">{subject.name}</td>
+                          <td className="px-2 sm:px-4 py-2 text-xs sm:text-sm text-gray-900 text-center">{subject.units}</td>
+                        </tr>
+                      ))}
+                      {/* Total Units Row */}
+                      <tr className="bg-gray-50">
+                        <td></td>
+                        <td className="px-2 sm:px-4 py-2 text-right text-xs sm:text-sm font-bold text-gray-900">Total Units</td>
+                        <td className="px-2 sm:px-4 py-2 text-xs sm:text-sm font-bold text-gray-900 text-center">{Array.isArray(coe.subjects) ? coe.subjects.reduce((sum, subj) => sum + (Number(subj.units) || 0), 0) : 0}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
-            <div className="mt-8 text-center">
-              <p className="text-2xl font-bold text-green-600">ENROLLED</p>
-              <p className="text-sm text-gray-500 mt-2">This is to certify that the above-named student is officially enrolled in the above-mentioned program for the current academic year.</p>
+            
+            <div className="mt-6 sm:mt-8 text-center">
+              <p className="text-xl sm:text-2xl font-bold text-green-600">ENROLLED</p>
+              <p className="text-xs sm:text-sm text-gray-500 mt-2 px-2">This is to certify that the above-named student is officially enrolled in the above-mentioned program for the current academic year.</p>
             </div>
-            <div className="mt-12 flex justify-between">
+            
+            <div className="mt-8 sm:mt-12 flex justify-center sm:justify-start">
               <div className="text-center">
-                <p className="font-medium">Registrar</p>
-                <div className="mt-8 border-t border-gray-300 pt-2">
-                  <p className="text-sm text-gray-600">Signature over printed name</p>
+                <p className="font-medium text-sm sm:text-base">Registrar</p>
+                <div className="mt-6 sm:mt-8 border-t border-gray-300 pt-2">
+                  <p className="text-xs sm:text-sm text-gray-600">Signature over printed name</p>
                 </div>
               </div>
             </div>
@@ -406,29 +416,52 @@ export const CertificateOfEnrollment: React.FC = () => {
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 via-white to-purple-50 shadow-inner shadow-inner-strong border border-blue-100 mb-12"
+          className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 via-white to-purple-50 shadow-inner shadow-inner-strong border border-blue-100 mb-8 sm:mb-12"
         >
-          <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4">
+          <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-4 sm:px-6 py-4 sm:py-4">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
-                  <FileText className="w-6 h-6 text-white" />
+                  <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-bold text-white tracking-tight">Certificate of Enrollment</h1>
-                  <p className="text-white/80 text-sm font-medium">View, download, and print your official Certificate of Enrollment</p>
+                  <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">Certificate of Enrollment</h1>
+                  <p className="text-white/80 text-xs sm:text-sm font-medium">View, download, and print your official Certificate of Enrollment</p>
                 </div>
               </div>
             </div>
           </div>
         </motion.div>
-        <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 w-full">
+        <div className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 border border-gray-100 w-full">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">COE History</h3>
           {coeList.length === 0 ? (
             <div className="text-center text-gray-500">No Certificate of Enrollment records found.</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
+              {/* Mobile-first responsive table */}
+              <div className="block sm:hidden">
+                {/* Mobile card layout */}
+                {processedCOEList.map((coe, idx) => (
+                  <div key={coe.id || idx} className="bg-gray-50 rounded-lg p-4 mb-3 border border-gray-200">
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium text-gray-900">{coe.school_year}</span>
+                        <span className="text-xs text-gray-500">{coe.semester}</span>
+                      </div>
+                      <div className="text-xs text-gray-600">Issued: {coe.formattedDate}</div>
+                      <button
+                        className="coe-view-button w-full inline-flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                        onClick={() => handleViewCOE(coe)}
+                      >
+                        <Eye className="w-4 h-4" /> View Certificate
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              {/* Desktop table layout */}
+              <table className="hidden sm:table min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">School Year</th>
