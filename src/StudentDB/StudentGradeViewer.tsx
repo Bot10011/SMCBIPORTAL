@@ -18,6 +18,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 interface GradeSummary extends BaseGradeSummary {
   year_level: string | null;
   is_released?: boolean;
+  teacher_avatar_url?: string;
 }
 
 const YEAR_LABELS = [
@@ -58,7 +59,7 @@ export const StudentGradeViewer: React.FC = () => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   // Add this function near the top of the component (before useEffect):
-  const normalizeYearLevel = (year: string | null | undefined) => {
+  const normalizeYearLevel = (year: string | number | null | undefined) => {
     if (!year) return null;
     const y = year.toString().trim().toLowerCase();
     if (["1", "1st year", "first year"].includes(y)) return "First Year";
@@ -81,12 +82,10 @@ export const StudentGradeViewer: React.FC = () => {
           if (error) throw error;
           if (data?.year_level) {
             // Normalize to match YEAR_LABELS, case-insensitive, ignore spaces, support numeric and word forms
-            const year = (data.year_level || '').toString().trim().toLowerCase().replace(/\s+/g, ' ');
-            if (year === '1st year' || year === 'first year' || year === '1') setCurrentYearLevel('First Year');
-            else if (year === '2nd year' || year === 'second year' || year === '2') setCurrentYearLevel('Second Year');
-            else if (year === '3rd year' || year === 'third year' || year === '3') setCurrentYearLevel('Third Year');
-            else if (year === '4th year' || year === 'fourth year' || year === '4') setCurrentYearLevel('Fourth Year');
-            else {
+            const year = normalizeYearLevel(data.year_level);
+            if (year) {
+              setCurrentYearLevel(year);
+            } else {
               setCurrentYearLevel(null);
               console.error('Unrecognized year_level value:', data.year_level);
             }
@@ -113,49 +112,75 @@ export const StudentGradeViewer: React.FC = () => {
       try {
         setLoading(true);
         setErrorMsg(null);
-        if (user?.id) {
-          // Fetch all grades for the current student, including course info
-          const { data: gradesData, error: gradesError } = await supabase
-            .from('grades')
-            .select(`
-              *,
-              course:courses (code, name),
-              teacher:user_profiles!grades_graded_by_fkey (first_name, last_name)
-            `)
-            .eq('student_id', user.id);
-
-          console.log('Raw gradesData from Supabase:', gradesData);
-          if (gradesError) {
-            setErrorMsg('Error fetching grades: ' + gradesError.message);
-            throw gradesError;
-          }
-          if (!gradesData || gradesData.length === 0) {
-            setErrorMsg('No grades found for your account.');
-            console.warn('No grades found for user:', user.id);
-          }
-
-          // Map to GradeSummary[]
-          const gradesSummary = (gradesData || []).map(grade => ({
-            id: grade.id,
-            student_id: grade.student_id,
-            student_name: '', // Fill if needed
-            subject_code: grade.course?.code || '',
-            subject_name: grade.course?.name || '',
-            teacher_name: grade.teacher ? `${grade.teacher.first_name} ${grade.teacher.last_name}` : '',
-            prelim_grade: grade.prelim_grade ?? null,
-            midterm_grade: grade.midterm_grade ?? null,
-            final_grade: grade.final_grade ?? null,
-            status: grade.status ?? '',
-            remarks: grade.remarks ?? null,
-            year_level: normalizeYearLevel(grade.year_level),
-            semester: grade.semester ?? null,
-            academic_year: grade.academic_year ?? null,
-            is_released: grade.is_released, // Use is_released from the grade object
-          }));
-          console.log('Fetched grades:', gradesSummary);
-
-          setGrades(gradesSummary);
+        
+        // Security check: Ensure user is authenticated
+        if (!user?.id) {
+          setErrorMsg('You must be logged in to view grades.');
+          setLoading(false);
+          return;
         }
+
+        // Additional security: Verify the user is a student
+        const { data: userProfile, error: profileError } = await supabase
+          .from('user_profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+
+        if (profileError || !userProfile) {
+          setErrorMsg('Unable to verify your account. Please contact support.');
+          setLoading(false);
+          return;
+        }
+
+        // Only allow students to view grades
+        if (userProfile.role !== 'student') {
+          setErrorMsg('Access denied. Only students can view grades.');
+          setLoading(false);
+          return;
+        }
+
+        // Fetch all grades for the current student, including course info
+        const { data: gradesData, error: gradesError } = await supabase
+          .from('grades')
+          .select(`
+            *,
+            course:courses!fk_grades_course (code, name),
+            teacher:user_profiles!grades_graded_by_fkey (display_name, avatar_url)
+          `)
+          .eq('student_id', user.id);
+
+        console.log('Raw gradesData from Supabase:', gradesData);
+        if (gradesError) {
+          setErrorMsg('Error fetching grades: ' + gradesError.message);
+          throw gradesError;
+        }
+        if (!gradesData || gradesData.length === 0) {
+          setErrorMsg('No grades found for your account.');
+          console.warn('No grades found for user:', user.id);
+        }
+
+        // Map to GradeSummary[]
+        const gradesSummary = (gradesData || []).map(grade => ({
+          id: grade.id,
+          student_id: grade.student_id,
+          student_name: '', // Fill if needed
+          subject_code: grade.course?.code || '',
+          subject_name: grade.course?.name || '',
+          teacher_name: grade.teacher?.display_name || '',
+          teacher_avatar_url: grade.teacher?.avatar_url || undefined,
+          prelim_grade: grade.prelim_grade ?? null,
+          midterm_grade: grade.midterm_grade ?? null,
+          final_grade: grade.final_grade ?? null,
+          final_computed_grade: undefined, // Not in the new schema
+          status: 'pending' as const, // Default status since not in the new schema
+          remarks: grade.remarks ?? null,
+          year_level: normalizeYearLevel(grade.year_level?.toString()),
+          is_released: grade.is_released ?? false,
+        }));
+        console.log('Fetched grades:', gradesSummary);
+
+        setGrades(gradesSummary);
       } catch (error) {
         console.error('Error fetching grades:', error);
         setErrorMsg('An error occurred while fetching your grades. Please try again later.');
@@ -163,6 +188,7 @@ export const StudentGradeViewer: React.FC = () => {
         setLoading(false);
       }
     };
+    
     fetchGrades();
   }, [user?.id]);
 
@@ -183,23 +209,8 @@ export const StudentGradeViewer: React.FC = () => {
     'Fourth Year': [],
   };
   filteredGrades.forEach(g => {
-    switch (g.year_level) {
-      case '1st Year':
-      case 'First Year':
-        gradesByYear['First Year'].push(g);
-        break;
-      case '2nd Year':
-      case 'Second Year':
-        gradesByYear['Second Year'].push(g);
-        break;
-      case '3rd Year':
-      case 'Third Year':
-        gradesByYear['Third Year'].push(g);
-        break;
-      case '4th Year':
-      case 'Fourth Year':
-        gradesByYear['Fourth Year'].push(g);
-        break;
+    if (g.year_level) {
+      gradesByYear[g.year_level].push(g);
     }
   });
 
@@ -587,9 +598,17 @@ export const StudentGradeViewer: React.FC = () => {
                                     <div className="text-sm text-gray-300">{grade.subject_name}</div>
                                   </div>
                                   <div className="flex items-center">
-                                    <div className="p-2 rounded-full bg-[#2b2d2f] mr-2">
-                                      <Users className="w-4 h-4 text-blue-600" />
-                                    </div>
+                                    {grade.teacher_avatar_url ? (
+                                      <img
+                                        src={grade.teacher_avatar_url}
+                                        alt={grade.teacher_name || 'Instructor'}
+                                        className="w-8 h-8 rounded-full mr-2 object-cover"
+                                      />
+                                    ) : (
+                                      <div className="p-2 rounded-full bg-[#2b2d2f] mr-2">
+                                        <Users className="w-4 h-4 text-blue-600" />
+                                      </div>
+                                    )}
                                     <span className="text-sm text-gray-200 font-medium">{grade.teacher_name || 'TBA'}</span>
                                   </div>
                                 </div>
@@ -623,7 +642,7 @@ export const StudentGradeViewer: React.FC = () => {
                             <thead className="bg-[#252728]">
                               <tr>
                                 <th className="px-6 py-4 text-left text-xs font-semibold tracking-wider text-gray-200">SUBJECT</th>
-                                <th className="px-6 py-4 text-left text-xs font-semibold tracking-wider text-gray-200">TEACHER</th>
+                                <th className="px-6 py-4 text-left text-xs font-semibold tracking-wider text-gray-200">INSTRUCTOR</th>
                                 <th className="px-6 py-4 text-center text-xs font-semibold tracking-wider text-gray-200">PRELIM</th>
                                 <th className="px-6 py-4 text-center text-xs font-semibold tracking-wider text-gray-200">MIDTERM</th>
                                 <th className="px-6 py-4 text-center text-xs font-semibold tracking-wider text-gray-200">FINAL</th>
@@ -653,9 +672,17 @@ export const StudentGradeViewer: React.FC = () => {
                                     </td>
                                     <td className="px-6 py-4">
                                       <div className="flex items-center">
-                                        <div className="p-1.5 rounded-full bg-[#2b2d2f] mr-3">
-                                          <Users className="w-3.5 h-3.5 text-blue-600" />
-                                        </div>
+                                        {grades.teacher_avatar_url ? (
+                                          <img
+                                            src={grades.teacher_avatar_url}
+                                            alt={grades.teacher_name || 'Instructor'}
+                                            className="w-7 h-7 rounded-full mr-3 object-cover"
+                                          />
+                                        ) : (
+                                          <div className="p-1.5 rounded-full bg-[#2b2d2f] mr-3">
+                                            <Users className="w-3.5 h-3.5 text-blue-600" />
+                                          </div>
+                                        )}
                                         <span className="text-sm text-gray-200">{grades.teacher_name || 'TBA'}</span>
                                       </div>
                                     </td>
