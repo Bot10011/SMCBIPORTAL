@@ -310,7 +310,7 @@ export const MyProfile: React.FC = () => {
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="profile-card relative overflow-visible rounded-3xl bg-[#252728] p-0"
+          className="profile-card relative overflow-visible rounded-3xl bg-white/90 p-0"
           style={{ boxShadow: '-6px -6px 12px rgba(255,255,255,0.03), 6px 6px 12px rgba(0,0,0,0.4)' }}
         >
           
@@ -352,7 +352,7 @@ export const MyProfile: React.FC = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
-                className="text-3xl sm:text-4xl font-extrabold text-white mb-1"
+                className="text-3xl sm:text-4xl font-extrabold text-black mb-1"
               >
                 {processedProfile?.fullName}
               </motion.h1>
@@ -360,7 +360,7 @@ export const MyProfile: React.FC = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
-                className="text-base text-white font-medium mb-2"
+                className="text-base text-black font-medium mb-2"
               >
                 {profile?.email}
               </motion.p>
@@ -396,36 +396,36 @@ export const MyProfile: React.FC = () => {
             px-8 py-4 min-h-[80px] z-10 mb-3
           ">
             {/* Student ID */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-center items-center justify-center min-w-[130px] min-h-[48px] rounded-xl px-4 py-2 bg-[#252728]" style={{ boxShadow: '-4px -4px 8px rgba(255,255,255,0.03), 4px 4px 8px rgba(0,0,0,0.35)' }}>
-              <span className="flex items-center gap-1 text-[11px] sm:text-xs text-gray-300 mb-0.5 sm:mb-0 sm:mr-1">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-center items-center justify-center min-w-[130px] min-h-[48px] rounded-xl px-4 py-2 bg-white/90" style={{ boxShadow: '-4px -4px 8px rgba(255,255,255,0.03), 4px 4px 8px rgba(0,0,0,0.35)' }}>
+              <span className="flex items-center gap-1 text-[11px] sm:text-xs text-black mb-0.5 sm:mb-0 sm:mr-1">
                 <Hash className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
                 Student ID:
               </span>
-              <span className="text-sm sm:text-base font-bold text-gray-100 truncate">{profile?.student_id ?? 'N/A'}</span>
+              <span className="text-sm sm:text-base font-bold text-black truncate">{profile?.student_id ?? 'N/A'}</span>
             </div>
             {/* Program */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-center items-center justify-center min-w-[130px] min-h-[48px] rounded-xl px-4 py-2 bg-[#252728]" style={{ boxShadow: '-4px -4px 8px rgba(255,255,255,0.03), 4px 4px 8px rgba(0,0,0,0.35)' }}>
-              <span className="flex items-center gap-1 text-[11px] sm:text-xs text-gray-300 mb-0.5 sm:mb-0 sm:mr-1">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-center items-center justify-center min-w-[130px] min-h-[48px] rounded-xl px-4 py-2 bg-white/90" style={{ boxShadow: '-4px -4px 8px rgba(255,255,255,0.03), 4px 4px 8px rgba(0,0,0,0.35)' }}>
+              <span className="flex items-center gap-1 text-[11px] sm:text-xs text-black mb-0.5 sm:mb-0 sm:mr-1">
                 <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600" />
                 Program:
               </span>
-              <span className="text-sm sm:text-base font-bold text-gray-100 truncate">{profile?.department ?? 'N/A'}</span>
+              <span className="text-sm sm:text-base font-bold text-black truncate">{profile?.department ?? 'N/A'}</span>
             </div>
             {/* Year Level */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-center items-center justify-center min-w-[130px] min-h-[48px] rounded-xl px-4 py-2 bg-[#252728]" style={{ boxShadow: '-4px -4px 8px rgba(255,255,255,0.03), 4px 4px 8px rgba(0,0,0,0.35)' }}>
-              <span className="flex items-center gap-1 text-[11px] sm:text-xs text-gray-300 mb-0.5 sm:mb-0 sm:mr-1">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-center items-center justify-center min-w-[130px] min-h-[48px] rounded-xl px-4 py-2 bg-white/90" style={{ boxShadow: '-4px -4px 8px rgba(255,255,255,0.03), 4px 4px 8px rgba(0,0,0,0.35)' }}>
+                            <span className="flex items-center gap-1 text-[11px] sm:text-xs text-black mb-0.5 sm:mb-0 sm:mr-1">
                 <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-green-600" />
                 Year Level:
               </span>
-              <span className="text-sm sm:text-base font-bold text-gray-100 truncate">{profile?.year_level ?? 'N/A'}</span>
+              <span className="text-sm sm:text-base font-bold text-black truncate">{profile?.year_level ?? 'N/A'}</span>
             </div>
             {/* Section */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-center items-center justify-center min-w-[130px] min-h-[48px] rounded-xl px-4 py-2 bg-[#252728]" style={{ boxShadow: '-4px -4px 8px rgba(255,255,255,0.03), 4px 4px 8px rgba(0,0,0,0.35)' }}>
-              <span className="flex items-center gap-1 text-[11px] sm:text-xs text-gray-300 mb-0.5 sm:mb-0 sm:mr-1">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-center items-center justify-center min-w-[130px] min-h-[48px] rounded-xl px-4 py-2 bg-white/90" style={{ boxShadow: '-4px -4px 8px rgba(255,255,255,0.03), 4px 4px 8px rgba(0,0,0,0.35)' }}>
+              <span className="flex items-center gap-1 text-[11px] sm:text-xs text-black mb-0.5 sm:mb-0 sm:mr-1">
                 <Users className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-600" />
                 Section:
               </span>
-              <span className="text-sm sm:text-base font-bold text-gray-100 truncate">{profile?.section ?? 'N/A'}</span>
+              <span className="text-sm sm:text-base font-bold text-black truncate">{profile?.section ?? 'N/A'}</span>
             </div>
           </div>
         </motion.div>
