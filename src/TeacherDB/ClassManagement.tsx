@@ -1458,7 +1458,7 @@ const ClassManagement: React.FC = () => {
                                         {student.display_name || `${student.first_name} ${student.last_name}`}
                                       </div>
                                       <div className="text-xs text-gray-500 hidden sm:block">
-                                        ID: {student.student_id || student.id.slice(0, 8)}...
+                                        ID: {student.student_id || student.id.slice(0, 8)}
                                       </div>
                                       <div className="text-xs text-gray-500 sm:hidden">
                                         {student.email}
