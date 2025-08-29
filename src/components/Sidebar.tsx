@@ -110,6 +110,24 @@ const sidebarItems: SidebarItem[] = [
     roles: ['admin'],
   },
   {
+    label: 'Enrollment Approvals',
+    path: '/dashboard/enrollment-approvals',
+    icon: <CheckSquare className="w-5 h-5" />,
+    roles: ['admin'],
+  },
+  {
+    label: 'Prospectus',
+    path: '/dashboard/prospectus',
+    icon: <PiBookOpenTextBold className="w-5 h-5" />,
+    roles: ['admin'],
+  },
+  {
+    label: 'Student Grades',
+    path: '/dashboard/student-grades',
+    icon: <PiNotebookBold className="w-5 h-5" />,
+    roles: ['admin'],
+  },
+  {
     label: 'Announcements',
     path: '/dashboard/announcements',
     icon: <PiMegaphoneBold className="w-5 h-5" />,
@@ -153,7 +171,7 @@ const sidebarItems: SidebarItem[] = [
     roles: ['program_head'],
   },
   {
-    label: 'Settings',
+    label: 'Profile',
     path: '/dashboard/settings',
     icon: <Settings className="w-5 h-5" />,
     roles: ['program_head'],
@@ -196,8 +214,8 @@ const sidebarItems: SidebarItem[] = [
     roles: ['registrar'],
   },
   {
-    label: 'Settings',
-    path: '/dashboard/settings',
+    label: 'Profile',
+    path: '/dashboard/profile',
     icon: <Settings className="w-5 h-5" />,
     roles: ['registrar'],
   },
