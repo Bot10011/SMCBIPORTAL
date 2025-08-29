@@ -8,7 +8,10 @@ import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
 import Announcement from './Announcement';
 import { createPortal } from 'react-dom';
- 
+import RegistrarEnrollment from '../AdminDB/RegistrarEnrollment';
+import RegistrarProspectus from '../AdminDB/RegistrarProspectus';
+import StudentGrades from '../AdminDB/StudentGrades';
+
 // Import admin-specific components and styles
 import UserManagement from './UserManagement';
 import CourseManagement from './CourseManagement';
@@ -2297,6 +2300,9 @@ const AdminDashboard: React.FC = () => {
             <Route path="/courses" element={<CourseManagement />} />
             <Route path="/announcements" element={<Announcement />} />
             <Route path="/program-management" element={<ProgramManagement />} />
+            <Route path="/enrollment-approvals" element={<RegistrarEnrollment />} />
+            <Route path="/prospectus" element={<RegistrarProspectus />} />
+            <Route path="/student-grades" element={<StudentGrades />} />
             <Route path="/settings" element={<SystemSettings />} />
           </Routes>
         </motion.div>
