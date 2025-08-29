@@ -13,7 +13,6 @@ import ReactDOM from 'react-dom';
 
 interface Teacher {
   id: string;
-  profile_picture_url?: string;
   display_name?: string;
   avatar_url?: string;
 }
