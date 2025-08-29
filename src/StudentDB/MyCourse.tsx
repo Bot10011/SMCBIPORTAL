@@ -13,9 +13,9 @@ import ReactDOM from 'react-dom';
 
 interface Teacher {
   id: string;
-  first_name: string;
-  last_name: string;
   profile_picture_url?: string;
+  display_name?: string;
+  avatar_url?: string;
 }
 
 interface Enrollment {
@@ -34,11 +34,10 @@ interface Enrollment {
 interface MyCourseProps {
   enrollments: Enrollment[];
   courseImages: { [subjectId: string]: string };
-  teacherImageUrls: { [teacherId: string]: string };
   loading: boolean;
 }
 
-const MyCourse: React.FC<MyCourseProps> = ({ enrollments, courseImages, teacherImageUrls, loading }) => {
+const MyCourse: React.FC<MyCourseProps> = ({ enrollments, courseImages, loading }) => {
   const [modalCourse, setModalCourse] = useState<Enrollment | null>(null);
 
   // Memoize stats calculation
@@ -53,17 +52,25 @@ const MyCourse: React.FC<MyCourseProps> = ({ enrollments, courseImages, teacherI
     return enrollments.map(enrollment => ({
       ...enrollment,
       courseImage: courseImages[enrollment.subject_id],
-      teacherImage: enrollment.teacher?.id ? teacherImageUrls[enrollment.teacher.id] : null,
-      teacherInitials: enrollment.teacher 
-        ? `${enrollment.teacher.first_name?.charAt(0) || ''}${enrollment.teacher.last_name?.charAt(0) || ''}`.toUpperCase()
-        : '',
+      teacherImage: enrollment.teacher?.avatar_url || null,
+      teacherInitials: (() => {
+        if (!enrollment.teacher) return '';
+        const dn = enrollment.teacher.display_name?.trim();
+        if (dn && dn.length > 0) {
+          const parts = dn.split(/\s+/);
+          const first = parts[0]?.charAt(0) || '';
+          const last = parts.length > 1 ? parts[parts.length - 1].charAt(0) : '';
+          return `${first}${last}`.toUpperCase();
+        }
+        return '';
+      })(),
       statusColor: enrollment.status === 'active' 
         ? 'bg-green-100 text-green-800' 
         : enrollment.status === 'completed'
         ? 'bg-blue-100 text-blue-800'
         : 'bg-gray-100 text-gray-800'
     }));
-  }, [enrollments, courseImages, teacherImageUrls]);
+  }, [enrollments, courseImages]);
 
   // Memoize handler
   const handleOpenModal = useCallback((enrollment: Enrollment) => setModalCourse(enrollment), []);
@@ -270,7 +277,7 @@ const MyCourse: React.FC<MyCourseProps> = ({ enrollments, courseImages, teacherI
                       {enrollment.teacher && (
                         <div className="flex items-center gap-2 text-sm text-gray-600">
                           <Users className="w-4 h-4 text-[#1a73e8]" />
-                          <span>Prof. {enrollment.teacher.first_name} {enrollment.teacher.last_name}</span>
+                          <span>Prof. {enrollment.teacher.display_name || 'TBA'}</span>
                         </div>
                       )}
                       <div className="flex items-center gap-2 text-sm text-gray-600">
@@ -371,10 +378,10 @@ const MyCourse: React.FC<MyCourseProps> = ({ enrollments, courseImages, teacherI
                       {/* Teacher Avatar */}
                       <div className="flex-shrink-0">
                         <div className="w-16 h-16 rounded-full bg-white border-2 border-gray-200 shadow-sm flex items-center justify-center text-xl font-bold text-[#1a73e8]">
-                          {modalCourse.teacher?.id && teacherImageUrls[modalCourse.teacher.id] ? (
+                          {modalCourse.teacher?.avatar_url ? (
                             <img
-                              src={teacherImageUrls[modalCourse.teacher.id]}
-                              alt={`${modalCourse.teacher.first_name} ${modalCourse.teacher.last_name}`}
+                              src={modalCourse.teacher.avatar_url}
+                              alt={modalCourse.teacher.display_name || 'Instructor'}
                               className="w-full h-full object-cover rounded-full"
                               loading="lazy"
                               width={64}
@@ -384,7 +391,11 @@ const MyCourse: React.FC<MyCourseProps> = ({ enrollments, courseImages, teacherI
                               }}
                             />
                           ) : (
-                            `${modalCourse.teacher?.first_name?.charAt(0) || ''}${modalCourse.teacher?.last_name?.charAt(0) || ''}`.toUpperCase()
+                            `${(modalCourse.teacher.display_name || '')
+                              .split(/\s+/)
+                              .map(s => s.charAt(0))
+                              .slice(0,2)
+                              .join('')}`.toUpperCase()
                           )}
                         </div>
                       </div>
@@ -392,7 +403,7 @@ const MyCourse: React.FC<MyCourseProps> = ({ enrollments, courseImages, teacherI
                       {/* Teacher Info */}
                       <div className="flex-1 min-w-0">
                         <h6 className="text-lg font-semibold text-gray-900">
-                          Prof. {modalCourse.teacher.first_name} {modalCourse.teacher.last_name}
+                          Prof. {modalCourse.teacher.display_name || 'TBA'}
                         </h6>
                         <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
                           <span className="flex items-center gap-1">
