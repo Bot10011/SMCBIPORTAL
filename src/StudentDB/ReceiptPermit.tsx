@@ -394,7 +394,7 @@ const ReceiptPermit: React.FC = () => {
           {/* Enhanced Content Skeleton */}
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 mb-12">
             {/* Receipt Section Skeleton */}
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+            <div className="bg-white/90 rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
               <div className="px-6 py-4 bg-gradient-to-r from-blue-50 to-blue-100 border-b border-gray-200">
                 <div className="h-6 w-32 bg-blue-200 rounded animate-pulse"></div>
               </div>
@@ -420,7 +420,7 @@ const ReceiptPermit: React.FC = () => {
             </div>
 
             {/* Upload Section Skeleton */}
-            <div className="bg-white rounded-2xl border-2 border-dashed border-gray-300 p-6 text-center">
+            <div className="bg-white/90 rounded-2xl border-2 border-dashed border-gray-300 p-6 text-center">
               <div className="mb-4">
                 <div className="inline-block p-3 bg-gray-50 rounded-xl border border-gray-200">
                   <div className="flex gap-2">
@@ -435,7 +435,7 @@ const ReceiptPermit: React.FC = () => {
             </div>
 
             {/* Permit Section Skeleton */}
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+            <div className="bg-white/90 rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
               <div className="px-6 py-4 bg-gradient-to-r from-green-50 to-green-100 border-b border-gray-200">
                 <div className="h-6 w-32 bg-green-200 rounded animate-pulse"></div>
               </div>
@@ -537,7 +537,7 @@ const ReceiptPermit: React.FC = () => {
                 {/* Main Content Section - Horizontal Layout */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 mb-12">
           {/* Tuition Receipts */}
-          <div data-section="receipt" className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+          <div data-section="receipt" className="bg-white/90 rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
             <div className="px-6 py-4 bg-gradient-to-r from-blue-50 to-blue-100 border-b border-gray-200">
               <h3 className="text-xl font-semibold text-blue-900 flex items-center gap-2">
                 <FileText className="w-5 h-5" />
@@ -630,7 +630,7 @@ const ReceiptPermit: React.FC = () => {
           </div>
 
           {/* Upload Section */}
-          <div className="bg-white rounded-2xl border-2 border-dashed border-gray-300 p-6 text-center">
+          <div className="bg-white/90 rounded-2xl border-2 border-dashed border-gray-300 p-6 text-center">
             {/* Document Type Selector */}
             <div className="mb-4">
               <div className="inline-block p-3 bg-gray-50 rounded-xl border border-gray-200">
@@ -720,7 +720,7 @@ const ReceiptPermit: React.FC = () => {
           </div>
 
           {/* Exam Permits */}
-          <div data-section="permit" className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+          <div data-section="permit" className="bg-white/90 rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
             <div className="px-6 py-4 bg-gradient-to-r from-green-50 to-green-100 border-b border-gray-200">
               <h3 className="text-xl font-semibold text-green-900 flex items-center gap-2">
                 <FileText className="w-5 h-5" />
@@ -838,7 +838,7 @@ const ReceiptPermit: React.FC = () => {
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
-                className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden"
+                className="bg-white/90 rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden"
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="p-6">
@@ -988,7 +988,7 @@ const ReceiptPermit: React.FC = () => {
               exit={{ scale: 0.9, opacity: 0 }}
               className="fixed inset-0 z-[9999] flex items-center justify-center"
             >
-              <div className="bg-white rounded-2xl shadow-2xl max-w-md w-auto mx-4 relative overflow-hidden">
+              <div className="bg-white/90 rounded-2xl shadow-2xl max-w-md w-auto mx-4 relative overflow-hidden">
                 <div className="flex items-center justify-between p-4 border-b border-gray-200">
                   <div className="flex items-center gap-3">
                     <div className="p-2 rounded-lg bg-blue-50">
