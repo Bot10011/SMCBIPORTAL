@@ -869,6 +869,8 @@ const StudentDashboard: React.FC = () => {
     subject_id: string;
     status: 'active' | 'completed' | 'dropped';
     teacher?: Teacher | null;
+    hasCourseImage?: boolean;
+    hasTeacherImage?: boolean;
   }
 
   // Centralized data fetching effect
