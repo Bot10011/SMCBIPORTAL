@@ -14,7 +14,10 @@ import {
   Bell,
   GraduationCap,
   ExternalLink,
-  User
+  User,
+  CheckSquare,
+  TrendingUp,
+  Clock
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { motion } from 'framer-motion';
@@ -141,10 +144,41 @@ const DashboardOverview = () => {
   });
   const [googleClassroomStatus, setGoogleClassroomStatus] = useState<'connected' | 'disconnected' | 'checking'>('checking');
   const [notifications, setNotifications] = useState<Array<{ id: string; title: string; message: string; severity: string; created_at: string }>>([]);
+  const [googleClassroomData, setGoogleClassroomData] = useState<{
+    courses: Array<{
+      id: string;
+      name: string;
+      section: string;
+      courseState: string;
+    }>;
+    courseWork: Array<{
+      id: string;
+      courseId: string;
+      title: string;
+      description: string;
+      materials: Array<{ title: string; driveFile?: { driveFile: { id: string } } }>;
+      state: string;
+      creationTime: string;
+      dueDate?: { year: number; month: number; day: number };
+      dueTime?: { hours: number; minutes: number };
+      maxPoints?: number;
+    }>;
+    submissions: Array<{
+      id: string;
+      courseId: string;
+      courseWorkId: string;
+      state: string;
+      late: boolean;
+      assignedGrade?: number;
+      maxPoints?: number;
+      updateTime: string;
+    }>;
+    isLoading: boolean;
+  }>({ courses: [], courseWork: [], submissions: [], isLoading: false });
 
-  // Check Google Classroom connection status
+  // Check Google Classroom connection status and fetch data
   useEffect(() => {
-    const checkGoogleClassroomStatus = () => {
+    const checkGoogleClassroomStatus = async () => {
       if (!user?.id) {
         setGoogleClassroomStatus('disconnected');
         return;
@@ -152,6 +186,15 @@ const DashboardOverview = () => {
 
       const connectionInfo = getGoogleClassroomConnectionInfo(user.id);
       setGoogleClassroomStatus(connectionInfo.status);
+
+      // If connected, fetch Google Classroom data
+      if (connectionInfo.status === 'connected') {
+        try {
+          await fetchGoogleClassroomData();
+        } catch (error) {
+          console.error('Error fetching Google Classroom data:', error);
+        }
+      }
     };
 
     checkGoogleClassroomStatus();
@@ -166,6 +209,121 @@ const DashboardOverview = () => {
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
   }, [user?.id]);
+
+  // Function to fetch Google Classroom data
+  const fetchGoogleClassroomData = async () => {
+    try {
+      // Set loading state
+      setGoogleClassroomData(prev => ({ ...prev, isLoading: true }));
+      
+      // Get the access token from storage
+      const token = localStorage.getItem(`google_classroom_token_${user?.id}`);
+      if (!token) {
+        setGoogleClassroomStatus('disconnected');
+        setGoogleClassroomData(prev => ({ ...prev, isLoading: false }));
+        return;
+      }
+
+      // Fetch courses
+      const coursesResponse = await fetch('https://classroom.googleapis.com/v1/courses?courseStates=ACTIVE', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (coursesResponse.ok) {
+        const coursesData = await coursesResponse.json();
+        const courses = coursesData.courses || [];
+
+        // Fetch course work for each course with better error handling
+        const courseWorkPromises = courses.map(async (course: { id: string; name: string; section: string; courseState: string }) => {
+          try {
+            // Use a simple API call without complex parameters that might cause 400 errors
+            const courseWorkResponse = await fetch(
+              `https://classroom.googleapis.com/v1/courses/${course.id}/courseWork`,
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+            
+            if (courseWorkResponse.ok) {
+              const courseWorkData = await courseWorkResponse.json();
+              const courseWork = courseWorkData.courseWork || [];
+              
+              if (courseWork.length > 0) {
+                console.log(`Course "${course.name}" has ${courseWork.length} course work items`);
+                // Sort by creation time locally instead of using API ordering
+                return courseWork
+                  .sort((a: { creationTime: string }, b: { creationTime: string }) => new Date(b.creationTime).getTime() - new Date(a.creationTime).getTime())
+                  .slice(0, 5);
+              } else {
+                console.log(`Course "${course.name}" has no course work`);
+                return [];
+              }
+            } else if (courseWorkResponse.status === 403) {
+              console.warn(`No permission to access course work for course: ${course.name}`);
+              return [];
+            } else if (courseWorkResponse.status === 400) {
+              console.log(`Course "${course.name}" may be empty or have no course work (400 error)`);
+              return [];
+            } else {
+              console.warn(`Failed to fetch course work for course: ${course.name}, status: ${courseWorkResponse.status}`);
+              return [];
+            }
+          } catch (error) {
+            console.warn(`Error fetching course work for course ${course.name}:`, error);
+            return [];
+          }
+        });
+
+        const courseWorkArrays = await Promise.all(courseWorkPromises);
+        const courseWork = courseWorkArrays.flat();
+
+        // Fetch submissions for the course work with better error handling
+        const submissionPromises = courseWork.map(async (work: { id: string; courseId: string; title: string; description: string; materials: Array<{ title: string; driveFile?: { driveFile: { id: string } } }>; state: string; creationTime: string; dueDate?: { year: number; month: number; day: number }; dueTime?: { hours: number; minutes: number }; maxPoints?: number }) => {
+          try {
+            const submissionResponse = await fetch(
+              `https://classroom.googleapis.com/v1/courses/${work.courseId}/courseWork/${work.id}/studentSubmissions?userId=me`,
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+            
+            if (submissionResponse.ok) {
+              const submissionData = await submissionResponse.json();
+              return submissionData.studentSubmissions || [];
+            } else if (submissionResponse.status === 403) {
+              console.warn(`No permission to access submissions for course work: ${work.title}`);
+              return [];
+            } else {
+              console.warn(`Failed to fetch submissions for course work: ${work.title}, status: ${submissionResponse.status}`);
+              return [];
+            }
+          } catch (error) {
+            console.warn(`Error fetching submissions for course work ${work.title}:`, error);
+            return [];
+          }
+        });
+
+        const submissionArrays = await Promise.all(submissionPromises);
+        const submissions = submissionArrays.flat();
+
+        setGoogleClassroomData({ courses, courseWork, submissions, isLoading: false });
+      } else if (coursesResponse.status === 401) {
+        console.warn('Google Classroom token expired or invalid');
+        setGoogleClassroomStatus('disconnected');
+        setGoogleClassroomData(prev => ({ ...prev, isLoading: false }));
+        // Clear the expired token
+        localStorage.removeItem(`google_classroom_token_${user?.id}`);
+      } else if (coursesResponse.status === 403) {
+        console.warn('No permission to access Google Classroom courses');
+        setGoogleClassroomStatus('disconnected');
+        setGoogleClassroomData(prev => ({ ...prev, isLoading: false }));
+      } else {
+        console.warn(`Failed to fetch courses, status: ${coursesResponse.status}`);
+        setGoogleClassroomStatus('disconnected');
+        setGoogleClassroomData(prev => ({ ...prev, isLoading: false }));
+      }
+    } catch (error) {
+      console.error('Error fetching Google Classroom data:', error);
+      setGoogleClassroomStatus('disconnected');
+      setGoogleClassroomData(prev => ({ ...prev, isLoading: false }));
+    }
+  };
 
   // Fetch notifications for students (audience student/all)
   useEffect(() => {
@@ -221,7 +379,35 @@ const DashboardOverview = () => {
           const displayName = authData?.user ? (getAuthDisplayName(authData.user) || authData.user.email || '') : (user.email || '');
           setStudentName(displayName);
 
-          // Avatar priority: Auth metadata/identities → Google userinfo → none
+          // Fetch avatar from user_profiles table
+          const { data: profileData, error: profileError } = await supabase
+            .from('user_profiles')
+            .select('avatar_url, profile_picture_url')
+            .eq('id', user.id)
+            .single();
+
+          if (!profileError && profileData) {
+            // Priority 1: Use avatar_url from database profile
+            let pictureUrl: string | null = profileData.avatar_url || null;
+            
+            // Priority 2: Fallback to profile_picture_url from storage bucket
+            if (!pictureUrl && profileData.profile_picture_url) {
+              const { data: signedUrlData } = await supabase
+                .storage
+                .from('avatar')
+                .createSignedUrl(profileData.profile_picture_url, 60 * 60);
+              if (signedUrlData?.signedUrl) {
+                pictureUrl = signedUrlData.signedUrl;
+              }
+            }
+            
+            if (pictureUrl) {
+              setProfilePictureUrl(pictureUrl);
+              return;
+            }
+          }
+
+          // Fallback: Avatar priority: Auth metadata/identities → Google userinfo → none
           const authAvatar = authData?.user ? getAuthAvatarUrl(authData.user) : null;
           if (authAvatar) {
             setProfilePictureUrl(authAvatar);
@@ -300,9 +486,9 @@ const DashboardOverview = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="relative bg-[#252728] rounded-2xl"
+            className="relative bg-white/90 rounded-2xl"
           >
-            <div className="absolute inset-0 bg-[#252728] rounded-2xl -z-10"></div>
+            <div className="absolute inset-0 bg-white/90 rounded-2xl -z-10"></div>
             <div className="p-6 sm:p-8 md:p-10">
               <div className="flex flex-col sm:flex-row items-center gap-6 sm:gap-8">
                 {/* Profile Circle */}
@@ -321,17 +507,17 @@ const DashboardOverview = () => {
 
                 {/* Welcome Text */}
                 <div className="flex-1 flex flex-col items-center text-center sm:items-start sm:text-left sm:block">
-                  <h1 className="text-4xl sm:text-3xl md:text-4xl font-black tracking-tighter text-white">
+                  <h1 className="text-4xl sm:text-3xl md:text-4xl font-black tracking-tighter text-gray-800">
                     Welcome back
                   </h1>
                   <div className="mt-2 sm:mt-0 sm:inline-block">
                     <span className="inline-block sm:ml-2">
-                      <span className="text-sm sm:text-2xl md:text-3xl font-bold tracking-wide text-white">
+                      <span className="text-sm sm:text-2xl md:text-3xl font-bold tracking-wide text-gray-800">
                         {processedProfile.fullName}
                       </span>
                     </span>
                   </div>
-                  <p className="mt-3 text-sm sm:text-base text-white max-w-2xl sm:text-left text-center">
+                  <p className="mt-3 text-sm sm:text-base text-gray-700 max-w-2xl sm:text-left text-center">
                     Here's what's happening with your academic progress. Stay updated with your courses, grades, and important notifications.
                   </p>
                 </div>
@@ -340,25 +526,24 @@ const DashboardOverview = () => {
           </motion.div>
 
           {/* Stats Grid */}
-          <div className="grid grid-cols-1 xs:grid-cols-3 gap-4 xs:gap-6 sm:gap-6 lg:gap-8">
+          <div className="grid grid-cols-1 xs:grid-cols-3 gap-3 xs:gap-4 sm:gap-6 lg:gap-8">
             {/* Enrolled Courses */}
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.1 }}
-              className="dashboard-stat-card group relative bg-[#252728] rounded-xl p-4 xs:p-3 sm:p-6 md:p-8 border border-[#444] transition-all duration-300"
+              className="dashboard-stat-card group relative bg-white/90 rounded-xl p-3 xs:p-4 sm:p-5 md:p-6 border border-[#444] transition-all duration-300"
             >
               <div className="absolute inset-0 bg-gradient-to-br from-blue-50/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-xl"></div>
-              <div className="relative flex flex-col xs:flex-row xs:items-center justify-between h-full">
-                <div className="space-y-1 xs:space-y-0.5 sm:space-y-1 text-center xs:text-left">
-                  <p className="text-sm xs:text-xs sm:text-sm font-medium text-white">Enrolled Courses</p>
-                  <p className="text-2xl xs:text-xl sm:text-3xl md:text-4xl font-bold text-white">
+              <div className="relative flex items-start justify-between h-full">
+                <div className="flex flex-col min-w-0 flex-1">
+                  <p className="text-lg xs:text-lg sm:text-xl md:text-2xl font-bold text-gray-800">
                     {stats.enrolledCourses}
                   </p>
-                  <p className="text-sm xs:text-xs sm:text-sm text-gray-300">Active courses</p>
+                  <p className="text-[10px] xs:text-xs sm:text-sm font-medium text-gray-800 leading-tight whitespace-nowrap">Enrolled Subjects</p>
                 </div>
-                <div className="p-3 xs:p-2 sm:p-4 rounded-xl bg-[#2b2d2f] transition-colors duration-300 mx-auto xs:mx-0 mt-3 xs:mt-0">
-                  <BookOpen className="w-6 h-6 xs:w-5 xs:h-5 sm:w-7 sm:h-7 text-blue-600" />
+                <div className="p-1.5 rounded-lg bg-[#2b2d2f] transition-colors duration-300 flex-shrink-0 mt-1">
+                  <BookOpen className="w-3 h-3 xs:w-4 xs:h-4 text-blue-600" />
                 </div>
               </div>
             </motion.div>
@@ -368,19 +553,18 @@ const DashboardOverview = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.2 }}
-              className="dashboard-stat-card group relative bg-[#252728] rounded-xl p-4 xs:p-3 sm:p-6 md:p-8 border border-[#444] transition-all duration-300"
+              className="dashboard-stat-card group relative bg-white/90 rounded-xl p-3 xs:p-4 sm:p-5 md:p-6 border border-[#444] transition-all duration-300"
             >
               <div className="absolute inset-0 bg-gradient-to-br from-green-50/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-xl"></div>
-              <div className="relative flex flex-col xs:flex-row xs:items-center justify-between h-full">
-                <div className="space-y-1 xs:space-y-0.5 sm:space-y-1 text-center xs:text-left">
-                  <p className="text-sm xs:text-xs sm:text-sm font-medium text-white">Current GPA</p>
-                  <p className="text-2xl xs:text-xl sm:text-3xl md:text-4xl font-bold text-white">
+              <div className="relative flex items-start justify-between h-full">
+                <div className="flex flex-col min-w-0 flex-1">
+                  <p className="text-lg xs:text-lg sm:text-xl md:text-2xl font-bold text-gray-800">
                     {stats.gpa.toFixed(2)}
                   </p>
-                  <p className="text-sm xs:text-xs sm:text-sm text-gray-300">This semester</p>
+                  <p className="text-[10px] xs:text-xs sm:text-sm font-medium text-gray-800 leading-tight whitespace-nowrap">Current GPA</p>
                 </div>
-                <div className="p-3 xs:p-2 sm:p-4 rounded-xl bg-[#2b2d2f] transition-colors duration-300 mx-auto xs:mx-0 mt-3 xs:mt-0">
-                  <GraduationCap className="w-6 h-6 xs:w-5 xs:h-5 sm:w-7 sm:h-7 text-green-600" />
+                <div className="p-1.5 rounded-lg bg-[#2b2d2f] transition-colors duration-300 flex-shrink-0 mt-1">
+                  <TrendingUp className="w-3 h-3 xs:w-4 xs:h-4 text-green-600" />
                 </div>
               </div>
             </motion.div>
@@ -391,34 +575,34 @@ const DashboardOverview = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.3 }}
               onClick={() => navigate('/dashboard/google-classroom')}
-              className="dashboard-stat-card group relative bg-[#252728] rounded-xl p-4 xs:p-3 sm:p-6 md:p-8 border border-[#444] transition-all duration-300 cursor-pointer"
+              className="dashboard-stat-card group relative bg-white/90 rounded-xl p-3 xs:p-4 sm:p-5 md:p-6 border border-[#444] transition-all duration-300 cursor-pointer"
             >
               <div className="absolute inset-0 bg-gradient-to-br from-purple-50/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-xl"></div>
-              <div className="relative flex flex-col xs:flex-row xs:items-center justify-between h-full">
-                <div className="space-y-1 xs:space-y-0.5 sm:space-y-1 text-center xs:text-left">
-                  <p className="text-sm xs:text-xs sm:text-sm font-medium text-white">Google Classroom</p>
-                  <div className="flex flex-col xs:flex-row xs:items-center gap-1 xs:gap-2">
-                    <p className="text-lg xs:text-lg sm:text-xl md:text-2xl font-bold text-white">
+              <div className="relative flex items-start justify-between h-full">
+                <div className="flex flex-col min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm xs:text-sm sm:text-base md:text-lg font-bold text-gray-800 leading-tight">
                       {googleClassroomStatus === 'checking' ? 'Checking...' : 
                        googleClassroomStatus === 'connected' ? 'Connected' : 'Not Connected'}
                     </p>
                     {googleClassroomStatus === 'connected' && (
-                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse mx-auto xs:mx-0"></div>
+                      <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
                     )}
                     {googleClassroomStatus === 'disconnected' && (
-                      <div className="w-2 h-2 bg-red-500 rounded-full mx-auto xs:mx-0"></div>
+                      <div className="w-1.5 h-1.5 bg-red-500 rounded-full"></div>
                     )}
                     {googleClassroomStatus === 'checking' && (
-                      <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse mx-auto xs:mx-0"></div>
+                      <div className="w-1.5 h-1.5 bg-yellow-500 rounded-full animate-pulse"></div>
                     )}
                   </div>
-                  <p className="text-sm xs:text-xs sm:text-sm text-gray-300">
-                    {googleClassroomStatus === 'connected' ? 'Access assignments' : 
-                     googleClassroomStatus === 'disconnected' ? 'Connect to sync' : 'Verifying connection'}
+                  <p className="text-[10px] xs:text-xs sm:text-sm font-medium text-gray-800 leading-tight whitespace-nowrap">Google Classroom</p>
+                  <p className="text-[10px] xs:text-xs sm:text-sm text-gray-600 leading-tight">
+                    {googleClassroomStatus === 'connected' ? '' : 
+                     googleClassroomStatus === 'checking' ? 'Verifying connection' : 'Connect to sync'}
                   </p>
                 </div>
-                <div className="p-3 xs:p-2 sm:p-4 rounded-xl bg-[#2b2d2f] transition-colors duration-300 mx-auto xs:mx-0 mt-3 xs:mt-0">
-                  <ExternalLink className="w-6 h-6 xs:w-5 xs:h-5 sm:w-7 sm:h-7 text-purple-600" />
+                <div className="p-1.5 rounded-lg bg-[#2b2d2f] transition-colors duration-300 flex-shrink-0 mt-1">
+                  <ExternalLink className="w-3 h-3 xs:w-4 xs:h-4 text-purple-600" />
                 </div>
               </div>
             </motion.div>
@@ -426,35 +610,215 @@ const DashboardOverview = () => {
 
        
 
-          {/* Notifications (from DB audience student/all) */}
+          {/* Notifications and Reminders - Horizontal Layout on Desktop */}
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.35 }}
-            className="bg-[#252728] rounded-xl border border-[#444] p-6"
+            className="grid grid-cols-1 lg:grid-cols-2 gap-6"
           >
-            <h2 className="text-lg sm:text-xl md:text-2xl font-semibold text-white flex items-center gap-3 mb-4">
-              <div className="p-2 rounded-xl bg-[#2b2d2f]">
-                <Bell className="w-5 h-5 sm:w-6 sm:h-6 text-blue-500" />
-              </div>
-              Notifications
-            </h2>
-            {notifications.length === 0 ? (
-              <div className="text-gray-300 text-sm">No notifications right now.</div>
-            ) : (
-              <div className="space-y-3">
-                {notifications.map((n) => (
-                  <div key={n.id} className="flex items-start justify-between p-3 bg-[#333334] rounded-lg border border-[#444]">
-                    <div className="pr-4">
-                      <div className="text-white font-medium text-sm">{n.title}</div>
-                      <div className="text-gray-300 text-xs">{n.message}</div>
+            {/* Notifications (from DB audience student/all) */}
+            <div className="bg-white/90 rounded-xl border border-[#444] p-6">
+              <h2 className="text-lg sm:text-xl md:text-2xl font-semibold text-gray-800 flex items-center gap-3 mb-4">
+                <div className="p-2 rounded-xl bg-[#2b2d2f]">
+                  <Bell className="w-5 h-5 sm:w-6 sm:h-6 text-blue-500" />
+                </div>
+                Notifications
+              </h2>
+              {notifications.length === 0 ? (
+                <div className="text-gray-600 text-sm">No notifications right now.</div>
+              ) : (
+                <div className="space-y-3">
+                  {notifications.map((n) => (
+                    <div key={n.id} className="flex items-start justify-between p-3 bg-gray-100 rounded-lg border border-gray-200">
+                      <div className="pr-4">
+                        <div className="text-gray-800 font-medium text-sm">{n.title}</div>
+                        <div className="text-gray-600 text-xs">{n.message}</div>
+                      </div>
+                      <div className="text-xs text-gray-500 whitespace-nowrap">{new Date(n.created_at).toLocaleString()}</div>
                     </div>
-                    <div className="text-xs text-gray-400 whitespace-nowrap">{new Date(n.created_at).toLocaleString()}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Google Classroom Task Notifications - Reminders */}
+            <div className="bg-white/90 rounded-xl border border-[#444] p-4 sm:p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg sm:text-xl font-semibold text-gray-800 flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-[#2b2d2f]">
+                  <BookOpen className="w-5 h-5 sm:w-6 text-green-500" />
+                </div>
+                <span className="hidden sm:inline">Task Reminders</span>
+                <span className="sm:hidden">Reminders</span>
+              </h2>
+              {googleClassroomStatus === 'connected' && (
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  <span className="text-xs text-green-600 font-medium hidden sm:inline">Connected</span>
+                </div>
+              )}
+            </div>
+            
+            {googleClassroomStatus === 'connected' ? (
+              <div className="space-y-3">
+                {googleClassroomData.isLoading ? (
+                  <div className="space-y-3">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="flex items-center justify-between p-3 rounded-lg border border-gray-200 bg-gray-50">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-gray-200 rounded-lg animate-pulse"></div>
+                          <div className="space-y-2">
+                            <div className="h-4 w-32 bg-gray-200 rounded animate-pulse"></div>
+                            <div className="h-3 w-24 bg-gray-200 rounded animate-pulse"></div>
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end gap-1">
+                          <div className="w-16 h-5 bg-gray-200 rounded-full animate-pulse"></div>
+                          <div className="w-20 h-3 bg-gray-200 rounded animate-pulse"></div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                ) : googleClassroomData.courseWork.length > 0 ? (
+                  <>
+                                         {/* Recent Assignments - Reminder System */}
+                     {googleClassroomData.courseWork
+                       .filter(work => {
+                         const submission = googleClassroomData.submissions.find(s => s.courseWorkId === work.id);
+                         const taskAge = Date.now() - new Date(work.creationTime).getTime();
+                         const daysOld = taskAge / (1000 * 60 * 60 * 24);
+                         
+                         // Only show tasks that are 1-3 days old (reminder period)
+                         const isInReminderPeriod = daysOld >= 1 && daysOld <= 3;
+                         
+                         // Also show recently submitted tasks (last 2 days) and graded tasks (last 3 days)
+                         const isRecentlySubmitted = submission?.state === 'TURNED_IN' && 
+                           (Date.now() - new Date(submission.updateTime).getTime()) <= (2 * 24 * 60 * 60 * 1000);
+                         const isRecentlyGraded = submission?.assignedGrade !== undefined && 
+                           (Date.now() - new Date(submission.updateTime).getTime()) <= (3 * 24 * 60 * 60 * 1000);
+                         
+                         // Show: tasks in reminder period, recently submitted, or recently graded
+                         return isInReminderPeriod || isRecentlySubmitted || isRecentlyGraded;
+                       })
+                       .slice(0, 5)
+                       .map((work) => {
+                         const course = googleClassroomData.courses.find(c => c.id === work.courseId);
+                         const submission = googleClassroomData.submissions.find(s => s.courseWorkId === work.id);
+                         const taskAge = Date.now() - new Date(work.creationTime).getTime();
+                         const daysOld = Math.floor(taskAge / (1000 * 60 * 60 * 24));
+                         const isInReminderPeriod = daysOld >= 1 && daysOld <= 3;
+                         const isSubmitted = submission?.state === 'TURNED_IN';
+                         const isGraded = submission?.assignedGrade !== undefined;
+                         const isRecentlySubmitted = isSubmitted && 
+                           (Date.now() - new Date(submission.updateTime).getTime()) <= (2 * 24 * 60 * 60 * 1000);
+                         
+                         return (
+                           <div key={work.id} className={`flex items-center justify-between p-3 rounded-lg border ${
+                             isInReminderPeriod ? 'bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200' :
+                             isGraded ? 'bg-gradient-to-r from-green-50 to-blue-50 border-green-200' :
+                             isRecentlySubmitted ? 'bg-gradient-to-r from-yellow-50 to-orange-50 border-yellow-200' :
+                             'bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200'
+                           }`}>
+                             <div className="flex items-center gap-3">
+                               <div className={`p-2 rounded-lg ${
+                                 isInReminderPeriod ? 'bg-blue-100' :
+                                 isGraded ? 'bg-green-100' :
+                                 isRecentlySubmitted ? 'bg-yellow-100' :
+                                 'bg-purple-100'
+                               }`}>
+                                 {isInReminderPeriod ? (
+                                   <Clock className="w-4 h-4 text-blue-600" />
+                                 ) : isGraded ? (
+                                   <GraduationCap className="w-4 h-4 text-green-600" />
+                                 ) : isRecentlySubmitted ? (
+                                   <CheckSquare className="w-4 h-4 text-yellow-600" />
+                                 ) : (
+                                   <BookOpen className="w-4 h-4 text-purple-600" />
+                                 )}
+                               </div>
+                               <div>
+                                 <div className="text-gray-800 font-medium text-sm">
+                                   {isInReminderPeriod ? `Reminder: ${daysOld} day${daysOld === 1 ? '' : 's'} old` : 
+                                    isGraded ? 'Grade Updated' : 
+                                    isRecentlySubmitted ? 'Recently Submitted' : 
+                                    'Assignment Posted'}
+                                 </div>
+                                 <div className="text-gray-600 text-xs">
+                                   {course?.name} - {work.title}
+                                 </div>
+                                 {work.maxPoints && (
+                                   <div className="text-xs text-gray-500">
+                                     Points: {work.maxPoints}
+                                   </div>
+                                 )}
+                                 {isRecentlySubmitted && !isGraded && (
+                                   <div className="text-xs text-yellow-600 font-medium">
+                                     ✓ Submitted, waiting for grade
+                                   </div>
+                                 )}
+                               </div>
+                             </div>
+                             <div className="flex flex-col items-end gap-1">
+                               <div className={`px-2 py-1 text-xs rounded-full font-medium ${
+                                 isInReminderPeriod ? 'bg-blue-100 text-blue-700' :
+                                 isGraded ? 'bg-green-100 text-green-700' :
+                                 isRecentlySubmitted ? 'bg-yellow-100 text-yellow-700' :
+                                 'bg-purple-100 text-purple-700'
+                               }`}>
+                                 {isInReminderPeriod ? `${daysOld}d` : 
+                                  isGraded ? 'Graded' : 
+                                  isRecentlySubmitted ? 'Submitted' : 
+                                  'Posted'}
+                               </div>
+                               <div className="text-xs text-gray-500">
+                                 {isRecentlySubmitted ? 
+                                   `Submitted ${new Date(submission!.updateTime).toLocaleDateString()}` :
+                                   `${daysOld} day${daysOld === 1 ? '' : 's'} ago`
+                                 }
+                               </div>
+                               {submission?.assignedGrade && (
+                                 <div className="text-xs font-medium text-green-600">
+                                   {submission.assignedGrade}/{work.maxPoints || 'N/A'}
+                                 </div>
+                               )}
+                             </div>
+                           </div>
+                         );
+                       })}
+                  </>
+                ) : (
+                  <div className="text-center py-6">
+                    <div className="p-3 rounded-full bg-gray-100 w-12 h-12 mx-auto mb-3 flex items-center justify-center">
+                      <BookOpen className="w-6 h-6 text-gray-400" />
+                    </div>
+                    <p className="text-gray-500 text-sm">No active reminders</p>
+                    <p className="text-gray-400 text-xs mt-1">
+                      {googleClassroomData.courses.length > 0 
+                        ? `You're enrolled in ${googleClassroomData.courses.length} course(s) but no recent tasks need attention`
+                        : 'Check your Google Classroom for updates'
+                      }
+                    </p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <div className="p-3 rounded-full bg-gray-100 w-16 h-16 mx-auto mb-3 flex items-center justify-center">
+                  <BookOpen className="w-8 h-8 text-gray-400" />
+                </div>
+                <h3 className="text-gray-600 font-medium mb-2">No Classroom Connection</h3>
+                <p className="text-gray-500 text-sm mb-4">Connect to Google Classroom to see your tasks and assignments</p>
+                <button 
+                  onClick={() => navigate('/dashboard/google-classroom')}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                >
+                  Connect Classroom
+                </button>
               </div>
             )}
-          </motion.div>
+          </div>
+        </motion.div>
         </div>
       </div>
     </div>
@@ -469,7 +833,6 @@ const StudentDashboard: React.FC = () => {
   // Centralized data fetching for MyCourse
   const [enrollmentsWithTeacher, setEnrollmentsWithTeacher] = useState<Enrollment[]>([]);
   const [courseImages, setCourseImages] = useState<{ [subjectId: string]: string }>({});
-  const [teacherImageUrls, setTeacherImageUrls] = useState<{ [teacherId: string]: string }>({});
   const [loadingMyCourse, setLoadingMyCourse] = useState(true);
 
   // Memoized data processing
@@ -477,18 +840,17 @@ const StudentDashboard: React.FC = () => {
     return enrollmentsWithTeacher.map(enrollment => ({
       ...enrollment,
       hasCourseImage: !!courseImages[enrollment.subject_id],
-      hasTeacherImage: enrollment.teacher?.id && !!teacherImageUrls[enrollment.teacher.id]
+      hasTeacherImage: !!enrollment.teacher?.avatar_url
     }));
-  }, [enrollmentsWithTeacher, courseImages, teacherImageUrls]);
+  }, [enrollmentsWithTeacher, courseImages]);
 
   // Default password change removed
 
   // Types for centralized data fetching
   interface Teacher {
     id: string;
-    first_name: string;
-    last_name: string;
-    profile_picture_url?: string;
+    display_name?: string;
+    avatar_url?: string;
   }
 
   interface TeacherAssignment {
@@ -551,7 +913,7 @@ const StudentDashboard: React.FC = () => {
           .from('teacher_subjects')
           .select(`
             subject_id,
-            teacher:user_profiles(id, first_name, last_name, profile_picture_url)
+            teacher:user_profiles(id, display_name, avatar_url)
           `)
           .in('subject_id', subjectIds);
 
@@ -614,25 +976,31 @@ const StudentDashboard: React.FC = () => {
         if (teacherIds.length > 0) {
           const { data: teachers, error } = await supabase
             .from('user_profiles')
-            .select('id, profile_picture_url')
+            .select('id, avatar_url')
             .in('id', teacherIds);
 
           if (!error && teachers) {
             const teacherUrlMap: { [teacherId: string]: string } = {};
             await Promise.all(
-              teachers.map(async (teacher: { id: string; profile_picture_url?: string }) => {
-                if (teacher.profile_picture_url) {
-                  const { data: signedUrlData, error: signedError } = await supabase
-                    .storage
-                    .from('avatar')
-                    .createSignedUrl(teacher.profile_picture_url, 60 * 60);
-                  if (!signedError && signedUrlData?.signedUrl) {
-                    teacherUrlMap[teacher.id] = signedUrlData.signedUrl;
+              teachers.map(async (teacher: { id: string; avatar_url?: string }) => {
+                if (teacher.avatar_url) {
+                  // Check if it's a Google avatar URL (starts with https://)
+                  if (teacher.avatar_url.startsWith('https://')) {
+                    teacherUrlMap[teacher.id] = teacher.avatar_url;
+                  } else {
+                    // It's a Supabase storage path, create signed URL
+                    const { data: signedUrlData, error: signedError } = await supabase
+                      .storage
+                      .from('avatar')
+                      .createSignedUrl(teacher.avatar_url, 60 * 60);
+                    if (!signedError && signedUrlData?.signedUrl) {
+                      teacherUrlMap[teacher.id] = signedUrlData.signedUrl;
+                    }
                   }
                 }
               })
             );
-            setTeacherImageUrls(teacherUrlMap);
+            // Teacher images are now handled directly in the teacher object via avatar_url
           }
         }
 
@@ -677,7 +1045,6 @@ const StudentDashboard: React.FC = () => {
               <MyCourse
                 enrollments={processedEnrollments}
                 courseImages={courseImages}
-                teacherImageUrls={teacherImageUrls}
                 loading={loadingMyCourse}
               />
             } />
