@@ -62,6 +62,16 @@ interface Program {
   };
 }
 
+interface ProgramHead {
+  id: string;
+  display_name: string;
+  avatar_url?: string;
+  department: string;
+  first_name?: string;
+  last_name?: string;
+  role?: string;
+}
+
 export default function StudentGrades() {
   const [grades, setGrades] = useState<Grade[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,6 +86,7 @@ export default function StudentGrades() {
   const [showYearLevels, setShowYearLevels] = useState(false);
   const [showSections, setShowSections] = useState(false);
   const [showSubjects, setShowSubjects] = useState(false);
+  const [showEmptyProgram, setShowEmptyProgram] = useState(false);
   
   // Navigation history to track the flow
   const [navigationHistory, setNavigationHistory] = useState<string[]>(['programs']);
@@ -89,14 +100,24 @@ export default function StudentGrades() {
   
   // State for bulk actions
   const [bulkUpdating, setBulkUpdating] = useState(false);
+  
+
+
+  // Helper function to convert year level number to display format
+  const getYearLevelDisplayName = (yearLevel: string): string => {
+    switch (yearLevel) {
+      case '1': return '1st Year';
+      case '2': return '2nd Year';
+      case '3': return '3rd Year';
+      case '4': return '4th Year';
+      default: return `Year ${yearLevel}`;
+    }
+  };
 
   // Helper function to convert section UUIDs to readable names
   const getSectionDisplayName = (sectionValue: string): string => {
-    console.log('Converting section:', sectionValue);
-    
     // If it's already a simple letter (A, B, C, D), return as is
     if (/^[A-Z]$/.test(sectionValue)) {
-      console.log('Section is already a letter:', sectionValue);
       return sectionValue;
     }
     
@@ -105,12 +126,10 @@ export default function StudentGrades() {
       // Extract first 8 characters and make it readable
       const shortId = sectionValue.substring(0, 8);
       const result = `Section ${shortId.toUpperCase()}`;
-      console.log('Converted UUID to:', result);
       return result;
     }
     
     // If it's neither, return as is
-    console.log('Section is neither letter nor UUID, returning as is:', sectionValue);
     return sectionValue;
   };
 
@@ -159,15 +178,15 @@ export default function StudentGrades() {
       }
       
       // First, get all students with their year level and section info
-      const { data: studentsData, error: studentsError } = await supabase
+      const { data: studentsData, error: initialStudentsError } = await supabase
         .from('user_profiles')
-        .select('id, student_id, display_name, avatar_url, year_level, section, program_id, student_status, enrollment_status, student_type')
+        .select('id, student_id, display_name, avatar_url, year_level, section, program_id, department, student_status, enrollment_status, student_type')
         .eq('role', 'student')
         .not('year_level', 'is', null)
         .not('section', 'is', null);
         
-      if (studentsError) {
-        console.error('Students error:', studentsError);
+      if (initialStudentsError) {
+        console.error('Students error:', initialStudentsError);
         setError('Failed to load student information');
         setLoading(false);
         return;
@@ -222,7 +241,20 @@ export default function StudentGrades() {
       const studentIds = (studentsData || []).map(s => s.id);
       const { data: gradesData, error: gradesError } = await supabase
         .from('grades')
-        .select('*')
+        .select(`
+          *,
+          student:user_profiles!grades_student_id_fkey (
+            id, 
+            student_id, 
+            display_name, 
+            avatar_url, 
+            department, 
+            student_status, 
+            enrollment_status, 
+            student_type,
+            program_id
+          )
+        `)
         .in('student_id', studentIds)
         .order('created_at', { ascending: false });
         
@@ -552,14 +584,13 @@ export default function StudentGrades() {
       // Course and teacher data is now fetched through the join above
       
       const processedGrades = (gradesData || []).map(g => {
-        const student = studentMap.get(g.student_id);
-        const mapYearLevelToNumericString = (num?: number | null, fallback?: string | null): string => {
+        const student = Array.isArray(g.student) ? g.student[0] : g.student;
+        const mapYearLevelToNumericString = (num?: number | null): string => {
           if (num === 1) return '1';
           if (num === 2) return '2';
           if (num === 3) return '3';
           if (num === 4) return '4';
-          const fb = (fallback ?? '').toString();
-          return ['1', '2', '3', '4'].includes(fb) ? fb : 'Unknown';
+          return 'Unknown';
         };
         
         // Calculate General Average
@@ -578,15 +609,12 @@ export default function StudentGrades() {
           avatar_url: student?.avatar_url || null,
           school_id: student?.student_id || g.student_id,
           general_average,
-          // Normalize year_level to '1' | '2' | '3' | '4'
-          year_level: mapYearLevelToNumericString((g as { year_level?: number | null }).year_level, student?.year_level),
-          section: (() => {
-            const sectionValue = (g as { section?: string | null }).section || student?.section || 'Unknown';
-            console.log('Processing section for student:', g.student_id, 'Value:', sectionValue);
-            return sectionValue;
-          })(),
-          program_name: student?.program_id ? programMap.get(student.program_id)?.name || 'Unknown Program' : 'Unknown Program',
-          program_code: student?.program_id ? programMap.get(student.program_id)?.code || 'UNK' : 'UNK',
+          // Use year_level from grades table (integer) and convert to string
+          year_level: mapYearLevelToNumericString(g.year_level),
+          // Use section from grades table
+          section: g.section || 'Unknown',
+          program_name: student?.department || 'Unknown Program',
+          program_code: student?.department || 'UNK',
           student_status: student?.student_status || 'Unknown',
           enrollment_status: student?.enrollment_status || 'Unknown',
           student_type: student?.student_type || 'Unknown',
@@ -610,7 +638,7 @@ export default function StudentGrades() {
               if (t && t.display_name && t.display_name.trim()) return t.display_name.trim();
             }
             // Fallback to teacherMap using composite key subject_id-section-year
-            const compositeKey = `${g.subject_id || ''}-${(g as { section?: string | null; year_level?: number | null }).section || ''}-${mapYearLevelToNumericString((g as { year_level?: number | null }).year_level as number | null, student?.year_level)}`;
+            const compositeKey = `${g.subject_id || ''}-${g.section || ''}-${mapYearLevelToNumericString(g.year_level)}`;
             const mappedTeacher = teacherMap.get(compositeKey) || (g.subject_id ? teacherMap.get(g.subject_id) : undefined);
             if (mappedTeacher && (mappedTeacher as { display_name?: string }).display_name && (mappedTeacher as { display_name?: string }).display_name!.trim()) {
               return (mappedTeacher as { display_name: string }).display_name.trim();
@@ -660,11 +688,12 @@ export default function StudentGrades() {
         })));
       }
       
-      // Create year level, section, and subject combinations
+      // Create year level, section, and subject combinations based on GRADES table
       const yearLevelSectionSubjectMap = new Map<string, Map<string, Set<string>>>();
       
+      // Process ALL grades to create the complete data structure
       processedGrades.forEach(grade => {
-        // Only process grades with valid year_level and section (not "Unknown")
+        // Only process grades with valid data
         if (grade.year_level && 
             grade.year_level !== 'Unknown' && 
             grade.section && 
@@ -689,11 +718,13 @@ export default function StudentGrades() {
         const [yearLevel] = key.split('-');
         sectionMap.forEach((subjects, sectionName) => {
           subjects.forEach(subject => {
+            // Count students from grades table for this specific combination
             const studentCount = processedGrades.filter(g => 
               g.year_level === yearLevel && 
               g.section === sectionName && 
               g.course_code === subject
             ).length;
+            
             const subjectName = (() => {
               const match: Grade | undefined = processedGrades.find(g => 
                 g.year_level === yearLevel &&
@@ -742,14 +773,13 @@ export default function StudentGrades() {
       // Create programs array for display
       const programsArray: Program[] = [];
       
-      // First, get all active programs from the programs table
+      // First, get all programs from the programs table (not just active ones)
       console.log('Fetching programs from database...');
-      console.log('Query: SELECT id, name, description, major, is_active FROM programs WHERE is_active = true ORDER BY name');
+      console.log('Query: SELECT id, name, description, major, is_active FROM programs ORDER BY name');
       
       const { data: allProgramsData, error: allProgramsError } = await supabase
         .from('programs')
         .select('id, name, description, major, is_active')
-        .eq('is_active', true)
         .order('name');
         
       // Debug: Check what fields are available in programs table
@@ -774,59 +804,58 @@ export default function StudentGrades() {
         console.log('Available roles in user_profiles:', uniqueRoles);
       }
       
-      // Try to fetch program heads with different approaches
-      let programHeadsData = null;
+      // Fetch program heads with comprehensive approach to handle all possible role variations
+      let programHeadsData: ProgramHead[] = [];
       
-      // Approach 1: Try with 'program_head' role and department column
-      console.log('Trying to fetch with role = "program_head" and department column...');
-      const { data: programHeads1, error: error1 } = await supabase
-        .from('user_profiles')
-        .select('id, display_name, avatar_url, department')
-        .eq('role', 'program_head')
-        .not('department', 'is', null);
+      // Try multiple role variations to ensure we catch all program heads
+      const possibleRoles = ['program_head', 'programhead', 'program head', 'programhead', 'head', 'director'];
+      
+      for (const role of possibleRoles) {
+        if (programHeadsData.length > 0) break; // Stop if we found data
         
-      if (error1) {
-        console.error('Error with role = "program_head" and department:', error1);
-      } else {
-        console.log('Program heads with role "program_head" and department:', programHeads1?.length || 0);
-        if (programHeads1 && programHeads1.length > 0) {
-          programHeadsData = programHeads1;
-          console.log('Sample program head data:', programHeads1[0]);
-        }
-      }
-      
-      // Approach 2: Try with 'programhead' role and department column
-      if (!programHeadsData || programHeadsData.length === 0) {
-        console.log('Trying to fetch with role = "programhead" and department column...');
-        const { data: programHeads2, error: error2 } = await supabase
+        console.log(`Trying to fetch with role = "${role}" and department column...`);
+        const { data: programHeads, error } = await supabase
           .from('user_profiles')
-          .select('id, display_name, avatar_url, department')
-          .eq('role', 'programhead')
+          .select('id, display_name, avatar_url, department, first_name, last_name')
+          .eq('role', role)
           .not('department', 'is', null);
           
-        if (error2) {
-          console.error('Error with role = "programhead" and department:', error2);
-        } else {
-          console.log('Program heads with role "programhead" and department:', programHeads2?.length || 0);
-          if (programHeads2 && programHeads2.length > 0) {
-            programHeadsData = programHeads2;
-            console.log('Sample program head data:', programHeads2[0]);
-          }
+        if (error) {
+          console.error(`Error with role = "${role}" and department:`, error);
+        } else if (programHeads && (programHeads as ProgramHead[]).length > 0) {
+          programHeadsData = programHeads as ProgramHead[];
+          console.log(`Program heads with role "${role}" and department:`, (programHeads as ProgramHead[]).length);
+          console.log('Sample program head data:', (programHeads as ProgramHead[])[0]);
+          break; // Found data, stop trying other roles
         }
       }
       
-      // Approach 3: Try to fetch all users to see the structure
+      // If still no data, try to fetch all users to see the structure
       if (!programHeadsData || programHeadsData.length === 0) {
-        console.log('Trying to fetch all users to see structure...');
+        console.log('No program heads found with specific roles, checking all users...');
         const { data: allUsers, error: error3 } = await supabase
           .from('user_profiles')
-          .select('id, display_name, avatar_url, role')
-          .limit(5);
+          .select('id, display_name, avatar_url, role, department, first_name, last_name')
+          .limit(10);
           
         if (error3) {
           console.error('Error fetching all users:', error3);
         } else {
           console.log('Sample users from user_profiles:', allUsers);
+          
+          // Try to identify program heads from all users
+          const potentialProgramHeads = (allUsers || []).filter(user => 
+            user.role && (
+              user.role.toLowerCase().includes('program') ||
+              user.role.toLowerCase().includes('head') ||
+              user.role.toLowerCase().includes('director')
+            ) && user.department
+          ) as ProgramHead[];
+          
+          if (potentialProgramHeads.length > 0) {
+            programHeadsData = potentialProgramHeads;
+            console.log('Found potential program heads from all users:', potentialProgramHeads.length);
+          }
         }
       }
         
@@ -860,68 +889,40 @@ export default function StudentGrades() {
         }
       }
       
-      // If no active programs found, try to fetch all programs to see what's available
+      // If no programs found, try to fetch with basic fields
       if (!allProgramsData || allProgramsData.length === 0) {
-        console.log('No active programs found, trying to fetch all programs...');
+        console.log('No programs found, trying to fetch with basic fields...');
         
-        // Try different approaches to fetch programs
-        let fallbackPrograms = null;
-        
-        // First try without is_active filter
-        console.log('Trying to fetch all programs without is_active filter...');
-        const { data: allProgramsFallback1, error: fallbackError1 } = await supabase
+        // Try with just basic fields
+        console.log('Trying to fetch programs with basic fields only...');
+        const { data: basicPrograms, error: basicError } = await supabase
           .from('programs')
-          .select('id, name, description, major, is_active')
+          .select('id, name')
           .order('name');
           
-        if (fallbackError1) {
-          console.error('Error fetching all programs (fallback 1):', fallbackError1);
+        if (basicError) {
+          console.error('Error fetching programs with basic fields:', basicError);
+        } else if (basicPrograms && basicPrograms.length > 0) {
+          console.log('Basic programs fetched:', basicPrograms.length);
           
-          // Try with just basic fields
-          console.log('Trying to fetch programs with basic fields only...');
-          const { data: allProgramsFallback2, error: fallbackError2 } = await supabase
-            .from('programs')
-            .select('id, name')
-            .order('name');
-            
-          if (fallbackError2) {
-            console.error('Error fetching programs with basic fields:', fallbackError2);
-          } else {
-            fallbackPrograms = allProgramsFallback2;
-            console.log('Basic programs fetched:', fallbackPrograms?.length || 0);
-          }
-        } else {
-          fallbackPrograms = allProgramsFallback1;
-          console.log('All programs (including inactive):', fallbackPrograms?.length || 0);
-          if (fallbackPrograms && fallbackPrograms.length > 0) {
-            console.log('Sample program data (fallback):', fallbackPrograms[0]);
-            console.log('Program statuses:', fallbackPrograms.map(p => ({ id: p.id, name: p.name, is_active: p.is_active })));
-          }
-        }
-        
-        // If we found programs in fallback, use them
-        if (fallbackPrograms && fallbackPrograms.length > 0) {
-          console.log('Using fallback programs data');
-          const fallbackProgramsArray: Program[] = [];
-          
-          fallbackPrograms.forEach(program => {
+          const basicProgramsArray: Program[] = [];
+          basicPrograms.forEach(program => {
             const studentCount = programStudentCountMap.get(program.id) || 0;
-            const programData = program as { id: string; name: string; description?: string; major?: string; is_active?: boolean };
-            const programHead = findProgramHead(programData.name);
-            fallbackProgramsArray.push({
-              id: programData.id,
-              name: programData.name,
-              code: programData.name, // Use the full program name instead of major or truncated version
-              description: programData.description,
-              major: programData.major,
-              is_active: programData.is_active !== false,
+            const programHead = findProgramHead(program.name);
+            basicProgramsArray.push({
+              id: program.id,
+              name: program.name,
+              code: program.name,
+              description: undefined,
+              major: undefined,
+              is_active: true, // Assume active if not specified
               studentCount: studentCount,
               programHead: programHead || undefined
             });
           });
           
-          fallbackProgramsArray.sort((a, b) => a.name.localeCompare(b.name));
-          setPrograms(fallbackProgramsArray);
+          basicProgramsArray.sort((a, b) => a.name.localeCompare(b.name));
+          setPrograms(basicProgramsArray);
           setLoading(false);
           return;
         }
@@ -932,16 +933,44 @@ export default function StudentGrades() {
         return;
       }
       
-      // Create a map to count students per program
+      // Create a map to count students per program based on user_profiles department
       const programStudentCountMap = new Map<string, number>();
       
-      // Count students for each program
-      (studentsData || []).forEach(student => {
-        if (student.program_id) {
-          const currentCount = programStudentCountMap.get(student.program_id) || 0;
-          programStudentCountMap.set(student.program_id, currentCount + 1);
-        }
-      });
+      // First, get all students from user_profiles with role = 'student'
+      const { data: allStudents, error: programStudentsError } = await supabase
+        .from('user_profiles')
+        .select('id, department, role')
+        .eq('role', 'student')
+        .not('department', 'is', null);
+        
+      if (programStudentsError) {
+        console.error('Error fetching students for program count:', programStudentsError);
+      } else {
+        console.log('Total students found:', allStudents?.length || 0);
+        
+        // Count students for each program based on EXACT department matching
+        (allProgramsData || []).forEach(program => {
+          if (program.name) {
+            const programName = program.name.trim();
+            const studentCount = (allStudents || []).filter(student => {
+              if (student.department) {
+                const studentDept = student.department.trim();
+                // Exact match between program name and student department
+                return studentDept === programName;
+              }
+              return false;
+            }).length;
+            
+            programStudentCountMap.set(program.id, studentCount);
+            
+            if (studentCount > 0) {
+              console.log(`Program "${programName}" has ${studentCount} students`);
+            }
+          }
+        });
+      }
+      
+      console.log('Program student count map (department-based):', Array.from(programStudentCountMap.entries()));
       
       // Create a map to link programs to their program heads
       const programHeadMap = new Map<string, { id: string; display_name: string; avatar_url?: string }>();
@@ -970,21 +999,49 @@ export default function StudentGrades() {
       const availableProgramNames = allProgramsData?.map(p => p.name) || [];
       console.log('Available program names:', availableProgramNames);
       
-      // Create a mapping function to link programs to program heads
+      // Create a robust mapping function to link programs to program heads
       const findProgramHead = (programName: string) => {
+        if (!programName) return null;
+        
+        console.log('Finding program head for program:', programName);
+        console.log('Available departments in programHeadMap:', Array.from(programHeadMap.keys()));
+        
         // Try exact match first
         if (programHeadMap.has(programName)) {
-          return programHeadMap.get(programName);
+          const exactMatch = programHeadMap.get(programName);
+          console.log('Exact match found:', exactMatch);
+          return exactMatch;
         }
         
-        // Try partial matches
+        // Try partial matches with better logic
         for (const [department, programHead] of programHeadMap.entries()) {
-          if (programName.toLowerCase().includes(department.toLowerCase()) || 
-              department.toLowerCase().includes(programName.toLowerCase())) {
+          const programLower = programName.toLowerCase();
+          const deptLower = department.toLowerCase();
+          
+          // Check if program name contains department or vice versa
+          if (programLower.includes(deptLower) || deptLower.includes(programLower)) {
+            console.log('Partial match found:', { department, programName, programHead });
+            return programHead;
+          }
+          
+          // Check for common variations
+          const programWords = programLower.split(/\s+/);
+          const deptWords = deptLower.split(/\s+/);
+          
+          // Check if any words match
+          const hasCommonWords = programWords.some(word => 
+            deptWords.some(deptWord => 
+              word.includes(deptWord) || deptWord.includes(word)
+            )
+          );
+          
+          if (hasCommonWords) {
+            console.log('Word-based match found:', { department, programName, programHead });
             return programHead;
           }
         }
         
+        console.log('No program head found for:', programName);
         return null;
       };
       
@@ -1060,11 +1117,11 @@ export default function StudentGrades() {
       setShowPrograms(true);
       setShowYearLevels(false);
       setShowSections(false);
-      setShowSubjects(false);
+    setShowSubjects(false);
       setSelectedProgram('');
-      setSelectedYearLevel('');
-      setSelectedSection('');
-      setSelectedSubject('');
+    setSelectedYearLevel('');
+    setSelectedSection('');
+    setSelectedSubject('');
       setNavigationHistory(['programs']);
     } else if (previousStep === 'yearLevels') {
       setShowPrograms(false);
@@ -1095,6 +1152,18 @@ export default function StudentGrades() {
       setShowSubjects(true);
       setSelectedSubject('');
       setNavigationHistory(currentHistory.slice(0, -1));
+    } else if (previousStep === 'emptyProgram') {
+      // Going back from empty program state to programs list
+      setShowPrograms(true);
+      setShowYearLevels(false);
+      setShowSections(false);
+      setShowSubjects(false);
+      setShowEmptyProgram(false);
+      setSelectedProgram('');
+      setSelectedYearLevel('');
+      setSelectedSection('');
+      setSelectedSubject('');
+      setNavigationHistory(['programs']);
     } else {
       // Default fallback to programs
       setShowPrograms(true);
@@ -1110,11 +1179,69 @@ export default function StudentGrades() {
   };
 
   // New function to handle program card clicks
-  const handleProgramClick = (programId: string) => {
-    setSelectedProgram(programId);
-    setShowPrograms(false);
-    setShowYearLevels(true);
-    setNavigationHistory(prev => [...prev, 'yearLevels']);
+  const handleProgramClick = async (programId: string) => {
+    const selectedProgramData = programs.find(p => p.id === programId);
+    
+    // Always check the database for current student count
+    try {
+      console.log('Checking database for students in program:', programId);
+      
+      // Get the program name to match with department
+      const programName = selectedProgramData?.name;
+      if (!programName) {
+        console.error('Program name not found for ID:', programId);
+        return;
+      }
+      
+      // Count students from user_profiles that match this program's department
+      const { data: programStudents, error: programCheckError } = await supabase
+        .from('user_profiles')
+        .select('id, department')
+        .eq('role', 'student')
+        .eq('department', programName)
+        .not('department', 'is', null);
+        
+      if (programCheckError) {
+        console.error('Error checking program students:', programCheckError);
+        // Fallback to using cached data
+        if (selectedProgramData && selectedProgramData.studentCount === 0) {
+          setShowEmptyProgram(true);
+        } else {
+          setShowYearLevels(true);
+        }
+        return;
+      }
+      
+      const actualStudentCount = programStudents?.length || 0;
+      
+      console.log('Database check - Program:', programName, 'Actual students found:', actualStudentCount);
+      
+      if (actualStudentCount === 0) {
+        // No students found in database - show empty state
+        setSelectedProgram(programId);
+        setShowPrograms(false);
+        setShowYearLevels(false);
+        setShowSections(false);
+        setShowSubjects(false);
+        setShowEmptyProgram(true);
+        setNavigationHistory(prev => [...prev, 'emptyProgram']);
+      } else {
+        // Students found in database - proceed with normal navigation
+        setSelectedProgram(programId);
+        setShowPrograms(false);
+        setShowYearLevels(true);
+        setShowEmptyProgram(false);
+        setNavigationHistory(prev => [...prev, 'yearLevels']);
+      }
+    } catch (error) {
+      console.error('Error in handleProgramClick:', error);
+      // Fallback to using cached data
+      if (selectedProgramData && selectedProgramData.studentCount === 0) {
+        setShowEmptyProgram(true);
+      } else {
+        setShowYearLevels(true);
+      }
+    }
   };
 
   // New function to handle year level card clicks
@@ -1139,6 +1266,10 @@ export default function StudentGrades() {
     setShowSubjects(false);
     setNavigationHistory(prev => [...prev, 'students']);
   };
+
+
+
+
 
 
 
@@ -1233,17 +1364,29 @@ export default function StudentGrades() {
   const releasedGrades = grades.filter(g => g.is_released).length;
   const pendingGrades = grades.filter(g => !g.is_released).length;
 
-  // Get students for a given combination (year, section, subject)
+  // Get students for a given combination (year, section, subject) - filtered by selected program
   const getStudentsForCombination = (yearLevel: string, section: string, subject: string) => {
+    const selectedProgramName = programs.find(p => p.id === selectedProgram)?.name;
     return grades
-      .filter(g => g.year_level === yearLevel && g.section === section && g.course_code === subject)
+      .filter(g => 
+        g.program_name === selectedProgramName &&
+        g.year_level === yearLevel && 
+        g.section === section && 
+        g.course_code === subject
+      )
       .slice(0, 8); // cap to 8 avatars for layout
   };
 
-  // Get total student count for a combination
+  // Get total student count for a combination - filtered by selected program
   const getTotalStudentCount = (yearLevel: string, section: string, subject: string) => {
+    const selectedProgramName = programs.find(p => p.id === selectedProgram)?.name;
     return grades
-      .filter(g => g.year_level === yearLevel && g.section === section && g.course_code === subject)
+      .filter(g => 
+        g.program_name === selectedProgramName &&
+        g.year_level === yearLevel && 
+        g.section === section && 
+        g.course_code === subject
+      )
       .length;
   };
 
@@ -1319,8 +1462,14 @@ export default function StudentGrades() {
           // Fast Selection Interface
           <div className="bg-white/90 rounded-2xl shadow-lg border border-gray-100 p-8">
             <div className="text-center mb-8">
+              <div className="flex items-center justify-between mb-4">
+                <div></div> {/* Left spacer */}
+                                  <div className="text-center">
               <h2 className="text-2xl font-bold text-gray-800 mb-2">Quick Grade Management</h2>
-              <p className="text-gray-600">Click on any program to view and manage student grades</p>
+                    <p className="text-gray-600">Click on any program to view and manage student grades</p>
+                  </div>
+                  <div></div> {/* Right spacer */}
+              </div>
             </div>
             
             <div className="max-w-6xl mx-auto">
@@ -1329,24 +1478,44 @@ export default function StudentGrades() {
                              {/* Quick Selection Grid */}
                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                  {programs
-                   .filter(program => {
-                     // Only show active programs
-                     const isActive = program.is_active !== false; // Default to true if not specified
-                     
-                     return isActive;
-                   })
                    .map((program) => (
-                  <div
-                    key={program.id}
-                    onClick={() => handleProgramClick(program.id)}
-                    className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl p-6 border border-blue-200 hover:border-blue-400 hover:shadow-lg transition-all duration-200 cursor-pointer transform hover:scale-105"
-                  >
-                                        <div className="flex items-center gap-2 mb-3">
-                      <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                      <span className="text-sm font-medium text-blue-700">
-                        {program.name}
-                      </span>
-                    </div>
+                                      <div
+                      key={program.id}
+                      onClick={() => handleProgramClick(program.id)}
+                      className={`rounded-xl p-6 border transition-all duration-200 cursor-pointer transform hover:scale-105 ${
+                        program.studentCount > 0 
+                          ? 'bg-gradient-to-br from-blue-50 to-purple-50 border-blue-200 hover:border-blue-400 hover:shadow-lg' 
+                          : 'bg-gradient-to-br from-gray-50 to-slate-50 border-gray-200 hover:border-gray-300 hover:shadow-md'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-3 h-3 rounded-full ${
+                            program.studentCount > 0 ? 'bg-blue-500' : 'bg-gray-400'
+                          }`}></div>
+                          <span className={`text-sm font-medium ${
+                            program.studentCount > 0 ? 'text-blue-700' : 'text-gray-600'
+                          }`}>
+                            {program.name}
+                          </span>
+                        </div>
+                        {/* Program Status and Student Count */}
+                        <div className="flex flex-col items-end gap-1">
+                          {/* Simple student count display */}
+                          {program.studentCount === 0 ? (
+                            <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                              No Students
+                            </span>
+                          ) : (
+                            <span 
+                              className="text-xs font-medium text-blue-600 bg-blue-100 px-2 py-1 rounded-full cursor-help"
+                              title={`${program.studentCount} student${program.studentCount !== 1 ? 's' : ''} with EXACT department match to "${program.name}"`}
+                            >
+                              {program.studentCount} student{program.studentCount !== 1 ? 's' : ''}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     
                                          <div className="space-y-2">
                        <div className="flex items-start justify-between gap-3">
@@ -1358,11 +1527,14 @@ export default function StudentGrades() {
                            textOverflow: 'ellipsis'
                          }}>
                            {/* Show description if available, otherwise show a default message */}
-                           {program.description || `Program in ${program.name}`}
+                           {program.studentCount === 0 
+                             ? 'No students currently enrolled in this program'
+                             : (program.description || `Program in ${program.name}`)
+                           }
                          </div>
                          
                          {/* Program Head Avatar - Right Side */}
-                         {program.programHead && (
+                         {program.programHead ? (
                            <div className="flex flex-col items-center gap-1 flex-shrink-0">
                              <img
                                src={program.programHead.avatar_url || "/img/user-avatar.png"}
@@ -1377,21 +1549,38 @@ export default function StudentGrades() {
                                {program.programHead.display_name}
                              </span>
                            </div>
-                         )}
-                       </div>
-                       
+                         ) : program.studentCount === 0 ? (
+                           <div className="flex flex-col items-center gap-1 flex-shrink-0">
+                             <div className="w-16 h-16 rounded-full border-2 border-gray-200 bg-gray-100 flex items-center justify-center">
+                               <Users className="w-8 h-8 text-gray-400" />
+                             </div>
+                             <span className="text-xs font-medium text-gray-500 text-center max-w-[60px] truncate">
+                               No Program Head
+                             </span>
+                           </div>
+                         ) : null}
+                  </div>
+
                        <div className="flex items-center">
                          {/* Program icon */}
-                         <div className="w-6 h-6 rounded-full bg-blue-100 border-2 border-white shadow-sm flex items-center justify-center">
-                           <GraduationCap className="w-4 h-4 text-blue-600" />
+                         <div className={`w-6 h-6 rounded-full border-2 border-white shadow-sm flex items-center justify-center ${
+                           program.studentCount > 0 ? 'bg-blue-100' : 'bg-gray-100'
+                         }`}>
+                           <GraduationCap className={`w-4 h-4 ${
+                             program.studentCount > 0 ? 'text-blue-600' : 'text-gray-500'
+                           }`} />
                          </div>
                        </div>
                      </div>
                     
-                    <div className="mt-4 pt-3 border-t border-blue-200">
+                    <div className={`mt-4 pt-3 border-t ${
+                      program.studentCount > 0 ? 'border-blue-200' : 'border-gray-200'
+                    }`}>
                       <div className="flex items-center justify-between text-xs text-gray-500">
-                        <span>Click to view</span>
-                        <GraduationCap className="w-4 h-4" />
+                        <span>{program.studentCount > 0 ? 'Click to view' : 'No students to view'}</span>
+                        <GraduationCap className={`w-4 h-4 ${
+                          program.studentCount > 0 ? 'text-blue-500' : 'text-gray-400'
+                        }`} />
                       </div>
                     </div>
                   </div>
@@ -1401,8 +1590,7 @@ export default function StudentGrades() {
 
               
                              {(() => {
-                 const activePrograms = programs.filter(p => p.is_active !== false);
-                 if (activePrograms.length === 0) {
+                 if (programs.length === 0) {
                    return (
                      <div className="text-center py-12">
                        <div className="text-gray-400 mb-4">
@@ -1410,18 +1598,13 @@ export default function StudentGrades() {
                        </div>
                        <h3 className="text-lg font-semibold text-gray-600 mb-2">No Programs Available</h3>
                        <p className="text-gray-500">
-                         {programs.length === 0 
-                           ? "No programs found in the database. Please check if the programs table exists and contains data."
-                           : "No active programs found. All programs may be marked as inactive."
-                         }
+                         "No programs found in the database. Please check if the programs table exists and contains data."
                        </p>
-                       {programs.length === 0 && (
-                         <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                           <p className="text-sm text-yellow-800">
-                             <strong>Debug Info:</strong> Check the browser console for database connection details.
-                           </p>
-                         </div>
-                       )}
+                       <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                         <p className="text-sm text-yellow-800">
+                           <strong>Debug Info:</strong> Check the browser console for database connection details.
+                         </p>
+                       </div>
                      </div>
                    );
                  }
@@ -1431,6 +1614,86 @@ export default function StudentGrades() {
 
             </div>
           </div>
+                 ) : showEmptyProgram ? (
+                   // Empty Program State
+                   <div className="space-y-6">
+                     {/* Back Button and Header */}
+                     <div className="flex items-center justify-between">
+                       <button
+                         onClick={handleGoBack}
+                         className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"
+                       >
+                         <ChevronRight className="w-4 h-4 rotate-180" />
+                         Back to Programs
+                       </button>
+                       <div className="text-center flex-1">
+                         <div className="bg-gradient-to-r from-gray-600 to-slate-600 text-white px-8 py-4 rounded-xl shadow-lg inline-block">
+                           <h2 className="text-2xl font-bold">
+                             {programs.find(p => p.id === selectedProgram)?.name || 'Unknown Program'}
+                           </h2>
+                           <p className="text-white/80 text-base mt-2">This program currently has no enrolled students</p>
+                         </div>
+                       </div>
+                       <div className="w-32"></div> {/* Spacer to balance the layout */}
+                     </div>
+                     
+                     {/* Empty Program State */}
+                     <div className="bg-white/90 rounded-2xl shadow-lg border border-gray-100 p-12">
+                       <div className="text-center">
+                         <div className="text-gray-400 mb-6">
+                           <Users className="w-24 h-24 mx-auto" />
+                         </div>
+                         <h3 className="text-2xl font-semibold text-gray-700 mb-4">No Students Enrolled</h3>
+                         <p className="text-gray-600 text-lg mb-6 max-w-2xl mx-auto">
+                           The program <strong>{programs.find(p => p.id === selectedProgram)?.name || 'Unknown Program'}</strong> currently has no enrolled students. 
+                           This could be because:
+                         </p>
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl mx-auto mb-8">
+                           <div className="text-left p-4 bg-gray-50 rounded-lg">
+                             <h4 className="font-semibold text-gray-700 mb-2">• New Program</h4>
+                             <p className="text-gray-600 text-sm">This program may be newly created and not yet open for enrollment.</p>
+                           </div>
+                           <div className="text-left p-4 bg-gray-50 rounded-lg">
+                             <h4 className="font-semibold text-gray-700 mb-2">• No Current Enrollment</h4>
+                             <p className="text-gray-600 text-sm">Students may not have enrolled in this program for the current academic period.</p>
+                           </div>
+                           <div className="text-left p-4 bg-gray-50 rounded-lg">
+                             <h4 className="font-semibold text-gray-700 mb-2">• Program Status</h4>
+                             <p className="text-gray-600 text-sm">The program might be inactive or temporarily closed for enrollment.</p>
+                           </div>
+                           <div className="text-left p-4 bg-gray-50 rounded-lg">
+                             <h4 className="font-semibold text-gray-700 mb-2">• Data Sync</h4>
+                             <p className="text-gray-600 text-sm">Student enrollment data may not be synchronized with the grades system.</p>
+                           </div>
+                         </div>
+                         <div className="flex items-center justify-center gap-4">
+                           <button
+                             onClick={handleGoBack}
+                             className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                           >
+                             Back to Programs
+                           </button>
+                    <button
+                      onClick={() => {
+                               setShowPrograms(true);
+                               setShowYearLevels(false);
+                               setShowSections(false);
+                               setShowSubjects(false);
+                               setShowEmptyProgram(false);
+                               setSelectedProgram('');
+                               setSelectedYearLevel('');
+                               setSelectedSection('');
+                               setSelectedSubject('');
+                               setNavigationHistory(['programs']);
+                             }}
+                             className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+                           >
+                             View All Programs
+                    </button>
+                </div>
+                       </div>
+                     </div>
+                   </div>
                  ) : showYearLevels ? (
            // Year Level Selection Interface
            <div className="space-y-6">
@@ -1452,8 +1715,8 @@ export default function StudentGrades() {
                  </div>
                </div>
                <div className="w-32"></div> {/* Spacer to balance the layout */}
-             </div>
-             
+              </div>
+              
              <div className="bg-white/90 rounded-2xl shadow-lg border border-gray-100 p-8">
                <div className="text-center mb-8">
              
@@ -1463,39 +1726,52 @@ export default function StudentGrades() {
                
                
                {/* Year Level Grid */}
-               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                  {(() => {
                    // Get unique year levels for the selected program
+                   const selectedProgramName = programs.find(p => p.id === selectedProgram)?.name;
                    const programYearLevels = Array.from(new Set(
                      yearLevelSectionSubjects
+                       .filter(item => {
+                         // Filter by selected program using grades data
+                         const hasStudentsInProgram = grades.some(g => 
+                           g.program_name === selectedProgramName &&
+                           g.year_level === item.year_level &&
+                           g.section === item.section &&
+                           g.course_code === item.subject
+                         );
+                         return hasStudentsInProgram;
+                       })
                        .map(item => item.year_level)
                    )).sort();
                    
                    return programYearLevels.map((yearLevel) => {
-                     const studentCount = yearLevelSectionSubjects
-                       .filter(item => item.year_level === yearLevel)
-                       .reduce((total, item) => total + item.studentCount, 0);
+                     // Count students for this year level in the selected program
+                     const studentCount = grades.filter(g => 
+                       g.program_name === selectedProgramName &&
+                       g.year_level === yearLevel
+                     ).length;
                      
                      return (
                        <div
                          key={yearLevel}
                          onClick={() => handleYearLevelClick(yearLevel)}
                          className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 border border-green-200 hover:border-green-400 hover:shadow-lg transition-all duration-200 cursor-pointer transform hover:scale-105"
-                       >
-                         <div className="flex items-center justify-between mb-3">
-                           <div className="flex items-center gap-2">
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
                              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
                              <span className="text-sm font-medium text-green-700">
-                               Year {yearLevel}
-                             </span>
-                           </div>
+                               {getYearLevelDisplayName(yearLevel)}
+                        </span>
+                      </div>
                            <span className="text-xs font-medium text-green-600 bg-green-100 px-2 py-1 rounded-full">
                              {studentCount} students
-                           </span>
-                         </div>
-                         
-                         <div className="space-y-2">
-                           <div className="text-lg font-bold text-gray-800">
+                      </span>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <div className="text-lg font-bold text-gray-800">
                              {(() => {
                                const sections = Array.from(new Set(
                                  yearLevelSectionSubjects
@@ -1504,42 +1780,42 @@ export default function StudentGrades() {
                                ));
                                return `${sections.length} section${sections.length !== 1 ? 's' : ''}`;
                              })()}
-                           </div>
-                           <div className="flex -space-x-2 items-center">
+                      </div>
+                      <div className="flex -space-x-2 items-center">
                              {/* Year level icon */}
                              <div className="w-6 h-6 rounded-full bg-green-100 border-2 border-white shadow-sm flex items-center justify-center">
                                <BookOpen className="w-4 h-4 text-green-600" />
                              </div>
-                             {(() => {
+                        {(() => {
                                const totalCount = studentCount;
-                               
-                               if (totalCount === 0) {
-                                 return <span className="text-sm font-medium text-gray-500">No students</span>;
+                          
+                          if (totalCount === 0) {
+                            return <span className="text-sm font-medium text-gray-500">No students</span>;
                                } else if (totalCount > 1) {
-                                 return (
+                            return (
                                    <div className="w-6 h-6 rounded-full bg-green-100 border-2 border-white shadow-sm flex items-center justify-center">
                                      <span className="text-xs font-bold text-green-600">+{totalCount - 1}</span>
-                                   </div>
-                                 );
-                               }
-                               return null;
-                             })()}
-                           </div>
-                         </div>
-                         
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
+                      </div>
+                    </div>
+                    
                          <div className="mt-4 pt-3 border-t border-green-200">
-                           <div className="flex items-center justify-between text-xs text-gray-500">
-                             <span>Click to view</span>
+                      <div className="flex items-center justify-between text-xs text-gray-500">
+                        <span>Click to view</span>
                              <ChevronRight className="w-4 h-4" />
-                           </div>
-                         </div>
-                       </div>
+                      </div>
+                    </div>
+                  </div>
                      );
                    });
                  })()}
-               </div>
-               
-               {(() => {
+              </div>
+              
+              {(() => {
                  const programYearLevels = Array.from(new Set(
                    yearLevelSectionSubjects.map(item => item.year_level)
                  ));
@@ -1593,19 +1869,33 @@ export default function StudentGrades() {
                  {/* Sections Grid */}
                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                    {(() => {
-                     // Get unique sections for the selected year level
+                     // Get unique sections for the selected year level and program
+                     const selectedProgramName = programs.find(p => p.id === selectedProgram)?.name;
                      const yearLevelSections = Array.from(new Set(
                        yearLevelSectionSubjects
                          .filter(item => item.year_level === selectedYearLevel)
+                         .filter(item => {
+                           // Filter by selected program using grades data
+                           const hasStudentsInProgram = grades.some(g => 
+                             g.program_name === selectedProgramName &&
+                             g.year_level === item.year_level &&
+                             g.section === item.section &&
+                             g.course_code === item.subject
+                           );
+                           return hasStudentsInProgram;
+                         })
                          .map(item => item.section)
                      )).sort();
                      
                      return yearLevelSections.map((section) => {
-                       const studentCount = yearLevelSectionSubjects
-                         .filter(item => item.year_level === selectedYearLevel && item.section === section)
-                         .reduce((total, item) => total + item.studentCount, 0);
-                       
-                       return (
+                       // Count students for this section in the selected program and year level
+                       const studentCount = grades.filter(g => 
+                         g.program_name === selectedProgramName &&
+                         g.year_level === selectedYearLevel &&
+                         g.section === section
+                       ).length;
+                
+                return (
                          <div
                            key={section}
                            onClick={() => handleSectionClick(section)}
@@ -1648,11 +1938,11 @@ export default function StudentGrades() {
                                    return (
                                      <div className="w-6 h-6 rounded-full bg-purple-100 border-2 border-white shadow-sm flex items-center justify-center">
                                        <span className="text-xs font-bold text-purple-600">+{totalCount - 1}</span>
-                                     </div>
-                                   );
+                  </div>
+                );
                                  }
                                  return null;
-                               })()}
+              })()}
                              </div>
                            </div>
                            
@@ -1660,8 +1950,8 @@ export default function StudentGrades() {
                              <div className="flex items-center justify-between text-xs text-gray-500">
                                <span>Click to view</span>
                                <ChevronRight className="w-4 h-4" />
-                             </div>
-                           </div>
+                  </div>
+                </div>
                          </div>
                        );
                      });
@@ -1679,22 +1969,22 @@ export default function StudentGrades() {
                    
                    if (yearLevelSections.length === 0) {
                      return (
-                       <div className="text-center py-12">
-                         <div className="text-gray-400 mb-4">
+                  <div className="text-center py-12">
+                    <div className="text-gray-400 mb-4">
                            <Users className="w-16 h-16 mx-auto" />
-                         </div>
+                    </div>
                          <h3 className="text-lg font-semibold text-gray-600 mb-2">No Data Available</h3>
                          <p className="text-gray-500">No sections found for this year level.</p>
-                       </div>
+                  </div>
                      );
                    }
                    
 
-                 })()}
+              })()}
                </div>
-             </div>
-           </div>
-         ) : showSubjects ? (
+            </div>
+          </div>
+        ) : showSubjects ? (
           // Subjects List View
           <div className="space-y-6">
             {/* Back Button and Header */}
@@ -1840,8 +2130,8 @@ export default function StudentGrades() {
               
               {(() => {
                 const totalSubjects = yearLevelSectionSubjects.filter(item => 
-                  item.year_level === selectedYearLevel && 
-                  item.section === selectedSection
+                item.year_level === selectedYearLevel && 
+                item.section === selectedSection
                 );
                 
                 const filteredSubjects = totalSubjects.filter(item => 
@@ -1852,13 +2142,13 @@ export default function StudentGrades() {
                 
                 if (totalSubjects.length === 0) {
                   return (
-                    <div className="text-center py-12">
-                      <div className="text-gray-400 mb-4">
-                        <BookOpen className="w-16 h-16 mx-auto" />
-                      </div>
-                      <h3 className="text-lg font-semibold text-gray-600 mb-2">No Subjects Available</h3>
-                      <p className="text-gray-500">No subjects found for the selected year level and section.</p>
-                    </div>
+                <div className="text-center py-12">
+                  <div className="text-gray-400 mb-4">
+                    <BookOpen className="w-16 h-16 mx-auto" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-600 mb-2">No Subjects Available</h3>
+                  <p className="text-gray-500">No subjects found for the selected year level and section.</p>
+                </div>
                   );
                 } else if (filteredSubjects.length === 0) {
                   return (
@@ -1880,13 +2170,13 @@ export default function StudentGrades() {
           <div className="space-y-6">
             {/* Back Button and Header */}
             <div className="flex items-center justify-between">
-                             <button
+              <button
                  onClick={handleGoBack}
-                 className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"
-               >
-                 <ChevronRight className="w-4 h-4 rotate-180" />
+                className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"
+              >
+                <ChevronRight className="w-4 h-4 rotate-180" />
                  Back
-               </button>
+              </button>
               <div className="text-center flex-1">
                 <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-4 rounded-xl shadow-lg inline-block">
                   <h2 className="text-2xl font-bold">
