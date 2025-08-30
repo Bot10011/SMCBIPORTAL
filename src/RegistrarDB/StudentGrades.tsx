@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { Loader2, CheckCircle2, Clock, BookOpen, ChevronRight, Search, Users } from 'lucide-react';
+import { Loader2, CheckCircle2, Clock, BookOpen, ChevronRight, Search, Users, GraduationCap } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface Grade {
@@ -47,24 +47,45 @@ interface YearLevelSectionSubject {
   studentCount: number;
 }
 
+interface Program {
+  id: string;
+  name: string;
+  code: string;
+  description?: string;
+  major?: string;
+  is_active?: boolean;
+  studentCount: number;
+  programHead?: {
+    id: string;
+    display_name: string;
+    avatar_url?: string;
+  };
+}
+
 export default function StudentGrades() {
   const [grades, setGrades] = useState<Grade[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
   // State for selection interface
+  const [selectedProgram, setSelectedProgram] = useState<string>('');
   const [selectedYearLevel, setSelectedYearLevel] = useState<string>('');
   const [selectedSection, setSelectedSection] = useState<string>('');
   const [selectedSubject, setSelectedSubject] = useState<string>('');
-  const [showSelection, setShowSelection] = useState(true);
-  const [showSubjects, setShowSubjects] = useState(false); // New state for subjects view
+  const [showPrograms, setShowPrograms] = useState(true);
+  const [showYearLevels, setShowYearLevels] = useState(false);
+  const [showSections, setShowSections] = useState(false);
+  const [showSubjects, setShowSubjects] = useState(false);
+  
+  // Navigation history to track the flow
+  const [navigationHistory, setNavigationHistory] = useState<string[]>(['programs']);
 
   const [yearLevelSectionSubjects, setYearLevelSectionSubjects] = useState<YearLevelSectionSubject[]>([]);
+  const [programs, setPrograms] = useState<Program[]>([]);
   
-  // State for search and filtering
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedYearFilter, setSelectedYearFilter] = useState<string>('');
-  const [selectedSectionFilter, setSelectedSectionFilter] = useState<string>('');
+  // State for search and filtering - separate states for different views
+  const [subjectSearchTerm, setSubjectSearchTerm] = useState('');
+  const [studentSearchTerm, setStudentSearchTerm] = useState('');
   
   // State for bulk actions
   const [bulkUpdating, setBulkUpdating] = useState(false);
@@ -104,6 +125,39 @@ export default function StudentGrades() {
     console.log('Fetching grades and student data...');
     
     try {
+      // Test database connectivity first
+      console.log('Testing database connectivity...');
+      const { error: testError } = await supabase
+        .from('programs')
+        .select('count')
+        .limit(1);
+        
+      if (testError) {
+        console.error('Database connectivity test failed:', testError);
+        setError(`Database connection failed: ${testError.message}`);
+        setLoading(false);
+        return;
+      } else {
+        console.log('Database connectivity test passed');
+      }
+      
+      // Test fetching a single program to see the actual data structure
+      console.log('Testing single program fetch...');
+      const { data: singleProgramTest, error: singleProgramError } = await supabase
+        .from('programs')
+        .select('*')
+        .limit(1);
+        
+      if (singleProgramError) {
+        console.error('Single program test failed:', singleProgramError);
+      } else {
+        console.log('Single program test result:', singleProgramTest);
+        if (singleProgramTest && singleProgramTest.length > 0) {
+          console.log('Single program data structure:', Object.keys(singleProgramTest[0]));
+          console.log('Single program values:', singleProgramTest[0]);
+        }
+      }
+      
       // First, get all students with their year level and section info
       const { data: studentsData, error: studentsError } = await supabase
         .from('user_profiles')
@@ -685,6 +739,296 @@ export default function StudentGrades() {
         console.log('Sample year level section subjects:', yearLevelSectionSubjectsArray.slice(0, 3));
       }
       
+      // Create programs array for display
+      const programsArray: Program[] = [];
+      
+      // First, get all active programs from the programs table
+      console.log('Fetching programs from database...');
+      console.log('Query: SELECT id, name, description, major, is_active FROM programs WHERE is_active = true ORDER BY name');
+      
+      const { data: allProgramsData, error: allProgramsError } = await supabase
+        .from('programs')
+        .select('id, name, description, major, is_active')
+        .eq('is_active', true)
+        .order('name');
+        
+      // Debug: Check what fields are available in programs table
+      if (allProgramsData && allProgramsData.length > 0) {
+        console.log('Programs table structure - available fields:', Object.keys(allProgramsData[0]));
+        console.log('Sample program data:', allProgramsData[0]);
+      }
+        
+      // Fetch program heads information
+      console.log('Fetching program heads...');
+      
+      // First, let's check what roles exist in user_profiles
+      const { data: rolesData, error: rolesError } = await supabase
+        .from('user_profiles')
+        .select('role')
+        .not('role', 'is', null);
+        
+      if (rolesError) {
+        console.error('Error fetching roles:', rolesError);
+      } else {
+        const uniqueRoles = [...new Set(rolesData?.map(u => u.role) || [])];
+        console.log('Available roles in user_profiles:', uniqueRoles);
+      }
+      
+      // Try to fetch program heads with different approaches
+      let programHeadsData = null;
+      
+      // Approach 1: Try with 'program_head' role and department column
+      console.log('Trying to fetch with role = "program_head" and department column...');
+      const { data: programHeads1, error: error1 } = await supabase
+        .from('user_profiles')
+        .select('id, display_name, avatar_url, department')
+        .eq('role', 'program_head')
+        .not('department', 'is', null);
+        
+      if (error1) {
+        console.error('Error with role = "program_head" and department:', error1);
+      } else {
+        console.log('Program heads with role "program_head" and department:', programHeads1?.length || 0);
+        if (programHeads1 && programHeads1.length > 0) {
+          programHeadsData = programHeads1;
+          console.log('Sample program head data:', programHeads1[0]);
+        }
+      }
+      
+      // Approach 2: Try with 'programhead' role and department column
+      if (!programHeadsData || programHeadsData.length === 0) {
+        console.log('Trying to fetch with role = "programhead" and department column...');
+        const { data: programHeads2, error: error2 } = await supabase
+          .from('user_profiles')
+          .select('id, display_name, avatar_url, department')
+          .eq('role', 'programhead')
+          .not('department', 'is', null);
+          
+        if (error2) {
+          console.error('Error with role = "programhead" and department:', error2);
+        } else {
+          console.log('Program heads with role "programhead" and department:', programHeads2?.length || 0);
+          if (programHeads2 && programHeads2.length > 0) {
+            programHeadsData = programHeads2;
+            console.log('Sample program head data:', programHeads2[0]);
+          }
+        }
+      }
+      
+      // Approach 3: Try to fetch all users to see the structure
+      if (!programHeadsData || programHeadsData.length === 0) {
+        console.log('Trying to fetch all users to see structure...');
+        const { data: allUsers, error: error3 } = await supabase
+          .from('user_profiles')
+          .select('id, display_name, avatar_url, role')
+          .limit(5);
+          
+        if (error3) {
+          console.error('Error fetching all users:', error3);
+        } else {
+          console.log('Sample users from user_profiles:', allUsers);
+        }
+      }
+        
+      if (allProgramsError) {
+        console.error('Error fetching all programs:', allProgramsError);
+        console.error('Error details:', {
+          message: allProgramsError.message,
+          details: allProgramsError.details,
+          hint: allProgramsError.hint,
+          code: allProgramsError.code
+        });
+        setError(`Failed to load programs: ${allProgramsError.message}`);
+        setLoading(false);
+        return;
+      } else {
+        console.log('All active programs fetched:', allProgramsData?.length || 0);
+        if (allProgramsData && allProgramsData.length > 0) {
+          console.log('Sample program data:', allProgramsData[0]);
+          console.log('All program data:', allProgramsData);
+          
+          // Debug: Check specific fields for each program
+          allProgramsData.forEach((program, index) => {
+            console.log(`Program ${index + 1}:`, {
+              id: program.id,
+              name: program.name,
+              description: program.description,
+              major: program.major,
+              is_active: program.is_active
+            });
+          });
+        }
+      }
+      
+      // If no active programs found, try to fetch all programs to see what's available
+      if (!allProgramsData || allProgramsData.length === 0) {
+        console.log('No active programs found, trying to fetch all programs...');
+        
+        // Try different approaches to fetch programs
+        let fallbackPrograms = null;
+        
+        // First try without is_active filter
+        console.log('Trying to fetch all programs without is_active filter...');
+        const { data: allProgramsFallback1, error: fallbackError1 } = await supabase
+          .from('programs')
+          .select('id, name, description, major, is_active')
+          .order('name');
+          
+        if (fallbackError1) {
+          console.error('Error fetching all programs (fallback 1):', fallbackError1);
+          
+          // Try with just basic fields
+          console.log('Trying to fetch programs with basic fields only...');
+          const { data: allProgramsFallback2, error: fallbackError2 } = await supabase
+            .from('programs')
+            .select('id, name')
+            .order('name');
+            
+          if (fallbackError2) {
+            console.error('Error fetching programs with basic fields:', fallbackError2);
+          } else {
+            fallbackPrograms = allProgramsFallback2;
+            console.log('Basic programs fetched:', fallbackPrograms?.length || 0);
+          }
+        } else {
+          fallbackPrograms = allProgramsFallback1;
+          console.log('All programs (including inactive):', fallbackPrograms?.length || 0);
+          if (fallbackPrograms && fallbackPrograms.length > 0) {
+            console.log('Sample program data (fallback):', fallbackPrograms[0]);
+            console.log('Program statuses:', fallbackPrograms.map(p => ({ id: p.id, name: p.name, is_active: p.is_active })));
+          }
+        }
+        
+        // If we found programs in fallback, use them
+        if (fallbackPrograms && fallbackPrograms.length > 0) {
+          console.log('Using fallback programs data');
+          const fallbackProgramsArray: Program[] = [];
+          
+          fallbackPrograms.forEach(program => {
+            const studentCount = programStudentCountMap.get(program.id) || 0;
+            const programData = program as { id: string; name: string; description?: string; major?: string; is_active?: boolean };
+            const programHead = findProgramHead(programData.name);
+            fallbackProgramsArray.push({
+              id: programData.id,
+              name: programData.name,
+              code: programData.name, // Use the full program name instead of major or truncated version
+              description: programData.description,
+              major: programData.major,
+              is_active: programData.is_active !== false,
+              studentCount: studentCount,
+              programHead: programHead || undefined
+            });
+          });
+          
+          fallbackProgramsArray.sort((a, b) => a.name.localeCompare(b.name));
+          setPrograms(fallbackProgramsArray);
+          setLoading(false);
+          return;
+        }
+        
+        // Still set empty programs array if none found
+        setPrograms([]);
+        setLoading(false);
+        return;
+      }
+      
+      // Create a map to count students per program
+      const programStudentCountMap = new Map<string, number>();
+      
+      // Count students for each program
+      (studentsData || []).forEach(student => {
+        if (student.program_id) {
+          const currentCount = programStudentCountMap.get(student.program_id) || 0;
+          programStudentCountMap.set(student.program_id, currentCount + 1);
+        }
+      });
+      
+      // Create a map to link programs to their program heads
+      const programHeadMap = new Map<string, { id: string; display_name: string; avatar_url?: string }>();
+      (programHeadsData || []).forEach(programHead => {
+        if (programHead.department) {
+          programHeadMap.set(programHead.department, {
+            id: programHead.id,
+            display_name: programHead.display_name,
+            avatar_url: programHead.avatar_url
+          });
+        }
+      });
+      
+      console.log('Program head map created:', programHeadMap.size, 'entries');
+      if (programHeadMap.size > 0) {
+        console.log('Program head mappings:', Array.from(programHeadMap.entries()));
+      } else {
+        console.log('No program heads found or mapped');
+      }
+      
+      // Debug: Show what departments are available in program heads
+      const availableDepartments = Array.from(programHeadMap.keys());
+      console.log('Available departments from program heads:', availableDepartments);
+      
+      // Debug: Show what program names are available
+      const availableProgramNames = allProgramsData?.map(p => p.name) || [];
+      console.log('Available program names:', availableProgramNames);
+      
+      // Create a mapping function to link programs to program heads
+      const findProgramHead = (programName: string) => {
+        // Try exact match first
+        if (programHeadMap.has(programName)) {
+          return programHeadMap.get(programName);
+        }
+        
+        // Try partial matches
+        for (const [department, programHead] of programHeadMap.entries()) {
+          if (programName.toLowerCase().includes(department.toLowerCase()) || 
+              department.toLowerCase().includes(programName.toLowerCase())) {
+            return programHead;
+          }
+        }
+        
+        return null;
+      };
+      
+             // Create programs array with student counts
+       (allProgramsData || []).forEach(program => {
+         const studentCount = programStudentCountMap.get(program.id) || 0;
+         const programHead = findProgramHead(program.name);
+         programsArray.push({
+           id: program.id,
+           name: program.name, // Use the real program name from database
+           code: program.name, // Use the full program name instead of major or truncated version
+           description: program.description, // Use the real description from database
+           major: program.major,
+           is_active: program.is_active,
+           studentCount: studentCount,
+           programHead: programHead || undefined
+         });
+       });
+      
+      // Sort programs by name
+      programsArray.sort((a, b) => a.name.localeCompare(b.name));
+      
+      // Debug: Check final programs array before setting state
+      console.log('Final programs array before setting state:');
+      programsArray.forEach((program, index) => {
+        console.log(`Final Program ${index + 1}:`, {
+          id: program.id,
+          name: program.name,
+          code: program.code,
+          description: program.description,
+          major: program.major,
+          is_active: program.is_active,
+          studentCount: program.studentCount,
+          programHead: program.programHead
+        });
+      });
+      
+      setPrograms(programsArray);
+      
+      console.log('Programs created:', programsArray.length);
+      if (programsArray.length > 0) {
+        console.log('Sample programs:', programsArray.slice(0, 3));
+      }
+      
       // Check for missing data
       // Note: skip logging gradesWithoutEnrollments to keep console clean and linter satisfied
       
@@ -705,45 +1049,121 @@ export default function StudentGrades() {
 
 
 
-  const handleBackToSelection = () => {
-    setShowSelection(true);
-    setShowSubjects(false);
-    setSelectedYearLevel('');
-    setSelectedSection('');
-    setSelectedSubject('');
+
+
+  // Smart back function that goes to the previous step
+  const handleGoBack = () => {
+    const currentHistory = [...navigationHistory];
+    const previousStep = currentHistory[currentHistory.length - 2]; // Get the previous step
+    
+    if (previousStep === 'programs') {
+      setShowPrograms(true);
+      setShowYearLevels(false);
+      setShowSections(false);
+      setShowSubjects(false);
+      setSelectedProgram('');
+      setSelectedYearLevel('');
+      setSelectedSection('');
+      setSelectedSubject('');
+      setNavigationHistory(['programs']);
+    } else if (previousStep === 'yearLevels') {
+      setShowPrograms(false);
+      setShowYearLevels(true);
+      setShowSections(false);
+      setShowSubjects(false);
+      setSelectedSection('');
+      setSelectedSubject('');
+      setNavigationHistory(currentHistory.slice(0, -1));
+    } else if (previousStep === 'sections') {
+      setShowPrograms(false);
+      setShowYearLevels(false);
+      setShowSections(true);
+      setShowSubjects(false);
+      setSelectedSubject('');
+      setNavigationHistory(currentHistory.slice(0, -1));
+    } else if (previousStep === 'subjects') {
+      setShowPrograms(false);
+      setShowYearLevels(false);
+      setShowSections(false);
+      setShowSubjects(true);
+      setSelectedSubject('');
+      setNavigationHistory(currentHistory.slice(0, -1));
+    } else if (previousStep === 'students') {
+      setShowPrograms(false);
+      setShowYearLevels(false);
+      setShowSections(false);
+      setShowSubjects(true);
+      setSelectedSubject('');
+      setNavigationHistory(currentHistory.slice(0, -1));
+    } else {
+      // Default fallback to programs
+      setShowPrograms(true);
+      setShowYearLevels(false);
+      setShowSections(false);
+      setShowSubjects(false);
+      setSelectedProgram('');
+      setSelectedYearLevel('');
+      setSelectedSection('');
+      setSelectedSubject('');
+      setNavigationHistory(['programs']);
+    }
+  };
+
+  // New function to handle program card clicks
+  const handleProgramClick = (programId: string) => {
+    setSelectedProgram(programId);
+    setShowPrograms(false);
+    setShowYearLevels(true);
+    setNavigationHistory(prev => [...prev, 'yearLevels']);
+  };
+
+  // New function to handle year level card clicks
+  const handleYearLevelClick = (yearLevel: string) => {
+    setSelectedYearLevel(yearLevel);
+    setShowYearLevels(false);
+    setShowSections(true);
+    setNavigationHistory(prev => [...prev, 'sections']);
   };
 
   // New function to handle section card clicks
-  const handleSectionClick = (yearLevel: string, section: string) => {
-    setSelectedYearLevel(yearLevel);
+  const handleSectionClick = (section: string) => {
     setSelectedSection(section);
-    setShowSelection(false);
+    setShowSections(false);
     setShowSubjects(true);
+    setNavigationHistory(prev => [...prev, 'subjects']);
   };
 
   // New function to handle subject selection
   const handleSubjectClick = (subject: string) => {
     setSelectedSubject(subject);
     setShowSubjects(false);
+    setNavigationHistory(prev => [...prev, 'students']);
   };
 
-  // New function to go back to subjects view
-  const handleBackToSubjects = () => {
-    setShowSubjects(true);
-    setSelectedSubject('');
-  };
+
 
   // Get filtered students based on selection
   const getFilteredStudents = () => {
     if (!selectedYearLevel || !selectedSection || !selectedSubject) return [];
     
-    const filtered = grades.filter(grade => 
+    let filtered = grades.filter(grade => 
       grade.year_level === selectedYearLevel && 
       grade.section === selectedSection &&
       grade.course_code === selectedSubject
-    ).sort((a, b) => (a.student_name || '').localeCompare(b.student_name || ''));
+    );
     
-    console.log('Filtered students:', filtered.length, 'for', selectedYearLevel, 'Section', selectedSection, 'Subject', selectedSubject);
+    // Apply search filter if search term exists
+    if (studentSearchTerm.trim()) {
+      filtered = filtered.filter(grade => 
+        (grade.student_name || '').toLowerCase().includes(studentSearchTerm.toLowerCase()) ||
+        (grade.school_id || '').toLowerCase().includes(studentSearchTerm.toLowerCase())
+      );
+    }
+    
+    // Sort by student name
+    filtered.sort((a, b) => (a.student_name || '').localeCompare(b.student_name || ''));
+    
+    console.log('Filtered students:', filtered.length, 'for', selectedYearLevel, 'Section', selectedSection, 'Subject', selectedSubject, 'Search:', studentSearchTerm);
     return filtered;
   };
 
@@ -842,6 +1262,7 @@ export default function StudentGrades() {
                 <p className="text-white/80 text-sm font-medium">Control when student grades become visible. Toggle to release or hide grades for each record.</p>
               </div>
             </div>
+
           </div>
         </div>
 
@@ -894,221 +1315,401 @@ export default function StudentGrades() {
           </div>
         ) : error ? (
           <div className="bg-red-100 text-red-700 rounded-xl p-6 text-center font-semibold">{error}</div>
-                ) : showSelection ? (
+                ) : showPrograms ? (
           // Fast Selection Interface
           <div className="bg-white/90 rounded-2xl shadow-lg border border-gray-100 p-8">
             <div className="text-center mb-8">
               <h2 className="text-2xl font-bold text-gray-800 mb-2">Quick Grade Management</h2>
-              <p className="text-gray-600">Click on any combination to view and manage student grades</p>
+              <p className="text-gray-600">Click on any program to view and manage student grades</p>
             </div>
             
             <div className="max-w-6xl mx-auto">
-              {/* Search and Filter Controls - single line */}
-              <div className="mb-6">
-                <div className="flex flex-wrap items-center gap-3">
-                  <div className="relative flex-1 min-w-[260px]">
-                    <input
-                      type="text"
-                      placeholder="Search by year level, section, or subject..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full h-12 px-4 pl-12 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white/90"
-                    />
-                    <Search className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 transform -translate-y-1/2" />
-                  </div>
 
-                  {/* Year Level Filter */}
-                  <select
-                    value={selectedYearFilter}
-                    onChange={(e) => setSelectedYearFilter(e.target.value)}
-                    className="w-44 h-12 px-4 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white/90 text-sm"
-                  >
-                    <option value="">All Year Levels</option>
-                    {[...new Set(yearLevelSectionSubjects.map(item => item.year_level))].sort().map(year => (
-                      <option key={year} value={year}>{year}</option>
-                    ))}
-                  </select>
-
-                  {/* Section Filter */}
-                  <select
-                    value={selectedSectionFilter}
-                    onChange={(e) => setSelectedSectionFilter(e.target.value)}
-                    className="w-44 h-12 px-4 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white/90 text-sm"
-                  >
-                    <option value="">All Sections</option>
-                    {[...new Set(yearLevelSectionSubjects.map(item => item.section))].sort().map(section => (
-                      <option key={section} value={section}>Section {getSectionDisplayName(section)}</option>
-                    ))}
-                  </select>
-
-                  {/* Clear Filters Button */}
-                  {(searchTerm || selectedYearFilter || selectedSectionFilter) && (
-                    <button
-                      onClick={() => {
-                        setSearchTerm('');
-                        setSelectedYearFilter('');
-                        setSelectedSectionFilter('');
-                      }}
-                      className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors"
-                    >
-                      Clear Filters
-                    </button>
-                  )}
-                </div>
-              </div>
               
-              {/* Quick Selection Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {yearLevelSectionSubjects
-                  .filter(item => {
-                    const sectionDisplayName = getSectionDisplayName(item.section);
-                    const matchesSearch = !searchTerm || 
-                      item.year_level.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                      sectionDisplayName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                      item.subject.toLowerCase().includes(searchTerm.toLowerCase());
-                    
-                    const matchesYearFilter = !selectedYearFilter || item.year_level === selectedYearFilter;
-                    const matchesSectionFilter = !selectedSectionFilter || item.section === selectedSectionFilter;
-                    
-                    return matchesSearch && matchesYearFilter && matchesSectionFilter;
-                  })
-                  .map((item) => (
+                             {/* Quick Selection Grid */}
+               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                 {programs
+                   .filter(program => {
+                     // Only show active programs
+                     const isActive = program.is_active !== false; // Default to true if not specified
+                     
+                     return isActive;
+                   })
+                   .map((program) => (
                   <div
-                    key={`${item.year_level}-${item.section}-${item.subject}`}
-                    onClick={() => handleSectionClick(item.year_level, item.section)}
+                    key={program.id}
+                    onClick={() => handleProgramClick(program.id)}
                     className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl p-6 border border-blue-200 hover:border-blue-400 hover:shadow-lg transition-all duration-200 cursor-pointer transform hover:scale-105"
                   >
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                        <span className="text-sm font-medium text-blue-700">
-                          BSIT-{item.year_level.replace(/\D/g, '')}
-                        </span>
-                      </div>
-                      <span className="text-xs font-medium text-blue-600 bg-blue-100 px-2 py-1 rounded-full">
-                        {item.studentCount} students
+                                        <div className="flex items-center gap-2 mb-3">
+                      <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                      <span className="text-sm font-medium text-blue-700">
+                        {program.name}
                       </span>
                     </div>
                     
-                    <div className="space-y-2">
-                      <div className="text-lg font-bold text-gray-800">
-                        Section {getSectionDisplayName(item.section)}
-                      </div>
-                      <div className="flex -space-x-2 items-center">
-                        {getStudentsForCombination(item.year_level, item.section, item.subject).map((s) => (
-                          <img
-                            key={s.id}
-                            src={s.avatar_url || "/img/user-avatar.png"}
-                            alt={s.student_name || 'Student'}
-                            title={s.student_name || ''}
-                            className="w-6 h-6 rounded-full border-2 border-white shadow-sm"
-                            onError={(e) => {
-                              const target = e.target as HTMLImageElement;
-                              target.src = "/img/user-avatar.png";
-                            }}
-                          />
-                        ))}
-                        {(() => {
-                          const totalCount = getTotalStudentCount(item.year_level, item.section, item.subject);
-                          const displayedCount = getStudentsForCombination(item.year_level, item.section, item.subject).length;
-                          
-                          if (totalCount === 0) {
-                            return <span className="text-sm font-medium text-gray-500">No students</span>;
-                          } else if (totalCount > displayedCount) {
-                            return (
-                              <div className="w-6 h-6 rounded-full bg-blue-100 border-2 border-white shadow-sm flex items-center justify-center">
-                                <span className="text-xs font-bold text-blue-600">+{totalCount - displayedCount}</span>
-                              </div>
-                            );
-                          }
-                          return null;
-                        })()}
-                      </div>
-                    </div>
+                                         <div className="space-y-2">
+                       <div className="flex items-start justify-between gap-3">
+                         <div className="text-sm text-gray-600 flex-1" style={{ 
+                           display: '-webkit-box',
+                           WebkitLineClamp: 2,
+                           WebkitBoxOrient: 'vertical',
+                           overflow: 'hidden',
+                           textOverflow: 'ellipsis'
+                         }}>
+                           {/* Show description if available, otherwise show a default message */}
+                           {program.description || `Program in ${program.name}`}
+                         </div>
+                         
+                         {/* Program Head Avatar - Right Side */}
+                         {program.programHead && (
+                           <div className="flex flex-col items-center gap-1 flex-shrink-0">
+                             <img
+                               src={program.programHead.avatar_url || "/img/user-avatar.png"}
+                               alt={program.programHead.display_name}
+                               className="w-16 h-16 rounded-full border-2 border-blue-200 shadow-sm"
+                               onError={(e) => {
+                                 const target = e.target as HTMLImageElement;
+                                 target.src = "/img/user-avatar.png";
+                               }}
+                             />
+                             <span className="text-xs font-medium text-gray-700 text-center max-w-[60px] truncate">
+                               {program.programHead.display_name}
+                             </span>
+                           </div>
+                         )}
+                       </div>
+                       
+                       <div className="flex items-center">
+                         {/* Program icon */}
+                         <div className="w-6 h-6 rounded-full bg-blue-100 border-2 border-white shadow-sm flex items-center justify-center">
+                           <GraduationCap className="w-4 h-4 text-blue-600" />
+                         </div>
+                       </div>
+                     </div>
                     
                     <div className="mt-4 pt-3 border-t border-blue-200">
                       <div className="flex items-center justify-between text-xs text-gray-500">
                         <span>Click to view</span>
-                        <BookOpen className="w-4 h-4" />
+                        <GraduationCap className="w-4 h-4" />
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
               
-              {/* Results Counter */}
-              {(() => {
-                const filteredResults = yearLevelSectionSubjects.filter(item => {
-                  const sectionDisplayName = getSectionDisplayName(item.section);
-                  const matchesSearch = !searchTerm || 
-                    item.year_level.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    sectionDisplayName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    item.subject.toLowerCase().includes(searchTerm.toLowerCase());
-                  
-                  const matchesYearFilter = !selectedYearFilter || item.year_level === selectedYearFilter;
-                  const matchesSectionFilter = !selectedSectionFilter || item.section === selectedSectionFilter;
-                  
-                  return matchesSearch && matchesYearFilter && matchesSectionFilter;
-                });
-                
-                return (
-                  <div className="mb-4 text-sm text-gray-600">
-                    Showing {filteredResults.length} of {yearLevelSectionSubjects.length} combinations
-                  </div>
-                );
-              })()}
+
               
-              {yearLevelSectionSubjects.length === 0 && (
-                <div className="text-center py-12">
-                  <div className="text-gray-400 mb-4">
-                    <BookOpen className="w-16 h-16 mx-auto" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-600 mb-2">No Data Available</h3>
-                  <p className="text-gray-500">No year level, section, and subject combinations found.</p>
-                </div>
-              )}
+                             {(() => {
+                 const activePrograms = programs.filter(p => p.is_active !== false);
+                 if (activePrograms.length === 0) {
+                   return (
+                     <div className="text-center py-12">
+                       <div className="text-gray-400 mb-4">
+                         <GraduationCap className="w-16 h-16 mx-auto" />
+                       </div>
+                       <h3 className="text-lg font-semibold text-gray-600 mb-2">No Programs Available</h3>
+                       <p className="text-gray-500">
+                         {programs.length === 0 
+                           ? "No programs found in the database. Please check if the programs table exists and contains data."
+                           : "No active programs found. All programs may be marked as inactive."
+                         }
+                       </p>
+                       {programs.length === 0 && (
+                         <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                           <p className="text-sm text-yellow-800">
+                             <strong>Debug Info:</strong> Check the browser console for database connection details.
+                           </p>
+                         </div>
+                       )}
+                     </div>
+                   );
+                 }
+                 return null;
+               })()}
               
-              {yearLevelSectionSubjects.length > 0 && (() => {
-                const filteredResults = yearLevelSectionSubjects.filter(item => {
-                  const matchesSearch = !searchTerm || 
-                    item.year_level.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    item.section.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    item.subject.toLowerCase().includes(searchTerm.toLowerCase());
-                  
-                  const matchesYearFilter = !selectedYearFilter || item.year_level === selectedYearFilter;
-                  const matchesSectionFilter = !selectedSectionFilter || item.section === selectedSectionFilter;
-                  
-                  return matchesSearch && matchesYearFilter && matchesSectionFilter;
-                });
-                
-                return filteredResults.length === 0 ? (
-                  <div className="text-center py-12">
-                    <div className="text-gray-400 mb-4">
-                      <Search className="w-16 h-16 mx-auto" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-600 mb-2">No Results Found</h3>
-                    <p className="text-gray-500">Try adjusting your search or filters.</p>
-                  </div>
-                ) : null;
-              })()}
+
             </div>
           </div>
-        ) : showSubjects ? (
+                 ) : showYearLevels ? (
+           // Year Level Selection Interface
+           <div className="space-y-6">
+             {/* Back Button and Header */}
+             <div className="flex items-center justify-between">
+               <button
+                 onClick={handleGoBack}
+                 className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"
+               >
+                 <ChevronRight className="w-4 h-4 rotate-180" />
+                 Back to Programs
+               </button>
+               <div className="text-center flex-1">
+                 <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-4 rounded-xl shadow-lg inline-block">
+                   <h2 className="text-2xl font-bold">
+                     {selectedProgram ? programs.find(p => p.id === selectedProgram)?.name || 'Unknown Program' : 'Select a Program'}
+                   </h2>
+                   <p className="text-white/80 text-base mt-2">Select a year level to view sections and subjects</p>
+                 </div>
+               </div>
+               <div className="w-32"></div> {/* Spacer to balance the layout */}
+             </div>
+             
+             <div className="bg-white/90 rounded-2xl shadow-lg border border-gray-100 p-8">
+               <div className="text-center mb-8">
+             
+               </div>
+             
+             <div className="max-w-6xl mx-auto">
+               
+               
+               {/* Year Level Grid */}
+               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                 {(() => {
+                   // Get unique year levels for the selected program
+                   const programYearLevels = Array.from(new Set(
+                     yearLevelSectionSubjects
+                       .map(item => item.year_level)
+                   )).sort();
+                   
+                   return programYearLevels.map((yearLevel) => {
+                     const studentCount = yearLevelSectionSubjects
+                       .filter(item => item.year_level === yearLevel)
+                       .reduce((total, item) => total + item.studentCount, 0);
+                     
+                     return (
+                       <div
+                         key={yearLevel}
+                         onClick={() => handleYearLevelClick(yearLevel)}
+                         className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 border border-green-200 hover:border-green-400 hover:shadow-lg transition-all duration-200 cursor-pointer transform hover:scale-105"
+                       >
+                         <div className="flex items-center justify-between mb-3">
+                           <div className="flex items-center gap-2">
+                             <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                             <span className="text-sm font-medium text-green-700">
+                               Year {yearLevel}
+                             </span>
+                           </div>
+                           <span className="text-xs font-medium text-green-600 bg-green-100 px-2 py-1 rounded-full">
+                             {studentCount} students
+                           </span>
+                         </div>
+                         
+                         <div className="space-y-2">
+                           <div className="text-lg font-bold text-gray-800">
+                             {(() => {
+                               const sections = Array.from(new Set(
+                                 yearLevelSectionSubjects
+                                   .filter(item => item.year_level === yearLevel)
+                                   .map(item => item.section)
+                               ));
+                               return `${sections.length} section${sections.length !== 1 ? 's' : ''}`;
+                             })()}
+                           </div>
+                           <div className="flex -space-x-2 items-center">
+                             {/* Year level icon */}
+                             <div className="w-6 h-6 rounded-full bg-green-100 border-2 border-white shadow-sm flex items-center justify-center">
+                               <BookOpen className="w-4 h-4 text-green-600" />
+                             </div>
+                             {(() => {
+                               const totalCount = studentCount;
+                               
+                               if (totalCount === 0) {
+                                 return <span className="text-sm font-medium text-gray-500">No students</span>;
+                               } else if (totalCount > 1) {
+                                 return (
+                                   <div className="w-6 h-6 rounded-full bg-green-100 border-2 border-white shadow-sm flex items-center justify-center">
+                                     <span className="text-xs font-bold text-green-600">+{totalCount - 1}</span>
+                                   </div>
+                                 );
+                               }
+                               return null;
+                             })()}
+                           </div>
+                         </div>
+                         
+                         <div className="mt-4 pt-3 border-t border-green-200">
+                           <div className="flex items-center justify-between text-xs text-gray-500">
+                             <span>Click to view</span>
+                             <ChevronRight className="w-4 h-4" />
+                           </div>
+                         </div>
+                       </div>
+                     );
+                   });
+                 })()}
+               </div>
+               
+               {(() => {
+                 const programYearLevels = Array.from(new Set(
+                   yearLevelSectionSubjects.map(item => item.year_level)
+                 ));
+                 
+                 if (programYearLevels.length === 0) {
+                   return (
+                     <div className="text-center py-12">
+                       <div className="text-gray-400 mb-4">
+                         <BookOpen className="w-16 h-16 mx-auto" />
+                       </div>
+                       <h3 className="text-lg font-semibold text-gray-600 mb-2">No Data Available</h3>
+                       <p className="text-gray-500">No year levels found for this program.</p>
+                     </div>
+                   );
+                 }
+                 
+                 return null;
+               })()}
+             </div>
+           </div>
+                  </div>
+         ) : showSections ? (
+           // Sections Selection Interface
+           <div className="space-y-6">
+             {/* Back Button and Header */}
+             <div className="flex items-center justify-between">
+               <button
+                 onClick={handleGoBack}
+                 className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"
+               >
+                 <ChevronRight className="w-4 h-4 rotate-180" />
+                 Back to Year Levels
+               </button>
+               <div className="text-center flex-1">
+                 <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-4 rounded-xl shadow-lg inline-block">
+                   <h2 className="text-2xl font-bold">
+                     {selectedProgram ? programs.find(p => p.id === selectedProgram)?.name || 'Unknown Program' : 'Select a Program'} -{selectedYearLevel}
+                   </h2>
+                   <p className="text-white/80 text-base mt-2">Select a section to view subjects</p>
+                 </div>
+               </div>
+               <div className="w-32"></div> {/* Spacer to balance the layout */}
+             </div>
+             
+             <div className="bg-white/90 rounded-2xl shadow-lg border border-gray-100 p-8">
+               <div className="text-center mb-8">
+                
+               </div>
+               
+               <div className="max-w-6xl mx-auto">
+                 {/* Sections Grid */}
+                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                   {(() => {
+                     // Get unique sections for the selected year level
+                     const yearLevelSections = Array.from(new Set(
+                       yearLevelSectionSubjects
+                         .filter(item => item.year_level === selectedYearLevel)
+                         .map(item => item.section)
+                     )).sort();
+                     
+                     return yearLevelSections.map((section) => {
+                       const studentCount = yearLevelSectionSubjects
+                         .filter(item => item.year_level === selectedYearLevel && item.section === section)
+                         .reduce((total, item) => total + item.studentCount, 0);
+                       
+                       return (
+                         <div
+                           key={section}
+                           onClick={() => handleSectionClick(section)}
+                           className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 border border-purple-200 hover:border-purple-400 hover:shadow-lg transition-all duration-200 cursor-pointer transform hover:scale-105"
+                         >
+                           <div className="flex items-center justify-between mb-3">
+                             <div className="flex items-center gap-2">
+                               <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+                               <span className="text-sm font-medium text-purple-700">
+                                 Section {getSectionDisplayName(section)}
+                               </span>
+                             </div>
+                             <span className="text-xs font-medium text-purple-600 bg-purple-100 px-2 py-1 rounded-full">
+                               {studentCount} students
+                             </span>
+                           </div>
+                           
+                           <div className="space-y-2">
+                             <div className="text-lg font-bold text-gray-800">
+                               {(() => {
+                                 const subjects = Array.from(new Set(
+                                   yearLevelSectionSubjects
+                                     .filter(item => item.year_level === selectedYearLevel && item.section === section)
+                                     .map(item => item.subject)
+                                 ));
+                                 return `${subjects.length} subject${subjects.length !== 1 ? 's' : ''}`;
+                               })()}
+                             </div>
+                             <div className="flex -space-x-2 items-center">
+                               {/* Section icon */}
+                               <div className="w-6 h-6 rounded-full bg-purple-100 border-2 border-white shadow-sm flex items-center justify-center">
+                                 <Users className="w-4 h-4 text-purple-600" />
+                               </div>
+                               {(() => {
+                                 const totalCount = studentCount;
+                                 
+                                 if (totalCount === 0) {
+                                   return <span className="text-sm font-medium text-gray-500">No students</span>;
+                                 } else if (totalCount > 1) {
+                                   return (
+                                     <div className="w-6 h-6 rounded-full bg-purple-100 border-2 border-white shadow-sm flex items-center justify-center">
+                                       <span className="text-xs font-bold text-purple-600">+{totalCount - 1}</span>
+                                     </div>
+                                   );
+                                 }
+                                 return null;
+                               })()}
+                             </div>
+                           </div>
+                           
+                           <div className="mt-4 pt-3 border-t border-purple-200">
+                             <div className="flex items-center justify-between text-xs text-gray-500">
+                               <span>Click to view</span>
+                               <ChevronRight className="w-4 h-4" />
+                             </div>
+                           </div>
+                         </div>
+                       );
+                     });
+                   })()}
+                 </div>
+                 
+
+                 
+                 {(() => {
+                   const yearLevelSections = Array.from(new Set(
+                     yearLevelSectionSubjects
+                       .filter(item => item.year_level === selectedYearLevel)
+                       .map(item => item.section)
+                   ));
+                   
+                   if (yearLevelSections.length === 0) {
+                     return (
+                       <div className="text-center py-12">
+                         <div className="text-gray-400 mb-4">
+                           <Users className="w-16 h-16 mx-auto" />
+                         </div>
+                         <h3 className="text-lg font-semibold text-gray-600 mb-2">No Data Available</h3>
+                         <p className="text-gray-500">No sections found for this year level.</p>
+                       </div>
+                     );
+                   }
+                   
+
+                 })()}
+               </div>
+             </div>
+           </div>
+         ) : showSubjects ? (
           // Subjects List View
           <div className="space-y-6">
             {/* Back Button and Header */}
             <div className="flex items-center justify-between">
               <button
-                onClick={handleBackToSelection}
+                onClick={handleGoBack}
                 className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"
               >
                 <ChevronRight className="w-4 h-4 rotate-180" />
-                Back to Selection
+                Back to Sections
               </button>
               <div className="text-center flex-1">
                 <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-4 rounded-xl shadow-lg inline-block">
                   <h2 className="text-2xl font-bold">
-                    BSIT-{selectedYearLevel.replace(/\D/g, '')} Section {getSectionDisplayName(selectedSection)}
+                    {selectedProgram ? programs.find(p => p.id === selectedProgram)?.name || 'Unknown Program' : 'Select a Program'} -{selectedYearLevel} Section {getSectionDisplayName(selectedSection)}
                   </h2>
                   <p className="text-white/80 text-base mt-2">Select a subject to view enrolled students and grades</p>
                 </div>
@@ -1118,11 +1719,59 @@ export default function StudentGrades() {
 
             {/* Subjects Grid */}
             <div className="bg-white/90 rounded-2xl shadow-lg border border-gray-100 p-8">
+              {/* Search Bar for Subjects */}
+              <div className="mb-6">
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="relative flex-1 min-w-[260px]">
+                    <input
+                      type="text"
+                      placeholder="Search subjects by name or description..."
+                      value={subjectSearchTerm}
+                      onChange={(e) => setSubjectSearchTerm(e.target.value)}
+                      className="w-full h-12 px-4 pl-12 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white/90"
+                    />
+                    <Search className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 transform -translate-y-1/2" />
+                  </div>
+
+                  {/* Clear Filters Button */}
+                  {subjectSearchTerm && (
+                    <button
+                      onClick={() => setSubjectSearchTerm('')}
+                      className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors"
+                    >
+                      Clear Filters
+                    </button>
+                  )}
+                </div>
+                
+                {/* Search Results Counter */}
+                {subjectSearchTerm && (
+                  <div className="text-sm text-gray-600 mt-2">
+                    Showing {(() => {
+                      const filteredSubjects = yearLevelSectionSubjects
+                        .filter(item => 
+                          item.year_level === selectedYearLevel && 
+                          item.section === selectedSection &&
+                          (item.subject.toLowerCase().includes(subjectSearchTerm.toLowerCase()) ||
+                           (item.subject_name && item.subject_name.toLowerCase().includes(subjectSearchTerm.toLowerCase())))
+                        );
+                      return filteredSubjects.length;
+                    })()} of {yearLevelSectionSubjects.filter(item => 
+                      item.year_level === selectedYearLevel && 
+                      item.section === selectedSection
+                    ).length} subjects
+                  </div>
+                )}
+              </div>
+              
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {yearLevelSectionSubjects
                   .filter(item => 
                     item.year_level === selectedYearLevel && 
-                    item.section === selectedSection
+                    item.section === selectedSection &&
+                    (!subjectSearchTerm || 
+                     item.subject.toLowerCase().includes(subjectSearchTerm.toLowerCase()) ||
+                     (item.subject_name && item.subject_name.toLowerCase().includes(subjectSearchTerm.toLowerCase())))
                   )
                   .map((item) => (
                     <div
@@ -1189,18 +1838,41 @@ export default function StudentGrades() {
                   ))}
               </div>
               
-              {yearLevelSectionSubjects.filter(item => 
-                item.year_level === selectedYearLevel && 
-                item.section === selectedSection
-              ).length === 0 && (
-                <div className="text-center py-12">
-                  <div className="text-gray-400 mb-4">
-                    <BookOpen className="w-16 h-16 mx-auto" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-600 mb-2">No Subjects Available</h3>
-                  <p className="text-gray-500">No subjects found for the selected year level and section.</p>
-                </div>
-              )}
+              {(() => {
+                const totalSubjects = yearLevelSectionSubjects.filter(item => 
+                  item.year_level === selectedYearLevel && 
+                  item.section === selectedSection
+                );
+                
+                const filteredSubjects = totalSubjects.filter(item => 
+                  !subjectSearchTerm || 
+                  item.subject.toLowerCase().includes(subjectSearchTerm.toLowerCase()) ||
+                  (item.subject_name && item.subject_name.toLowerCase().includes(subjectSearchTerm.toLowerCase()))
+                );
+                
+                if (totalSubjects.length === 0) {
+                  return (
+                    <div className="text-center py-12">
+                      <div className="text-gray-400 mb-4">
+                        <BookOpen className="w-16 h-16 mx-auto" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-gray-600 mb-2">No Subjects Available</h3>
+                      <p className="text-gray-500">No subjects found for the selected year level and section.</p>
+                    </div>
+                  );
+                } else if (filteredSubjects.length === 0) {
+                  return (
+                    <div className="text-center py-12">
+                      <div className="text-gray-400 mb-4">
+                        <Search className="w-16 h-16 mx-auto" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-gray-600 mb-2">No Search Results</h3>
+                      <p className="text-gray-500">No subjects match your search criteria. Try adjusting your search terms.</p>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
             </div>
           </div>
         ) : (
@@ -1208,17 +1880,17 @@ export default function StudentGrades() {
           <div className="space-y-6">
             {/* Back Button and Header */}
             <div className="flex items-center justify-between">
-              <button
-                onClick={handleBackToSubjects}
-                className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"
-              >
-                <ChevronRight className="w-4 h-4 rotate-180" />
-                Back to Subjects
-              </button>
+                             <button
+                 onClick={handleGoBack}
+                 className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"
+               >
+                 <ChevronRight className="w-4 h-4 rotate-180" />
+                 Back
+               </button>
               <div className="text-center flex-1">
                 <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-4 rounded-xl shadow-lg inline-block">
                   <h2 className="text-2xl font-bold">
-                    BSIT-{selectedYearLevel.replace(/\D/g, '')} Section {getSectionDisplayName(selectedSection)}
+                    {selectedProgram ? programs.find(p => p.id === selectedProgram)?.name || 'Unknown Program' : 'Select a Program'} -{selectedYearLevel} Section {getSectionDisplayName(selectedSection)}
                   </h2>
                   {getFilteredStudents().length > 0 && (
                     <div className="mt-3 text-base font-medium">
@@ -1270,12 +1942,12 @@ export default function StudentGrades() {
             {/* Students Table - Only show when both year level and section are selected */}
             {selectedYearLevel && selectedSection ? (
               <div className="bg-white/90 rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
-                {/* Bulk Action Controls */}
+                {/* Search Bar for Students */}
                 <div className="bg-gradient-to-r from-blue-50 to-purple-50 px-6 py-4 border-b border-gray-200">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-4">
                       <span className="text-sm font-medium text-gray-700">
-                        {getFilteredStudents().length} students in {selectedYearLevel} Section {getSectionDisplayName(selectedSection)}
+                        {getFilteredStudents().length} students in {selectedProgram ? programs.find(p => p.id === selectedProgram)?.name || 'Unknown Program' : 'Select a Program'} -{selectedYearLevel} Section {getSectionDisplayName(selectedSection)}
                       </span>
                     </div>
                     <div className="flex items-center gap-3">
@@ -1317,6 +1989,41 @@ export default function StudentGrades() {
                       </button>
                     </div>
                   </div>
+                  
+                  {/* Student Search Bar */}
+                  <div className="flex items-center gap-3">
+                    <div className="relative flex-1 max-w-md">
+                      <input
+                        type="text"
+                        placeholder="Search students by name..."
+                        value={studentSearchTerm}
+                        onChange={(e) => setStudentSearchTerm(e.target.value)}
+                        className="w-full h-10 px-4 pl-10 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white"
+                      />
+                      <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
+                    </div>
+                    
+                    {/* Clear Search Button */}
+                    {studentSearchTerm && (
+                      <button
+                        onClick={() => setStudentSearchTerm('')}
+                        className="px-3 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  
+                  {/* Search Results Counter */}
+                  {studentSearchTerm && (
+                    <div className="text-sm text-gray-600 mt-2">
+                      Showing {getFilteredStudents().length} of {grades.filter(grade => 
+                        grade.year_level === selectedYearLevel && 
+                        grade.section === selectedSection &&
+                        grade.course_code === selectedSubject
+                      ).length} students
+                    </div>
+                  )}
                 </div>
                 
                 <div className="overflow-x-auto">
