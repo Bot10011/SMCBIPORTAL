@@ -36,10 +36,8 @@ import html2canvas from 'html2canvas';
 
 interface Student {
   id: string;
-  firstName?: string;
-  middleName?: string;
-  lastName?: string;
   name: string;
+  email?: string;
   studentType: 'Freshman' | 'Regular' | 'Irregular' | 'Transferee';
   yearLevel: number;
   currentSubjects: Subject[];
@@ -48,6 +46,7 @@ interface Student {
   department: string;
   schoolYear: string;
   semester: string;
+  section?: string;
 }
 
 interface Subject {
@@ -87,13 +86,9 @@ const ProgramHeadEnrollment: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState('');
   const [editForm, setEditForm] = useState<Student | null>(null);
   const [editFormFields, setEditFormFields] = useState<{
-    firstName: string;
-    middleName: string;
-    lastName: string;
+    email: string;
   }>({
-    firstName: '',
-    middleName: '',
-    lastName: '',
+    email: '',
   });
   const [savingEdit, setSavingEdit] = useState(false);
   const [isExistingModalOpen, setIsExistingModalOpen] = useState(false);
@@ -107,6 +102,42 @@ const ProgramHeadEnrollment: React.FC = () => {
   const [courseSearch, setCourseSearch] = useState('');
   const [isProspectusModalOpen, setIsProspectusModalOpen] = useState(false);
   const [loadingCourses, setLoadingCourses] = useState(false);
+  const [emailValidation, setEmailValidation] = useState<{
+    isValid: boolean;
+    isChecking: boolean;
+    message: string;
+  }>({
+    isValid: false,
+    isChecking: false,
+    message: ''
+  });
+
+  // Function to check if a section is full
+  const checkSectionCapacity = async (yearLevel: number, section: string, department: string): Promise<{ isFull: boolean; currentCount: number; maxCapacity: number }> => {
+    try {
+      const { count, error } = await supabase
+        .from('user_profiles')
+        .select('id', { count: 'exact', head: true })
+        .eq('role', 'student')
+        .eq('year_level', yearLevel)
+        .eq('section', section)
+        .eq('department', department);
+
+      if (error) {
+        console.error('Error checking section capacity:', error);
+        return { isFull: false, currentCount: 0, maxCapacity: 50 };
+      }
+
+      const currentCount = count || 0;
+      const maxCapacity = 50; // Default max capacity per section
+      const isFull = currentCount >= maxCapacity;
+
+      return { isFull, currentCount, maxCapacity };
+    } catch (error) {
+      console.error('Error checking section capacity:', error);
+      return { isFull: false, currentCount: 0, maxCapacity: 50 };
+    }
+  };
 
   // Fetch courses when prospectus modal opens
   useEffect(() => {
@@ -550,7 +581,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                            borderBottom: '2px solid #e5e7eb',
                            textAlign: 'center'
                          }}>
-                           Status
+                           Statuss
                          </TableCell>
                       </TableRow>
                    </TableHead>
@@ -1255,45 +1286,96 @@ const ProgramHeadEnrollment: React.FC = () => {
   };
 
   const [createForm, setCreateForm] = useState({
-    firstName: '',
-    middleName: '',
-    lastName: '',
     email: '',
-    password: 'TempPass@123',
     studentType: 'Freshman',
     yearLevel: 1,
     schoolYear: getDefaultSchoolYear(),
     studentId: '',
     department: 'BSIT',
     semester: '1st Semester',
+    section: 'A',
   });
 
   useEffect(() => {
     loadEnrollments();
   }, []);
 
-  useEffect(() => {
-    // Auto-generate email when first and last name are entered
-    if (createForm.firstName && createForm.lastName) {
-      const email = (createForm.lastName + createForm.firstName).replace(/\s+/g, '').toLowerCase();
-      setCreateForm(f => ({ ...f, email }));
-    } else {
-      setCreateForm(f => ({ ...f, email: '' }));
+  // Function to check email availability
+  const checkEmailAvailability = async (email: string) => {
+    if (!email || email.length < 3) {
+      setEmailValidation({
+        isValid: false,
+        isChecking: false,
+        message: ''
+      });
+      return;
     }
-    // eslint-disable-next-line
-  }, [createForm.firstName, createForm.lastName]);
+
+    setEmailValidation({
+      isValid: false,
+      isChecking: true,
+      message: 'Checking email availability...'
+    });
+
+    try {
+      const fullEmail = email + '@smcbi.edu.ph';
+      const { count, error } = await supabase
+        .from('user_profiles')
+        .select('id', { count: 'exact', head: true })
+        .eq('email', fullEmail);
+
+      if (error) {
+        setEmailValidation({
+          isValid: false,
+          isChecking: false,
+          message: 'Error checking email. Please try again.'
+        });
+        return;
+      }
+
+      if (count && count > 0) {
+        setEmailValidation({
+          isValid: false,
+          isChecking: false,
+          message: 'Email already exists. Please choose a different email.'
+        });
+      } else {
+        setEmailValidation({
+          isValid: true,
+          isChecking: false,
+          message: 'Email is available!'
+        });
+      }
+    } catch {
+      setEmailValidation({
+        isValid: false,
+        isChecking: false,
+        message: 'Error checking email. Please try again.'
+      });
+    }
+  };
+
+  // Debounced email validation
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (createForm.email && createForm.email.length >= 3) {
+        checkEmailAvailability(createForm.email);
+      } else {
+        setEmailValidation({
+          isValid: false,
+          isChecking: false,
+          message: ''
+        });
+      }
+    }, 500); // Wait 500ms after user stops typing
+
+    return () => clearTimeout(timeoutId);
+  }, [createForm.email]);
 
   useEffect(() => {
-    // If year level is 2 or higher, set student type to 'Regular' and restrict 'Freshman'
-    if (Number(createForm.yearLevel) >= 2 && createForm.studentType === 'Freshman') {
-      setCreateForm(f => ({ ...f, studentType: 'Regular' }));
-    }
-  }, [createForm.yearLevel]);
-
-  useEffect(() => {
-    // Auto-generate student ID when school year, first and last name are entered
-    const generateStudentId = async () => {
-      if (createForm.schoolYear && createForm.firstName && createForm.lastName) {
+    // Auto-generate student ID when email is provided and valid
+    if (createForm.email && emailValidation.isValid) {
+      const generateStudentId = async () => {
         // Extract last two digits of school year start
         const match = createForm.schoolYear.match(/(\d{4})/);
         if (!match) {
@@ -1313,13 +1395,20 @@ const ProgramHeadEnrollment: React.FC = () => {
         const regNumStr = regNum.toString().padStart(4, '0');
         const studentId = `C-${yearPrefix}${regNumStr}`;
         setCreateForm(f => ({ ...f, studentId }));
-      } else {
-        setCreateForm(f => ({ ...f, studentId: '' }));
-      }
-    };
-    generateStudentId();
+      };
+      generateStudentId();
+    } else {
+      setCreateForm(f => ({ ...f, studentId: '' }));
+    }
     // eslint-disable-next-line
-  }, [createForm.schoolYear, createForm.firstName, createForm.lastName]);
+  }, [createForm.email, createForm.schoolYear, emailValidation.isValid]);
+
+  useEffect(() => {
+    // If year level is 2 or higher, set student type to 'Regular' and restrict 'Freshman'
+    if (Number(createForm.yearLevel) >= 2 && createForm.studentType === 'Freshman') {
+      setCreateForm(f => ({ ...f, studentType: 'Regular' }));
+    }
+  }, [createForm.yearLevel]);
 
   useEffect(() => {
     // Fetch courses on mount
@@ -1351,33 +1440,9 @@ const ProgramHeadEnrollment: React.FC = () => {
   // Initialize edit form fields when editForm is set
   useEffect(() => {
     if (editForm) {
-      // Prefer explicit fields if present, fallback to parsing full name
-      const derivedFirst = editForm.firstName || '';
-      const derivedMiddle = editForm.middleName || '';
-      const derivedLast = editForm.lastName || '';
-
-      if (derivedFirst || derivedMiddle || derivedLast) {
-        setEditFormFields({ firstName: derivedFirst, middleName: derivedMiddle, lastName: derivedLast });
-        return;
-      }
-
-      const nameParts = editForm.name.split(' ').filter(Boolean);
-      let firstName = '';
-      let middleName = '';
-      let lastName = '';
-
-      if (nameParts.length === 1) {
-        lastName = nameParts[0];
-      } else if (nameParts.length === 2) {
-        firstName = nameParts[1];
-        lastName = nameParts[0];
-      } else if (nameParts.length >= 3) {
-        firstName = nameParts[nameParts.length - 1];
-        lastName = nameParts[0];
-        middleName = nameParts.slice(1, nameParts.length - 1).join(' ');
-      }
-
-      setEditFormFields({ firstName, middleName, lastName });
+      // Extract email from the student data
+      const email = editForm.email || '';
+      setEditFormFields({ email });
     }
   }, [editForm]);
 
@@ -1393,21 +1458,14 @@ const ProgramHeadEnrollment: React.FC = () => {
       if (error) throw error;
       // Map to Student interface if needed
       const students = (data || []).map((student: Record<string, unknown>) => {
-        const firstName = String(student.first_name || '');
-        const middleName = String(student.middle_name || '');
-        const lastName = String(student.last_name || '');
-        
-        // Construct full name with middle name if available
-        const fullName = middleName 
-          ? `${lastName} ${middleName} ${firstName}`
-          : `${lastName} ${firstName}`;
+        // Extract email and remove @smcbi.edu.ph suffix for display
+        const fullEmail = String(student.email || '');
+        const email = fullEmail.replace('@smcbi.edu.ph', '');
         
         return {
           id: String(student.student_id || student.id),
-          name: fullName,
-          firstName,
-          middleName,
-          lastName,
+          name: String(student.display_name || ''),
+          email,
           studentType: (student.student_type as Student['studentType']) || 'Freshman',
           yearLevel: Number(student.year_level) || 1,
           currentSubjects: [],
@@ -1416,6 +1474,7 @@ const ProgramHeadEnrollment: React.FC = () => {
           department: String(student.department || ''),
           schoolYear: String(student.school_year || ''),
           semester: String(student.semester || ''),
+          section: String(student.section || ''),
         };
       });
       setStudents(students);
@@ -1429,6 +1488,25 @@ const ProgramHeadEnrollment: React.FC = () => {
 
   const handleCreateStudent = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Check if email is valid before proceeding
+    if (!emailValidation.isValid) {
+      toast.error('Please provide a valid and available email address.');
+      return;
+    }
+
+    // Check if section is full before proceeding
+    const sectionCapacity = await checkSectionCapacity(
+      createForm.yearLevel, 
+      createForm.section,
+      createForm.department
+    );
+
+    if (sectionCapacity.isFull) {
+      toast.error(`Section ${createForm.section} is full (${sectionCapacity.currentCount}/${sectionCapacity.maxCapacity} students). Cannot enroll new student.`);
+      return;
+    }
+    
     setCreating(true);
     try {
       // Note: The authentication issue where creating a student would log out the program head
@@ -1446,15 +1524,13 @@ const ProgramHeadEnrollment: React.FC = () => {
         const originalStudentId = userProfile.student_id;
         // Update existing student profile
         const { error: updateError } = await supabase.from('user_profiles').update({
-          first_name: createForm.firstName,
-          middle_name: createForm.middleName,
-          last_name: createForm.lastName,
           student_type: createForm.studentType,
           year_level: String(createForm.yearLevel),
           school_year: createForm.schoolYear,
           student_id: originalStudentId,
           department: createForm.department,
           semester: createForm.semester,
+          section: createForm.section,
           enrollment_status: 'pending',
           updated_at: new Date().toISOString(),
         }).eq('student_id', originalStudentId);
@@ -1476,7 +1552,7 @@ const ProgramHeadEnrollment: React.FC = () => {
         }
         toast.success('Existing student enrollment updated!');
         setIsCreateDialogOpen(false);
-        setCreateForm({ firstName: '', middleName: '', lastName: '', email: '', password: 'TempPass@123', studentType: 'Freshman', yearLevel: 1, schoolYear: getDefaultSchoolYear(), studentId: '', department: 'BSIT', semester: '1st Semester' });
+        setCreateForm({ email: '', studentType: 'Freshman', yearLevel: 1, schoolYear: getDefaultSchoolYear(), studentId: '', department: 'BSIT', semester: '1st Semester', section: 'A' });
         setSelectedCourses([]);
         setSelectedExistingStudent(null);
         loadEnrollments();
@@ -1495,15 +1571,14 @@ const ProgramHeadEnrollment: React.FC = () => {
         return;
       }
       
-      // 2. Create auth user first
+      // 2. Create auth user first with a default password
+      const defaultPassword = 'TempPass@123';
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: fullEmail,
-        password: createForm.password,
+        password: defaultPassword,
         options: {
           data: {
-            role: 'student',
-            first_name: createForm.firstName,
-            last_name: createForm.lastName
+            role: 'student'
           }
         }
       });
@@ -1514,9 +1589,6 @@ const ProgramHeadEnrollment: React.FC = () => {
       const { error: profileError } = await supabase.from('user_profiles').insert({
         id: authData.user!.id, // Use the auth user ID
         email: fullEmail,
-        first_name: createForm.firstName,
-        middle_name: createForm.middleName,
-        last_name: createForm.lastName,
         role: 'student',
         is_active: true,
         student_type: createForm.studentType,
@@ -1525,6 +1597,7 @@ const ProgramHeadEnrollment: React.FC = () => {
         student_id: createForm.studentId,
         department: createForm.department,
         semester: createForm.semester,
+        section: createForm.section,
         enrollment_status: 'pending',
         password_changed: false, // Initialize as false since they're using default password
         created_at: new Date().toISOString(),
@@ -1546,7 +1619,7 @@ const ProgramHeadEnrollment: React.FC = () => {
       }
       toast.success('Student account successfully created.');
       setIsCreateDialogOpen(false);
-      setCreateForm({ firstName: '', middleName: '', lastName: '', email: '', password: 'TempPass@123', studentType: 'Freshman', yearLevel: 1, schoolYear: getDefaultSchoolYear(), studentId: '', department: 'BSIT', semester: '1st Semester' });
+      setCreateForm({ email: '', studentType: 'Freshman', yearLevel: 1, schoolYear: getDefaultSchoolYear(), studentId: '', department: 'BSIT', semester: '1st Semester', section: 'A' });
       setSelectedCourses([]);
       setSelectedExistingStudent(null);
       loadEnrollments();
@@ -1665,21 +1738,20 @@ const ProgramHeadEnrollment: React.FC = () => {
     setSavingEdit(true);
     try {
       const { error } = await supabase.from('user_profiles').update({
-        first_name: editFormFields.firstName,
-        middle_name: editFormFields.middleName,
-        last_name: editFormFields.lastName,
+        email: editFormFields.email + '@smcbi.edu.ph',
         student_type: editForm.studentType,
         year_level: String(editForm.yearLevel),
         school_year: editForm.schoolYear,
         student_id: editForm.id,
         department: editForm.department,
         semester: editForm.semester,
+        section: editForm.section,
         enrollment_status: editForm.status,
       }).eq('student_id', editForm.id);
       if (error) throw error;
       toast.success('Student info updated!');
       setEditForm(null);
-      setEditFormFields({ firstName: '', middleName: '', lastName: '' });
+      setEditFormFields({ email: '' });
       loadEnrollments();
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to update student';
@@ -1706,35 +1778,15 @@ const ProgramHeadEnrollment: React.FC = () => {
   const handleEnrollExisting = (student: Student) => {
     setSelectedExistingStudent(student);
     
-    // Parse the student name to handle middle names
-    const nameParts = student.name.split(' ');
-    let firstName = '';
-    let middleName = '';
-    let lastName = '';
-    
-    if (nameParts.length === 1) {
-      lastName = nameParts[0];
-    } else if (nameParts.length === 2) {
-      firstName = nameParts[1];
-      lastName = nameParts[0];
-    } else if (nameParts.length >= 3) {
-      firstName = nameParts[nameParts.length - 1]; // Last part is first name
-      lastName = nameParts[0]; // First part is last name
-      middleName = nameParts.slice(1, nameParts.length - 1).join(' '); // Everything in between is middle name
-    }
-    
     setCreateForm({
-      firstName,
-      middleName,
-      lastName,
-      email: '', // Not editable
-      password: 'TempPass@123', // Not editable
+      email: student.email || '', // Show the student's email
       studentType: student.studentType,
       yearLevel: student.yearLevel,
       schoolYear: student.schoolYear,
       studentId: student.id, // Always use the original student.id
       department: student.department,
       semester: student.semester,
+      section: 'A', // Default section
     });
     setIsExistingModalOpen(false);
     setIsCreateDialogOpen(true);
@@ -2044,17 +2096,14 @@ const ProgramHeadEnrollment: React.FC = () => {
   // Helper to reset the new student form
   const flushNewStudentForm = () => {
     setCreateForm({
-      firstName: '',
-      middleName: '',
-      lastName: '',
       email: '',
-      password: 'TempPass@123',
       studentType: 'Freshman',
       yearLevel: 1,
       schoolYear: getDefaultSchoolYear(),
       studentId: '',
       department: 'BSIT',
       semester: '1st Semester',
+      section: 'A',
     });
     setSelectedCourses([]);
 
@@ -2607,6 +2656,14 @@ const ProgramHeadEnrollment: React.FC = () => {
                     fontSize: '0.875rem',
                     borderBottom: '2px solid #e5e7eb'
                   }}>
+                    Section
+                  </TableCell>
+                  <TableCell sx={{ 
+                    fontWeight: 600, 
+                    color: '#374151',
+                    fontSize: '0.875rem',
+                    borderBottom: '2px solid #e5e7eb'
+                  }}>
                     Status
                   </TableCell>
                   <TableCell sx={{ 
@@ -2677,6 +2734,12 @@ const ProgramHeadEnrollment: React.FC = () => {
                       fontSize: '0.875rem'
                     }}>
                       {student.department}
+                    </TableCell>
+                    <TableCell sx={{ 
+                      fontWeight: 500,
+                      fontSize: '0.875rem'
+                    }}>
+                      {student.section || 'N/A'}
                     </TableCell>
                     <TableCell>
                       <Box sx={{ 
@@ -2857,73 +2920,59 @@ const ProgramHeadEnrollment: React.FC = () => {
                     </Typography>
                   </Box>
                   <Grid container spacing={2}>
-                    <Grid item xs={12} sm={4}>
-                      <TextField 
-                        label="First Name" 
-                        value={createForm.firstName} 
-                        fullWidth 
-                        required 
-                        InputProps={{ readOnly: true }}
-                        sx={{
-                          '& .MuiOutlinedInput-root': {
-                            backgroundColor: '#f9fafb',
-                            '& fieldset': {
-                              borderColor: '#d1d5db'
-                            }
-                          }
-                        }}
-                      />
-                    </Grid>
-                    <Grid item xs={12} sm={4}>
-                      <TextField 
-                        label="Middle Name" 
-                        value={createForm.middleName} 
-                        fullWidth 
-                        InputProps={{ readOnly: true }}
-                        sx={{
-                          '& .MuiOutlinedInput-root': {
-                            backgroundColor: '#f9fafb',
-                            '& fieldset': {
-                              borderColor: '#d1d5db'
-                            }
-                          }
-                        }}
-                      />
-                    </Grid>
-                    <Grid item xs={12} sm={4}>
-                      <TextField 
-                        label="Last Name" 
-                        value={createForm.lastName} 
-                        fullWidth 
-                        required 
-                        InputProps={{ readOnly: true }}
-                        sx={{
-                          '& .MuiOutlinedInput-root': {
-                            backgroundColor: '#f9fafb',
-                            '& fieldset': {
-                              borderColor: '#d1d5db'
-                            }
-                          }
-                        }}
-                      />
-                    </Grid>
                     <Grid item xs={12}>
                       <TextField 
                         label="Email" 
                         type="text" 
                         value={createForm.email} 
+                        onChange={e => setCreateForm(f => ({ ...f, email: e.target.value }))}
                         fullWidth 
                         required 
+                        error={createForm.email.length >= 3 && !emailValidation.isValid && !emailValidation.isChecking}
+                        helperText={emailValidation.message}
                         InputProps={{ 
-                          endAdornment: <span style={{ color: '#6b7280' }}>@smcbi.edu.ph</span>, 
-                          readOnly: true 
+                          endAdornment: (
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <span style={{ color: '#6b7280' }}>@smcbi.edu.ph</span>
+                              {emailValidation.isChecking && (
+                                <CircularProgress size={16} sx={{ color: '#6b7280' }} />
+                              )}
+                              {!emailValidation.isChecking && createForm.email.length >= 3 && (
+                                <Box
+                                  sx={{
+                                    width: 20,
+                                    height: 20,
+                                    borderRadius: '50%',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontSize: '0.75rem',
+                                    color: 'white',
+                                    background: emailValidation.isValid ? '#10b981' : '#ef4444'
+                                  }}
+                                >
+                                  {emailValidation.isValid ? '✓' : '✕'}
+                                </Box>
+                              )}
+                            </Box>
+                          )
                         }} 
-                        disabled
                         sx={{
                           '& .MuiOutlinedInput-root': {
-                            backgroundColor: '#f3f4f6',
                             '& fieldset': {
-                              borderColor: '#d1d5db'
+                              borderColor: emailValidation.isValid ? '#10b981' : 
+                                           emailValidation.isChecking ? '#6b7280' : 
+                                           createForm.email.length >= 3 && !emailValidation.isValid ? '#ef4444' : '#d1d5db'
+                            },
+                            '&:hover fieldset': {
+                              borderColor: emailValidation.isValid ? '#10b7280' : 
+                                           emailValidation.isChecking ? '#6b7280' : 
+                                           createForm.email.length >= 3 && !emailValidation.isValid ? '#ef4444' : '#9ca3af'
+                            },
+                            '&.Mui-focused fieldset': {
+                              borderColor: emailValidation.isValid ? '#10b981' : 
+                                           emailValidation.isChecking ? '#6b7280' : 
+                                           createForm.email.length >= 3 && !emailValidation.isValid ? '#ef4444' : '#667eea'
                             }
                           }
                         }}
@@ -3055,6 +3104,36 @@ const ProgramHeadEnrollment: React.FC = () => {
                         >
                           <MenuItem value="BSIT">BSIT</MenuItem>
                           {/* Add more courses here if needed */}
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <FormControl fullWidth>
+                        <InputLabel>Section</InputLabel>
+                        <Select
+                          value={createForm.section}
+                          label="Section"
+                          onChange={e => setCreateForm(f => ({ ...f, section: e.target.value }))}
+                          required
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              '& fieldset': {
+                                borderColor: '#d1d5db'
+                              },
+                              '&:hover fieldset': {
+                                borderColor: '#9ca3af'
+                              },
+                              '&.Mui-focused fieldset': {
+                                borderColor: '#667eea'
+                              }
+                            }
+                          }}
+                        >
+                          <MenuItem value="A">Section A</MenuItem>
+                          <MenuItem value="B">Section B</MenuItem>
+                          <MenuItem value="C">Section C</MenuItem>
+                          <MenuItem value="D">Section D</MenuItem>
+                          <MenuItem value="E">Section E</MenuItem>
                         </Select>
                       </FormControl>
                     </Grid>
@@ -3374,106 +3453,59 @@ const ProgramHeadEnrollment: React.FC = () => {
                     </Typography>
                   </Box>
                   <Grid container spacing={2}>
-                    <Grid item xs={12} sm={4}>
-                      <TextField 
-                        label="First Name" 
-                        value={createForm.firstName} 
-                        onChange={e => setCreateForm(f => ({ ...f, firstName: e.target.value }))} 
-                        fullWidth 
-                        required
-                        sx={{
-                          '& .MuiOutlinedInput-root': {
-                            '& fieldset': {
-                              borderColor: '#d1d5db'
-                            },
-                            '&:hover fieldset': {
-                              borderColor: '#9ca3af'
-                            },
-                            '&.Mui-focused fieldset': {
-                              borderColor: '#667eea'
-                            }
-                          }
-                        }}
-                      />
-                    </Grid>
-                    <Grid item xs={12} sm={4}>
-                      <TextField 
-                        label="Middle Name" 
-                        value={createForm.middleName} 
-                        onChange={e => setCreateForm(f => ({ ...f, middleName: e.target.value }))} 
-                        fullWidth 
-                        sx={{
-                          '& .MuiOutlinedInput-root': {
-                            '& fieldset': {
-                              borderColor: '#d1d5db'
-                            },
-                            '&:hover fieldset': {
-                              borderColor: '#9ca3af'
-                            },
-                            '&.Mui-focused fieldset': {
-                              borderColor: '#667eea'
-                            }
-                          }
-                        }}
-                      />
-                    </Grid>
-                    <Grid item xs={12} sm={4}>
-                      <TextField 
-                        label="Last Name" 
-                        value={createForm.lastName} 
-                        onChange={e => setCreateForm(f => ({ ...f, lastName: e.target.value }))} 
-                        fullWidth 
-                        required
-                        sx={{
-                          '& .MuiOutlinedInput-root': {
-                            '& fieldset': {
-                              borderColor: '#d1d5db'
-                            },
-                            '&:hover fieldset': {
-                              borderColor: '#9ca3af'
-                            },
-                            '&.Mui-focused fieldset': {
-                              borderColor: '#667eea'
-                            }
-                          }
-                        }}
-                      />
-                    </Grid>
                     <Grid item xs={12}>
                       <TextField 
                         label="Email" 
                         type="text" 
                         value={createForm.email} 
+                        onChange={e => setCreateForm(f => ({ ...f, email: e.target.value }))}
                         fullWidth 
                         required 
+                        error={createForm.email.length >= 3 && !emailValidation.isValid && !emailValidation.isChecking}
+                        helperText={emailValidation.message}
                         InputProps={{ 
-                          endAdornment: <span style={{ color: '#6b7280' }}>@smcbi.edu.ph</span>, 
-                          readOnly: true 
+                          endAdornment: (
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <span style={{ color: '#6b7280' }}>@smcbi.edu.ph</span>
+                              {emailValidation.isChecking && (
+                                <CircularProgress size={16} sx={{ color: '#6b7280' }} />
+                              )}
+                              {!emailValidation.isChecking && createForm.email.length >= 3 && (
+                                <Box
+                                  sx={{
+                                    width: 20,
+                                    height: 20,
+                                    borderRadius: '50%',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontSize: '0.75rem',
+                                    color: 'white',
+                                    background: emailValidation.isValid ? '#10b981' : '#ef4444'
+                                  }}
+                                >
+                                  {emailValidation.isValid ? '✓' : '✕'}
+                                </Box>
+                              )}
+                            </Box>
+                          )
                         }} 
-                        disabled
                         sx={{
                           '& .MuiOutlinedInput-root': {
-                            backgroundColor: '#f3f4f6',
                             '& fieldset': {
-                              borderColor: '#d1d5db'
-                            }
-                          }
-                        }}
-                      />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <TextField 
-                        label="Password" 
-                        type="text" 
-                        value={createForm.password} 
-                        fullWidth 
-                        required 
-                        InputProps={{ readOnly: true }}
-                        sx={{
-                          '& .MuiOutlinedInput-root': {
-                            backgroundColor: '#f9fafb',
-                            '& fieldset': {
-                              borderColor: '#d1d5db'
+                              borderColor: emailValidation.isValid ? '#10b981' : 
+                                           emailValidation.isChecking ? '#6b7280' : 
+                                           createForm.email.length >= 3 && !emailValidation.isValid ? '#ef4444' : '#d1d5db'
+                            },
+                            '&:hover fieldset': {
+                              borderColor: emailValidation.isValid ? '#10b981' : 
+                                           emailValidation.isChecking ? '#6b7280' : 
+                                           createForm.email.length >= 3 && !emailValidation.isValid ? '#ef4444' : '#9ca3af'
+                            },
+                            '&.Mui-focused fieldset': {
+                              borderColor: emailValidation.isValid ? '#10b981' : 
+                                           emailValidation.isChecking ? '#6b7280' : 
+                                           createForm.email.length >= 3 && !emailValidation.isValid ? '#ef4444' : '#667eea'
                             }
                           }
                         }}
@@ -3625,6 +3657,36 @@ const ProgramHeadEnrollment: React.FC = () => {
                         >
                           <MenuItem value="BSIT">BSIT</MenuItem>
                           {/* Add more courses here if needed */}
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <FormControl fullWidth>
+                        <InputLabel>Section</InputLabel>
+                        <Select
+                          value={createForm.section}
+                          label="Section"
+                          onChange={e => setCreateForm(f => ({ ...f, section: e.target.value }))}
+                          required
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              '& fieldset': {
+                                borderColor: '#d1d5db'
+                              },
+                              '&:hover fieldset': {
+                                borderColor: '#9ca3af'
+                              },
+                              '&.Mui-focused fieldset': {
+                                borderColor: '#667eea'
+                              }
+                            }
+                          }}
+                        >
+                          <MenuItem value="A">Section A</MenuItem>
+                          <MenuItem value="B">Section B</MenuItem>
+                          <MenuItem value="C">Section C</MenuItem>
+                          <MenuItem value="D">Section D</MenuItem>
+                          <MenuItem value="E">Section E</MenuItem>
                         </Select>
                       </FormControl>
                     </Grid>
@@ -3906,36 +3968,31 @@ const ProgramHeadEnrollment: React.FC = () => {
         >
           {editForm && (
             <Grid container spacing={2} alignItems="flex-start" sx={{ mt: 1 }}>
-              <Grid item xs={12} md={4}>
+              <Grid item xs={12}>
                 <TextField 
-                  label="First Name" 
-                  value={editFormFields.firstName} 
-                  onChange={e => setEditFormFields(f => ({ ...f, firstName: e.target.value }))} 
+                  label="Email" 
+                  value={editFormFields.email} 
+                  onChange={e => setEditFormFields(f => ({ ...f, email: e.target.value }))} 
                   size="small"
                   variant="outlined"
                   fullWidth 
                   required 
-                />
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <TextField 
-                  label="Middle Name" 
-                  value={editFormFields.middleName} 
-                  onChange={e => setEditFormFields(f => ({ ...f, middleName: e.target.value }))} 
-                  size="small"
-                  variant="outlined"
-                  fullWidth 
-                />
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <TextField 
-                  label="Last Name" 
-                  value={editFormFields.lastName} 
-                  onChange={e => setEditFormFields(f => ({ ...f, lastName: e.target.value }))} 
-                  size="small"
-                  variant="outlined"
-                  fullWidth 
-                  required 
+                  InputProps={{ 
+                    endAdornment: <span style={{ color: '#6b7280' }}>@smcbi.edu.ph</span>
+                  }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      '& fieldset': {
+                        borderColor: '#d1d5db'
+                      },
+                      '&:hover fieldset': {
+                        borderColor: '#9ca3af'
+                      },
+                      '&.Mui-focused fieldset': {
+                        borderColor: '#667eea'
+                      }
+                    }
+                  }}
                 />
               </Grid>
               <Grid item xs={12} md={6}>
@@ -4005,13 +4062,30 @@ const ProgramHeadEnrollment: React.FC = () => {
                 </Select>
               </FormControl>
               </Grid>
+              <Grid item xs={12} md={6}>
+                <FormControl fullWidth>
+                  <InputLabel>Section</InputLabel>
+                  <Select
+                    value={editForm.section || ''}
+                    label="Section"
+                    onChange={e => setEditForm((f: Student | null) => f ? { ...f, section: e.target.value } : null)}
+                    size="small" required
+                  >
+                    <MenuItem value="A">Section A</MenuItem>
+                    <MenuItem value="B">Section B</MenuItem>
+                    <MenuItem value="C">Section C</MenuItem>
+                    <MenuItem value="D">Section D</MenuItem>
+                    <MenuItem value="E">Section E</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
             </Grid>
           )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => { 
             setEditForm(null); 
-            setEditFormFields({ firstName: '', middleName: '', lastName: '' }); 
+            setEditFormFields({ email: '' }); 
           }} disabled={savingEdit}>Cancel</Button>
           <Button onClick={handleSaveEdit} variant="contained" color="primary" disabled={savingEdit}>{savingEdit ? 'Saving...' : 'Save Changes'}</Button>
         </DialogActions>
