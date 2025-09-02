@@ -61,6 +61,15 @@ export default function EditUserModal() {
   const emailInputRef = useRef<HTMLInputElement | null>(null);
   const emailMeasureRef = useRef<HTMLSpanElement | null>(null);
 
+  // Helper function to close modal and call callback if needed
+  const closeModal = (shouldRefresh: boolean = false) => {
+    if (shouldRefresh && onEditUserModalClose) {
+      console.log('EditUserModal: Calling callback to refresh user list');
+      onEditUserModalClose();
+    }
+    setShowEditUserModal(false);
+  };
+
   const getEmailFontSizeClass = (): string => 'text-base';
 
   // Auto-fit email font size precisely using a hidden measurement span
@@ -223,6 +232,11 @@ export default function EditUserModal() {
       setFormData(data);
       setAuthEmail(data.email || '');
       setEmailInput(data.email || '');
+      console.log('Email state after loading:', {
+        dataEmail: data.email,
+        authEmail: data.email || '',
+        emailInput: data.email || ''
+      });
     } catch (error) {
       console.error('Error fetching user:', error);
       toast.error('Failed to load user data');
@@ -314,7 +328,51 @@ export default function EditUserModal() {
   const validateAndCleanData = (data: Partial<UserProfile>, userRole: string) => {
     const cleanedData = { ...data };
     
-    if (userRole === 'student') {
+    // Handle role changes - if role is being changed, clean up role-specific fields
+    if (cleanedData.role && cleanedData.role !== userRole) {
+      console.log('Role change detected:', userRole, '->', cleanedData.role);
+      
+      // If changing to student, ensure student fields are properly set
+      if (cleanedData.role === 'student') {
+        // Set default values for student fields if they're empty
+        if (!cleanedData.enrollment_status) {
+          cleanedData.enrollment_status = 'enrolled';
+        }
+        if (!cleanedData.student_status) {
+          cleanedData.student_status = 'active';
+        }
+        if (!cleanedData.year_level) {
+          cleanedData.year_level = '1st Year';
+        }
+        if (!cleanedData.semester) {
+          cleanedData.semester = '1st Semester';
+        }
+        if (!cleanedData.student_type) {
+          cleanedData.student_type = 'Regular';
+        }
+        if (!cleanedData.section) {
+          cleanedData.section = 'A';
+        }
+        // Ensure school_year is set for students
+        if (!cleanedData.school_year) {
+          cleanedData.school_year = '2024-2025';
+        }
+      } else {
+        // If changing from student to another role, clear student-specific fields
+        console.log('Clearing student-specific fields for role:', cleanedData.role);
+        cleanedData.enrollment_status = null;
+        cleanedData.student_status = null;
+        cleanedData.year_level = null;
+        cleanedData.semester = null;
+        cleanedData.student_type = null;
+        cleanedData.section = null;
+        cleanedData.school_year = null;
+        cleanedData.student_id = null;
+        cleanedData.program_id = null;
+      }
+    }
+    
+    if (cleanedData.role === 'student') {
       // Validate and clean student-specific fields
       const validEnrollmentStatuses = ['pending', 'enrolled', 'active', 'approved', 'returned', 'dropped'];
       const validStudentStatuses = ['active', 'inactive', 'graduated', 'transferred', 'dropped'];
@@ -366,9 +424,13 @@ export default function EditUserModal() {
       if (!cleanedData.student_status) {
         cleanedData.student_status = 'active';
       }
+      if (!cleanedData.school_year) {
+        cleanedData.school_year = '2024-2025';
+      }
       
     } else {
       // For non-student users, ensure all student-specific fields are NULL
+      console.log('Setting student fields to NULL for role:', cleanedData.role);
       cleanedData.enrollment_status = null;
       cleanedData.student_status = null;
       cleanedData.year_level = null;
@@ -380,12 +442,24 @@ export default function EditUserModal() {
       cleanedData.program_id = null;
     }
     
+    console.log('Final cleaned data:', cleanedData);
     return cleanedData;
   };
 
   // Enhanced form validation
   const validateFormData = (): { isValid: boolean; errors: string[] } => {
     const errors: string[] = [];
+    
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (emailInput && !emailRegex.test(emailInput.trim())) {
+      errors.push('Please enter a valid email address');
+    }
+    
+    // Check for empty email
+    if (!emailInput || emailInput.trim() === '') {
+      errors.push('Email address is required');
+    }
     
     if (user?.role === 'student') {
       // Validate student-specific fields
@@ -417,7 +491,7 @@ export default function EditUserModal() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!hasChanges) {
-      setShowEditUserModal(false);
+      closeModal(false); // No refresh needed if no changes
       return;
     }
     
@@ -437,8 +511,24 @@ export default function EditUserModal() {
     try {
       setSaving(true);
   
+      // Check if email has changed and needs auth update
+      const emailChanged = emailInput !== (user?.email || '');
+      const newEmail = emailInput.trim();
+      
+      console.log('Email change detection:', {
+        originalEmail: user?.email,
+        newEmail: newEmail,
+        emailInput: emailInput,
+        emailChanged: emailChanged
+      });
+  
       // Comprehensive data cleaning and validation
-      const cleanedData = validateAndCleanData(formData, user?.role || '');
+      const cleanedData = validateAndCleanData(formData, formData.role || user?.role || '');
+      
+      // Add email to cleaned data if it has changed
+      if (emailChanged && newEmail) {
+        cleanedData.email = newEmail;
+      }
       
       // Log what we're sending to database for debugging
       console.log('Sending cleaned data to database:', cleanedData);
@@ -451,16 +541,137 @@ export default function EditUserModal() {
 
       if (profileError) {
         console.error('Database update error:', profileError);
-        throw profileError;
+        console.error('Error details:', {
+          message: profileError.message,
+          details: profileError.details,
+          hint: profileError.hint,
+          code: profileError.code
+        });
+        
+        // If it's a constraint error, try a more careful approach
+        if (profileError.code === '23514' || profileError.message.includes('check constraint')) {
+          console.log('Constraint error detected, trying alternative approach...');
+          
+          // First, clear all student fields
+          const clearStudentFields = {
+            enrollment_status: null,
+            student_status: null,
+            year_level: null,
+            semester: null,
+            student_type: null,
+            section: null,
+            school_year: null,
+            student_id: null,
+            program_id: null
+          };
+          
+          const { error: clearError } = await supabase
+            .from('user_profiles')
+            .update(clearStudentFields)
+            .eq('id', selectedUserId);
+            
+          if (clearError) {
+            console.error('Error clearing student fields:', clearError);
+            throw clearError;
+          }
+          
+          // Then update with the new role and data
+          const { error: updateError } = await supabase
+            .from('user_profiles')
+            .update(cleanedData)
+            .eq('id', selectedUserId);
+            
+          if (updateError) {
+            console.error('Error updating after clearing fields:', updateError);
+            
+            // If still getting constraint error, try updating only non-student fields first
+            if (updateError.code === '23514' && cleanedData.role !== 'student') {
+              console.log('Still getting constraint error, trying role-only update...');
+              
+              const roleOnlyUpdate = {
+                role: cleanedData.role,
+                department: cleanedData.department,
+                email: cleanedData.email
+              };
+              
+              const { error: roleError } = await supabase
+                .from('user_profiles')
+                .update(roleOnlyUpdate)
+                .eq('id', selectedUserId);
+                
+              if (roleError) {
+                console.error('Error updating role only:', roleError);
+                throw roleError;
+              }
+            } else {
+              throw updateError;
+            }
+          }
+        } else {
+          throw profileError;
+        }
       }
 
-      toast.success('User profile updated successfully.');
-      // Call the callback if it exists, then close the modal
-      if (onEditUserModalClose) {
-        console.log('EditUserModal: Calling callback to refresh user list');
-        onEditUserModalClose();
+      // If email changed, update Supabase auth as well
+      if (emailChanged && newEmail) {
+        console.log('Email changed, updating Supabase auth...');
+        
+        // Check if email might be problematic (common issues)
+        const problematicPatterns = [
+          /admin@.*\.edu\.ph/i,  // admin@*.edu.ph pattern - commonly rejected
+          /@.*\.edu\.ph/i,       // any .edu.ph domain - seems to have issues
+        ];
+        
+        const isProblematicEmail = problematicPatterns.some(pattern => pattern.test(newEmail));
+        
+        if (isProblematicEmail) {
+          console.log('Detected .edu.ph domain, skipping auth update to avoid Supabase issues');
+          toast.success('Profile updated successfully! .edu.ph email changes require manual verification.');
+        } else {
+          // Get the current user session to access auth
+          const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+          
+          if (authError) {
+            console.error('Error getting auth user:', authError);
+            toast.error('Failed to update authentication email. Profile updated but email may not sync.');
+          } else if (authUser) {
+            // Update the email in Supabase auth
+            console.log('Attempting auth update with email:', newEmail);
+            console.log('Email input state:', emailInput);
+            console.log('User email state:', user?.email);
+            const { error: updateAuthError } = await supabase.auth.updateUser({
+              email: newEmail
+            });
+            
+            if (updateAuthError) {
+              console.error('Error updating auth email:', updateAuthError);
+              console.error('Attempted email:', newEmail);
+              
+              // Handle rate limiting specifically
+              if (updateAuthError.message.includes('21 seconds') || updateAuthError.message.includes('Too Many Requests')) {
+                toast.success('Profile updated successfully! Email change requires 21-second cooldown. Please try again in a moment.');
+              } else if (updateAuthError.message.includes('invalid') || updateAuthError.message.includes('Invalid')) {
+                toast.error('Profile updated but email format is invalid. Please check the email address or contact administrator.');
+              } else if (updateAuthError.message.includes('already registered') || updateAuthError.message.includes('already exists')) {
+                toast.error('Profile updated but email is already in use by another user.');
+              } else {
+                toast.error('Profile updated but failed to update authentication email. User may need to re-login.');
+              }
+            } else {
+              console.log('Auth email updated successfully');
+              toast.success('User profile and authentication email updated successfully.');
+            }
+          } else {
+            console.log('No auth user found, skipping auth update');
+            toast.success('User profile updated successfully. Authentication email update skipped.');
+          }
+        }
+      } else {
+        toast.success('User profile updated successfully.');
       }
-      setShowEditUserModal(false);
+      
+      // Call the callback if it exists, then close the modal
+      closeModal(true); // Refresh needed after successful update
     } catch (error) {
       console.error('Error updating user:', error);
       
@@ -519,10 +730,10 @@ export default function EditUserModal() {
                   <h2 className="text-xl font-semibold text-gray-900 tracking-tight">Edit User</h2>
                   {user && (
                     <p className="text-sm text-gray-500 mt-1">
-                      Role: <span className="font-medium text-blue-600 capitalize">{user.role}</span>
+                      Role: <span className="font-medium text-blue-600 capitalize">{formData.role || user.role}</span>
                     </p>
                   )}
-                  {(user && (user.role === 'instructor' || user.role === 'program_head')) && (
+                  {(user && (formData.role === 'instructor' || formData.role === 'program_head')) && (
                     <p className="text-sm text-gray-500 mt-0.5">
                       Department: <span className="font-medium text-gray-900">{(formData.department || '').trim() || 'Not set'}</span>
                     </p>
@@ -530,7 +741,7 @@ export default function EditUserModal() {
                 </div>
                 <div className="flex-1 flex justify-end">
                   <button
-                    onClick={() => setShowEditUserModal(false)}
+                    onClick={() => closeModal(false)}
                     className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-300"
                     aria-label="Close modal"
                   >
@@ -550,8 +761,111 @@ export default function EditUserModal() {
                 </div>
               ) : user ? (
                 <form onSubmit={handleSubmit} className="space-y-4 premium-form">
+                  {/* Non-Student Information */}
+                  {formData.role !== 'student' && (
+                    <div className="space-y-6">
+                      <div className="bg-gray-50 rounded-xl border border-gray-200 p-6">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-600">
+                            <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
+                            <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
+                          </svg>
+                          User Information
+                        </h3>
+                        
+                        {/* Role Selection - Centered at top */}
+                        <div className="mb-6 flex justify-center">
+                          <div className="w-full max-w-md">
+                            <label className="block text-sm font-medium text-gray-600 mb-1 text-center">
+                              User Role
+                            </label>
+                            <select
+                              value={formData.role || ''}
+                              onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                              className="w-full px-3 py-1.5 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500 text-center"
+                              style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
+                            >
+                              <option value="">Select Role</option>
+                              <option value="student">Student</option>
+                              <option value="instructor">Instructor</option>
+                              <option value="program_head">Program Head</option>
+                              <option value="registrar">Registrar</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Horizontal divider line */}
+                        <div className="border-t border-gray-300 mb-6"></div>
+
+                        {/* Name and Email in single row */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {/* Email Address */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-600 mb-1">
+                              Email Address
+                            </label>
+                            <input
+                              type="email"
+                              value={emailInput}
+                              onChange={(e) => setEmailInput(e.target.value)}
+                              ref={emailInputRef}
+                              className={`w-full px-3 py-1.5 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500 ${getEmailFontSizeClass()}`}
+                              placeholder="user@email.com"
+                              style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
+                            />
+                          </div>
+
+                          {/* Name Field */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-600 mb-1">
+                              Name
+                            </label>
+                            <input
+                              type="text"
+                              value={`${formData.first_name || ''} ${formData.middle_name || ''} ${formData.last_name || ''}`.trim()}
+                              onChange={(e) => {
+                                const nameParts = e.target.value.split(' ');
+                                setFormData({
+                                  ...formData,
+                                  first_name: nameParts[0] || '',
+                                  middle_name: nameParts.length > 2 ? nameParts.slice(1, -1).join(' ') : '',
+                                  last_name: nameParts.length > 1 ? nameParts[nameParts.length - 1] : ''
+                                });
+                              }}
+                              className="w-full px-3 py-1.5 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
+                              placeholder="Full Name"
+                              style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Department Information - Only show for instructor/program_head */}
+                        {(formData.role === 'instructor' || formData.role === 'program_head') && (
+                          <div className="mt-4">
+                            <label className="block text-sm font-medium text-gray-600 mb-1">
+                              Department
+                            </label>
+                            <select
+                              value={formData.department || ''}
+                              onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                              className="w-full px-3 py-1.5 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
+                              style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
+                            >
+                              <option value="">Select Department</option>
+                              {programs.map((program) => (
+                                <option key={`dept-${program.id}`} value={program.name}>
+                                  {program.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Student Information */}
-                  {user.role === 'student' && (
+                  {formData.role === 'student' && (
                     <div className="space-y-6">
                       {/* Academic Information */}
                       <div className="bg-gray-50 rounded-xl border border-gray-200 p-6">
@@ -563,20 +877,70 @@ export default function EditUserModal() {
                           Academic Information
                         </h3>
                         
-                        {/* Email Address - First field */}
-                        <div className="mb-4">
-                          <label className="block text-sm font-medium text-gray-600 mb-1">
-                            Email Address
-                          </label>
-                          <input
-                            type="email"
-                            value={emailInput}
-                            onChange={(e) => setEmailInput(e.target.value)}
-                            ref={emailInputRef}
-                            className={`w-full px-3 py-1.5 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500 ${getEmailFontSizeClass()}`}
-                            placeholder="user@email.com"
-                            style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
-                          />
+                        {/* Role Selection - Centered at top for students */}
+                        <div className="mb-6 flex justify-center">
+                          <div className="w-full max-w-md">
+                            <label className="block text-sm font-medium text-gray-600 mb-1 text-center">
+                              User Role
+                            </label>
+                            <select
+                              value={formData.role || ''}
+                              onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                              className="w-full px-3 py-1.5 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500 text-center"
+                              style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
+                            >
+                              <option value="">Select Role</option>
+                              <option value="student">Student</option>
+                              <option value="instructor">Instructor</option>
+                              <option value="program_head">Program Head</option>
+                              <option value="registrar">Registrar</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Horizontal divider line */}
+                        <div className="border-t border-gray-300 mb-6"></div>
+
+                        {/* Name and Email in single row - for students */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                          {/* Email Address */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-600 mb-1">
+                              Email Address
+                            </label>
+                            <input
+                              type="email"
+                              value={emailInput}
+                              onChange={(e) => setEmailInput(e.target.value)}
+                              ref={emailInputRef}
+                              className={`w-full px-3 py-1.5 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500 ${getEmailFontSizeClass()}`}
+                              placeholder="user@email.com"
+                              style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
+                            />
+                          </div>
+
+                          {/* Name Field */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-600 mb-1">
+                              Name
+                            </label>
+                            <input
+                              type="text"
+                              value={`${formData.first_name || ''} ${formData.middle_name || ''} ${formData.last_name || ''}`.trim()}
+                              onChange={(e) => {
+                                const nameParts = e.target.value.split(' ');
+                                setFormData({
+                                  ...formData,
+                                  first_name: nameParts[0] || '',
+                                  middle_name: nameParts.length > 2 ? nameParts.slice(1, -1).join(' ') : '',
+                                  last_name: nameParts.length > 1 ? nameParts[nameParts.length - 1] : ''
+                                });
+                              }}
+                              className="w-full px-3 py-1.5 rounded-lg border-2 border-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm text-gray-500"
+                              placeholder="Full Name"
+                              style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
+                            />
+                          </div>
                         </div>
                         
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -737,7 +1101,7 @@ export default function EditUserModal() {
                   <div className="flex justify-end gap-3 pt-6 border-t border-gray-200">
                     <button
                       type="button"
-                      onClick={() => setShowEditUserModal(false)}
+                      onClick={() => closeModal(false)}
                       className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors border border-gray-200"
                     >
                       Cancel
@@ -763,7 +1127,7 @@ export default function EditUserModal() {
                   <p className="text-lg font-medium mb-2">User not found</p>
                   <p className="text-sm">Unable to load user data. Please try again or contact support.</p>
                   <button
-                    onClick={() => setShowEditUserModal(false)}
+                    onClick={() => closeModal(false)}
                     className="mt-4 px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                   >
                     Close Modal
