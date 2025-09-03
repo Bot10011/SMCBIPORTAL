@@ -24,29 +24,54 @@ export async function handleForcePasswordChange(email: string, newPassword: stri
     // Initialize Supabase client with service role key
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Find the user in auth.users table
-    const { data: authUsers, error: authUserError } = await supabase.auth.admin.listUsers();
-    
-    if (authUserError) {
-      console.error('Auth user error:', authUserError);
-      throw new Error('Failed to access user authentication data');
+    // Prefer resolving auth user by profile.id (which should equal auth user id)
+    let userId: string | null = null;
+    try {
+      const { data: userProfile, error: profileLookupError } = await supabase
+        .from('user_profiles')
+        .select('id, email')
+        .ilike('email', email)
+        .limit(1)
+        .maybeSingle();
+      if (!profileLookupError && userProfile?.id) {
+        userId = userProfile.id;
+      }
+    } catch (profileLookupErr) {
+      console.warn('Profile lookup by email failed; will fallback to auth listing:', profileLookupErr);
     }
-    
-    // Find a matching user case-insensitively
-    const user = authUsers.users.find(
-      u => u.email && u.email.toLowerCase() === email.toLowerCase()
-    );
-    
-    if (!user) {
+
+    // Fallback: search auth users by email, with pagination to avoid missing users
+    if (!userId) {
+      let foundUserId: string | null = null;
+      let page = 1;
+      const perPage = 1000;
+      for (let attempts = 0; attempts < 10; attempts++) { // cap pages to avoid runaway
+        const { data, error } = await supabase.auth.admin.listUsers({ page, perPage });
+        if (error) {
+          console.error('Auth user list error:', error);
+          break;
+        }
+        const match = data.users.find(u => u.email && u.email.toLowerCase() === email.toLowerCase());
+        if (match) {
+          foundUserId = match.id;
+          break;
+        }
+        if (data.users.length < perPage) break; // no more pages
+        page += 1;
+      }
+      userId = foundUserId;
+    }
+
+    if (!userId) {
       console.error('No matching auth user found for email:', email);
       throw new Error('User not found in authentication system');
     }
     
-    console.log('Found user in auth system:', user.id, user.email);
+    console.log('Resolved auth user id for password change:', userId, email);
     
     // Update the user's password using Supabase Auth Admin API
     const { error: passwordUpdateError } = await supabase.auth.admin.updateUserById(
-      user.id,
+      userId,
       { 
         password: newPassword,
         email_confirm: true // This will confirm the email if it wasn't already
@@ -88,8 +113,8 @@ export async function handleForcePasswordChange(email: string, newPassword: stri
       message: 'Password changed successfully',
       data: {
         user: {
-          id: user.id,
-          email: user.email
+          id: userId,
+          email
         },
         changedAt: new Date().toISOString()
       }
@@ -144,3 +169,4 @@ export default async function handler(req: any, res: any) {
     });
   }
 }
+
