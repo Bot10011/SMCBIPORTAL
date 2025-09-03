@@ -5,7 +5,7 @@ export async function handleForcePasswordChange(email: string, newPassword: stri
     // Validate inputs
     if (!email || !email.includes('@')) {
       throw new Error('Invalid email address');
-    }
+    } 
     if (!newPassword || newPassword.length < 8) {
       throw new Error('Password must be at least 8 characters long');
     }
@@ -169,4 +169,5 @@ export default async function handler(req: any, res: any) {
     });
   }
 }
+
 
