@@ -55,27 +55,27 @@ const ForcePasswordChange: React.FC<ForcePasswordChangeProps> = ({ email, onSucc
     
     setLoading(true);
     try {
-      // First, try to update the password using Supabase Auth Admin API
+      // 1) Prefer updating via the current authenticated session
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (sessionData?.session) {
+        const { error: updateError } = await supabase.auth.updateUser({ password });
+        if (!updateError) {
+          setSuccess(true);
+          setTimeout(() => { onSuccess(); }, 1500);
+          return;
+        }
+      }
+
+      // 2) Fallback to server-side admin API (handles cases without a valid session)
       const response = await fetch('/api/force-password-change', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: email,
-          newPassword: password
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, newPassword: password }),
       });
-      
       const result = await response.json();
-      
       if (result.success) {
         setSuccess(true);
-        toast.success('Password changed successfully! You can now login with your new password.');
-        // Close the modal after a delay
-        setTimeout(() => {
-          onSuccess();
-        }, 3000);
+        setTimeout(() => { onSuccess(); }, 1500);
       } else {
         toast.error(result.message || 'Failed to change password');
       }
@@ -225,3 +225,4 @@ const ForcePasswordChange: React.FC<ForcePasswordChangeProps> = ({ email, onSucc
 };
 
 export default ForcePasswordChange;
+
