@@ -14,6 +14,11 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true
+  },
+  global: {
+    headers: {
+      'X-Client-Info': 'student-portal-web'
+    }
   }
 });
 
@@ -21,7 +26,7 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
 export type User = {
   id: string;
   email: string;
-  role: 'admin' | 'teacher' | 'instructor' | 'student' | 'registrar';
+  role: 'admin' | 'instructor' | 'student' | 'registrar';
   first_name: string;
   last_name: string;
   department?: string;
@@ -105,15 +110,16 @@ export const userManagement = {
 
     if (error) throw error;
     return data;
-  }
+  },
 };
 
 // Helper functions for common operations
 export const auth = {
-  signIn: async (email: string, password: string) => {
+  signIn: async (email: string, password: string, captchaToken?: string) => {
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
+      options: captchaToken ? { captchaToken } : undefined
     });
     if (error) throw error;
     return data;
@@ -169,6 +175,45 @@ export const db = {
         .single();
       if (error) throw error;
       return data;
+    },
+
+    // Check if user exists in database by email
+    checkUserExists: async (email: string): Promise<boolean> => {
+      try {
+        console.log('🔍 Checking if user exists in database:', email);
+        
+        const { data, error } = await supabase
+          .from('user_profiles')
+          .select('id, email, role, is_active')
+          .eq('email', email)
+          .maybeSingle();
+
+        console.log('🔍 Database query result:', { data, error });
+
+        if (error) {
+          console.error('Error checking user in database:', error);
+          return false;
+        }
+
+        // User exists and is active
+        if (data && data.is_active) {
+          console.log('✅ User found in database:', data);
+          return true;
+        }
+
+        // User exists but is inactive
+        if (data && !data.is_active) {
+          console.log('❌ User found but inactive:', data);
+          return false;
+        }
+
+        // User doesn't exist
+        console.log('❌ User not found in database:', email);
+        return false;
+      } catch (error) {
+        console.error('Error checking user existence:', error);
+        return false;
+      }
     },
 
     // New function to get or create user profile
