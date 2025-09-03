@@ -12,8 +12,8 @@ import {
   FormControl,
   Grid,
   InputLabel,
-  MenuItem, 
-  Select, 
+  MenuItem,
+  Select,
   Table,
   TableBody,
   TableCell,
@@ -36,8 +36,10 @@ import html2canvas from 'html2canvas';
 
 interface Student {
   id: string;
+  firstName?: string;
+  middleName?: string;
+  lastName?: string;
   name: string;
-  email?: string;
   studentType: 'Freshman' | 'Regular' | 'Irregular' | 'Transferee';
   yearLevel: number;
   currentSubjects: Subject[];
@@ -84,17 +86,23 @@ const ProgramHeadEnrollment: React.FC = () => {
   const [filterYear, setFilterYear] = useState('');
   const [filterType, setFilterType] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  const [filterSection, setFilterSection] = useState('');
   const [editForm, setEditForm] = useState<Student | null>(null);
   const [editFormFields, setEditFormFields] = useState<{
-    email: string;
+    firstName: string;
+    middleName: string;
+    lastName: string;
   }>({
-    email: '',
+    firstName: '',
+    middleName: '',
+    lastName: '',
   });
   const [savingEdit, setSavingEdit] = useState(false);
   const [isExistingModalOpen, setIsExistingModalOpen] = useState(false);
   const [existingStudentsByYear, setExistingStudentsByYear] = useState<Record<string, Student[]>>({});
   const [selectedExistingStudent, setSelectedExistingStudent] = useState<Student | null>(null);
   const [existingFilterYear, setExistingFilterYear] = useState('');
+  const [existingFilterSection, setExistingFilterSection] = useState('');
   const [endSemesterOpen, setEndSemesterOpen] = useState(false);
   const [endSemesterLoading, setEndSemesterLoading] = useState(false);
   const [endSemesterConfirmation, setEndSemesterConfirmation] = useState('');
@@ -102,42 +110,10 @@ const ProgramHeadEnrollment: React.FC = () => {
   const [courseSearch, setCourseSearch] = useState('');
   const [isProspectusModalOpen, setIsProspectusModalOpen] = useState(false);
   const [loadingCourses, setLoadingCourses] = useState(false);
-  const [emailValidation, setEmailValidation] = useState<{
-    isValid: boolean;
-    isChecking: boolean;
-    message: string;
-  }>({
-    isValid: false,
-    isChecking: false,
-    message: ''
-  });
 
-  // Function to check if a section is full
-  const checkSectionCapacity = async (yearLevel: number, section: string, department: string): Promise<{ isFull: boolean; currentCount: number; maxCapacity: number }> => {
-    try {
-      const { count, error } = await supabase
-        .from('user_profiles')
-        .select('id', { count: 'exact', head: true })
-        .eq('role', 'student')
-        .eq('year_level', yearLevel)
-        .eq('section', section)
-        .eq('department', department);
-
-      if (error) {
-        console.error('Error checking section capacity:', error);
-        return { isFull: false, currentCount: 0, maxCapacity: 50 };
-      }
-
-      const currentCount = count || 0;
-      const maxCapacity = 50; // Default max capacity per section
-      const isFull = currentCount >= maxCapacity;
-
-      return { isFull, currentCount, maxCapacity };
-    } catch (error) {
-      console.error('Error checking section capacity:', error);
-      return { isFull: false, currentCount: 0, maxCapacity: 50 };
-    }
-  };
+  // Add sections state for the dropdown
+  const [sections, setSections] = useState<Array<{ id: string; name: string; year_level: number; academic_year?: string }>>([]);
+  const [sectionsLoading, setSectionsLoading] = useState(false);
 
   // Fetch courses when prospectus modal opens
   useEffect(() => {
@@ -406,284 +382,54 @@ const ProgramHeadEnrollment: React.FC = () => {
       const totalUnits = courses.reduce((sum, subj) => sum + (subj.units || 0), 0);
       console.log('Showing all subjects section, total units:', totalUnits);
       return (
-        <Card sx={{ 
-          mb: 2, 
-          borderRadius: 2, 
-          border: '1px solid #e5e7eb',
-          overflow: 'hidden'
-        }}>
-          <Box sx={{ 
-            background: 'linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%)',
-            p: 2,
-            borderBottom: '1px solid #e5e7eb'
-          }}>
-            <Typography variant="h6" sx={{ 
-              fontWeight: 600, 
-              color: '#374151',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 1
-            }}>
-              <Box sx={{ 
-                width: 24, 
-                height: 24, 
-                borderRadius: '50%', 
-                background: '#667eea',
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center', 
-                fontSize: '0.8rem',
-                color: 'white',
-                fontWeight: 600
-              }}>
-                📚
+        <Box className="year-section">
+          <Box className="year-header">
+            <Box className="year-number">📚</Box>
+            <Typography className="year-title">All Subjects</Typography>
+            <Box className="year-stats">
+              <Box className="stat-item">{courses.length} subjects</Box>
+              <Box className="stat-item">{totalUnits} units</Box>
               </Box>
-              All Subjects
-              <Box sx={{ 
-                ml: 1, 
-                px: 1.5, 
-                py: 0.3, 
-                borderRadius: 1, 
-                background: '#e0e7ef',
-                fontSize: '0.75rem',
-                color: '#374151',
-                fontWeight: 500
-              }}>
-                {courses.length} subjects
-              </Box>
-              <Box sx={{ 
-                ml: 1, 
-                px: 1.5, 
-                py: 0.3, 
-                borderRadius: 1, 
-                background: '#e0e7ef',
-                fontSize: '0.75rem',
-                color: '#374151',
-                fontWeight: 500
-              }}>
-                {totalUnits} units
-              </Box>
-            </Typography>
           </Box>
           
-          <CardContent sx={{ p: 0 }}>
             {courses.length > 0 ? (
               <TableContainer>
-                <Table size="small" sx={{ tableLayout: 'fixed', width: '100%' }}>
-                  <colgroup>
-                    <col style={{ width: '16%' }} />
-                    <col style={{ width: '36%' }} />
-                    <col style={{ width: '12%' }} />
-                    <col style={{ width: '8%' }} />
-                    <col style={{ width: '8%' }} />
-                    <col style={{ width: '8%' }} />
-                    <col style={{ width: '8%' }} />
-                    <col style={{ width: '8%' }} />
-                    <col style={{ width: '8%' }} />
-                    <col style={{ width: '8%' }} />
-                    <col style={{ width: '8%' }} />
-                  </colgroup>
+              <Table className="prospectus-table" size="small">
                   <TableHead>
-                     <TableRow sx={{ background: '#f9fafb' }}>
-                       <TableCell sx={{ 
-                         fontWeight: 600, 
-                         color: '#374151',
-                         fontSize: '0.875rem',
-                         borderBottom: '2px solid #e5e7eb'
-                       }}>
-                         Subject Code
-                       </TableCell>
-                        <TableCell sx={{ 
-                         fontWeight: 600, 
-                         color: '#374151',
-                         fontSize: '0.875rem',
-                         borderBottom: '2px solid #e5e7eb'
-                       }}>
-                         Subject Name
-                       </TableCell>
-                         <TableCell sx={{ 
-                           fontWeight: 600, 
-                           color: '#374151',
-                           fontSize: '0.875rem',
-                           borderBottom: '2px solid #e5e7eb',
-                           textAlign: 'center'
-                         }}>
-                           Enrollment Status
-                         </TableCell>
-                        <TableCell sx={{ 
-                          fontWeight: 600, 
-                          color: '#374151',
-                          fontSize: '0.875rem',
-                          borderBottom: '2px solid #e5e7eb',
-                          textAlign: 'center'
-                        }}>
-                          
-                          LEC
-                        </TableCell>
-                        <TableCell sx={{ 
-                          fontWeight: 600, 
-                          color: '#374151',
-                          fontSize: '0.875rem',
-                          borderBottom: '2px solid #e5e7eb',
-                          textAlign: 'center'
-                        }}>
-                          LAB
-                        </TableCell>
-                        <TableCell sx={{ 
-                          fontWeight: 600, 
-                          color: '#374151',
-                          fontSize: '0.875rem',
-                          borderBottom: '2px solid #e5e7eb',
-                          textAlign: 'center'
-                        }}>
-                          Units
-                        </TableCell>
-                        <TableCell sx={{ 
-                          fontWeight: 600, 
-                          color: '#374151',
-                          fontSize: '0.875rem',
-                          borderBottom: '2px solid #e5e7eb',
-                          textAlign: 'center'
-                        }}>
-                          Hours/Week
-                        </TableCell>
-                        <TableCell sx={{ 
-                          fontWeight: 600, 
-                          color: '#374151',
-                          fontSize: '0.875rem',
-                          borderBottom: '2px solid #e5e7eb',
-                          textAlign: 'center'
-                        }}>
-                          Type
-                        </TableCell>
-                        <TableCell sx={{ 
-                          fontWeight: 600, 
-                          color: '#374151',
-                          fontSize: '0.875rem',
-                          borderBottom: '2px solid #e5e7eb',
-                          textAlign: 'center'
-                        }}>
-                          Average Grade
-                        </TableCell>
-                        <TableCell sx={{ 
-                          fontWeight: 600, 
-                          color: '#374151',
-                          fontSize: '0.875rem',
-                          borderBottom: '2px solid #e5e7eb',
-                          textAlign: 'center'
-                        }}>
-                          Prerequisites
-                        </TableCell>
-                         <TableCell sx={{ 
-                           fontWeight: 600, 
-                           color: '#374151',
-                           fontSize: '0.875rem',
-                           borderBottom: '2px solid #e5e7eb',
-                           textAlign: 'center'
-                         }}>
-                           Statuss
-                         </TableCell>
+                   <TableRow>
+                     <TableCell>Subject Code</TableCell>
+                     <TableCell>Subject Name</TableCell>
+                     <TableCell>Enrollment Status</TableCell>
+                     <TableCell>LEC</TableCell>
+                     <TableCell>LAB</TableCell>
+                     <TableCell>Units</TableCell>
+                     <TableCell>Hours/Week</TableCell>
+                     <TableCell>Type</TableCell>
+                     <TableCell>Average Grade</TableCell>
+                     <TableCell>Prerequisites</TableCell>
+                     <TableCell>Status</TableCell>
                       </TableRow>
                    </TableHead>
                    <TableBody>
                      {courses.map((subject, idx) => (
-                       <TableRow 
-                         key={subject.id} 
-                         sx={{ 
-                           background: idx % 2 === 0 ? '#f9fafb' : '#ffffff',
-                           '&:hover': {
-                             background: '#f0f9ff',
-                             transition: 'background-color 0.2s ease'
-                           }
-                         }}
-                       >
-                         <TableCell sx={{ 
-                           fontWeight: 600,
-                           fontFamily: 'monospace',
-                           fontSize: '0.875rem',
-                           color: '#1f2937'
-                         }}>
-                           {subject.code}
-                         </TableCell>
-                           <TableCell sx={{ 
-                            fontSize: '0.875rem',
-                            color: '#374151',
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis'
-                         }}>
-                           {subject.name}
-                         </TableCell>
-                           <TableCell sx={{ textAlign: 'center' }}>
-                             <Box sx={{ 
-                               display: 'inline-block',
-                               px: 1.5,
-                               py: 0.5,
-                               borderRadius: 1,
-                               fontSize: '0.75rem',
-                               fontWeight: 500,
-                               background: getEnrollmentStatus(subject.id, subject.code) === 'active' ? '#dcfce7' : '#f3f4f6',
-                               color: getEnrollmentStatus(subject.id, subject.code) === 'active' ? '#166534' : '#374151',
-                               textTransform: 'capitalize'
-                             }}>
+                       <TableRow key={subject.id}>
+                         <TableCell className="subject-code">{subject.code}</TableCell>
+                         <TableCell className="subject-name">{subject.name}</TableCell>
+                         <TableCell>
+                           <Box className={`status ${getEnrollmentStatus(subject.id, subject.code) === 'active' ? 'confirmed' : 'pending'}`}>
                                {getEnrollmentStatus(subject.id, subject.code) === 'active' ? 'Enrolled' : 'Not enrolled'}
                              </Box>
                            </TableCell>
-                         <TableCell sx={{ 
-                           textAlign: 'center',
-                           fontWeight: 600,
-                           fontSize: '0.875rem',
-                           color: '#059669'
-                         }}>
-                           {subject.units}
-                         </TableCell>
-                         <TableCell sx={{ 
-                           textAlign: 'center',
-                           fontWeight: 600,
-                           fontSize: '0.875rem',
-                           color: '#059669'
-                         }}>
-                           {(() => {
-                             console.log(`LEC units for ${subject.code}:`, subject.lec_units);
-                             return subject.lec_units || 0;
-                           })()}
-                         </TableCell>
-                         <TableCell sx={{ 
-                           textAlign: 'center',
-                           fontWeight: 600,
-                           fontSize: '0.875rem',
-                           color: '#059669'
-                         }}>
-                           {(() => {
-                             console.log(`LAB units for ${subject.code}:`, subject.lab_units);
-                             return subject.lab_units || 0;
-                           })()}
-                         </TableCell>
-                         <TableCell sx={{ 
-                           textAlign: 'center',
-                           fontWeight: 600,
-                           fontSize: '0.875rem',
-                           color: '#059669'
-                         }}>
-                           {subject.hours_per_week || 0}
-                         </TableCell>
-                          <TableCell sx={{ textAlign: 'center' }}>
-                            <Box sx={{ 
-                              display: 'inline-block',
-                              px: 1.5,
-                              py: 0.5,
-                              borderRadius: 1,
-                              fontSize: '0.75rem',
-                              fontWeight: 500,
-                              background: subject.code.startsWith('IT') ? '#dbeafe' : '#fef3c7',
-                              color: subject.code.startsWith('IT') ? '#1e40af' : '#92400e',
-                              textTransform: 'uppercase',
-                              letterSpacing: '0.05em'
-                            }}>
+                         <TableCell className="lec-lab">{subject.units}</TableCell>
+                         <TableCell className="lec-lab">{subject.lec_units || 0}</TableCell>
+                         <TableCell className="lec-lab">{subject.lab_units || 0}</TableCell>
+                         <TableCell className="hours">{subject.hours_per_week || 0}</TableCell>
+                         <TableCell>
+                           <Box className={`type ${subject.code.startsWith('IT') ? 'major' : 'minor'}`}>
                               {subject.code.startsWith('IT') ? 'Major' : 'Minor'}
                             </Box>
                           </TableCell>
-                          <TableCell sx={{ textAlign: 'center' }}>
+                         <TableCell>
                             {(() => {
                               const subjectGrades = getSubjectGrades(subject.code);
                               if (loadingGrades) {
@@ -704,88 +450,67 @@ const ProgramHeadEnrollment: React.FC = () => {
                                     subjectGrades.final_grade || null
                                   );
                                   return (
-                                    <Box sx={{ 
-                                      fontSize: '0.875rem',
-                                      fontWeight: 700,
-                                      color: '#0ea5e9',
-                                      background: '#f0f9ff',
-                                      px: 1.5,
-                                      py: 0.5,
-                                      borderRadius: 1,
-                                      border: '1px solid #0ea5e9'
-                                    }}>
+                                   <Box className="grade">
                                       {averageGrade}
                                     </Box>
                                   );
                                 }
                               }
                               return (
-                                <Box sx={{ 
-                                  fontSize: '0.75rem',
-                                  color: '#6b7280',
-                                  fontStyle: 'italic'
-                                }}>
+                               <Box className="no-grade">
                                   No grades
                                 </Box>
                               );
                             })()}
                           </TableCell>
-                          <TableCell sx={{ textAlign: 'center' }}>
+                         <TableCell>
                             {(() => {
                               console.log(`Prerequisites for ${subject.code}:`, subject.prerequisites);
                               return subject.prerequisites && subject.prerequisites.length > 0 ? (
-                                <Box sx={{ 
-                                  display: 'flex',
-                                  flexWrap: 'wrap',
-                                  gap: 0.5,
-                                  justifyContent: 'center'
-                                }}>
-                                  {subject.prerequisites.map((prereq, idx) => (
-                                    <Chip
-                                      key={idx}
-                                      label={prereq}
-                                      size="small"
-                                      sx={{
-                                        fontSize: '0.7rem',
-                                        height: '20px',
-                                        background: '#fef3c7',
-                                        color: '#92400e',
-                                        border: '1px solid #f59e0b'
-                                      }}
-                                    />
-                                  ))}
+                               <Box className="prerequisites">
+                                 {subject.prerequisites.join(', ')}
                                 </Box>
                               ) : (
-                                <Typography sx={{ 
-                                  fontSize: '0.75rem',
-                                  color: '#9ca3af',
-                                  fontStyle: 'italic'
-                                }}>
+                               <Typography className="no-grade">
                                   None
                                 </Typography>
                               );
                             })()}
                           </TableCell>
-                           <TableCell sx={{ textAlign: 'center' }}>
+                          <TableCell>
                              {(() => {
                                const confirmationStatus = getConfirmationStatus(subject.code);
                                const isConfirmed = confirmationStatus === 'confirmed';
+                               const subjectGrades = getSubjectGrades(subject.code);
+                               const hasGrades = subjectGrades && (subjectGrades.prelim_grade !== null || 
+                                                subjectGrades.midterm_grade !== null || 
+                                                subjectGrades.final_grade !== null);
                                
-                               return (
-                                 <Box sx={{ 
-                                   display: 'inline-block',
-                                   px: 1.5,
-                                   py: 0.5,
-                                   borderRadius: 1,
-                                   fontSize: '0.75rem',
-                                   fontWeight: 500,
-                                   background: isConfirmed ? '#dcfce7' : '#e5e7eb',
-                                   color: isConfirmed ? '#166534' : '#374151',
-                                   textTransform: 'capitalize'
-                                 }}>
-                                   {isConfirmed ? 'Confirmed' : 'Pending'}
-                                 </Box>
-                               );
+                               if (isConfirmed) {
+                                 return (
+                                   <Box className={`status ${isConfirmed ? 'confirmed' : 'pending'}`}>
+                                     {isConfirmed ? 'Confirmed' : 'Pending'}
+                                   </Box>
+                                 );
+                               } else if (hasGrades) {
+                                 return (
+                                   <Button 
+                                     size="small" 
+                                     variant="outlined" 
+                                     color="success" 
+                                     onClick={() => handleConfirmSubject(subject.code)}
+                                     sx={{ fontSize: '0.7rem', py: 0.5, px: 1 }}
+                                   >
+                                     Confirm
+                                   </Button>
+                                 );
+                               } else {
+                                 return (
+                                   <Box className={`status ${isConfirmed ? 'confirmed' : 'pending'}`}>
+                                     {isConfirmed ? 'Confirmed' : 'Pending'}
+                                   </Box>
+                                 );
+                               }
                              })()}
                            </TableCell>
                         </TableRow>
@@ -804,8 +529,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                  </Typography>
                </Box>
              )}
-           </CardContent>
-         </Card>
+           </Box>
        );
      }
      
@@ -965,7 +689,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                             {subject.prerequisites && subject.prerequisites.length > 0 ? (
                               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, justifyContent: 'center' }}>
                                 {subject.prerequisites.map((prereq: string, idx: number) => (
-                                  <Chip key={idx} label={prereq} size="small" sx={{ fontSize: '0.7rem', height: '20px', background: '#fef3c7', color: '#92400e', border: '1px solid #f59e0b' }} />
+                                  <Chip key={`${subject.id}-prereq-${idx}`} label={prereq} size="small" sx={{ fontSize: '0.7rem', height: '20px', background: '#fef3c7', color: '#92400e', border: '1px solid #f59e0b' }} />
                                 ))}
                               </Box>
                             ) : (
@@ -976,9 +700,36 @@ const ProgramHeadEnrollment: React.FC = () => {
                             {(() => {
                               const confirmationStatus = getConfirmationStatus(subject.code);
                               const isConfirmed = confirmationStatus === 'confirmed';
-                              return (
-                                <Box sx={{ display: 'inline-block', px: 1.5, py: 0.5, borderRadius: 1, fontSize: '0.75rem', fontWeight: 500, background: isConfirmed ? '#dcfce7' : '#e5e7eb', color: isConfirmed ? '#166534' : '#374151', textTransform: 'capitalize' }}>{isConfirmed ? 'Confirmed' : 'Pending'}</Box>
-                              );
+                              const subjectGrades = getSubjectGrades(subject.code);
+                              const hasGrades = subjectGrades && (subjectGrades.prelim_grade !== null || 
+                                                subjectGrades.midterm_grade !== null || 
+                                                subjectGrades.final_grade !== null);
+                              
+                              if (isConfirmed) {
+                                return (
+                                  <Box sx={{ display: 'inline-block', px: 1.5, py: 0.5, borderRadius: 1, fontSize: '0.75rem', fontWeight: 500, background: '#dcfce7', color: '#166534', textTransform: 'capitalize' }}>
+                                    Confirmed
+                                  </Box>
+                                );
+                              } else if (hasGrades) {
+                                return (
+                                  <Button 
+                                    size="small" 
+                                    variant="outlined" 
+                                    color="success" 
+                                    onClick={() => handleConfirmSubject(subject.code)}
+                                    sx={{ fontSize: '0.7rem', py: 0.5, px: 1 }}
+                                  >
+                                    Confirm
+                                  </Button>
+                                );
+                              } else {
+                                return (
+                                  <Box sx={{ display: 'inline-block', px: 1.5, py: 0.5, borderRadius: 1, fontSize: '0.75rem', fontWeight: 500, background: '#e5e7eb', color: '#374151', textTransform: 'capitalize' }}>
+                                    Pending
+                                  </Box>
+                                );
+                              }
                             })()}
                           </TableCell>
                         </TableRow>
@@ -1056,7 +807,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                             {subject.prerequisites && subject.prerequisites.length > 0 ? (
                               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, justifyContent: 'center' }}>
                                 {subject.prerequisites.map((prereq: string, idx: number) => (
-                                  <Chip key={idx} label={prereq} size="small" sx={{ fontSize: '0.7rem', height: '20px', background: '#fef3c7', color: '#92400e', border: '1px solid #f59e0b' }} />
+                                  <Chip key={`${subject.id}-prereq-${idx}`} label={prereq} size="small" sx={{ fontSize: '0.7rem', height: '20px', background: '#fef3c7', color: '#92400e', border: '1px solid #f59e0b' }} />
                                 ))}
                               </Box>
                             ) : (
@@ -1151,7 +902,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                             {subject.prerequisites && subject.prerequisites.length > 0 ? (
                               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, justifyContent: 'center' }}>
                                 {subject.prerequisites.map((prereq, idx) => (
-                                  <Chip key={idx} label={prereq} size="small" sx={{ fontSize: '0.7rem', height: '20px', background: '#fef3c7', color: '#92400e', border: '1px solid #f59e0b' }} />
+                                  <Chip key={`${subject.id}-prereq-${idx}`} label={prereq} size="small" sx={{ fontSize: '0.7rem', height: '20px', background: '#fef3c7', color: '#92400e', border: '1px solid #f59e0b' }} />
                                 ))}
                               </Box>
                             ) : (
@@ -1286,96 +1037,76 @@ const ProgramHeadEnrollment: React.FC = () => {
   };
 
   const [createForm, setCreateForm] = useState({
+    firstName: '',
+    middleName: '',
+    lastName: '',
     email: '',
+    password: 'TempPass@123',
     studentType: 'Freshman',
     yearLevel: 1,
     schoolYear: getDefaultSchoolYear(),
     studentId: '',
     department: 'BSIT',
     semester: '1st Semester',
-    section: 'A',
+    section: '',
   });
 
   useEffect(() => {
     loadEnrollments();
+    fetchSections();
   }, []);
 
-  // Function to check email availability
-  const checkEmailAvailability = async (email: string) => {
-    if (!email || email.length < 3) {
-      setEmailValidation({
-        isValid: false,
-        isChecking: false,
-        message: ''
-      });
-      return;
-    }
-
-    setEmailValidation({
-      isValid: false,
-      isChecking: true,
-      message: 'Checking email availability...'
-    });
-
+  // Function to fetch available sections
+  const fetchSections = async () => {
+    setSectionsLoading(true);
     try {
-      const fullEmail = email + '@smcbi.edu.ph';
-      const { count, error } = await supabase
-        .from('user_profiles')
-        .select('id', { count: 'exact', head: true })
-        .eq('email', fullEmail);
-
-      if (error) {
-        setEmailValidation({
-          isValid: false,
-          isChecking: false,
-          message: 'Error checking email. Please try again.'
-        });
-        return;
-      }
-
-      if (count && count > 0) {
-        setEmailValidation({
-          isValid: false,
-          isChecking: false,
-          message: 'Email already exists. Please choose a different email.'
-        });
-      } else {
-        setEmailValidation({
-          isValid: true,
-          isChecking: false,
-          message: 'Email is available!'
-        });
-      }
-    } catch {
-      setEmailValidation({
-        isValid: false,
-        isChecking: false,
-        message: 'Error checking email. Please try again.'
-      });
+      const { data, error } = await supabase
+        .from('sections')
+        .select('id, name, year_level, academic_year')
+        .order('year_level', { ascending: true })
+        .order('name', { ascending: true });
+      
+      if (error) throw error;
+      setSections(data || []);
+    } catch (err) {
+      console.error('Failed to fetch sections:', err);
+      setSections([]);
+    } finally {
+      setSectionsLoading(false);
     }
   };
 
-  // Debounced email validation
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      if (createForm.email && createForm.email.length >= 3) {
-        checkEmailAvailability(createForm.email);
-      } else {
-        setEmailValidation({
-          isValid: false,
-          isChecking: false,
-          message: ''
-        });
-      }
-    }, 500); // Wait 500ms after user stops typing
-
-    return () => clearTimeout(timeoutId);
-  }, [createForm.email]);
+  // Helper function to get section name by ID
+  const getSectionName = (sectionId: string | null | undefined): string => {
+    if (!sectionId) return 'Unassigned';
+    const section = sections.find(s => s.id === sectionId);
+    return section ? section.name : 'Unknown Section';
+  };
 
   useEffect(() => {
-    // Auto-generate student ID when email is provided and valid
-    if (createForm.email && emailValidation.isValid) {
-      const generateStudentId = async () => {
+    // Auto-generate email when first and last name are entered
+    if (createForm.firstName && createForm.lastName) {
+      const email = (createForm.lastName + createForm.firstName).replace(/\s+/g, '').toLowerCase();
+      setCreateForm(f => ({ ...f, email }));
+    } else {
+      setCreateForm(f => ({ ...f, email: '' }));
+    }
+    // eslint-disable-next-line
+  }, [createForm.firstName, createForm.lastName]);
+
+  useEffect(() => {
+    // If year level is 2 or higher, set student type to 'Regular' and restrict 'Freshman'
+    if (Number(createForm.yearLevel) >= 2 && createForm.studentType === 'Freshman') {
+      setCreateForm(f => ({ ...f, studentType: 'Regular' }));
+    }
+    // Clear section when year level changes
+    setCreateForm(f => ({ ...f, section: '' }));
+  }, [createForm.yearLevel]);
+
+  useEffect(() => {
+    // Auto-generate student ID when school year, first and last name are entered
+    const generateStudentId = async () => {
+      if (createForm.schoolYear && createForm.firstName && createForm.lastName) {
         // Extract last two digits of school year start
         const match = createForm.schoolYear.match(/(\d{4})/);
         if (!match) {
@@ -1383,32 +1114,62 @@ const ProgramHeadEnrollment: React.FC = () => {
           return;
         }
         const yearPrefix = match[1].slice(-2);
-        // Query how many students are already enrolled in this school year
-        const { count, error } = await supabase
-          .from('user_profiles')
-          .select('id', { count: 'exact', head: true })
-          .ilike('student_id', `C-${yearPrefix}%`);
-        let regNum = 1;
-        if (!error && typeof count === 'number') {
-          regNum = count + 1;
+        
+        try {
+          // Query how many students are already enrolled in this school year
+          const { count, error } = await supabase
+            .from('user_profiles')
+            .select('id', { count: 'exact', head: true })
+            .ilike('student_id', `C-${yearPrefix}%`);
+          
+          if (error) {
+            console.error('Error counting existing students:', error);
+            return;
+          }
+          
+          let regNum = 1;
+          if (typeof count === 'number') {
+            regNum = count + 1;
+          }
+          
+          // Generate a unique student ID with padding
+          const regNumStr = regNum.toString().padStart(4, '0');
+          const studentId = `C-${yearPrefix}${regNumStr}`;
+          
+          // Double-check that this ID doesn't already exist
+          const { data: existingStudent, error: checkError } = await supabase
+            .from('user_profiles')
+            .select('id')
+            .eq('student_id', studentId)
+            .single();
+          
+          if (checkError && checkError.code !== 'PGRST116') { // PGRST116 = no rows returned
+            console.error('Error checking existing student ID:', checkError);
+            return;
+          }
+          
+          if (existingStudent) {
+            // If ID exists, increment and try again
+            regNum += 1;
+            const newRegNumStr = regNum.toString().padStart(4, '0');
+            const newStudentId = `C-${yearPrefix}${newRegNumStr}`;
+            setCreateForm(f => ({ ...f, studentId: newStudentId }));
+          } else {
+            setCreateForm(f => ({ ...f, studentId }));
+          }
+        } catch (err) {
+          console.error('Error generating student ID:', err);
         }
-        const regNumStr = regNum.toString().padStart(4, '0');
-        const studentId = `C-${yearPrefix}${regNumStr}`;
-        setCreateForm(f => ({ ...f, studentId }));
-      };
-      generateStudentId();
-    } else {
-      setCreateForm(f => ({ ...f, studentId: '' }));
-    }
+      } else {
+        setCreateForm(f => ({ ...f, studentId: '' }));
+      }
+    };
+    
+    // Add a small delay to prevent rapid successive calls
+    const timeoutId = setTimeout(generateStudentId, 100);
+    return () => clearTimeout(timeoutId);
     // eslint-disable-next-line
-  }, [createForm.email, createForm.schoolYear, emailValidation.isValid]);
-
-  useEffect(() => {
-    // If year level is 2 or higher, set student type to 'Regular' and restrict 'Freshman'
-    if (Number(createForm.yearLevel) >= 2 && createForm.studentType === 'Freshman') {
-      setCreateForm(f => ({ ...f, studentType: 'Regular' }));
-    }
-  }, [createForm.yearLevel]);
+  }, [createForm.schoolYear, createForm.firstName, createForm.lastName]);
 
   useEffect(() => {
     // Fetch courses on mount
@@ -1440,9 +1201,33 @@ const ProgramHeadEnrollment: React.FC = () => {
   // Initialize edit form fields when editForm is set
   useEffect(() => {
     if (editForm) {
-      // Extract email from the student data
-      const email = editForm.email || '';
-      setEditFormFields({ email });
+      // Prefer explicit fields if present, fallback to parsing full name
+      const derivedFirst = editForm.firstName || '';
+      const derivedMiddle = editForm.middleName || '';
+      const derivedLast = editForm.lastName || '';
+
+      if (derivedFirst || derivedMiddle || derivedLast) {
+        setEditFormFields({ firstName: derivedFirst, middleName: derivedMiddle, lastName: derivedLast });
+        return;
+      }
+
+      const nameParts = editForm.name.split(' ').filter(Boolean);
+      let firstName = '';
+      let middleName = '';
+      let lastName = '';
+
+      if (nameParts.length === 1) {
+        lastName = nameParts[0];
+      } else if (nameParts.length === 2) {
+        firstName = nameParts[1];
+        lastName = nameParts[0];
+      } else if (nameParts.length >= 3) {
+        firstName = nameParts[nameParts.length - 1];
+        lastName = nameParts[0];
+        middleName = nameParts.slice(1, nameParts.length - 1).join(' ');
+      }
+
+      setEditFormFields({ firstName, middleName, lastName });
     }
   }, [editForm]);
 
@@ -1456,16 +1241,29 @@ const ProgramHeadEnrollment: React.FC = () => {
         .eq('role', 'student')
         .order('created_at', { ascending: true });
       if (error) throw error;
+      
       // Map to Student interface if needed
-      const students = (data || []).map((student: Record<string, unknown>) => {
-        // Extract email and remove @smcbi.edu.ph suffix for display
-        const fullEmail = String(student.email || '');
-        const email = fullEmail.replace('@smcbi.edu.ph', '');
+      const students = (data || []).map((student: Record<string, unknown>, index: number) => {
+        const firstName = String(student.first_name || '');
+        const middleName = String(student.middle_name || '');
+        const lastName = String(student.last_name || '');
+        
+        // Construct full name with middle name if available
+        const fullName = middleName 
+          ? `${lastName} ${middleName} ${firstName}`
+          : `${lastName} ${firstName}`;
+        
+        // Use a unique identifier: prefer student_id if available, otherwise use UUID with index fallback
+        const uniqueId = student.student_id 
+          ? String(student.student_id)
+          : `${String(student.id)}-${index}`;
         
         return {
-          id: String(student.student_id || student.id),
-          name: String(student.display_name || ''),
-          email,
+          id: uniqueId,
+          name: fullName,
+          firstName,
+          middleName,
+          lastName,
           studentType: (student.student_type as Student['studentType']) || 'Freshman',
           yearLevel: Number(student.year_level) || 1,
           currentSubjects: [],
@@ -1477,7 +1275,13 @@ const ProgramHeadEnrollment: React.FC = () => {
           section: String(student.section || ''),
         };
       });
-      setStudents(students);
+      
+      // Remove any potential duplicates by filtering unique IDs
+      const uniqueStudents = students.filter((student, index, self) => 
+        index === self.findIndex(s => s.id === student.id)
+      );
+      
+      setStudents(uniqueStudents);
     } catch (err) {
       setError('Failed to load enrollments');
       console.error('Error loading enrollments:', err);
@@ -1488,27 +1292,13 @@ const ProgramHeadEnrollment: React.FC = () => {
 
   const handleCreateStudent = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Check if email is valid before proceeding
-    if (!emailValidation.isValid) {
-      toast.error('Please provide a valid and available email address.');
-      return;
-    }
-
-    // Check if section is full before proceeding
-    const sectionCapacity = await checkSectionCapacity(
-      createForm.yearLevel, 
-      createForm.section,
-      createForm.department
-    );
-
-    if (sectionCapacity.isFull) {
-      toast.error(`Section ${createForm.section} is full (${sectionCapacity.currentCount}/${sectionCapacity.maxCapacity} students). Cannot enroll new student.`);
-      return;
-    }
-    
     setCreating(true);
     try {
+      // Capitalize first letter of first name and last name
+      const capitalizedFirstName = createForm.firstName.charAt(0).toUpperCase() + createForm.firstName.slice(1).toLowerCase();
+      const capitalizedLastName = createForm.lastName.charAt(0).toUpperCase() + createForm.lastName.slice(1).toLowerCase();
+      const capitalizedMiddleName = createForm.middleName ? createForm.middleName.charAt(0).toUpperCase() + createForm.middleName.slice(1).toLowerCase() : '';
+
       // Note: The authentication issue where creating a student would log out the program head
       // has been resolved by removing the problematic signInWithPassword calls in ProtectedRoute
       // and StudentDashboard components. The password change modal will only appear for actual students.
@@ -1524,13 +1314,16 @@ const ProgramHeadEnrollment: React.FC = () => {
         const originalStudentId = userProfile.student_id;
         // Update existing student profile
         const { error: updateError } = await supabase.from('user_profiles').update({
+          first_name: capitalizedFirstName,
+          middle_name: capitalizedMiddleName,
+          last_name: capitalizedLastName,
           student_type: createForm.studentType,
           year_level: String(createForm.yearLevel),
           school_year: createForm.schoolYear,
           student_id: originalStudentId,
           department: createForm.department,
           semester: createForm.semester,
-          section: createForm.section,
+          section: createForm.section || null,
           enrollment_status: 'pending',
           updated_at: new Date().toISOString(),
         }).eq('student_id', originalStudentId);
@@ -1552,7 +1345,7 @@ const ProgramHeadEnrollment: React.FC = () => {
         }
         toast.success('Existing student enrollment updated!');
         setIsCreateDialogOpen(false);
-        setCreateForm({ email: '', studentType: 'Freshman', yearLevel: 1, schoolYear: getDefaultSchoolYear(), studentId: '', department: 'BSIT', semester: '1st Semester', section: 'A' });
+        setCreateForm({ firstName: '', middleName: '', lastName: '', email: '', password: 'TempPass@123', studentType: 'Freshman', yearLevel: 1, schoolYear: getDefaultSchoolYear(), studentId: '', department: 'BSIT', semester: '1st Semester', section: '' });
         setSelectedCourses([]);
         setSelectedExistingStudent(null);
         loadEnrollments();
@@ -1571,14 +1364,15 @@ const ProgramHeadEnrollment: React.FC = () => {
         return;
       }
       
-      // 2. Create auth user first with a default password
-      const defaultPassword = 'TempPass@123';
+      // 2. Create auth user first
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: fullEmail,
-        password: defaultPassword,
+        password: createForm.password,
         options: {
           data: {
-            role: 'student'
+            role: 'student',
+            first_name: capitalizedFirstName,
+            last_name: capitalizedLastName
           }
         }
       });
@@ -1589,6 +1383,9 @@ const ProgramHeadEnrollment: React.FC = () => {
       const { error: profileError } = await supabase.from('user_profiles').insert({
         id: authData.user!.id, // Use the auth user ID
         email: fullEmail,
+        first_name: capitalizedFirstName,
+        middle_name: capitalizedMiddleName,
+        last_name: capitalizedLastName,
         role: 'student',
         is_active: true,
         student_type: createForm.studentType,
@@ -1597,7 +1394,7 @@ const ProgramHeadEnrollment: React.FC = () => {
         student_id: createForm.studentId,
         department: createForm.department,
         semester: createForm.semester,
-        section: createForm.section,
+        section: createForm.section || null,
         enrollment_status: 'pending',
         password_changed: false, // Initialize as false since they're using default password
         created_at: new Date().toISOString(),
@@ -1619,7 +1416,7 @@ const ProgramHeadEnrollment: React.FC = () => {
       }
       toast.success('Student account successfully created.');
       setIsCreateDialogOpen(false);
-      setCreateForm({ email: '', studentType: 'Freshman', yearLevel: 1, schoolYear: getDefaultSchoolYear(), studentId: '', department: 'BSIT', semester: '1st Semester', section: 'A' });
+      setCreateForm({ firstName: '', middleName: '', lastName: '', email: '', password: 'TempPass@123', studentType: 'Freshman', yearLevel: 1, schoolYear: getDefaultSchoolYear(), studentId: '', department: 'BSIT', semester: '1st Semester', section: '' });
       setSelectedCourses([]);
       setSelectedExistingStudent(null);
       loadEnrollments();
@@ -1729,29 +1526,36 @@ const ProgramHeadEnrollment: React.FC = () => {
     const matchesYear = filterYear === '' || String(student.yearLevel) === filterYear;
     const matchesType = filterType === '' || student.studentType === filterType;
     const matchesStatus = filterStatus === '' || (student.status && student.status.toLowerCase() === filterStatus.toLowerCase());
-    return matchesSearch && matchesYear && matchesType && matchesStatus;
-  }), [students, filterSearch, filterYear, filterType, filterStatus]);
+    const matchesSection = filterSection === '' || student.section === filterSection;
+    return matchesSearch && matchesYear && matchesType && matchesStatus && matchesSection;
+  }), [students, filterSearch, filterYear, filterType, filterStatus, filterSection]);
 
   // Handler to save edited student
   const handleSaveEdit = async () => {
     if (!editForm) return;
     setSavingEdit(true);
     try {
+      // Capitalize first letter of first name and last name
+      const capitalizedFirstName = editFormFields.firstName.charAt(0).toUpperCase() + editFormFields.firstName.slice(1).toLowerCase();
+      const capitalizedLastName = editFormFields.lastName.charAt(0).toUpperCase() + editFormFields.lastName.slice(1).toLowerCase();
+      const capitalizedMiddleName = editFormFields.middleName ? editFormFields.middleName.charAt(0).toUpperCase() + editFormFields.middleName.slice(1).toLowerCase() : '';
+
       const { error } = await supabase.from('user_profiles').update({
-        email: editFormFields.email + '@smcbi.edu.ph',
+        first_name: capitalizedFirstName,
+        middle_name: capitalizedMiddleName,
+        last_name: capitalizedLastName,
         student_type: editForm.studentType,
         year_level: String(editForm.yearLevel),
         school_year: editForm.schoolYear,
         student_id: editForm.id,
         department: editForm.department,
         semester: editForm.semester,
-        section: editForm.section,
         enrollment_status: editForm.status,
       }).eq('student_id', editForm.id);
       if (error) throw error;
       toast.success('Student info updated!');
       setEditForm(null);
-      setEditFormFields({ email: '' });
+      setEditFormFields({ firstName: '', middleName: '', lastName: '' });
       loadEnrollments();
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to update student';
@@ -1778,15 +1582,36 @@ const ProgramHeadEnrollment: React.FC = () => {
   const handleEnrollExisting = (student: Student) => {
     setSelectedExistingStudent(student);
     
+    // Parse the student name to handle middle names
+    const nameParts = student.name.split(' ');
+    let firstName = '';
+    let middleName = '';
+    let lastName = '';
+    
+    if (nameParts.length === 1) {
+      lastName = nameParts[0];
+    } else if (nameParts.length === 2) {
+      firstName = nameParts[1];
+      lastName = nameParts[0];
+    } else if (nameParts.length >= 3) {
+      firstName = nameParts[nameParts.length - 1]; // Last part is first name
+      lastName = nameParts[0]; // First part is last name
+      middleName = nameParts.slice(1, nameParts.length - 1).join(' '); // Everything in between is middle name
+    }
+    
     setCreateForm({
-      email: student.email || '', // Show the student's email
+      firstName,
+      middleName,
+      lastName,
+      email: '', // Not editable
+      password: 'TempPass@123', // Not editable
       studentType: student.studentType,
       yearLevel: student.yearLevel,
       schoolYear: student.schoolYear,
       studentId: student.id, // Always use the original student.id
-      department: student.department,
-      semester: student.semester,
-      section: 'A', // Default section
+              department: student.department,
+        semester: student.semester,
+        section: student.section || '',
     });
     setIsExistingModalOpen(false);
     setIsCreateDialogOpen(true);
@@ -1850,6 +1675,49 @@ const ProgramHeadEnrollment: React.FC = () => {
     setIsProspectusModalOpen(false);
     setSelectedStudentForProspectus(null);
     setStudentGrades([]);
+  };
+
+  // Handler to confirm subject for program head
+  const handleConfirmSubject = async (subjectCode: string) => {
+    if (!selectedStudentForProspectus) return;
+    
+    try {
+      // Get the UUID from user_profiles using the formatted student_id
+      const { data: profileData, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('id')
+        .eq('student_id', selectedStudentForProspectus.id)
+        .single();
+      
+      if (profileError) {
+        console.error('Error finding user profile:', profileError);
+        toast.error('Failed to find student profile');
+        return;
+      }
+      
+      // Insert confirmation into Supabase
+      const { error } = await supabase
+        .from('subject_actions')
+        .insert({
+          student_id: profileData.id,
+          subject_code: subjectCode,
+          action_type: 'confirm',
+          status: 'pending'
+        });
+
+      if (error) {
+        console.error('Error saving confirmation:', error);
+        toast.error('Failed to confirm subject');
+        return;
+      }
+
+      // Refresh the prospectus data
+      await fetchStudentConfirmations(selectedStudentForProspectus.id);
+      toast.success('Subject confirmed successfully');
+    } catch (error) {
+      console.error('Error confirming subject:', error);
+      toast.error('Failed to confirm subject');
+    }
   };
 
   // Function to fetch student grades
@@ -2093,17 +1961,42 @@ const ProgramHeadEnrollment: React.FC = () => {
     return confirmation ? 'confirmed' : 'pending';
   };
 
+  // Helper functions for course selection
+  const getTotalAvailableCourses = () => {
+    return Object.values(visibleCourses).reduce((total, subcats) => {
+      return total + Object.values(subcats as Record<string, unknown[]>).reduce((subTotal, courseList) => {
+        return subTotal + (courseList as any[]).length;
+      }, 0);
+    }, 0);
+  };
+
+  const getAllAvailableCourseIds = () => {
+    const allIds: string[] = [];
+    Object.values(visibleCourses).forEach(subcats => {
+      Object.values(subcats as Record<string, unknown[]>).forEach(courseList => {
+        (courseList as any[]).forEach(course => {
+          allIds.push(course.id);
+        });
+      });
+    });
+    return allIds;
+  };
+
   // Helper to reset the new student form
   const flushNewStudentForm = () => {
     setCreateForm({
+      firstName: '',
+      middleName: '',
+      lastName: '',
       email: '',
+      password: 'TempPass@123',
       studentType: 'Freshman',
       yearLevel: 1,
       schoolYear: getDefaultSchoolYear(),
       studentId: '',
       department: 'BSIT',
       semester: '1st Semester',
-      section: 'A',
+      section: '',
     });
     setSelectedCourses([]);
 
@@ -2115,11 +2008,794 @@ const ProgramHeadEnrollment: React.FC = () => {
   const handlePrintProspectus = () => {
     if (prospectusContentRef.current) {
       const printContents = prospectusContentRef.current.innerHTML;
-      const printWindow = window.open('', '', 'height=800,width=1000');
+      const printWindow = window.open('', '', 'height=800,width=1200');
       if (printWindow) {
         printWindow.document.write('<html><head><title>Student Prospectus</title>');
-        printWindow.document.write('<style>body{font-family:sans-serif;} table{width:100%;border-collapse:collapse;} th,td{border:1px solid #ccc;padding:8px;} th{background:#f9fafb;}</style>');
-        printWindow.document.write('</head><body >');
+        printWindow.document.write(`
+          <style>
+            @media print {
+              body { 
+                font-family: 'Arial', 'Helvetica', sans-serif; 
+                font-size: 10px;
+                line-height: 1.2;
+                color: #000;
+                margin: 0;
+                padding: 15px;
+                background: white;
+              }
+              
+              /* Header Styling */
+              .prospectus-header {
+                text-align: center;
+                margin-bottom: 20px;
+                padding-bottom: 15px;
+                border-bottom: 1px solid #333;
+              }
+              
+              .school-name {
+                font-size: 16px;
+                font-weight: bold;
+                margin-bottom: 3px;
+                color: #1e40af;
+              }
+              
+              .school-subtitle {
+                font-size: 10px;
+                font-style: italic;
+                margin-bottom: 3px;
+                color: #666;
+              }
+              
+              .school-address {
+                font-size: 9px;
+                margin-bottom: 3px;
+                color: #333;
+              }
+              
+              .course-title {
+                font-size: 12px;
+                font-weight: bold;
+                margin-bottom: 3px;
+                color: #1e40af;
+              }
+              
+              .prospectus-title {
+                font-size: 18px;
+                font-weight: bold;
+                margin: 15px 0;
+                color: #1f2937;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+              }
+              
+              /* Student Info Styling */
+              .student-info {
+                margin: 15px 0;
+                padding: 10px;
+                background: #f8fafc;
+                border: 1px solid #e5e7eb;
+                border-radius: 3px;
+              }
+              
+              .student-name {
+                font-size: 14px;
+                font-weight: bold;
+                text-align: center;
+                margin-bottom: 10px;
+                color: #1f2937;
+              }
+              
+              .info-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 10px;
+                margin-bottom: 5px;
+              }
+              
+              .info-item {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 3px 0;
+                border-bottom: 0.5px solid #e5e7eb;
+              }
+              
+              .info-label {
+                font-weight: 600;
+                color: #374151;
+                min-width: 100px;
+                font-size: 9px;
+              }
+              
+              .info-value {
+                font-weight: 500;
+                color: #1f2937;
+                text-align: right;
+                font-size: 9px;
+              }
+              
+              /* Table Styling */
+              .prospectus-table {
+                width: 100%;
+                border-collapse: collapse;
+                margin: 15px 0;
+                font-size: 8px;
+                page-break-inside: avoid;
+                border: 1px solid #374151;
+              }
+              
+              .prospectus-table th {
+                background: #1e40af;
+                color: white;
+                font-weight: 700;
+                text-align: center;
+                padding: 6px 2px;
+                border: 1px solid #374151;
+                font-size: 7px;
+                vertical-align: middle;
+                position: relative;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+              }
+              
+              .prospectus-table th:not(:last-child)::after {
+                content: '';
+                position: absolute;
+                right: 0;
+                top: 0;
+                bottom: 0;
+                width: 1px;
+                background: #374151;
+              }
+              
+              .prospectus-table td {
+                padding: 3px 2px;
+                border: 1px solid #374151;
+                text-align: center;
+                vertical-align: middle;
+                font-size: 7px;
+                position: relative;
+              }
+              
+              .prospectus-table td:not(:last-child)::after {
+                content: '';
+                position: absolute;
+                right: 0;
+                top: 0;
+                bottom: 0;
+                width: 1px;
+                background: #374151;
+              }
+              
+              .prospectus-table tr:not(:last-child) td::before {
+                content: '';
+                position: absolute;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                height: 1px;
+                background: #374151;
+              }
+              
+              .prospectus-table .subject-code {
+                font-weight: 600;
+                font-family: 'Courier New', monospace;
+                color: #1e40af;
+                text-align: left;
+                padding-left: 4px;
+                font-size: 7px;
+              }
+              
+              .prospectus-table .subject-name {
+                text-align: left;
+                padding-left: 4px;
+                color: #374151;
+                max-width: 150px;
+                word-wrap: break-word;
+                font-size: 7px;
+                line-height: 1.1;
+              }
+              
+              .prospectus-table .units {
+                font-weight: 600;
+                color: #059669;
+                font-size: 7px;
+              }
+              
+              .prospectus-table .lec-lab {
+                font-weight: 600;
+                color: #0369a1;
+                font-size: 7px;
+              }
+              
+              .prospectus-table .hours {
+                font-weight: 600;
+                color: #7c3aed;
+                font-size: 7px;
+              }
+              
+              .prospectus-table .type {
+                font-size: 6px;
+                font-weight: 600;
+                padding: 1px 2px;
+                border-radius: 2px;
+                text-transform: uppercase;
+              }
+              
+              .prospectus-table .type.major {
+                background: #dbeafe;
+                color: #1e40af;
+              }
+              
+              .prospectus-table .type.minor {
+                background: #fef3c7;
+                color: #92400e;
+              }
+              
+              .prospectus-table .grade {
+                font-weight: 700;
+                color: #0ea5e9;
+                background: #f0f9ff;
+                padding: 1px 3px;
+                border-radius: 2px;
+                border: 0.5px solid #0ea5e9;
+                font-size: 7px;
+              }
+              
+              .prospectus-table .no-grade {
+                font-size: 6px;
+                color: #6b7280;
+                font-style: italic;
+              }
+              
+              .prospectus-table .prerequisites {
+                font-size: 6px;
+                color: #92400e;
+                max-width: 80px;
+                word-wrap: break-word;
+                line-height: 1.1;
+              }
+              
+              .prospectus-table .status {
+                font-size: 6px;
+                font-weight: 600;
+                padding: 1px 3px;
+                border-radius: 2px;
+                text-transform: capitalize;
+              }
+              
+              .prospectus-table .status.confirmed {
+                background: #dcfce7;
+                color: #166534;
+              }
+              
+              .prospectus-table .status.pending {
+                background: #e5e7eb;
+                color: #374151;
+              }
+              
+              /* Year Level Section Styling */
+              .year-section {
+                margin: 20px 0;
+                page-break-inside: avoid;
+              }
+              
+              .year-header {
+                background: #f3f4f6;
+                padding: 8px 12px;
+                border: 1px solid #d1d5db;
+                border-bottom: 1px solid #667eea;
+                margin-bottom: 0;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+              }
+              
+              .year-number {
+                background: #667eea;
+                color: white;
+                width: 24px;
+                height: 24px;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-weight: bold;
+                font-size: 12px;
+              }
+              
+              .year-title {
+                font-size: 14px;
+                font-weight: 700;
+                color: #374151;
+                margin: 0;
+              }
+              
+              .year-stats {
+                margin-left: auto;
+                display: flex;
+                gap: 10px;
+              }
+              
+              .stat-item {
+                background: #e0e7ef;
+                padding: 2px 6px;
+                border-radius: 3px;
+                font-size: 9px;
+                color: #374151;
+                font-weight: 500;
+              }
+              
+              /* Semester Section Styling */
+              .semester-section {
+                margin: 10px 0;
+                page-break-inside: avoid;
+              }
+              
+              .semester-header {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                padding: 6px 12px;
+                background: #f8fafc;
+                border-left: 3px solid #3b82f6;
+                margin: 10px 0 8px 0;
+              }
+              
+              .semester-dot {
+                width: 6px;
+                height: 6px;
+                border-radius: 50%;
+                background: #3b82f6;
+              }
+              
+              .semester-title {
+                font-size: 10px;
+                font-weight: 700;
+                color: #1f2937;
+                margin: 0;
+              }
+              
+              /* Summer Section */
+              .semester-header.summer {
+                border-left-color: #f59e0b;
+              }
+              
+              .semester-header.summer .semester-dot {
+                background: #f59e0b;
+              }
+              
+              /* Page Break Controls */
+              .page-break {
+                page-break-before: always;
+              }
+              
+              .avoid-break {
+                page-break-inside: avoid;
+              }
+              
+              /* Footer */
+              .prospectus-footer {
+                margin-top: 20px;
+                padding-top: 15px;
+                border-top: 0.5px solid #e5e7eb;
+                text-align: center;
+                font-size: 8px;
+                color: #6b7280;
+              }
+              
+              /* Alternating row colors for better readability */
+              .prospectus-table tr:nth-child(even) {
+                background-color: #f8fafc;
+              }
+              
+              .prospectus-table tr:nth-child(odd) {
+                background-color: #ffffff;
+              }
+              
+              /* Enhanced table styling */
+              .prospectus-table td {
+                padding: 4px 3px;
+                min-height: 20px;
+              }
+              
+              .prospectus-table th {
+                padding: 6px 3px;
+              }
+              
+              /* Better spacing for content */
+              .prospectus-table .subject-name {
+                line-height: 1.2;
+                max-width: 160px;
+              }
+              
+              .prospectus-table .prerequisites {
+                max-width: 90px;
+                line-height: 1.2;
+              }
+              
+              /* Responsive adjustments for print */
+              @page {
+                margin: 0.75in;
+                size: A4;
+              }
+              
+              /* Hide elements not needed in print */
+              .no-print {
+                display: none !important;
+              }
+            }
+            
+            /* Screen styles for preview */
+            @media screen {
+              body { 
+                font-family: 'Arial', 'Helvetica', sans-serif; 
+                font-size: 10px;
+                line-height: 1.2;
+                color: #000;
+                margin: 0;
+                padding: 15px;
+                background: white;
+              }
+              
+              .prospectus-header {
+                text-align: center;
+                margin-bottom: 20px;
+                padding-bottom: 15px;
+                border-bottom: 1px solid #333;
+              }
+              
+              .school-name {
+                font-size: 16px;
+                font-weight: bold;
+                margin-bottom: 3px;
+                color: #1e40af;
+              }
+              
+              .school-subtitle {
+                font-size: 10px;
+                font-style: italic;
+                margin-bottom: 3px;
+                color: #666;
+              }
+              
+              .school-address {
+                font-size: 9px;
+                margin-bottom: 3px;
+                color: #333;
+              }
+              
+              .course-title {
+                font-size: 12px;
+                font-weight: bold;
+                margin-bottom: 3px;
+                color: #1e40af;
+              }
+              
+              .prospectus-title {
+                font-size: 18px;
+                font-weight: bold;
+                margin: 15px 0;
+                color: #1f2937;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+              }
+              
+              .student-info {
+                margin: 15px 0;
+                padding: 10px;
+                background: #f8fafc;
+                border: 1px solid #e5e7eb;
+                border-radius: 3px;
+              }
+              
+              .student-name {
+                font-size: 14px;
+                font-weight: bold;
+                text-align: center;
+                margin-bottom: 10px;
+                color: #1f2937;
+              }
+              
+              .info-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 10px;
+                margin-bottom: 5px;
+              }
+              
+              .info-item {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 3px 0;
+                border-bottom: 0.5px solid #e5e7eb;
+              }
+              
+              .info-label {
+                font-weight: 600;
+                color: #374151;
+                min-width: 100px;
+                font-size: 9px;
+              }
+              
+              .info-value {
+                font-weight: 500;
+                color: #1f2937;
+                text-align: right;
+                font-size: 9px;
+              }
+              
+              .prospectus-table {
+                width: 100%;
+                border-collapse: collapse;
+                margin: 15px 0;
+                font-size: 8px;
+                border: 1px solid #374151;
+              }
+              
+              .prospectus-table th {
+                background: #1e40af;
+                color: white;
+                font-weight: 700;
+                text-align: center;
+                padding: 6px 2px;
+                border: 1px solid #374151;
+                font-size: 7px;
+                vertical-align: middle;
+                position: relative;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+              }
+              
+              .prospectus-table th:not(:last-child)::after {
+                content: '';
+                position: absolute;
+                right: 0;
+                top: 0;
+                bottom: 0;
+                width: 1px;
+                background: #374151;
+              }
+              
+              .prospectus-table td {
+                padding: 3px 2px;
+                border: 1px solid #374151;
+                text-align: center;
+                vertical-align: middle;
+                font-size: 7px;
+                position: relative;
+              }
+              
+              .prospectus-table td:not(:last-child)::after {
+                content: '';
+                position: absolute;
+                right: 0;
+                top: 0;
+                bottom: 0;
+                width: 1px;
+                background: #374151;
+              }
+              
+              .prospectus-table tr:not(:last-child) td::before {
+                content: '';
+                position: absolute;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                height: 1px;
+                background: #374151;
+              }
+              
+              .prospectus-table .subject-code {
+                font-weight: 600;
+                font-family: 'Courier New', monospace;
+                color: #1e40af;
+                text-align: left;
+                padding-left: 4px;
+                font-size: 7px;
+              }
+              
+              .prospectus-table .subject-name {
+                text-align: left;
+                padding-left: 4px;
+                color: #374151;
+                max-width: 150px;
+                word-wrap: break-word;
+                font-size: 7px;
+                line-height: 1.1;
+              }
+              
+              .prospectus-table .units {
+                font-weight: 600;
+                color: #059669;
+                font-size: 7px;
+              }
+              
+              .prospectus-table .lec-lab {
+                font-weight: 600;
+                color: #0369a1;
+                font-size: 7px;
+              }
+              
+              .prospectus-table .hours {
+                font-weight: 600;
+                color: #7c3aed;
+                font-size: 7px;
+              }
+              
+              .prospectus-table .type {
+                font-size: 6px;
+                font-weight: 600;
+                padding: 1px 2px;
+                border-radius: 2px;
+                text-transform: uppercase;
+              }
+              
+              .prospectus-table .type.major {
+                background: #dbeafe;
+                color: #1e40af;
+              }
+              
+              .prospectus-table .type.minor {
+                background: #fef3c7;
+                color: #92400e;
+              }
+              
+              .prospectus-table .grade {
+                font-weight: 700;
+                color: #0ea5e9;
+                background: #f0f9ff;
+                padding: 1px 3px;
+                border-radius: 2px;
+                border: 0.5px solid #0ea5e9;
+                font-size: 7px;
+              }
+              
+              .prospectus-table .no-grade {
+                font-size: 6px;
+                color: #6b7280;
+                font-style: italic;
+              }
+              
+              .prospectus-table .prerequisites {
+                font-size: 6px;
+                color: #92400e;
+                max-width: 80px;
+                word-wrap: break-word;
+                line-height: 1.1;
+              }
+              
+              .prospectus-table .status {
+                font-size: 6px;
+                font-weight: 600;
+                padding: 1px 3px;
+                border-radius: 2px;
+                text-transform: capitalize;
+              }
+              
+              .prospectus-table .status.confirmed {
+                background: #dcfce7;
+                color: #166534;
+              }
+              
+              .prospectus-table .status.pending {
+                background: #e5e7eb;
+                color: #374151;
+              }
+              
+              .year-section {
+                margin: 20px 0;
+              }
+              
+              .year-header {
+                background: #f3f4f6;
+                padding: 8px 12px;
+                border: 1px solid #d1d5db;
+                border-bottom: 1px solid #667eea;
+                margin-bottom: 0;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+              }
+              
+              .year-number {
+                background: #667eea;
+                color: white;
+                width: 24px;
+                height: 24px;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-weight: bold;
+                font-size: 12px;
+              }
+              
+              .year-title {
+                font-size: 14px;
+                font-weight: 700;
+                color: #374151;
+                margin: 0;
+              }
+              
+              .year-stats {
+                margin-left: auto;
+                display: flex;
+                gap: 10px;
+              }
+              
+              .stat-item {
+                background: #e0e7ef;
+                padding: 2px 6px;
+                border-radius: 3px;
+                font-size: 9px;
+                color: #374151;
+                font-weight: 500;
+              }
+              
+              .semester-section {
+                margin: 10px 0;
+              }
+              
+              .semester-header {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                padding: 6px 12px;
+                background: #f8fafc;
+                border-left: 3px solid #3b82f6;
+                margin: 10px 0 8px 0;
+              }
+              
+              .semester-dot {
+                width: 6px;
+                height: 6px;
+                border-radius: 50%;
+                background: #3b82f6;
+              }
+              
+              .semester-title {
+                font-size: 10px;
+                font-weight: 700;
+                color: #1f2937;
+                margin: 0;
+              }
+              
+              .semester-header.summer {
+                border-left-color: #f59e0b;
+              }
+              
+              .semester-header.summer .semester-dot {
+                background: #f59e0b;
+              }
+              
+              .prospectus-footer {
+                margin-top: 20px;
+                padding-top: 15px;
+                border-top: 0.5px solid #e5e7eb;
+                text-align: center;
+                font-size: 8px;
+                color: #6b7280;
+              }
+              
+              /* Alternating row colors for better readability */
+              .prospectus-table tr:nth-child(even) {
+                background-color: #f8fafc;
+              }
+              
+              .prospectus-table tr:nth-child(odd) {
+                background-color: #ffffff;
+              }
+              
+              /* Hover effect for rows */
+              .prospectus-table tr:hover {
+                background-color: #f0f9ff !important;
+              }
+            }
+          </style>
+        `);
+        printWindow.document.write('</head><body>');
         printWindow.document.write(printContents);
         printWindow.document.write('</body></html>');
         printWindow.document.close();
@@ -2132,17 +2808,303 @@ const ProgramHeadEnrollment: React.FC = () => {
     }
   };
 
-  // PDF handler
+  // PDF handler - Generate proper PDF instead of screenshot
   const handleDownloadPDF = async () => {
     if (prospectusContentRef.current) {
-      const element = prospectusContentRef.current;
-      const canvas = await html2canvas(element, { scale: 2 });
-      const imgData = canvas.toDataURL('image/png');
+      try {
       const pdf = new jsPDF('p', 'mm', 'a4');
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
+        const margin = 15;
+        const contentWidth = pageWidth - (2 * margin);
+        let currentY = margin;
+        
+        // Set font styles
+        pdf.setFont('helvetica');
+        
+        // Header Section
+        pdf.setFontSize(18);
+        pdf.setTextColor(30, 64, 175); // #1e40af
+        pdf.text('St. Mary\'s College of Bansalan, Inc.', pageWidth / 2, currentY, { align: 'center' });
+        currentY += 8;
+        
+        pdf.setFontSize(10);
+        pdf.setTextColor(107, 114, 128); // #6b7280
+        pdf.text('(Formerly: Holy Cross of Bansalan College, Inc.)', pageWidth / 2, currentY, { align: 'center' });
+        currentY += 6;
+        
+        pdf.setTextColor(55, 65, 81); // #374151
+        pdf.text('Dahlia Street, Poblacion Uno, Bansalan, Davao del Sur, 8005 Philippines', pageWidth / 2, currentY, { align: 'center' });
+        currentY += 8;
+        
+        pdf.setFontSize(12);
+        pdf.setTextColor(30, 64, 175); // #1e40af
+        pdf.text('BACHELOR OF SCIENCE IN INFORMATION TECHNOLOGY (BSIT)', pageWidth / 2, currentY, { align: 'center' });
+        currentY += 6;
+        
+        pdf.setFontSize(9);
+        pdf.setTextColor(55, 65, 81); // #374151
+        pdf.text('Effective SY 2020 - 2021', pageWidth / 2, currentY, { align: 'center' });
+        currentY += 12;
+        
+        // Title
+        pdf.setFontSize(16);
+        pdf.setTextColor(30, 64, 175); // #1e40af
+        pdf.text('STUDENT PROSPECTUS', pageWidth / 2, currentY, { align: 'center' });
+        currentY += 15;
+        
+        // Student Information
+        if (selectedStudentForProspectus) {
+          pdf.setFontSize(14);
+          pdf.setTextColor(31, 41, 55); // #1f2937
+          pdf.text(selectedStudentForProspectus.name, pageWidth / 2, currentY, { align: 'center' });
+          currentY += 12;
+          
+          // Student details box
+          const detailsY = currentY;
+          pdf.setFillColor(240, 249, 255); // #f0f9ff
+          pdf.rect(margin, currentY - 5, contentWidth, 25, 'F');
+          pdf.setDrawColor(186, 230, 253); // #bae6fd
+          pdf.rect(margin, currentY - 5, contentWidth, 25, 'D');
+          
+          currentY += 5;
+          pdf.setFontSize(9);
+          pdf.setTextColor(55, 65, 81); // #374151
+          
+          // Student ID
+          pdf.text('Student ID:', margin + 5, currentY);
+          pdf.setTextColor(31, 41, 55); // #1f2937
+          pdf.text(selectedStudentForProspectus.id, margin + 80, currentY);
+          currentY += 5;
+          
+          // Student Type
+          pdf.setTextColor(55, 65, 81); // #374151
+          pdf.text('Student Type:', margin + 5, currentY);
+          pdf.setTextColor(31, 41, 55); // #1f2937
+          pdf.text(selectedStudentForProspectus.studentType, margin + 80, currentY);
+          currentY += 5;
+          
+          // Year Level
+          pdf.setTextColor(55, 65, 81); // #374151
+          pdf.text('Current Year Level:', margin + 5, currentY);
+          pdf.setTextColor(31, 41, 55); // #1f2937
+          pdf.text(String(selectedStudentForProspectus.yearLevel), margin + 80, currentY);
+          currentY += 5;
+          
+          // Department
+          pdf.setTextColor(55, 65, 81); // #374151
+          pdf.text('Department:', margin + 5, currentY);
+          pdf.setTextColor(31, 41, 55); // #1f2937
+          pdf.text(selectedStudentForProspectus.department, margin + 80, currentY);
+          
+          currentY = detailsY + 30;
+        }
+        
+        // Subjects Section
+        pdf.setFontSize(12);
+        pdf.setTextColor(31, 41, 55); // #1f2937
+        pdf.text('Subjects', margin, currentY);
+        currentY += 8;
+        
+        // Check if we need to add a new page
+        if (currentY > pageHeight - 50) {
+          pdf.addPage();
+          currentY = margin;
+        }
+        
+        // Generate subjects content
+        if (courses && courses.length > 0) {
+          // Group courses by year level
+          const coursesByYear: Record<string, typeof courses> = {};
+          courses.forEach(course => {
+            const yearLevel = course.year_level || '1';
+            if (!coursesByYear[yearLevel]) {
+              coursesByYear[yearLevel] = [];
+            }
+            coursesByYear[yearLevel].push(course);
+          });
+          
+          // Process each year level
+          Object.keys(coursesByYear).sort().forEach(yearLevel => {
+            const yearCourses = coursesByYear[yearLevel];
+            const yearLabel = getYearLabel(yearLevel);
+            
+            // Check if we need a new page
+            if (currentY > pageHeight - 80) {
+              pdf.addPage();
+              currentY = margin;
+            }
+            
+            // Year header
+            pdf.setFillColor(243, 244, 246); // #f3f4f6
+            pdf.rect(margin, currentY - 3, contentWidth, 12, 'F');
+            pdf.setDrawColor(102, 126, 234); // #667eea
+            pdf.rect(margin, currentY - 3, contentWidth, 12, 'D');
+            
+            pdf.setFontSize(10);
+            pdf.setTextColor(31, 41, 55); // #1f2937
+            pdf.text(`${yearLabel} Subjects`, margin + 5, currentY + 3);
+            
+            // Year stats
+            const totalUnits = yearCourses.reduce((sum: number, course: any) => sum + (course.units || 0), 0);
+            pdf.setFontSize(8);
+            pdf.setTextColor(107, 114, 128); // #6b7280
+            pdf.text(`${yearCourses.length} subjects, ${totalUnits} units`, pageWidth - margin - 5, currentY + 3, { align: 'right' });
+            
+            currentY += 15;
+            
+            // Check if we need a new page for the table
+            if (currentY > pageHeight - 60) {
+              pdf.addPage();
+              currentY = margin;
+            }
+            
+            // Table headers
+            const headers = ['Code', 'Name', 'Units', 'LEC', 'LAB', 'Hours', 'Type', 'Grade', 'Prereq', 'Status'];
+            const colWidths = [20, 50, 15, 15, 15, 20, 20, 20, 25, 20];
+            let colX = margin;
+            
+            // Draw header background
+            pdf.setFillColor(30, 64, 175); // #1e40af
+            pdf.rect(colX, currentY - 3, colWidths.reduce((a, b) => a + b, 0), 8, 'F');
+            
+            // Header text
+            pdf.setFontSize(7);
+            pdf.setTextColor(255, 255, 255);
+            headers.forEach((header, index) => {
+              pdf.text(header, colX + 2, currentY + 2);
+              colX += colWidths[index];
+            });
+            
+            currentY += 10;
+            
+            // Table rows
+            yearCourses.forEach((course: any, index: number) => {
+              // Check if we need a new page
+              if (currentY > pageHeight - 20) {
+                pdf.addPage();
+                currentY = margin;
+                
+                // Redraw headers on new page
+                colX = margin;
+                pdf.setFillColor(30, 64, 175);
+                pdf.rect(colX, currentY - 3, colWidths.reduce((a, b) => a + b, 0), 8, 'F');
+                
+                pdf.setFontSize(7);
+                pdf.setTextColor(255, 255, 255);
+                headers.forEach((header, idx) => {
+                  pdf.text(header, colX + 2, currentY + 2);
+                  colX += colWidths[idx];
+                });
+                
+                currentY += 10;
+              }
+              
+              // Row background (alternating)
+              if (index % 2 === 0) {
+                pdf.setFillColor(248, 250, 252); // #f8fafc
+                pdf.rect(margin, currentY - 2, colWidths.reduce((a, b) => a + b, 0), 8, 'F');
+              }
+              
+              // Row content
+              colX = margin;
+              pdf.setFontSize(6);
+              pdf.setTextColor(31, 41, 55); // #1f2937
+              
+              // Subject Code
+              pdf.text(course.code || '', colX + 2, currentY + 2);
+              colX += colWidths[0];
+              
+              // Subject Name
+              const courseName = course.name || '';
+              if (courseName.length > 25) {
+                pdf.text(courseName.substring(0, 22) + '...', colX + 2, currentY + 2);
+              } else {
+                pdf.text(courseName, colX + 2, currentY + 2);
+              }
+              colX += colWidths[1];
+              
+              // Units
+              pdf.text(String(course.units || 0), colX + 2, currentY + 2);
+              colX += colWidths[2];
+              
+              // LEC
+              pdf.text(String(course.lec_units || 0), colX + 2, currentY + 2);
+              colX += colWidths[3];
+              
+              // LAB
+              pdf.text(String(course.lab_units || 0), colX + 2, currentY + 2);
+              colX += colWidths[4];
+              
+              // Hours
+              pdf.text(String(course.hours_per_week || 0), colX + 2, currentY + 2);
+              colX += colWidths[5];
+              
+              // Type
+              const courseType = course.code && course.code.startsWith('IT') ? 'Major' : 'Minor';
+              pdf.text(courseType, colX + 2, currentY + 2);
+              colX += colWidths[6];
+              
+              // Grade
+              const subjectGrades = getSubjectGrades(course.code);
+              if (subjectGrades && (subjectGrades.prelim_grade || subjectGrades.midterm_grade || subjectGrades.final_grade)) {
+                const avgGrade = calculateAverageGrade(
+                  subjectGrades.prelim_grade || null,
+                  subjectGrades.midterm_grade || null,
+                  subjectGrades.final_grade || null
+                );
+                pdf.text(String(avgGrade || 'N/A'), colX + 2, currentY + 2);
+              } else {
+                pdf.text('No grade', colX + 2, currentY + 2);
+              }
+              colX += colWidths[7];
+              
+              // Prerequisites
+              if (course.prerequisites && course.prerequisites.length > 0) {
+                const prereqText = course.prerequisites.join(', ');
+                if (prereqText.length > 20) {
+                  pdf.text(prereqText.substring(0, 17) + '...', colX + 2, currentY + 2);
+                } else {
+                  pdf.text(prereqText, colX + 2, currentY + 2);
+                }
+              } else {
+                pdf.text('None', colX + 2, currentY + 2);
+              }
+              colX += colWidths[8];
+              
+              // Status
+              const enrollmentStatus = getEnrollmentStatus(course.id, course.code);
+              const statusText = enrollmentStatus === 'active' ? 'Enrolled' : 'Not enrolled';
+              pdf.text(statusText, colX + 2, currentY + 2);
+              
+              currentY += 10;
+            });
+            
+            currentY += 5;
+          });
+        } else {
+          pdf.setFontSize(10);
+          pdf.setTextColor(107, 114, 128); // #6b7280
+          pdf.text('No courses available', pageWidth / 2, currentY, { align: 'center' });
+        }
+        
+        // Footer
+        const totalPages = (pdf as any).internal.getNumberOfPages();
+        for (let i = 1; i <= totalPages; i++) {
+          pdf.setPage(i);
+          pdf.setFontSize(8);
+          pdf.setTextColor(107, 114, 128); // #6b7280
+          pdf.text(`Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+          pdf.text(`Page ${i} of ${totalPages}`, pageWidth / 2, pageHeight - 5, { align: 'center' });
+        }
+        
+        // Save the PDF
       pdf.save('student_prospectus.pdf');
+        
+      } catch (error) {
+        console.error('Error generating PDF:', error);
+        toast.error('Failed to generate PDF. Please try again.');
+      }
     }
   };
 
@@ -2239,8 +3201,9 @@ const ProgramHeadEnrollment: React.FC = () => {
           maxWidth: 600,
           mx: 'auto',
         }}>
-          {/* Enroll New Student */}
-          <Card sx={{ 
+
+          {/* Enroll New Student - Temporarily Hidden */}
+          {<Card sx={{ 
             borderRadius: 2,
             boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
             background: '#fff',
@@ -2252,6 +3215,7 @@ const ProgramHeadEnrollment: React.FC = () => {
             justifyContent: 'center',
             p: 0,
           }}>
+            
             <CardContent sx={{ p: 0.5, textAlign: 'center', width: '100%', pb: '8px!important' }}>
               <Button 
                 variant="contained" 
@@ -2278,7 +3242,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                 </Typography>
               </Button>
             </CardContent>
-          </Card>
+          </Card>}
           {/* Enroll Existing Student */}
           <Card sx={{ 
             borderRadius: 2,
@@ -2739,7 +3703,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                       fontWeight: 500,
                       fontSize: '0.875rem'
                     }}>
-                      {student.section || 'N/A'}
+                      {getSectionName(student.section)}
                     </TableCell>
                     <TableCell>
                       <Box sx={{ 
@@ -2920,59 +3884,100 @@ const ProgramHeadEnrollment: React.FC = () => {
                     </Typography>
                   </Box>
                   <Grid container spacing={2}>
+                    <Grid item xs={12} sm={4}>
+                      <TextField 
+                        label="First Name" 
+                        value={createForm.firstName} 
+                        onChange={e => {
+                          const value = e.target.value;
+                          const capitalized = value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+                          setCreateForm(f => ({ ...f, firstName: capitalized }));
+                        }}
+                        fullWidth 
+                        required 
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            '& fieldset': {
+                              borderColor: '#d1d5db'
+                            },
+                            '&:hover fieldset': {
+                              borderColor: '#9ca3af'
+                            },
+                            '&.Mui-focused fieldset': {
+                              borderColor: '#667eea'
+                            }
+                          }
+                        }}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={4}>
+                      <TextField 
+                        label="Middle Name" 
+                        value={createForm.middleName} 
+                        onChange={e => {
+                          const value = e.target.value;
+                          const capitalized = value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+                          setCreateForm(f => ({ ...f, middleName: capitalized }));
+                        }}
+                        fullWidth 
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            '& fieldset': {
+                              borderColor: '#d1d5db'
+                            },
+                            '&:hover fieldset': {
+                              borderColor: '#9ca3af'
+                            },
+                            '&.Mui-focused fieldset': {
+                              borderColor: '#667eea'
+                            }
+                          }
+                        }}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={4}>
+                      <TextField 
+                        label="Last Name" 
+                        value={createForm.lastName} 
+                        onChange={e => {
+                          const value = e.target.value;
+                          const capitalized = value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+                          setCreateForm(f => ({ ...f, lastName: capitalized }));
+                        }}
+                        fullWidth 
+                        required 
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            '& fieldset': {
+                              borderColor: '#d1d5db'
+                            },
+                            '&:hover fieldset': {
+                              borderColor: '#9ca3af'
+                            },
+                            '&.Mui-focused fieldset': {
+                              borderColor: '#667eea'
+                            }
+                          }
+                        }}
+                      />
+                    </Grid>
                     <Grid item xs={12}>
                       <TextField 
                         label="Email" 
                         type="text" 
                         value={createForm.email} 
-                        onChange={e => setCreateForm(f => ({ ...f, email: e.target.value }))}
                         fullWidth 
                         required 
-                        error={createForm.email.length >= 3 && !emailValidation.isValid && !emailValidation.isChecking}
-                        helperText={emailValidation.message}
                         InputProps={{ 
-                          endAdornment: (
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <span style={{ color: '#6b7280' }}>@smcbi.edu.ph</span>
-                              {emailValidation.isChecking && (
-                                <CircularProgress size={16} sx={{ color: '#6b7280' }} />
-                              )}
-                              {!emailValidation.isChecking && createForm.email.length >= 3 && (
-                                <Box
-                                  sx={{
-                                    width: 20,
-                                    height: 20,
-                                    borderRadius: '50%',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    fontSize: '0.75rem',
-                                    color: 'white',
-                                    background: emailValidation.isValid ? '#10b981' : '#ef4444'
-                                  }}
-                                >
-                                  {emailValidation.isValid ? '✓' : '✕'}
-                                </Box>
-                              )}
-                            </Box>
-                          )
+                          endAdornment: <span style={{ color: '#6b7280' }}>@smcbi.edu.ph</span>, 
+                          readOnly: true 
                         }} 
+                        disabled
                         sx={{
                           '& .MuiOutlinedInput-root': {
+                            backgroundColor: '#f3f4f6',
                             '& fieldset': {
-                              borderColor: emailValidation.isValid ? '#10b981' : 
-                                           emailValidation.isChecking ? '#6b7280' : 
-                                           createForm.email.length >= 3 && !emailValidation.isValid ? '#ef4444' : '#d1d5db'
-                            },
-                            '&:hover fieldset': {
-                              borderColor: emailValidation.isValid ? '#10b7280' : 
-                                           emailValidation.isChecking ? '#6b7280' : 
-                                           createForm.email.length >= 3 && !emailValidation.isValid ? '#ef4444' : '#9ca3af'
-                            },
-                            '&.Mui-focused fieldset': {
-                              borderColor: emailValidation.isValid ? '#10b981' : 
-                                           emailValidation.isChecking ? '#6b7280' : 
-                                           createForm.email.length >= 3 && !emailValidation.isValid ? '#ef4444' : '#667eea'
+                              borderColor: '#d1d5db'
                             }
                           }
                         }}
@@ -3115,25 +4120,23 @@ const ProgramHeadEnrollment: React.FC = () => {
                           label="Section"
                           onChange={e => setCreateForm(f => ({ ...f, section: e.target.value }))}
                           required
+                          disabled={sectionsLoading}
                           sx={{
                             '& .MuiOutlinedInput-root': {
                               '& fieldset': {
                                 borderColor: '#d1d5db'
-                              },
-                              '&:hover fieldset': {
-                                borderColor: '#9ca3af'
-                              },
-                              '&.Mui-focused fieldset': {
-                                borderColor: '#667eea'
                               }
                             }
                           }}
                         >
-                          <MenuItem value="A">Section A</MenuItem>
-                          <MenuItem value="B">Section B</MenuItem>
-                          <MenuItem value="C">Section C</MenuItem>
-                          <MenuItem value="D">Section D</MenuItem>
-                          <MenuItem value="E">Section E</MenuItem>
+                          <MenuItem value="">Select Section</MenuItem>
+                          {sections
+                            .filter(section => section.year_level === createForm.yearLevel)
+                            .map(section => (
+                              <MenuItem key={section.id} value={section.id}>
+                                {section.name}{section.academic_year ? ` (${section.academic_year})` : ''}
+                              </MenuItem>
+                            ))}
                         </Select>
                       </FormControl>
                     </Grid>
@@ -3199,7 +4202,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                     }}
                   />
                   
-                  {/* Course selection summary */}
+                  {/* Course selection summary and check all option */}
                   <Box sx={{ 
                     mb: 2, 
                     p: 2, 
@@ -3207,31 +4210,64 @@ const ProgramHeadEnrollment: React.FC = () => {
                     background: selectedCourses.length > 0 ? '#f0f9ff' : '#f9fafb',
                     border: `1px solid ${selectedCourses.length > 0 ? '#0ea5e9' : '#e5e7eb'}`
                   }}>
-                    <Typography variant="body2" sx={{ 
-                      fontWeight: 500, 
-                      color: selectedCourses.length > 0 ? '#0369a1' : '#6b7280',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 1
-                    }}>
-                      <Box sx={{ 
-                        width: 16, 
-                        height: 16, 
-                        borderRadius: '50%', 
-                        background: selectedCourses.length > 0 ? '#0ea5e9' : '#9ca3af',
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                      <Typography variant="body2" sx={{ 
+                        fontWeight: 500, 
+                        color: selectedCourses.length > 0 ? '#0369a1' : '#6b7280',
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '0.6rem',
-                        color: 'white'
+                        gap: 1
                       }}>
-                        {selectedCourses.length > 0 ? '✓' : '0'}
-                      </Box>
-                      {selectedCourses.length > 0 
-                        ? `${selectedCourses.length} course${selectedCourses.length > 1 ? 's' : ''} selected`
-                        : 'No courses selected'
-                      }
-                    </Typography>
+                        <Box sx={{ 
+                          width: 16, 
+                          height: 16, 
+                          borderRadius: '50%', 
+                          background: selectedCourses.length > 0 ? '#0ea5e9' : '#9ca3af',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '0.6rem',
+                          color: 'white'
+                        }}>
+                          {selectedCourses.length > 0 ? '✓' : '0'}
+                        </Box>
+                        {selectedCourses.length > 0 
+                          ? `${selectedCourses.length} course${selectedCourses.length > 1 ? 's' : ''} selected`
+                          : 'No courses selected'
+                        }
+                      </Typography>
+                      
+                      {/* Check All / Uncheck All Button */}
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        onClick={() => {
+                          if (selectedCourses.length === getTotalAvailableCourses()) {
+                            // If all are selected, uncheck all
+                            setSelectedCourses([]);
+                          } else {
+                            // If not all are selected, check all
+                            const allCourseIds = getAllAvailableCourseIds();
+                            setSelectedCourses(allCourseIds);
+                          }
+                        }}
+                        sx={{
+                          borderRadius: 1,
+                          px: 1.5,
+                          py: 0.5,
+                          fontSize: '0.7rem',
+                          fontWeight: 500,
+                          borderColor: selectedCourses.length === getTotalAvailableCourses() ? '#ef4444' : '#10b981',
+                          color: selectedCourses.length === getTotalAvailableCourses() ? '#ef4444' : '#10b981',
+                          '&:hover': {
+                            borderColor: selectedCourses.length === getTotalAvailableCourses() ? '#dc2626' : '#059669',
+                            background: selectedCourses.length === getTotalAvailableCourses() ? '#fef2f2' : '#f0fdf4'
+                          }
+                        }}
+                      >
+                        {selectedCourses.length === getTotalAvailableCourses() ? 'Uncheck All' : 'Check All'}
+                      </Button>
+                    </Box>
                   </Box>
                   
                   {/* Render categorized courses */}
@@ -3453,59 +4489,118 @@ const ProgramHeadEnrollment: React.FC = () => {
                     </Typography>
                   </Box>
                   <Grid container spacing={2}>
+                    <Grid item xs={12} sm={4}>
+                      <TextField 
+                        label="First Name" 
+                        value={createForm.firstName} 
+                        onChange={e => {
+                          const value = e.target.value;
+                          const capitalized = value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+                          setCreateForm(f => ({ ...f, firstName: capitalized }));
+                        }} 
+                        fullWidth 
+                        required
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            '& fieldset': {
+                              borderColor: '#d1d5db'
+                            },
+                            '&:hover fieldset': {
+                              borderColor: '#9ca3af'
+                            },
+                            '&.Mui-focused fieldset': {
+                              borderColor: '#667eea'
+                            }
+                          }
+                        }}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={4}>
+                      <TextField 
+                        label="Middle Name" 
+                        value={createForm.middleName} 
+                        onChange={e => {
+                          const value = e.target.value;
+                          const capitalized = value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+                          setCreateForm(f => ({ ...f, middleName: capitalized }));
+                        }} 
+                        fullWidth 
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            '& fieldset': {
+                              borderColor: '#d1d5db'
+                            },
+                            '&:hover fieldset': {
+                              borderColor: '#9ca3af'
+                            },
+                            '&.Mui-focused fieldset': {
+                              borderColor: '#667eea'
+                            }
+                          }
+                        }}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={4}>
+                      <TextField 
+                        label="Last Name" 
+                        value={createForm.lastName} 
+                        onChange={e => {
+                          const value = e.target.value;
+                          const capitalized = value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+                          setCreateForm(f => ({ ...f, lastName: capitalized }));
+                        }} 
+                        fullWidth 
+                        required
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            '& fieldset': {
+                              borderColor: '#d1d5db'
+                            },
+                            '&:hover fieldset': {
+                              borderColor: '#9ca3af'
+                            },
+                            '&.Mui-focused fieldset': {
+                              borderColor: '#667eea'
+                            }
+                          }
+                        }}
+                      />
+                    </Grid>
                     <Grid item xs={12}>
                       <TextField 
                         label="Email" 
                         type="text" 
                         value={createForm.email} 
-                        onChange={e => setCreateForm(f => ({ ...f, email: e.target.value }))}
                         fullWidth 
                         required 
-                        error={createForm.email.length >= 3 && !emailValidation.isValid && !emailValidation.isChecking}
-                        helperText={emailValidation.message}
                         InputProps={{ 
-                          endAdornment: (
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <span style={{ color: '#6b7280' }}>@smcbi.edu.ph</span>
-                              {emailValidation.isChecking && (
-                                <CircularProgress size={16} sx={{ color: '#6b7280' }} />
-                              )}
-                              {!emailValidation.isChecking && createForm.email.length >= 3 && (
-                                <Box
-                                  sx={{
-                                    width: 20,
-                                    height: 20,
-                                    borderRadius: '50%',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    fontSize: '0.75rem',
-                                    color: 'white',
-                                    background: emailValidation.isValid ? '#10b981' : '#ef4444'
-                                  }}
-                                >
-                                  {emailValidation.isValid ? '✓' : '✕'}
-                                </Box>
-                              )}
-                            </Box>
-                          )
+                          endAdornment: <span style={{ color: '#6b7280' }}>@smcbi.edu.ph</span>, 
+                          readOnly: true 
                         }} 
+                        disabled
                         sx={{
                           '& .MuiOutlinedInput-root': {
+                            backgroundColor: '#f3f4f6',
                             '& fieldset': {
-                              borderColor: emailValidation.isValid ? '#10b981' : 
-                                           emailValidation.isChecking ? '#6b7280' : 
-                                           createForm.email.length >= 3 && !emailValidation.isValid ? '#ef4444' : '#d1d5db'
-                            },
-                            '&:hover fieldset': {
-                              borderColor: emailValidation.isValid ? '#10b981' : 
-                                           emailValidation.isChecking ? '#6b7280' : 
-                                           createForm.email.length >= 3 && !emailValidation.isValid ? '#ef4444' : '#9ca3af'
-                            },
-                            '&.Mui-focused fieldset': {
-                              borderColor: emailValidation.isValid ? '#10b981' : 
-                                           emailValidation.isChecking ? '#6b7280' : 
-                                           createForm.email.length >= 3 && !emailValidation.isValid ? '#ef4444' : '#667eea'
+                              borderColor: '#d1d5db'
+                            }
+                          }
+                        }}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <TextField 
+                        label="Password" 
+                        type="text" 
+                        value={createForm.password} 
+                        fullWidth 
+                        required 
+                        InputProps={{ readOnly: true }}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            backgroundColor: '#f9fafb',
+                            '& fieldset': {
+                              borderColor: '#d1d5db'
                             }
                           }
                         }}
@@ -3668,6 +4763,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                           label="Section"
                           onChange={e => setCreateForm(f => ({ ...f, section: e.target.value }))}
                           required
+                          disabled={sectionsLoading}
                           sx={{
                             '& .MuiOutlinedInput-root': {
                               '& fieldset': {
@@ -3682,11 +4778,14 @@ const ProgramHeadEnrollment: React.FC = () => {
                             }
                           }}
                         >
-                          <MenuItem value="A">Section A</MenuItem>
-                          <MenuItem value="B">Section B</MenuItem>
-                          <MenuItem value="C">Section C</MenuItem>
-                          <MenuItem value="D">Section D</MenuItem>
-                          <MenuItem value="E">Section E</MenuItem>
+                          <MenuItem value="">Select Section</MenuItem>
+                          {sections
+                            .filter(section => section.year_level === createForm.yearLevel)
+                            .map(section => (
+                              <MenuItem key={section.id} value={section.id}>
+                                {section.name}{section.academic_year ? ` (${section.academic_year})` : ''}
+                              </MenuItem>
+                            ))}
                         </Select>
                       </FormControl>
                     </Grid>
@@ -3779,7 +4878,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                     </Box>
                   )}
                   
-                  {/* Course selection summary */}
+                  {/* Course selection summary and check all option */}
                   <Box sx={{ 
                     mb: 2, 
                     p: 2, 
@@ -3787,31 +4886,64 @@ const ProgramHeadEnrollment: React.FC = () => {
                     background: selectedCourses.length > 0 ? '#f0f9ff' : '#f9fafb',
                     border: `1px solid ${selectedCourses.length > 0 ? '#0ea5e9' : '#e5e7eb'}`
                   }}>
-                    <Typography variant="body2" sx={{ 
-                      fontWeight: 500, 
-                      color: selectedCourses.length > 0 ? '#0369a1' : '#6b7280',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 1
-                    }}>
-                      <Box sx={{ 
-                        width: 16, 
-                        height: 16, 
-                        borderRadius: '50%', 
-                        background: selectedCourses.length > 0 ? '#0ea5e9' : '#9ca3af',
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                      <Typography variant="body2" sx={{ 
+                        fontWeight: 500, 
+                        color: selectedCourses.length > 0 ? '#0369a1' : '#6b7280',
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '0.6rem',
-                        color: 'white'
+                        gap: 1
                       }}>
-                        {selectedCourses.length > 0 ? '✓' : '0'}
-                      </Box>
-                      {selectedCourses.length > 0 
-                        ? `${selectedCourses.length} course${selectedCourses.length > 1 ? 's' : ''} selected`
-                        : 'No courses selected'
-                      }
-                    </Typography>
+                        <Box sx={{ 
+                          width: 16, 
+                          height: 16, 
+                          borderRadius: '50%', 
+                          background: selectedCourses.length > 0 ? '#0ea5e9' : '#9ca3af',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '0.6rem',
+                          color: 'white'
+                        }}>
+                          {selectedCourses.length > 0 ? '✓' : '0'}
+                        </Box>
+                        {selectedCourses.length > 0 
+                          ? `${selectedCourses.length} course${selectedCourses.length > 1 ? 's' : ''} selected`
+                          : 'No courses selected'
+                        }
+                      </Typography>
+                      
+                      {/* Check All / Uncheck All Button */}
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        onClick={() => {
+                          if (selectedCourses.length === getTotalAvailableCourses()) {
+                            // If all are selected, uncheck all
+                            setSelectedCourses([]);
+                          } else {
+                            // If not all are selected, check all
+                            const allCourseIds = getAllAvailableCourseIds();
+                            setSelectedCourses(allCourseIds);
+                          }
+                        }}
+                        sx={{
+                          borderRadius: 1,
+                          px: 1.5,
+                          py: 0.5,
+                          fontSize: '0.7rem',
+                          fontWeight: 500,
+                          borderColor: selectedCourses.length === getTotalAvailableCourses() ? '#ef4444' : '#10b981',
+                          color: selectedCourses.length === getTotalAvailableCourses() ? '#ef4444' : '#10b981',
+                          '&:hover': {
+                            borderColor: selectedCourses.length === getTotalAvailableCourses() ? '#dc2626' : '#059669',
+                            background: selectedCourses.length === getTotalAvailableCourses() ? '#fef2f2' : '#f0fdf4'
+                          }
+                        }}
+                      >
+                        {selectedCourses.length === getTotalAvailableCourses() ? 'Uncheck All' : 'Check All'}
+                      </Button>
+                    </Box>
                   </Box>
                   
                   {/* Render categorized courses */}
@@ -3968,31 +5100,48 @@ const ProgramHeadEnrollment: React.FC = () => {
         >
           {editForm && (
             <Grid container spacing={2} alignItems="flex-start" sx={{ mt: 1 }}>
-              <Grid item xs={12}>
+              <Grid item xs={12} md={4}>
                 <TextField 
-                  label="Email" 
-                  value={editFormFields.email} 
-                  onChange={e => setEditFormFields(f => ({ ...f, email: e.target.value }))} 
+                  label="First Name" 
+                  value={editFormFields.firstName} 
+                  onChange={e => {
+                    const value = e.target.value;
+                    const capitalized = value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+                    setEditFormFields(f => ({ ...f, firstName: capitalized }));
+                  }} 
                   size="small"
                   variant="outlined"
                   fullWidth 
                   required 
-                  InputProps={{ 
-                    endAdornment: <span style={{ color: '#6b7280' }}>@smcbi.edu.ph</span>
-                  }}
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      '& fieldset': {
-                        borderColor: '#d1d5db'
-                      },
-                      '&:hover fieldset': {
-                        borderColor: '#9ca3af'
-                      },
-                      '&.Mui-focused fieldset': {
-                        borderColor: '#667eea'
-                      }
-                    }
-                  }}
+                />
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <TextField 
+                  label="Middle Name" 
+                  value={editFormFields.middleName} 
+                  onChange={e => {
+                    const value = e.target.value;
+                    const capitalized = value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+                    setEditFormFields(f => ({ ...f, middleName: capitalized }));
+                  }} 
+                  size="small"
+                  variant="outlined"
+                  fullWidth 
+                />
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <TextField 
+                  label="Last Name" 
+                  value={editFormFields.lastName} 
+                  onChange={e => {
+                    const value = e.target.value;
+                    const capitalized = value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+                    setEditFormFields(f => ({ ...f, lastName: capitalized }));
+                  }} 
+                  size="small"
+                  variant="outlined"
+                  fullWidth 
+                  required 
                 />
               </Grid>
               <Grid item xs={12} md={6}>
@@ -4062,30 +5211,13 @@ const ProgramHeadEnrollment: React.FC = () => {
                 </Select>
               </FormControl>
               </Grid>
-              <Grid item xs={12} md={6}>
-                <FormControl fullWidth>
-                  <InputLabel>Section</InputLabel>
-                  <Select
-                    value={editForm.section || ''}
-                    label="Section"
-                    onChange={e => setEditForm((f: Student | null) => f ? { ...f, section: e.target.value } : null)}
-                    size="small" required
-                  >
-                    <MenuItem value="A">Section A</MenuItem>
-                    <MenuItem value="B">Section B</MenuItem>
-                    <MenuItem value="C">Section C</MenuItem>
-                    <MenuItem value="D">Section D</MenuItem>
-                    <MenuItem value="E">Section E</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
             </Grid>
           )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => { 
             setEditForm(null); 
-            setEditFormFields({ email: '' }); 
+            setEditFormFields({ firstName: '', middleName: '', lastName: '' }); 
           }} disabled={savingEdit}>Cancel</Button>
           <Button onClick={handleSaveEdit} variant="contained" color="primary" disabled={savingEdit}>{savingEdit ? 'Saving...' : 'Save Changes'}</Button>
         </DialogActions>
@@ -4202,8 +5334,47 @@ const ProgramHeadEnrollment: React.FC = () => {
                 <MenuItem value="4">4th Year</MenuItem>
               </Select>
             </FormControl>
+            <FormControl size="small" sx={{ minWidth: 180 }}>
+              <InputLabel>Filter by Section</InputLabel>
+              <Select
+                value={existingFilterSection}
+                label="Filter by Section"
+                onChange={e => setExistingFilterSection(e.target.value)}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    '& fieldset': {
+                      borderColor: '#d1d5db'
+                    },
+                    '&:hover fieldset': {
+                      borderColor: '#9ca3af'
+                    },
+                    '&.Mui-focused fieldset': {
+                      borderColor: '#667eea'
+                    }
+                  }
+                }}
+              >
+                <MenuItem value="">All Sections</MenuItem>
+                {sections
+                  .filter(section => !existingFilterYear || section.year_level === Number(existingFilterYear))
+                  .map(section => (
+                    <MenuItem key={section.id} value={section.id}>
+                      {section.name}
+                    </MenuItem>
+                  ))}
+              </Select>
+            </FormControl>
           </Box>
-          {Object.keys(existingStudentsByYear).sort().filter(year => !existingFilterYear || year === existingFilterYear).map(year => (
+          {Object.keys(existingStudentsByYear).sort().filter(year => !existingFilterYear || year === existingFilterYear).map(year => {
+            // Filter students by section if section filter is applied
+            const filteredStudents = existingStudentsByYear[year].filter(student => 
+              !existingFilterSection || student.section === existingFilterSection
+            );
+            
+            // Only show year if there are students after filtering
+            if (filteredStudents.length === 0) return null;
+            
+            return (
             <Box key={year} mb={4}>
               <Typography variant="h6" sx={{ 
                 mb: 2, 
@@ -4242,12 +5413,13 @@ const ProgramHeadEnrollment: React.FC = () => {
                       <TableCell sx={{ fontWeight: 600, color: '#374151', fontSize: '0.875rem' }}>Student ID</TableCell>
                       <TableCell sx={{ fontWeight: 600, color: '#374151', fontSize: '0.875rem' }}>Name</TableCell>
                       <TableCell sx={{ fontWeight: 600, color: '#374151', fontSize: '0.875rem' }}>Type</TableCell>
+                      <TableCell sx={{ fontWeight: 600, color: '#374151', fontSize: '0.875rem' }}>Section</TableCell>
                       <TableCell sx={{ fontWeight: 600, color: '#374151', fontSize: '0.875rem' }}>Status</TableCell>
                       <TableCell sx={{ fontWeight: 600, color: '#374151', fontSize: '0.875rem' }}>Action</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {existingStudentsByYear[year].map(student => (
+                    {filteredStudents.map(student => (
                       <TableRow key={student.id} sx={{ 
                         '&:hover': { 
                           background: '#f9fafb',
@@ -4272,6 +5444,21 @@ const ProgramHeadEnrollment: React.FC = () => {
                             letterSpacing: '0.05em'
                           }}>
                             {student.studentType}
+                          </Box>
+                        </TableCell>
+                        <TableCell>
+                          <Box sx={{ 
+                            display: 'inline-block',
+                            px: 1.5,
+                            py: 0.5,
+                            borderRadius: 1,
+                            fontSize: '0.75rem',
+                            fontWeight: 500,
+                            background: '#e0e7ef',
+                            color: '#111827',
+                            textTransform: 'capitalize'
+                          }}>
+                            {getSectionName(student.section)}
                           </Box>
                         </TableCell>
                         <TableCell>
@@ -4320,7 +5507,8 @@ const ProgramHeadEnrollment: React.FC = () => {
                 </Table>
               </TableContainer>
             </Box>
-          ))}
+            );
+          })}
         </DialogContent>
         <DialogActions sx={{ 
           p: 3, 
@@ -4735,8 +5923,8 @@ const ProgramHeadEnrollment: React.FC = () => {
         
         <DialogContent sx={{ p: 0 }}>
           <Box ref={prospectusContentRef}>
-            {/* Header area moved into scrollable content with white background */}
-            <Box sx={{ background: 'white', p: 3, borderBottom: '1px solid #e5e7eb' }}>
+            {/* Header area with proper CSS classes */}
+            <Box className="prospectus-header" sx={{ background: 'white', p: 3, borderBottom: '1px solid #e5e7eb' }}>
               <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, width: '100%' }}>
                 <Box sx={{ 
                   width: 50, height: 50, borderRadius: '50%',
@@ -4747,16 +5935,16 @@ const ProgramHeadEnrollment: React.FC = () => {
                   <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: '1rem', color: 'white', fontWeight: 'bold' }}>✝</Box>
                 </Box>
                 <Box sx={{ flex: 1 }}>
-                  <Typography variant="h6" sx={{ fontWeight: 700, color: '#1f2937', mb: 0.25, fontSize: '1.125rem' }}>
+                  <Typography className="school-name" variant="h6" sx={{ fontWeight: 700, color: '#1f2937', mb: 0.25, fontSize: '1.125rem' }}>
                     St. Mary's College of Bansalan, Inc.
                   </Typography>
-                  <Typography variant="caption" sx={{ color: '#6b7280', fontStyle: 'italic', mb: 0.25, fontSize: '0.75rem' }}>
+                  <Typography className="school-subtitle" variant="caption" sx={{ color: '#6b7280', fontStyle: 'italic', mb: 0.25, fontSize: '0.75rem' }}>
                     (Formerly: Holy Cross of Bansalan College, Inc.)
                   </Typography>
-                  <Typography variant="caption" sx={{ color: '#374151', mb: 0.5, fontSize: '0.75rem' }}>
+                  <Typography className="school-address" variant="caption" sx={{ color: '#374151', mb: 0.5, fontSize: '0.75rem' }}>
                     Dahlia Street, Poblacion Uno, Bansalan, Davao del Sur, 8005 Philippines
                   </Typography>
-                  <Typography variant="body1" sx={{ fontWeight: 700, color: '#1e40af', mb: 0.25, fontSize: '1rem' }}>
+                  <Typography className="course-title" variant="body1" sx={{ fontWeight: 700, color: '#1e40af', mb: 0.25, fontSize: '1rem' }}>
                     BACHELOR OF SCIENCE IN INFORMATION TECHNOLOGY (BSIT)
                   </Typography>
                   <Typography variant="caption" sx={{ color: '#374151', fontSize: '0.75rem' }}>
@@ -4765,7 +5953,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                 </Box>
               </Box>
               <Box sx={{ textAlign: 'center', mt: 2 }}>
-                <Typography variant="h5" sx={{ fontWeight: 700, fontSize: '1.5rem', color: '#1e40af' }}>
+                <Typography className="prospectus-title" variant="h5" sx={{ fontWeight: 700, fontSize: '1.5rem', color: '#1e40af' }}>
                   STUDENT PROSPECTUS
                 </Typography>
               </Box>
@@ -4773,8 +5961,8 @@ const ProgramHeadEnrollment: React.FC = () => {
 
             {/* Body content */}
             <Box sx={{ p: 3 }}>
-            {/* Student Name - Above the highlighted card */}
-            <Typography variant="h5" sx={{ 
+              {/* Student Name */}
+              <Typography className="student-name" variant="h5" sx={{ 
               fontWeight: 700,
               fontSize: '1.5rem',
               color: '#1f2937',
@@ -4785,49 +5973,48 @@ const ProgramHeadEnrollment: React.FC = () => {
             </Typography>
 
             {/* Student Information */}
-            <Card sx={{ 
+              <Box className="student-info" sx={{ 
               mb: 3, 
               borderRadius: 2, 
               background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
-              border: '1px solid #bae6fd'
-            }}>
-              <CardContent sx={{ p: 2.5 }}>
-                <Grid container spacing={2}>
-                  <Grid item xs={12} sm={6}>
-                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
+                border: '1px solid #bae6fd',
+                p: 2.5
+              }}>
+                <Box className="info-grid">
+                  <Box className="info-item">
+                    <Typography className="info-label" variant="body2" sx={{ fontWeight: 500 }}>
                       Student ID
                     </Typography>
-                    <Typography variant="body1" sx={{ fontWeight: 600, fontFamily: 'monospace' }}>
+                    <Typography className="info-value" variant="body1" sx={{ fontWeight: 600, fontFamily: 'monospace' }}>
                       {selectedStudentForProspectus?.id}
                     </Typography>
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
+                  </Box>
+                  <Box className="info-item">
+                    <Typography className="info-label" variant="body2" sx={{ fontWeight: 500 }}>
                       Student Type
                     </Typography>
-                    <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                    <Typography className="info-value" variant="body1" sx={{ fontWeight: 600 }}>
                       {selectedStudentForProspectus?.studentType}
                     </Typography>
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
+                  </Box>
+                  <Box className="info-item">
+                    <Typography className="info-label" variant="body2" sx={{ fontWeight: 500 }}>
                       Current Year Level
                     </Typography>
-                    <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                    <Typography className="info-value" variant="body1" sx={{ fontWeight: 600 }}>
                       {selectedStudentForProspectus?.yearLevel}
                     </Typography>
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
+                  </Box>
+                  <Box className="info-item">
+                    <Typography className="info-label" variant="body2" sx={{ fontWeight: 500 }}>
                       Department
                     </Typography>
-                    <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                    <Typography className="info-value" variant="body1" sx={{ fontWeight: 600 }}>
                       {selectedStudentForProspectus?.department}
                     </Typography>
-                  </Grid>
-                </Grid>
-              </CardContent>
-            </Card>
+                  </Box>
+                </Box>
+              </Box>
 
             {/* Available Subjects by Year Level */}
             <Typography variant="h6" sx={{ 
@@ -4844,6 +6031,13 @@ const ProgramHeadEnrollment: React.FC = () => {
 
             {/* Show all subjects from 1st to 4th year */}
             {renderSubjects()}
+            </Box>
+            
+            {/* Footer */}
+            <Box className="prospectus-footer" sx={{ p: 3, textAlign: 'center' }}>
+              <Typography variant="caption" sx={{ color: '#6b7280', fontSize: '0.75rem' }}>
+                Generated on {new Date().toLocaleDateString()} at {new Date().toLocaleTimeString()}
+              </Typography>
             </Box>
           </Box>
         </DialogContent>
