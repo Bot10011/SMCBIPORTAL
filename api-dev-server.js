@@ -75,6 +75,27 @@ app.post('/api/reset-password', async (req, res) => {
   }
 });
 
+app.post('/api/force-password-change', async (req, res) => {
+  try {
+    console.log('Received force password change request:', req.body);
+    
+    // Import and call the function directly
+    const { handleForcePasswordChange } = await import('./api/force-password-change.ts');
+    const result = await handleForcePasswordChange(req.body.email, req.body.newPassword);
+    
+    console.log('Force password change result:', result);
+    res.json(result);
+  } catch (error) {
+    console.error('Error in force-password-change:', error);
+    res.status(500).json({ 
+      error: 'Failed to process request', 
+      details: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 app.get('/api/env-check', async (req, res) => {
   try {
     console.log('Received environment check request');
