@@ -6,7 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 const SupabaseAuthCallback: React.FC = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
-
+ 
   const [handled, setHandled] = useState(false);
 
   useEffect(() => {
