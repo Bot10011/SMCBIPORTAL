@@ -7,7 +7,7 @@ import { useAuth } from './contexts/AuthContext';
 import toast from 'react-hot-toast';
 import { AuthError } from '@supabase/supabase-js';
 import PasswordResetForm from './components/PasswordResetForm';
-import ForcePasswordChange from './components/ForcePasswordChange';
+import ForcePasswordChange from './components/ForcePasswordChange'; 
 
 interface LoginProps {
   onClose?: () => void;
