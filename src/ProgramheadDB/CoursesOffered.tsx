@@ -5,53 +5,9 @@ import { motion } from 'framer-motion';
 import { Plus, BookOpen, Users, GraduationCap, Search, Filter, Grid, List, Trash2 } from 'lucide-react';
 import CourseActions from '../components/CourseActions';
 import { createPortal } from 'react-dom';
-import Cropper from 'react-easy-crop';
-import { Area } from 'react-easy-crop';
 import './dashboard.css';
 
-// Utility function to crop image
-function getCroppedImg(
-  imageSrc: string, 
-  crop: { x: number; y: number },
-  zoom: number,
-  aspect: number,
-  croppedAreaPixels: { width: number; height: number; x: number; y: number }
-): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    const image = new window.Image();
-    image.crossOrigin = 'anonymous';
-    image.src = imageSrc;
-    image.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = croppedAreaPixels.width;
-      canvas.height = croppedAreaPixels.height;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        reject(new Error('Canvas context is null'));
-        return;
-      }
-      ctx.drawImage(
-        image,
-        croppedAreaPixels.x,
-        croppedAreaPixels.y,
-        croppedAreaPixels.width,
-        croppedAreaPixels.height,
-        0,
-        0,
-        croppedAreaPixels.width,
-        croppedAreaPixels.height
-      );
-      canvas.toBlob((blob) => {
-        if (!blob) {
-          reject(new Error('Canvas is empty'));
-          return;
-        }
-        resolve(blob);
-      }, 'image/jpeg', 0.95);
-    };
-    image.onerror = (e) => reject(e);
-  });
-}
+
 
 interface Course {
   id?: number;
@@ -82,6 +38,7 @@ export default function CourseManagement() {
   const [filterUnits, setFilterUnits] = useState<string>('all');
   const [filterYearLevel, setFilterYearLevel] = useState('all');
   const [filterSemester, setFilterSemester] = useState('all');
+  const [prerequisiteSearchTerm, setPrerequisiteSearchTerm] = useState('');
 
   // Form states
   const [courseForm, setCourseForm] = useState({
@@ -106,15 +63,7 @@ export default function CourseManagement() {
     instructor: ''
   });
 
-  const [imageFile, setImageFile] = useState<File | null>(null);
 
-  // Crop state variables
-  const [showCropModal, setShowCropModal] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [crop, setCrop] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | undefined>(undefined);
-  const [isCropping, setIsCropping] = useState(false);
 
   const [courseImages, setCourseImages] = useState<{ [id: string]: string }>({});
   const [imageLoading, setImageLoading] = useState<{ [id: string]: boolean }>({});
@@ -148,31 +97,7 @@ export default function CourseManagement() {
     }
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] || null;
-    if (file) {
-      // Validate file type
-      if (!file.type.startsWith('image/')) {
-        toast.error('Please upload an image file');
-        return;
-      }
-      // Validate file size (max 10MB)
-      if (file.size > 10 * 1024 * 1024) {
-        toast.error('File size must be less than 10MB');
-        return;
-      }
-      
-      // Show crop modal instead of directly setting the file
-      const reader = new FileReader();
-      reader.onload = () => {
-        setSelectedImage(reader.result as string);
-        setShowCropModal(true);
-      };
-      reader.readAsDataURL(file);
-    }
-    // Reset the input value so the same file can be selected again if needed
-    e.target.value = '';
-  };
+
 
   useEffect(() => {
     fetchCourses();
@@ -180,27 +105,7 @@ export default function CourseManagement() {
 
 
 
-  // Crop completion handler
-  const onCropComplete = useCallback((croppedArea: Area, croppedAreaPixels: Area) => {
-    setCroppedAreaPixels(croppedAreaPixels);
-  }, []);
 
-  // Handle crop and save
-  const handleCropSave = async () => {
-    if (!selectedImage || !croppedAreaPixels) return;
-    try {
-      setIsCropping(true);
-      const croppedBlob = await getCroppedImg(selectedImage, crop, zoom, 0, croppedAreaPixels);
-      setImageFile(new File([croppedBlob], 'cropped-image.jpg', { type: 'image/jpeg' }));
-      setShowCropModal(false);
-      setSelectedImage(null);
-    } catch (error) {
-      console.error('Error cropping image:', error);
-      toast.error('Failed to crop image');
-    } finally {
-      setIsCropping(false);
-    }
-  };
 
   useEffect(() => {
     const fetchImages = async () => {
@@ -565,9 +470,7 @@ export default function CourseManagement() {
   const handleCloseModal = () => {
     setShowAddModal(false);
     setSelectedCourse(null);
-    setImageFile(null);
-    setShowCropModal(false);
-    setSelectedImage(null);
+    setPrerequisiteSearchTerm('');
     
     // Reset form to default values
     setCourseForm({ 
@@ -641,32 +544,6 @@ export default function CourseManagement() {
     }
     
     try {
-      let imagePath = courseForm.image_url || '';
-      let oldImagePath = '';
-      
-      if (imageFile) {
-        const fileExt = imageFile.type.split('/').pop();
-        const fileName = `${Date.now()}.${fileExt}`;
-        const filePath = `course-images/${courseForm.code}/${fileName}`;
-        
-        // Store the old image path for cleanup
-        if (selectedCourse && selectedCourse.image_url) {
-          oldImagePath = selectedCourse.image_url;
-        }
-        
-        const { error: uploadError } = await supabase.storage
-          .from('course')
-          .upload(filePath, imageFile, {
-            cacheControl: '3600',
-            upsert: true
-          });
-        if (uploadError) {
-          toast.error('Image upload failed');
-          return;
-        }
-        imagePath = filePath;
-      }
-      
       let error;
       if (selectedCourse && selectedCourse.id) {
         // Update existing course
@@ -679,7 +556,7 @@ export default function CourseManagement() {
           lab_units: courseForm.lab_units,
           hours_per_week: courseForm.hours_per_week,
           prerequisites: courseForm.prerequisites,
-          image_url: imagePath,
+          image_url: courseForm.image_url,
           summer: courseForm.summer,
           year_level: courseForm.year_level,
           semester: courseForm.semester
@@ -695,7 +572,7 @@ export default function CourseManagement() {
             lab_units: courseForm.lab_units,
             hours_per_week: courseForm.hours_per_week,
             prerequisites: courseForm.prerequisites,
-            image_url: imagePath,
+            image_url: courseForm.image_url,
             summer: courseForm.summer,
             year_level: courseForm.year_level,
             semester: courseForm.semester
@@ -703,18 +580,6 @@ export default function CourseManagement() {
           .eq('id', selectedCourse.id)
           .select()
           .single());
-        
-        // Clean up old image if it exists and is different from the new one
-        if (oldImagePath && oldImagePath !== imagePath) {
-          try {
-            await supabase.storage
-              .from('course')
-              .remove([oldImagePath]);
-            console.log('Old image cleaned up:', oldImagePath);
-          } catch (cleanupError) {
-            console.error('Error cleaning up old image:', cleanupError);
-          }
-        }
       } else {
         // Insert new course
         console.log('Inserting new course with data:', {
@@ -725,7 +590,7 @@ export default function CourseManagement() {
           lab_units: courseForm.lab_units,
           hours_per_week: courseForm.hours_per_week,
           prerequisites: courseForm.prerequisites,
-          image_url: imagePath, 
+          image_url: '', 
           summer: courseForm.summer, 
           year_level: courseForm.year_level,
           semester: courseForm.semester
@@ -741,7 +606,7 @@ export default function CourseManagement() {
             lab_units: courseForm.lab_units,
             hours_per_week: courseForm.hours_per_week,
             prerequisites: courseForm.prerequisites,
-            image_url: imagePath, 
+            image_url: '', 
             summer: courseForm.summer, 
             year_level: courseForm.year_level,
             semester: courseForm.semester
@@ -908,115 +773,7 @@ export default function CourseManagement() {
 
   return (
     <div className="min-h-screen from-blue-50 via-white to-indigo-50">
-      {/* Crop Modal */}
-      {showCropModal && selectedImage && createPortal(
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            className="bg-white rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl relative"
-          >
-            <div className="relative mb-6">
-              {/* Modern Header Background */}
-              <div className="absolute inset-0 bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 rounded-t-2xl -m-6 mb-0"></div>
-              
-              {/* Header Content */}
-              <div className="relative flex items-center justify-between py-2 px-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center shadow-lg">
-                    <svg className="w-4.5 h-4.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4a2 2 0 012-2h2a2 2 0 012 2v4m-6 0h8m-8 0l-2 8h12l-2-8m-6 4v4m0 0h.01" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-bold text-white leading-tight">
-                      Crop Subject Image
-                    </h2>
-                    <p className="text-white/80 text-xs font-medium leading-tight">
-                      Adjust and crop your image to the desired size
-                    </p>
-                  </div>
-                </div>
-                
-                {/* Modern Close Button */}
-                <button
-                  onClick={() => {
-                    setShowCropModal(false);
-                    setSelectedImage(null);
-                  }}
-                  className="absolute w-8 h-8 flex items-center justify-center text-lg font-bold text-white bg-red-500 hover:bg-red-600 rounded-full shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 hover:scale-110 hover:rotate-90 top-2 right-3 z-50 animate-pop-in"
-                  style={{ boxShadow: 'rgba(239, 68, 68, 0.3) 0px 2px 8px' }}
-                  aria-label="Close dialog"
-                >
-                  ×
-                </button>
-              </div>
-              
-              {/* Decorative Elements */}
-              <div className="absolute top-0 right-0 w-16 h-16 bg-white/5 rounded-full -translate-y-8 translate-x-8"></div>
-              <div className="absolute bottom-0 left-0 w-12 h-12 bg-white/5 rounded-full translate-y-6 -translate-x-6"></div>
-            </div>
-            
-            <div className="w-full aspect-video relative bg-gray-100 rounded-xl overflow-hidden mb-6">
-              <Cropper
-                image={selectedImage}
-                crop={crop}
-                zoom={zoom}
-                aspect={undefined}
-                onCropChange={setCrop}
-                onZoomChange={setZoom}
-                onCropComplete={onCropComplete}
-                cropShape="rect"
-                showGrid={true}
-                style={{
-                  containerStyle: {
-                    width: '100%',
-                    height: '100%',
-                    backgroundColor: '#f3f4f6'
-                  }
-                }}
-              />
-            </div>
-            
-            <div className="flex items-center justify-center gap-4 mb-6">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">Zoom:</span>
-                <input
-                  type="range"
-                  min={1}
-                  max={3}
-                  step={0.1}
-                  value={zoom}
-                  onChange={(e) => setZoom(Number(e.target.value))}
-                  className="w-32 accent-blue-500"
-                />
-                <span className="text-sm text-gray-500">{Math.round(zoom * 100)}%</span>
-              </div>
-            </div>
-            
-            <div className="flex justify-end gap-4">
-              <button
-                onClick={() => {
-                  setShowCropModal(false);
-                  setSelectedImage(null);
-                }}
-                className="px-6 py-3 text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition-all duration-200 font-medium"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCropSave}
-                disabled={isCropping || !croppedAreaPixels}
-                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 font-medium disabled:opacity-50"
-              >
-                {isCropping ? 'Cropping...' : 'Crop & Save'}
-              </button>
-            </div>
-          </motion.div>
-        </div>,
-        document.body
-      )}
+
 
       {showAddModal && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
@@ -1052,10 +809,7 @@ export default function CourseManagement() {
                 <button
                   onClick={() => {
                     setShowAddModal(false);
-                    setImageFile(null);
                     setSelectedCourse(null);
-                    setShowCropModal(false);
-                    setSelectedImage(null);
                   }}
                   className="absolute w-8 h-8 flex items-center justify-center text-lg font-bold text-white bg-red-500 hover:bg-red-600 rounded-full shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 hover:scale-110 hover:rotate-90 top-2 right-3 z-50 animate-pop-in"
                   style={{ boxShadow: 'rgba(239, 68, 68, 0.3) 0px 2px 8px' }}
@@ -1215,10 +969,8 @@ export default function CourseManagement() {
                 <div></div>
               </div>
 
-              {/* Prerequisites + Image Layout */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Prerequisites Selection */}
-              <div className="lg:col-span-2">
+              {/* Prerequisites Selection - Full Width */}
+              <div className="w-full">
                  <div className="flex items-center justify-between mb-2">
                    <label className="block text-sm font-semibold text-gray-700">Prerequisites</label>
                    {courseForm.prerequisites.length > 0 && (
@@ -1227,6 +979,105 @@ export default function CourseManagement() {
                      </span>
                    )}
                  </div>
+                 
+                 {/* Search Bar for Prerequisites */}
+                 <div className="mb-3">
+                   <div className="relative">
+                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                     <input
+                       type="text"
+                       placeholder="Search prerequisites by code or name..."
+                       value={prerequisiteSearchTerm}
+                       onChange={(e) => setPrerequisiteSearchTerm(e.target.value)}
+                       className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-sm"
+                     />
+                   </div>
+                   
+                   {/* Search Results Summary */}
+                   {prerequisiteSearchTerm && (
+                     <div className="mt-2 flex items-center justify-between text-sm">
+                       <div className="flex items-center gap-2">
+                         <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                         <span className="text-gray-600">
+                           {(() => {
+                             const filteredCourses = availablePrerequisites
+                               .filter(course => course.code !== courseForm.code)
+                               .filter(course => {
+                                 const searchLower = prerequisiteSearchTerm.toLowerCase();
+                                 return course.code.toLowerCase().includes(searchLower) || 
+                                        course.name.toLowerCase().includes(searchLower);
+                               });
+                             return `${filteredCourses.length} result${filteredCourses.length !== 1 ? 's' : ''} found`;
+                           })()}
+                         </span>
+                       </div>
+                       {prerequisiteSearchTerm.length > 0 && (
+                         <button
+                           onClick={() => setPrerequisiteSearchTerm('')}
+                           className="text-xs text-gray-400 hover:text-gray-600 transition-colors duration-200 flex items-center gap-1"
+                         >
+                           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                           </svg>
+                           Clear search
+                         </button>
+                       )}
+                     </div>
+                   )}
+                   
+                   {/* Quick Search Results - Displayed below search bar for fast action */}
+                   {prerequisiteSearchTerm && (() => {
+                     const filteredCourses = availablePrerequisites
+                       .filter(course => course.code !== courseForm.code)
+                       .filter(course => {
+                         const searchLower = prerequisiteSearchTerm.toLowerCase();
+                         return course.code.toLowerCase().includes(searchLower) || 
+                                course.name.toLowerCase().includes(searchLower);
+                       });
+                     
+                     if (filteredCourses.length > 0) {
+                       return (
+                         <div className="mt-3 mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                           <div className="text-xs font-semibold text-blue-800 mb-2 flex items-center gap-2">
+                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                             </svg>
+                             Quick Results ({filteredCourses.length})
+                           </div>
+                           <div className="grid grid-cols-1 gap-2 max-h-32 overflow-y-auto">
+                             {filteredCourses.slice(0, 6).map((course) => (
+                               <label key={course.id} className={`flex items-center space-x-3 p-2 rounded-lg hover:bg-white transition-colors duration-200 cursor-pointer ${
+                                 courseForm.prerequisites.includes(course.code) ? 'bg-white border border-blue-300' : 'bg-white/80'
+                               }`}>
+                                 <input
+                                   type="checkbox"
+                                   checked={courseForm.prerequisites.includes(course.code)}
+                                   onChange={(e) => handlePrerequisiteChange(course.code, e.target.checked)}
+                                   className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                                 />
+                                 <div className="flex-1 min-w-0">
+                                   <div className="text-sm font-medium text-blue-900 truncate">
+                                     {course.code}
+                                   </div>
+                                   <div className="text-xs text-blue-700 truncate">
+                                     {course.name}
+                                   </div>
+                                 </div>
+                               </label>
+                             ))}
+                             {filteredCourses.length > 6 && (
+                               <div className="text-xs text-blue-600 text-center py-1">
+                                 +{filteredCourses.length - 6} more results below
+                               </div>
+                             )}
+                           </div>
+                         </div>
+                       );
+                     }
+                     return null;
+                   })()}
+                 </div>
+                 
                  <div className="border border-gray-200 rounded-xl p-4 bg-gray-50 min-h-64 max-h-96 overflow-y-auto">
                    {/* None Option */}
                    <div className="mb-3 pb-3 border-b border-gray-200">
@@ -1257,7 +1108,7 @@ export default function CourseManagement() {
                   <div className="mb-3 pb-3 border-b border-gray-200">
                     <div className="text-xs font-semibold text-gray-600 mb-2">Year Standing</div>
                     {['1st Year Standing','2nd Year Standing','3rd Year Standing','4th Year Standing'].map((ys) => (
-                      <label key={ys} className={`flex items-center space-x-3 p-2 rounded-lg hover:bg-white transition-colors duration-200 cursor-pointer ${
+                      <label key={ys} className={`flex items-center gap-3 p-2 rounded-lg hover:bg-white transition-colors duration-200 cursor-pointer ${
                         courseForm.prerequisites.includes(ys) ? 'bg-blue-50 border border-blue-200' : ''
                       }`}>
                         <input
@@ -1267,8 +1118,8 @@ export default function CourseManagement() {
                           className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
                         />
                         <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium text-gray-900 truncate">{ys}</div>
-                          <div className="text-xs text-gray-500 truncate">Requires student be in {ys.replace(' Standing','')}</div>
+                          <div className="text-sm font-medium text-blue-900 truncate">{ys}</div>
+                          <div className="text-xs text-blue-700 truncate">Requires student be in {ys.replace(' Standing','')}</div>
                         </div>
                       </label>
                     ))}
@@ -1278,6 +1129,12 @@ export default function CourseManagement() {
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                        {availablePrerequisites
                          .filter(course => course.code !== courseForm.code) // Exclude current course
+                         .filter(course => {
+                           if (!prerequisiteSearchTerm) return true;
+                           const searchLower = prerequisiteSearchTerm.toLowerCase();
+                           return course.code.toLowerCase().includes(searchLower) || 
+                                  course.name.toLowerCase().includes(searchLower);
+                         })
                          .map((course) => (
                            <label key={course.id} className={`flex items-center space-x-3 p-2 rounded-lg hover:bg-white transition-colors duration-200 cursor-pointer ${
                              courseForm.prerequisites.includes(course.code) ? 'bg-blue-50 border border-blue-200' : ''
@@ -1287,6 +1144,13 @@ export default function CourseManagement() {
                                checked={courseForm.prerequisites.includes(course.code)}
                                onChange={(e) => handlePrerequisiteChange(course.code, e.target.checked)}
                                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                               disabled={prerequisiteSearchTerm ? !availablePrerequisites
+                                 .filter(c => c.code !== courseForm.code)
+                                 .filter(c => {
+                                   const searchLower = prerequisiteSearchTerm.toLowerCase();
+                                   return c.code.toLowerCase().includes(searchLower) || 
+                                          c.name.toLowerCase().includes(searchLower);
+                                 }).some(c => c.id === course.id) : false}
                              />
                              <div className="flex-1 min-w-0">
                                <div className="text-sm font-medium text-gray-900 truncate">
@@ -1301,7 +1165,7 @@ export default function CourseManagement() {
                      </div>
                    ) : (
                      <div className="text-center py-4">
-                       <div className="text-gray-400 text-sm">
+                       <div className="text-gray-500 text-sm">
                          No other courses available as prerequisites
                        </div>
                      </div>
@@ -1311,106 +1175,12 @@ export default function CourseManagement() {
                    Select "None" for no prerequisites, choose specific subjects, or pick a Year Standing requirement (1st-4th) that a student must meet before enrolling.
                 </div>
               </div>
-
-              {/* Subject Image */}
-               <div className="lg:col-span-1">
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Subject Image</label>
-                <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center hover:border-blue-300 transition-all duration-300 hover:shadow-lg bg-gradient-to-br from-gray-50 to-white">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    className="hidden"
-                    id="course-image"
-                  />
-                  {imageFile ? (
-                    <div className="relative w-full group">
-                      {/* Show cropped image preview */}
-                      <div className="relative w-full overflow-hidden rounded-xl">
-                        <img 
-                          src={URL.createObjectURL(imageFile)} 
-                          alt="Cropped preview" 
-                          className="w-full h-48 object-cover rounded-xl border-2 border-blue-200 shadow-lg transition-transform duration-300 group-hover:scale-105" 
-                        />
-                        {/* Success indicator */}
-                        <div className="absolute top-3 right-3 bg-green-500 text-white text-xs px-2 py-1 rounded-full shadow-lg flex items-center gap-1">
-                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                          </svg>
-                          Ready
-                        </div>
-                      </div>
-                      {/* Modern centered buttons overlay */}
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-all duration-300 rounded-xl backdrop-blur-sm">
-                        <div className="flex gap-3">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              // Only trigger file input, don't clear current image yet
-                              document.getElementById('course-image')?.click();
-                            }}
-                            className="px-4 py-2 text-sm bg-white/90 backdrop-blur-sm text-blue-700 rounded-lg hover:bg-white transition-all duration-200 font-medium shadow-lg border border-white/20 hover:shadow-xl transform hover:scale-105"
-                          >
-                            <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                            </svg>
-                            Change Image
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedImage(URL.createObjectURL(imageFile));
-                              setShowCropModal(true);
-                            }}
-                            className="px-4 py-2 text-sm bg-white/90 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white transition-all duration-200 font-medium shadow-lg border border-white/20 hover:shadow-xl transform hover:scale-105"
-                          >
-                            <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4a2 2 0 012-2h2a2 2 0 012 2v4m-6 0h8m-8 0l-2 8h12l-2-8m-6 4v4m0 0h.01" />
-                            </svg>
-                            Re-crop
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <label htmlFor="course-image" className="cursor-pointer group w-full h-48 flex items-center justify-center">
-                      <div className="flex flex-col items-center gap-3">
-                        <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-lg">
-                          <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                          </svg>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-base font-semibold text-gray-700 mb-1">Upload Subject Image</p>
-                          <p className="text-xs text-gray-500 mb-2">Drag and drop or click to browse</p>
-                          <div className="flex items-center justify-center gap-3 text-xs text-gray-400">
-                            <span className="flex items-center gap-1">
-                              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
-                              </svg>
-                              PNG, JPG, GIF
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
-                              </svg>
-                              Max 10MB
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </label>
-                  )}
-                 </div>
-                </div>
-              </div>
               
               <div className="flex justify-end gap-4 pt-4">
                 <button
                   type="button"
                   onClick={() => {
                     setShowAddModal(false);
-                    setImageFile(null);
                     setSelectedCourse(null);
                   }}
                   className="px-6 py-3 text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition-all duration-200 font-medium"
@@ -1974,9 +1744,7 @@ export default function CourseManagement() {
                                               year_level: course.year_level || '',
                                               semester: course.semester || ''
                             });
-                            setImageFile(null);
-                            setShowCropModal(false);
-                            setSelectedImage(null);
+
                           }}
                           onDelete={() => handleDeleteCourse(String(course.id))}
                         />
@@ -2148,9 +1916,7 @@ export default function CourseManagement() {
                                                year_level: course.year_level || '',
                                                semester: course.semester || ''
                                    });
-                                   setImageFile(null);
-                                   setShowCropModal(false);
-                                   setSelectedImage(null);
+
                                  }}
                                  onDelete={() => handleDeleteCourse(String(course.id))}
                                />
