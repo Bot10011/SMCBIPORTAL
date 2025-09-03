@@ -31,6 +31,11 @@ const Login: React.FC<LoginProps> = ({ onClose }) => {
   const [verificationCode, setVerificationCode] = useState('');
   const [verifyingCode, setVerifyingCode] = useState(false);
   
+  // Add professional modal for Google OAuth errors
+  const [showGoogleErrorModal, setShowGoogleErrorModal] = useState(false);
+  const [googleErrorTitle, setGoogleErrorTitle] = useState('');
+  const [googleErrorMessage, setGoogleErrorMessage] = useState('');
+  
   // Add state for forced password change
   const [showForcePasswordChange, setShowForcePasswordChange] = useState(false);
   const [forcePasswordChangeEmail, setForcePasswordChangeEmail] = useState('');
@@ -71,6 +76,14 @@ const Login: React.FC<LoginProps> = ({ onClose }) => {
       // Append @smcbi.edu.ph when submitting
       const fullEmail = `${formData.username}@smcbi.edu.ph`;
       console.log('Attempting login with email:', fullEmail); // Debug log
+      
+      // Check if user exists in database before attempting authentication
+      const userExists = await db.users.checkUserExists(fullEmail);
+      if (!userExists) {
+        toast.error('Account not registered. Please contact your adviser or program head to request access.');
+        setIsLoading(false);
+        return;
+      }
       
       // Check if user is using default password
       const isDefaultPassword = formData.password === 'TempPass@123';
@@ -196,13 +209,17 @@ const Login: React.FC<LoginProps> = ({ onClose }) => {
   const handleGoogleSignIn = async () => {
     try {
       setIsLoading(true);
+
+      // Clear any stale error before starting
+      localStorage.removeItem('google_error');
+
       await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           scopes: 'openid profile email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email',
           queryParams: {
             access_type: 'offline',
-            prompt: 'consent',
+            prompt: 'select_account',
             include_granted_scopes: 'true'
           },
           redirectTo: `${window.location.origin}/auth/callback`
@@ -211,12 +228,15 @@ const Login: React.FC<LoginProps> = ({ onClose }) => {
       // Redirecting away; no further code runs here
     } catch (error) {
       console.error('Google sign-in error:', error);
-      toast.error('Failed to start Google sign-in');
       setIsLoading(false);
+      setGoogleErrorTitle('Google Sign-in Failed');
+      setGoogleErrorMessage('We could not start Google sign-in. Please try again or contact support if the issue persists.');
+      setShowGoogleErrorModal(true);
     }
   };
 
-  // Removed in favor of dedicated /auth/callback route
+ 
+  // Removed Google post-return processing in favor of handling inside auth callback
 
   const handleCloseModal = () => {
     setShowInstructionModal(false);
@@ -697,6 +717,49 @@ To request an account, please approach your adviser or visit the Program Head's 
           to { opacity: 1; transform: translateY(0); }
         }
       `}</style>
+
+      {/* Google OAuth Error Modal */}
+      {showGoogleErrorModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="w-full max-w-md p-6 relative animate-fade-in">
+            <div className="bg-white/100 rounded-2xl shadow-2xl p-6">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                    <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m21 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-semibold text-[#2C3E50]">{googleErrorTitle}</h3>
+                </div>
+                <button 
+                  onClick={() => setShowGoogleErrorModal(false)}
+                  className="text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full p-1.5 transition-colors duration-200"
+                  aria-label="Close modal"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </button>
+              </div>
+
+              <div className="mt-4 text-sm text-gray-700 leading-6">
+                {googleErrorMessage}
+              </div>
+
+              <div className="mt-5">
+                <button
+                  onClick={() => setShowGoogleErrorModal(false)}
+                  className="w-full py-2.5 rounded-lg bg-[#2C3E50] text-white font-semibold hover:bg-[#1a2634] transition-all duration-200 shadow-md"
+                >
+                  Okay
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Force Password Change Modal */}
       {showForcePasswordChange && (
