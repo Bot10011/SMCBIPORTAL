@@ -31,6 +31,9 @@ export const RegistrarGradeViewer: React.FC = () => {
     teachers: string[];
     students: { name: string; avatar_url: string | null; year_level: string | number | null; section: string | null; school_id: string | null }[];
   } | null>(null);
+  
+  // State for section mapping
+  const [sectionMap, setSectionMap] = useState<Map<string, string>>(new Map());
 
   useEffect(() => {
     const fetchCourses = async () => {
@@ -45,6 +48,33 @@ export const RegistrarGradeViewer: React.FC = () => {
       setLoading(false);
     };
     fetchCourses();
+  }, []);
+
+  // Fetch sections data to map UIDs to names
+  useEffect(() => {
+    const fetchSections = async () => {
+      const { data: sectionsData, error: sectionsError } = await supabase
+        .from('sections')
+        .select('id, name');
+        
+      if (sectionsError) {
+        console.error('Sections error:', sectionsError);
+        return;
+      }
+      
+      // Create a map of section UIDs to section names
+      const map = new Map<string, string>();
+      if (sectionsData) {
+        sectionsData.forEach(section => {
+          map.set(section.id, section.name);
+        });
+        console.log('Section map created:', map.size, 'entries');
+      }
+      
+      setSectionMap(map);
+    };
+    
+    fetchSections();
   }, []);
 
   // Map of courseId -> year level from courses table
@@ -100,6 +130,21 @@ export const RegistrarGradeViewer: React.FC = () => {
     if (courses.length > 0) fetchImages();
   }, [courses]);
 
+  // Helper function to get student name
+  const getStudentName = (student: {display_name?: string, first_name?: string, last_name?: string, middle_name?: string}) => {
+    if (student?.display_name && student.display_name.trim() !== '') {
+      return student.display_name;
+    }
+    
+    // Fallback to concatenating first_name, last_name, middle_name
+    const firstName = student?.first_name || '';
+    const lastName = student?.last_name || '';
+    const middleName = student?.middle_name || '';
+    
+    const nameParts = [firstName, middleName, lastName].filter(part => part.trim() !== '');
+    return nameParts.length > 0 ? nameParts.join(' ') : 'Unknown Student';
+  };
+
   // Function to fetch subject details (teacher, sections, students)
   const fetchSubjectDetails = async (courseId: string) => {
     setDetailsLoading(true);
@@ -127,16 +172,21 @@ export const RegistrarGradeViewer: React.FC = () => {
     if (studentIds.length > 0) {
       const { data: studentRows } = await supabase
         .from('user_profiles')
-        .select('display_name, avatar_url, year_level, section, student_id')
+        .select('display_name, first_name, last_name, middle_name, avatar_url, year_level, section, student_id')
         .in('id', studentIds);
       students = studentRows
-        ? studentRows.map(s => ({
-            name: (s.display_name as string) || 'Unknown',
-            avatar_url: (s.avatar_url as string) || null,
-            year_level: (s.year_level as string | number | null) ?? null,
-            section: (s.section as string | null) ?? null,
-            school_id: (s.student_id as string | null) ?? null
-          }))
+        ? studentRows.map(s => {
+            // Convert section UID to name if available
+            const sectionName = sectionMap.get(s.section || '') || s.section;
+            
+            return {
+              name: getStudentName(s),
+              avatar_url: (s.avatar_url as string) || null,
+              year_level: (s.year_level as string | number | null) ?? null,
+              section: sectionName,
+              school_id: (s.student_id as string | null) ?? null
+            };
+          })
         : [];
     }
     // Sort students alphabetically by name
@@ -382,18 +432,13 @@ export const RegistrarGradeViewer: React.FC = () => {
                           />
                           <div className="flex-1 min-w-0">
                             <div className="text-gray-900 font-medium truncate">{student.name}</div>
-                            <div className="text-xs text-gray-600 flex items-center gap-2">
-                              {(() => {
-                                const yearRaw = String(student.year_level ?? '');
-                                const yearMatch = yearRaw.match(/^(\d+)/);
-                                const yearNum = yearMatch ? yearMatch[1] : '';
-                                const department = selectedCourse?.department || 'BSIT';
-                                const courseYear = yearNum ? `${department}-${yearNum}` : department;
-                                const sectionPart = student.section ? ` ${student.section}` : '';
-                                return <span className="font-semibold">{`${courseYear}${sectionPart}`}</span>;
-                              })()}
-                              <span className="ml-2 text-gray-500">{student.school_id ?? '-'}</span>
-                            </div>
+                                                          <div className="text-xs text-gray-600 flex items-center gap-2">
+                                {(() => {
+                                  const sectionPart = student.section ? student.section : '';
+                                  return <span className="font-semibold">{sectionPart}</span>;
+                                })()}
+                                <span className="ml-2 text-gray-500">{student.school_id ?? '-'}</span>
+                              </div>
                           </div>
                         </li>
                       ))}
