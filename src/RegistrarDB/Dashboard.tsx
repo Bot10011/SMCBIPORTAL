@@ -12,7 +12,6 @@ import {
   AlertTriangle, 
   BookOpen, 
   BarChart4, 
-  Calendar, 
   Clock,
   Users,
   Clock4
@@ -36,18 +35,21 @@ type ActivityLog = {
   created_at?: string;
 };
 
-type ScheduleEvent = {
-  id: string;
-  date: string;
-  event: string;
-  type: 'important' | 'meeting' | 'deadline' | 'regular';
-  description?: string;
-};
+
 
 type EnrollmentData = {
   month: string;
   count: number;
   status: string;
+};
+
+type CapacityData = {
+  id: string;
+  program: string;
+  yearLevel: string;
+  section: string;
+  studentCount: number;
+  maxCapacity: number;
 };
 
 const DashboardOverview: React.FC = () => {
@@ -59,7 +61,7 @@ const DashboardOverview: React.FC = () => {
     classesWithConflicts: 0
   });
   const [recentActivities, setRecentActivities] = useState<ActivityLog[]>([]);
-  const [scheduleEvents, setScheduleEvents] = useState<ScheduleEvent[]>([]);
+  const [capacityData, setCapacityData] = useState<CapacityData[]>([]);
   const [enrollmentData, setEnrollmentData] = useState<EnrollmentData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -115,8 +117,8 @@ const DashboardOverview: React.FC = () => {
         // Fetch recent activities from real data
         const activities = await fetchRecentActivities();
 
-        // Fetch schedule events from real data
-        const events = await fetchScheduleEvents();
+        // Fetch capacity data from real data
+        const capacityStats = await fetchCapacityData();
 
         // Fetch enrollment data from real data
         const enrollmentStats = await fetchEnrollmentData();
@@ -128,7 +130,7 @@ const DashboardOverview: React.FC = () => {
           classesWithConflicts: conflicts.length
         });
         setRecentActivities(activities);
-        setScheduleEvents(events);
+        setCapacityData(capacityStats);
         setEnrollmentData(enrollmentStats);
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
@@ -143,14 +145,14 @@ const DashboardOverview: React.FC = () => {
   const fetchClassConflicts = async (): Promise<Array<{id: string, class_name: string, conflict: string}>> => {
     try {
       // Try to fetch class conflicts, but handle missing status column gracefully
-      let conflicts: Array<{id: string, subject?: {code?: string, name?: string}[], student?: {student_id?: string, first_name?: string, last_name?: string}[]}> = [];
+      let conflicts: Array<{id: string, subject?: {code?: string, name?: string}[], student?: {student_id?: string, first_name?: string, last_name?: string, middle_name?: string, display_name?: string}[]}> = [];
       try {
         const { data: conflictsData, error } = await supabase
           .from('enrollcourse')
           .select(`
             id,
             subject:courses(code, name),
-            student:user_profiles(student_id, first_name, last_name)
+            student:user_profiles(student_id, first_name, last_name, middle_name, display_name)
           `)
           .eq('status', 'conflict')
           .limit(5);
@@ -163,11 +165,32 @@ const DashboardOverview: React.FC = () => {
         conflicts = [];
       }
       
-      return conflicts?.map(conflict => ({
-        id: conflict.id,
-        class_name: (conflict.subject && conflict.subject.length > 0 ? conflict.subject[0]?.code : undefined) || 'Unknown',
-        conflict: 'Schedule conflict detected'
-      })) || [];
+      return conflicts?.map(conflict => {
+        // Helper function to get student name
+        const getStudentName = (student: {display_name?: string, first_name?: string, last_name?: string, middle_name?: string}) => {
+          if (student.display_name && student.display_name.trim() !== '') {
+            return student.display_name;
+          }
+          
+          // Fallback to concatenating first_name, last_name, middle_name
+          const firstName = student.first_name || '';
+          const lastName = student.last_name || '';
+          const middleName = student.middle_name || '';
+          
+          const nameParts = [firstName, middleName, lastName].filter(part => part.trim() !== '');
+          return nameParts.length > 0 ? nameParts.join(' ') : 'Unknown Student';
+        };
+
+        const studentName = conflict.student && conflict.student.length > 0 
+          ? getStudentName(conflict.student[0]) 
+          : 'Unknown Student';
+
+        return {
+          id: conflict.id,
+          class_name: (conflict.subject && conflict.subject.length > 0 ? conflict.subject[0]?.code : undefined) || 'Unknown',
+          conflict: `Schedule conflict detected for ${studentName}`
+        };
+      }) || [];
     } catch (error) {
       console.error('Error in fetchClassConflicts:', error);
       return [];
@@ -185,6 +208,9 @@ const DashboardOverview: React.FC = () => {
           enrollment_status,
           student_id,
           display_name,
+          first_name,
+          last_name,
+          middle_name,
           department,
           year_level
         `)
@@ -197,70 +223,155 @@ const DashboardOverview: React.FC = () => {
         return [];
       }
       
-      return enrollments?.map(enrollment => ({
-        id: enrollment.id,
-        action: `Enrollment ${enrollment.enrollment_status}`,
-        student: enrollment.display_name || 'Unknown Student',
-        subject: `${enrollment.department || 'Unknown'} - ${enrollment.year_level || 'Unknown'}`,
-        time: new Date(enrollment.created_at).toLocaleString(),
-        created_at: enrollment.created_at
-      })) || [];
+      return enrollments?.map(enrollment => {
+        // Helper function to get student name
+        const getStudentName = () => {
+          if (enrollment.display_name && enrollment.display_name.trim() !== '') {
+            return enrollment.display_name;
+          }
+          
+          // Fallback to concatenating first_name, last_name, middle_name
+          const firstName = enrollment.first_name || '';
+          const lastName = enrollment.last_name || '';
+          const middleName = enrollment.middle_name || '';
+          
+          const nameParts = [firstName, middleName, lastName].filter(part => part.trim() !== '');
+          return nameParts.length > 0 ? nameParts.join(' ') : 'Unknown Student';
+        };
+
+        return {
+          id: enrollment.id,
+          action: `Enrollment ${enrollment.enrollment_status}`,
+          student: getStudentName(),
+          subject: `${enrollment.department || 'Unknown'} - ${enrollment.year_level || 'Unknown'}`,
+          time: new Date(enrollment.created_at).toLocaleString(),
+          created_at: enrollment.created_at
+        };
+      }) || [];
     } catch (error) {
       console.error('Error in fetchRecentActivities:', error);
       return [];
     }
   };
 
-  const fetchScheduleEvents = async (): Promise<ScheduleEvent[]> => {
+  const fetchCapacityData = async (): Promise<CapacityData[]> => {
     try {
-      // Fetch real schedule events from the database
-      // For now, we'll create events based on enrollment deadlines and semester dates
-      const currentDate = new Date();
-      const currentMonth = currentDate.getMonth();
+      // Try different join approaches - first let's see what tables exist
+      console.log('Attempting to fetch sections table directly...');
       
-      // Create semester-based events
-      const events: ScheduleEvent[] = [];
+      // First, let's try to fetch from sections table directly to see if it exists
+      const { data: sectionsData, error: sectionsError } = await supabase
+        .from('sections')
+        .select('*')
+        .limit(5);
       
-      // Add semester start/end dates
-      if (currentMonth >= 5 && currentMonth <= 8) { // June to September
-        events.push({
-          id: '1',
-          date: 'June 15',
-          event: '1st Semester Start',
-          type: 'important',
-          description: 'First semester classes begin'
+      if (sectionsError) {
+        console.log('Sections table error:', sectionsError);
+        // If sections table doesn't exist, fall back to using section values directly
+        const { data: students, error } = await supabase
+          .from('user_profiles')
+          .select('department, year_level, section')
+          .eq('role', 'student')
+          .not('department', 'is', null)
+          .not('year_level', 'is', null)
+          .not('section', 'is', null);
+        
+        if (error) {
+          console.error('Error fetching capacity data:', error);
+          return [];
+        }
+        
+        console.log('Sample section data:', students?.slice(0, 3));
+        
+        // Group students by program, year level, and section
+        const capacityMap = new Map<string, CapacityData>();
+        
+        students?.forEach(student => {
+          const sectionName = student.section || 'Unknown';
+          const key = `${student.department}-${student.year_level}-${sectionName}`;
+          const existing = capacityMap.get(key);
+          
+          if (existing) {
+            existing.studentCount += 1;
+          } else {
+            capacityMap.set(key, {
+              id: key,
+              program: student.department || 'Unknown',
+              yearLevel: student.year_level || 'Unknown',
+              section: sectionName,
+              studentCount: 1,
+              maxCapacity: 50 // Default max capacity per section
+            });
+          }
         });
-      } else if (currentMonth >= 9 && currentMonth <= 11) { // October to December
-        events.push({
-          id: '2',
-          date: 'October 15',
-          event: '2nd Semester Start',
-          type: 'important',
-          description: 'Second semester classes begin'
+        
+        return Array.from(capacityMap.values()).sort((a, b) => {
+          if (a.program !== b.program) return a.program.localeCompare(b.program);
+          if (a.yearLevel !== b.yearLevel) return a.yearLevel.localeCompare(b.yearLevel);
+          return a.section.localeCompare(b.section);
+        });
+      } else {
+        console.log('Sections table exists:', sectionsData);
+        
+        // Check what's in the sections table
+        console.log('Sections table structure:', sectionsData[0]);
+        
+        // Since there's no foreign key relationship, let's try a different approach
+        // First get all students with their section UIDs
+        const { data: students, error } = await supabase
+          .from('user_profiles')
+          .select('department, year_level, section')
+          .eq('role', 'student')
+          .not('department', 'is', null)
+          .not('year_level', 'is', null)
+          .not('section', 'is', null);
+        
+        if (error) {
+          console.error('Error fetching students:', error);
+          return [];
+        }
+        
+        console.log('Sample student data:', students?.slice(0, 3));
+        
+        // Create a map of section UIDs to names
+        const sectionMap = new Map<string, string>();
+        sectionsData.forEach(section => {
+          sectionMap.set(section.id, section.name);
+        });
+        
+        console.log('Section map:', Object.fromEntries(sectionMap));
+        
+        // Group students by program, year level, and section
+        const capacityMap = new Map<string, CapacityData>();
+        
+        students?.forEach(student => {
+          // Convert section UID to name using our map
+          const sectionName = sectionMap.get(student.section) || student.section || 'Unknown';
+          const key = `${student.department}-${student.year_level}-${sectionName}`;
+          const existing = capacityMap.get(key);
+          
+          if (existing) {
+            existing.studentCount += 1;
+          } else {
+            capacityMap.set(key, {
+              id: key,
+              program: student.department || 'Unknown',
+              yearLevel: student.year_level || 'Unknown',
+              section: sectionName,
+              studentCount: 1,
+              maxCapacity: 50 // Default max capacity per section
+            });
+          }
+        });
+        
+        return Array.from(capacityMap.values()).sort((a, b) => {
+          if (a.program !== b.program) return a.program.localeCompare(b.program);
+          if (a.yearLevel !== b.yearLevel) return a.yearLevel.localeCompare(b.yearLevel);
+          return a.section.localeCompare(b.section);
         });
       }
-      
-      // Add enrollment deadline (30 days before semester start)
-      events.push({
-        id: '3',
-        date: 'May 15',
-        event: 'Enrollment Deadline',
-        type: 'deadline',
-        description: 'Final deadline for student enrollment'
-      });
-      
-      // Add grade submission deadline
-      events.push({
-        id: '4',
-        date: 'December 15',
-        event: 'Grade Submission',
-        type: 'deadline',
-        description: 'Deadline for grade submission'
-      });
-      
-      return events;
     } catch (error) {
-      console.error('Error in fetchScheduleEvents:', error);
+      console.error('Error in fetchCapacityData:', error);
       return [];
     }
   };
@@ -310,9 +421,9 @@ const DashboardOverview: React.FC = () => {
     console.log('View all activity clicked');
   };
 
-  const handleViewFullCalendar = () => {
-    // Navigate to calendar page or show modal
-    console.log('View full calendar clicked');
+  const handleViewCapacityDetails = () => {
+    // Navigate to capacity details page or show modal
+    console.log('View capacity details clicked');
   };
 
   const handleViewEnrollmentDetails = () => {
@@ -460,7 +571,7 @@ const DashboardOverview: React.FC = () => {
           </button>
         </motion.div>
 
-        {/* Calendar Overview */}
+        {/* Capacity Tracking */}
         <motion.div 
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -469,27 +580,34 @@ const DashboardOverview: React.FC = () => {
         >
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold text-gray-800 flex items-center">
-              <Calendar className="w-5 h-5 mr-2 text-gray-600" />
-              Upcoming Schedule
+              <Users className="w-5 h-5 mr-2 text-gray-600" />
+              Capacity Tracking
             </h2>
-            <span className="text-sm text-gray-500">{scheduleEvents.length} events</span>
           </div>
           <div className="space-y-3 max-h-80 overflow-y-auto">
-            {scheduleEvents.map(event => (
-              <ScheduleItem 
-                key={event.id}
-                date={event.date} 
-                event={event.event} 
-                type={event.type}
-                description={event.description}
-              />
-            ))}
+            {capacityData.length === 0 ? (
+              <div className="text-gray-500 text-center py-8">
+                <Users className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                <p>No capacity data available.</p>
+              </div>
+            ) : (
+              capacityData.map(capacity => (
+                <CapacityItem 
+                  key={capacity.id}
+                  program={capacity.program}
+                  yearLevel={capacity.yearLevel}
+                  section={capacity.section}
+                  studentCount={capacity.studentCount}
+                  maxCapacity={capacity.maxCapacity}
+                />
+              ))
+            )}
           </div>
           <button 
-            onClick={handleViewFullCalendar}
+            onClick={handleViewCapacityDetails}
             className="mt-4 text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center hover:underline"
           >
-            View full calendar
+            View capacity details
             <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
             </svg>
@@ -578,17 +696,27 @@ const StatsCard: React.FC<{
   );
 };
 
-const ScheduleItem: React.FC<{ 
-  date: string; 
-  event: string; 
-  type: string;
-  description?: string;
-}> = ({ date, event, type, description }) => {
-  const typeClasses = {
-    important: "bg-red-100 text-red-800",
-    meeting: "bg-blue-100 text-blue-800",
-    deadline: "bg-yellow-100 text-yellow-800",
-    regular: "bg-green-100 text-green-800",
+const CapacityItem: React.FC<{ 
+  program: string; 
+  yearLevel: string; 
+  section: string;
+  studentCount: number;
+  maxCapacity: number;
+}> = ({ program, yearLevel, section, studentCount, maxCapacity }) => {
+  const capacityPercentage = (studentCount / maxCapacity) * 100;
+  const isNearCapacity = capacityPercentage >= 80;
+  const isAtCapacity = capacityPercentage >= 100;
+
+  const getCapacityColor = () => {
+    if (isAtCapacity) return "bg-red-500";
+    if (isNearCapacity) return "bg-yellow-500";
+    return "bg-green-500";
+  };
+
+  const getCapacityIcon = () => {
+    if (isAtCapacity) return "🔴";
+    if (isNearCapacity) return "🟡";
+    return "🟢";
   };
 
   return (
@@ -597,17 +725,27 @@ const ScheduleItem: React.FC<{
       whileHover={{ x: 5 }}
       transition={{ duration: 0.2 }}
     >
-      <div className="w-12 text-center text-gray-600 font-medium text-sm flex-shrink-0">
-        {date}
+      <div className="flex-1">
+        <p className="text-gray-800 font-medium">
+          {program} - {yearLevel}
+        </p>
+        <p className="text-gray-600 text-sm">
+           {section}
+        </p>
       </div>
-      <div className="ml-3 flex-1">
-        <p className="text-gray-800 font-medium">{event}</p>
-        {description && (
-          <p className="text-gray-500 text-xs mt-1">{description}</p>
-        )}
-      </div>
-      <div className={`px-2 py-1 rounded-full text-xs font-medium ${typeClasses[type as keyof typeof typeClasses]}`}>
-        {type.charAt(0).toUpperCase() + type.slice(1)}
+      <div className="text-right">
+        <p className="text-gray-800 font-medium mb-2">
+          {studentCount}/{maxCapacity}
+        </p>
+        <div className="flex items-center gap-2">
+          <div className="w-16 h-2 bg-gray-200 rounded-full overflow-hidden">
+            <div 
+              className={`h-full rounded-full transition-all duration-300 ${getCapacityColor()}`}
+              style={{ width: `${Math.min(capacityPercentage, 100)}%` }}
+            ></div>
+          </div>
+          <span className="text-lg">{getCapacityIcon()}</span>
+        </div>
       </div>
     </motion.div>
   );
