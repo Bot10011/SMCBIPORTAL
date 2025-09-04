@@ -15,6 +15,8 @@ interface Grade {
   created_at: string;
   updated_at: string;
   is_released: boolean;
+  is_approved: boolean;
+  is_locked: boolean;
   student_name?: string;
   avatar_url?: string;
   school_id?: string;
@@ -32,6 +34,10 @@ interface Grade {
   course_name?: string;
   teacher_name?: string;
 }
+
+
+
+
 
 interface YearLevelSection {
   year_level: string;
@@ -101,6 +107,11 @@ export default function StudentGrades() {
   // State for bulk actions
   const [bulkUpdating, setBulkUpdating] = useState(false);
   
+  // State for section mapping
+  const [sectionMap, setSectionMap] = useState<Map<string, string>>(new Map());
+  
+
+  
 
 
   // Helper function to convert year level number to display format
@@ -115,7 +126,12 @@ export default function StudentGrades() {
   };
 
   // Helper function to convert section UUIDs to readable names
-  const getSectionDisplayName = (sectionValue: string): string => {
+  const getSectionDisplayName = (sectionValue: string, sectionMap?: Map<string, string>): string => {
+    // If we have a section map, try to get the name from it first
+    if (sectionMap && sectionMap.has(sectionValue)) {
+      return sectionMap.get(sectionValue)!;
+    }
+    
     // If it's already a simple letter (A, B, C, D), return as is
     if (/^[A-Z]$/.test(sectionValue)) {
       return sectionValue;
@@ -180,7 +196,7 @@ export default function StudentGrades() {
       // First, get all students with their year level and section info
       const { data: studentsData, error: initialStudentsError } = await supabase
         .from('user_profiles')
-        .select('id, student_id, display_name, avatar_url, year_level, section, program_id, department, student_status, enrollment_status, student_type')
+        .select('id, student_id, display_name, first_name, last_name, middle_name, avatar_url, year_level, section, program_id, department, student_status, enrollment_status, student_type')
         .eq('role', 'student')
         .not('year_level', 'is', null)
         .not('section', 'is', null);
@@ -194,17 +210,41 @@ export default function StudentGrades() {
       
       console.log('Students data:', studentsData?.length || 0, 'records');
       
+      // Fetch sections data to map UIDs to names
+      const { data: sectionsData, error: sectionsError } = await supabase
+        .from('sections')
+        .select('id, name');
+        
+      if (sectionsError) {
+        console.error('Sections error:', sectionsError);
+      }
+      
+      // Create a map of section UIDs to section names
+      const sectionMap = new Map<string, string>();
+      if (sectionsData) {
+        sectionsData.forEach(section => {
+          sectionMap.set(section.id, section.name);
+        });
+        console.log('Section map created:', sectionMap.size, 'entries');
+      }
+      
+      // Set section map in state for use in UI
+      setSectionMap(sectionMap);
+      
       // Get unique year level and section combinations
       const yearLevelSectionMap = new Map<string, Set<string>>();
       const studentMap = new Map();
       
       (studentsData || []).forEach(student => {
         if (student.year_level && student.section) {
+          // Convert section UID to name if available
+          const sectionName = sectionMap.get(student.section) || student.section;
+          
           if (!yearLevelSectionMap.has(student.year_level)) {
             yearLevelSectionMap.set(student.year_level, new Set());
           }
-          yearLevelSectionMap.get(student.year_level)!.add(student.section);
-          studentMap.set(student.id, student);
+          yearLevelSectionMap.get(student.year_level)!.add(sectionName);
+          studentMap.set(student.id, { ...student, section: sectionName });
         }
       });
       
@@ -247,6 +287,9 @@ export default function StudentGrades() {
             id, 
             student_id, 
             display_name, 
+            first_name,
+            last_name,
+            middle_name,
             avatar_url, 
             department, 
             student_status, 
@@ -593,6 +636,21 @@ export default function StudentGrades() {
           return 'Unknown';
         };
         
+        // Helper function to get student name
+        const getStudentName = (studentData: {display_name?: string, first_name?: string, last_name?: string, middle_name?: string}) => {
+          if (studentData?.display_name && studentData.display_name.trim() !== '') {
+            return studentData.display_name;
+          }
+          
+          // Fallback to concatenating first_name, last_name, middle_name
+          const firstName = studentData?.first_name || '';
+          const lastName = studentData?.last_name || '';
+          const middleName = studentData?.middle_name || '';
+          
+          const nameParts = [firstName, middleName, lastName].filter(part => part.trim() !== '');
+          return nameParts.length > 0 ? nameParts.join(' ') : 'Unknown Student';
+        };
+        
         // Calculate General Average
         const grades = [g.prelim_grade, g.midterm_grade, g.final_grade].filter(grade => grade !== null && grade !== undefined);
         const general_average = grades.length > 0 
@@ -603,16 +661,19 @@ export default function StudentGrades() {
         const enrollmentKey = `${g.student_id}-${g.subject_id || ''}`;
         const enrollment = enrollmentMap.get(enrollmentKey);
         
+        // Convert section UID to name if available
+        const sectionName = sectionMap.get(g.section || '') || g.section || 'Unknown';
+        
         return {
           ...g,
-          student_name: student?.display_name || 'Unknown Student',
+          student_name: getStudentName(student),
           avatar_url: student?.avatar_url || null,
           school_id: student?.student_id || g.student_id,
           general_average,
           // Use year_level from grades table (integer) and convert to string
           year_level: mapYearLevelToNumericString(g.year_level),
-          // Use section from grades table
-          section: g.section || 'Unknown',
+          // Use section name from map instead of UID
+          section: sectionName,
           program_name: student?.department || 'Unknown Program',
           program_code: student?.department || 'UNK',
           student_status: student?.student_status || 'Unknown',
@@ -638,7 +699,7 @@ export default function StudentGrades() {
               if (t && t.display_name && t.display_name.trim()) return t.display_name.trim();
             }
             // Fallback to teacherMap using composite key subject_id-section-year
-            const compositeKey = `${g.subject_id || ''}-${g.section || ''}-${mapYearLevelToNumericString(g.year_level)}`;
+            const compositeKey = `${g.subject_id || ''}-${sectionName}-${mapYearLevelToNumericString(g.year_level)}`;
             const mappedTeacher = teacherMap.get(compositeKey) || (g.subject_id ? teacherMap.get(g.subject_id) : undefined);
             if (mappedTeacher && (mappedTeacher as { display_name?: string }).display_name && (mappedTeacher as { display_name?: string }).display_name!.trim()) {
               return (mappedTeacher as { display_name: string }).display_name.trim();
@@ -1359,6 +1420,51 @@ export default function StudentGrades() {
     setBulkUpdating(false);
   };
 
+
+
+  // Generate Grade Reports
+  const generateGradeReport = async () => {
+    const filteredStudents = getFilteredStudents();
+    if (filteredStudents.length === 0) {
+      toast.error('No students selected for report generation');
+      return;
+    }
+
+    try {
+      // Create a CSV report
+      const csvData = [
+        ['Student Name', 'Student ID', 'Course', 'Prelim', 'Midterm', 'Final', 'General Average', 'Remarks', 'Status'],
+        ...filteredStudents.map(student => [
+          student.student_name || 'Unknown',
+          student.school_id || student.student_id,
+          student.course_name || 'Unknown',
+          student.prelim_grade?.toString() || '-',
+          student.midterm_grade?.toString() || '-',
+          student.final_grade?.toString() || '-',
+          student.general_average?.toFixed(2) || '-',
+          student.remarks || '-',
+          student.is_approved ? 'Approved' : 'Pending'
+        ])
+      ];
+
+      const csvContent = csvData.map(row => row.join(',')).join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `grade_report_${selectedYearLevel}_${selectedSection}_${selectedSubject}_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      toast.success('Grade report generated successfully');
+    } catch (error) {
+      console.error('Error generating grade report:', error);
+      toast.error('Failed to generate grade report');
+    }
+  };
+
   // Stats
   const totalGrades = grades.length;
   const releasedGrades = grades.filter(g => g.is_released).length;
@@ -1905,7 +2011,7 @@ export default function StudentGrades() {
                              <div className="flex items-center gap-2">
                                <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
                                <span className="text-sm font-medium text-purple-700">
-                                 Section {getSectionDisplayName(section)}
+                                 Section {getSectionDisplayName(section, sectionMap)}
                                </span>
                              </div>
                              <span className="text-xs font-medium text-purple-600 bg-purple-100 px-2 py-1 rounded-full">
@@ -1999,7 +2105,7 @@ export default function StudentGrades() {
               <div className="text-center flex-1">
                 <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-4 rounded-xl shadow-lg inline-block">
                   <h2 className="text-2xl font-bold">
-                    {selectedProgram ? programs.find(p => p.id === selectedProgram)?.name || 'Unknown Program' : 'Select a Program'} -{selectedYearLevel} Section {getSectionDisplayName(selectedSection)}
+                    {selectedProgram ? programs.find(p => p.id === selectedProgram)?.name || 'Unknown Program' : 'Select a Program'} -{selectedYearLevel} Section {getSectionDisplayName(selectedSection, sectionMap)}
                   </h2>
                   <p className="text-white/80 text-base mt-2">Select a subject to view enrolled students and grades</p>
                 </div>
@@ -2180,7 +2286,7 @@ export default function StudentGrades() {
               <div className="text-center flex-1">
                 <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-4 rounded-xl shadow-lg inline-block">
                   <h2 className="text-2xl font-bold">
-                    {selectedProgram ? programs.find(p => p.id === selectedProgram)?.name || 'Unknown Program' : 'Select a Program'} -{selectedYearLevel} Section {getSectionDisplayName(selectedSection)}
+                    {selectedProgram ? programs.find(p => p.id === selectedProgram)?.name || 'Unknown Program' : 'Select a Program'} -{selectedYearLevel} Section {getSectionDisplayName(selectedSection, sectionMap)}
                   </h2>
                   {getFilteredStudents().length > 0 && (
                     <div className="mt-3 text-base font-medium">
@@ -2237,7 +2343,7 @@ export default function StudentGrades() {
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-4">
                       <span className="text-sm font-medium text-gray-700">
-                        {getFilteredStudents().length} students in {selectedProgram ? programs.find(p => p.id === selectedProgram)?.name || 'Unknown Program' : 'Select a Program'} -{selectedYearLevel} Section {getSectionDisplayName(selectedSection)}
+                        {getFilteredStudents().length} students in {selectedProgram ? programs.find(p => p.id === selectedProgram)?.name || 'Unknown Program' : 'Select a Program'} -{selectedYearLevel} Section {getSectionDisplayName(selectedSection, sectionMap)}
                       </span>
                     </div>
                     <div className="flex items-center gap-3">
@@ -2276,6 +2382,13 @@ export default function StudentGrades() {
                         ) : (
                           'Hide All Grades'
                         )}
+                      </button>
+
+                      <button
+                        onClick={generateGradeReport}
+                        className="px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 bg-gradient-to-r from-teal-600 to-cyan-600 text-white hover:shadow-lg"
+                      >
+                        Generate Report
                       </button>
                     </div>
                   </div>
@@ -2425,6 +2538,8 @@ export default function StudentGrades() {
             )}
           </div>
         )}
+
+
       </div>
     </div>
   );
