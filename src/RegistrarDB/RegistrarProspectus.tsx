@@ -31,6 +31,9 @@ interface Student {
   id: string;
   student_id: string;
   display_name: string;
+  first_name?: string;
+  last_name?: string;
+  middle_name?: string;
   avatar_url?: string;
   student_type: string;
   year_level: number;
@@ -86,12 +89,27 @@ const RegistrarProspectus: React.FC = () => {
     loadCourses();
   }, []);
 
+  // Helper function to get student name
+  const getStudentName = (student: {display_name?: string, first_name?: string, last_name?: string, middle_name?: string}) => {
+    if (student?.display_name && student.display_name.trim() !== '') {
+      return student.display_name;
+    }
+    
+    // Fallback to concatenating first_name, last_name, middle_name
+    const firstName = student?.first_name || '';
+    const lastName = student?.last_name || '';
+    const middleName = student?.middle_name || '';
+    
+    const nameParts = [firstName, middleName, lastName].filter(part => part.trim() !== '');
+    return nameParts.length > 0 ? nameParts.join(' ') : 'Unknown Student';
+  };
+
   const loadStudents = async () => {
     try {
       setLoading(true);
       const { data, error } = await supabase
         .from('user_profiles')
-        .select('id, student_id, display_name, avatar_url, student_type, year_level, enrollment_status, created_at')
+        .select('id, student_id, display_name, first_name, last_name, middle_name, avatar_url, student_type, year_level, enrollment_status, created_at')
         .eq('role', 'student')
         .order('created_at', { ascending: false });
 
@@ -269,7 +287,7 @@ const RegistrarProspectus: React.FC = () => {
 
   const filteredStudents = students.filter(student => {
     const matchesSearch = 
-      student.display_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      getStudentName(student).toLowerCase().includes(searchTerm.toLowerCase()) ||
       student.student_id?.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesYear = !filterYear || student.year_level.toString() === filterYear;
@@ -421,11 +439,11 @@ const RegistrarProspectus: React.FC = () => {
                            src={student.avatar_url} 
                            sx={{ bgcolor: '#3b82f6', width: 40, height: 40 }}
                          >
-                           {student.display_name?.[0]}
+                           {getStudentName(student)?.[0]}
                          </Avatar>
                          <Box>
                            <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                             {student.display_name}
+                             {getStudentName(student)}
                            </Typography>
                            <Typography variant="caption" color="text.secondary">
                              {student.student_id}
@@ -553,7 +571,7 @@ const RegistrarProspectus: React.FC = () => {
                 textAlign: 'center',
                 mb: 2
               }}>
-                {selectedStudent?.display_name}
+                {selectedStudent ? getStudentName(selectedStudent) : ''}
               </Typography>
 
               {/* Student Information */}
