@@ -2614,6 +2614,7 @@ const InstructorManagement: React.FC = () => {
           full_name: `${instructor.first_name} ${instructor.middle_name ? instructor.middle_name + ' ' : ''}${instructor.last_name}`
         }))}
         courses={courses}
+        sections={sections} // Sections for filtering by year level
       />
     </Box>
   );
