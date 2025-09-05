@@ -52,6 +52,7 @@ export interface SubjectAssignmentModalProps {
   isEditMode: boolean;
   teachers: Teacher[];
   courses: Subject[];
+  sections: Section[];
 }
 
 const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
@@ -64,15 +65,25 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
   formSubmitting,
   isEditMode,
   teachers,
-  courses
+  courses,
+  sections
 }) => {
-  // Filter sections by selected year level - temporarily disabled
-  const filteredSections: any[] = [];
+  // Filter sections by selected year level
+  const filteredSections = assignment.year_level
+    ? sections.filter(section => {
+        // Convert string year level (e.g., "1st Year") to number for comparison
+        const yearNumber = assignment.year_level.match(/(\d+)/)?.[1];
+        if (!yearNumber) return false;
+        
+        // Compare with section's numeric year level
+        return String(section.year_level) === yearNumber;
+      })
+    : sections; // Show all sections if no year level is selected
 
-  // Debug logging for sections - temporarily disabled
-  // console.log('Assignment year level:', assignment.year_level);
-  // console.log('Available sections:', sections);
-  // console.log('Filtered sections:', filteredSections);
+  // Debug logging for sections
+  console.log('Assignment year level:', assignment.year_level);
+  console.log('Available sections:', sections);
+  console.log('Filtered sections:', filteredSections);
   console.log('Year level matching:', assignment.year_level ? assignment.year_level.match(/(\d+)/)?.[1] : 'No year level');
 
   // Add academic years array
@@ -636,6 +647,9 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
                 {assignment.year_level && filteredSections.length === 0 && (
                   <p className="mt-1 text-sm text-red-600">No sections available for this year level.</p>
                 )}
+                {!assignment.year_level && sections.length === 0 && (
+                  <p className="mt-1 text-sm text-red-600">No sections available. Please contact administrator.</p>
+                )}
                 {(formErrors.section || (!assignment.section && !isFormValid())) && (
                   <p className="mt-1 text-sm text-red-600">
                     {formErrors.section || 'Please select a section'}
@@ -794,8 +808,8 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
                     }
                   </p>
                   <p className="text-xs text-gray-400 mt-1">Total courses available: {courses.length}</p>
-                  {/* <p className="text-xs text-gray-400">Total sections available: {sections.length}</p> */}
-                  {/* {sections.length > 0 && (
+                  <p className="text-xs text-gray-400">Total sections available: {sections.length}</p>
+                  {sections.length > 0 && (
                     <div className="text-xs text-gray-400 mt-1">
                       <p>Sample sections:</p>
                       <ul className="ml-2">
@@ -804,7 +818,7 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
                         ))}
                       </ul>
                     </div>
-                  )} */}
+                  )}
                   {courses.length > 0 && (
                     <div className="text-xs text-gray-400 mt-1">
                       <p>Sample courses:</p>
