@@ -166,7 +166,11 @@ const InstructorManagement: React.FC = () => {
     selectedTeacherName: ''
   });
   const [courses, setCourses] = useState<Course[]>([]);
-  const [sections, setSections] = useState<any[]>([]);
+  const [sections, setSections] = useState<Array<{
+    id: string;
+    name: string;
+    year_level: string;
+  }>>([]);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [formSubmitting, setFormSubmitting] = useState(false);
   const [newAssignment, setNewAssignment] = useState<TeacherSubject>({
