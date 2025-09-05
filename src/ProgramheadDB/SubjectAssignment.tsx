@@ -397,7 +397,7 @@ const SubjectAssignment: React.FC = () => {
   const handleEdit = (assignment: TeacherSubject) => {
     setNewAssignment({
       ...assignment,
-      day: typeof assignment.day === 'string' ? assignment.day : Array.isArray(assignment.day) ? assignment.day.join(',') : '',
+      day: typeof assignment.day === 'string' ? assignment.day : (Array.isArray(assignment.day) ? assignment.day.join(',') : ''),
       semester: assignment.semester || '',
     });
     setModalState({
