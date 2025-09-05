@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { createPortal } from 'react-dom';
 
 interface TeacherSubject {
   id?: string;
@@ -36,11 +35,16 @@ interface Subject {
   semester: string; // Added semester
 }
 
-interface SubjectAssignmentModalProps {
+interface Section {
+  id: string;
+  name: string;
+  year_level: string;
+}
+
+export interface SubjectAssignmentModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (assignments: TeacherSubject[]) => Promise<{ success: boolean; message: string }>;
-  onSuccess?: () => void; // Callback for successful submission
   formErrors: Record<string, string>;
   assignment: TeacherSubject;
   handleInputChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
@@ -54,7 +58,6 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
   isOpen,
   onClose,
   onSubmit,
-  onSuccess,
   formErrors,
   assignment,
   handleInputChange,
@@ -63,18 +66,22 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
   teachers,
   courses
 }) => {
-  // Add sections array
-  const sections = ['A', 'B', 'C', 'D'];
+  // Filter sections by selected year level - temporarily disabled
+  const filteredSections: any[] = [];
 
-  // Auto-calculate academic year based on current date
+  // Debug logging for sections - temporarily disabled
+  // console.log('Assignment year level:', assignment.year_level);
+  // console.log('Available sections:', sections);
+  // console.log('Filtered sections:', filteredSections);
+  console.log('Year level matching:', assignment.year_level ? assignment.year_level.match(/(\d+)/)?.[1] : 'No year level');
+
+  // Add academic years array
   const currentYear = new Date().getFullYear();
-  const currentMonth = new Date().getMonth(); // 0-11 (Jan = 0, Dec = 11)
-  
-  // Academic year runs from June to May
-  // If current month is June or later, use current year as start
-  // If current month is January to May, use previous year as start
-  const academicYearStart = currentMonth >= 5 ? currentYear : currentYear - 1;
-  const academicYear = `${academicYearStart}-${academicYearStart + 1}`;
+  const academicYears = [
+    `${currentYear}-${currentYear + 1}`,
+    `${currentYear + 1}-${currentYear + 2}`,
+    `${currentYear + 2}-${currentYear + 3}`
+  ];
 
   // Add year levels array (value/label pairs) - use full format to match database
   const yearLevels = [
@@ -82,6 +89,13 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
     { value: '2nd Year', label: '2nd Year' },
     { value: '3rd Year', label: '3rd Year' },
     { value: '4th Year', label: '4th Year' }
+  ];
+
+  // Add semester types array
+  const semesterTypes = [
+    { value: 'First Semester', label: '1st Semester' },
+    { value: 'Second Semester', label: '2nd Semester' },
+    { value: 'Summer', label: 'Summer' }
   ];
 
   // Add days array
@@ -96,127 +110,218 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
     'Saturday': 'S',
     'Sunday': 'Su',
   };
-  // Reverse mapping from abbreviations to full names
-  const dayAbbrToFull: Record<string, string> = {
-    'M': 'Monday',
-    'T': 'Tuesday',
-    'W': 'Wednesday',
-    'Th': 'Thursday',
-    'F': 'Friday',
-    'S': 'Saturday',
-    'Su': 'Sunday',
-  };
 
   // Multi-select state for subjects
-  const [selectedSubjects, setSelectedSubjects] = useState<string[]>(() => {
-    if (isEditMode && assignment.subject_id) {
-      // For editing, ensure subject_id is properly handled
-      return Array.isArray(assignment.subject_id) ? assignment.subject_id : [assignment.subject_id];
-    }
-    return [];
-  });
-  
+  const [selectedSubjects, setSelectedSubjects] = useState<string[]>(assignment.subject_id ? [assignment.subject_id] : []);
   // Multi-select state for day
-  const [selectedDay, setSelectedDay] = useState<string[]>(() => {
-    if (isEditMode && assignment.day) {
-      // For editing, ensure day is properly parsed
-      const dayValue = assignment.day;
-      if (typeof dayValue === 'string') {
-        // Convert abbreviations to full day names for the UI
-        const dayAbbreviations = dayValue.split(',').filter(d => d.trim() !== '');
-        return dayAbbreviations.map(abbr => dayAbbrToFull[abbr] || abbr);
-      }
-      return Array.isArray(dayValue) ? dayValue : [];
-    }
-    return [];
-  });
+  const [selectedDay, setSelectedDay] = useState<string[]>(assignment.day ? assignment.day.split(',') : []);
 
-  // Track if form has been modified (for edit mode)
-  const [hasFormChanges, setHasFormChanges] = useState(false);
-  const [originalAssignment, setOriginalAssignment] = useState<TeacherSubject | null>(null);
-  
-  // Set academic year automatically when component mounts
-  React.useEffect(() => {
-    // Only set academic year if it's not already set (for new assignments)
-    // For existing assignments, preserve the current academic year
-    if (!assignment.academic_year) {
-      handleInputChange({
-        target: { name: 'academic_year', value: academicYear }
-      } as React.ChangeEvent<HTMLInputElement>);
-    }
-  }, [academicYear, assignment.academic_year]);
+  // Filter courses by both year level and semester
+  const filteredCourses = (assignment.year_level && assignment.semester)
+    ? courses.filter(subject => {
+        // Extract the numeric year from the assignment year level (e.g., "1st Year" -> 1)
+        const yearNumber = assignment.year_level.match(/(\d+)/)?.[1];
+        if (!yearNumber) return false;
+        
+        // Compare with subject's year level (handle both string and number formats)
+        const subjectYear = String(subject.year_level || '');
+        
+        // Check year level match
+        let yearMatch = false;
+        if (subjectYear === yearNumber) yearMatch = true;
+        if (subjectYear === assignment.year_level) yearMatch = true;
+        
+        const yearMappings: Record<string, string> = {
+          '1st Year': '1',
+          '2nd Year': '2', 
+          '3rd Year': '3',
+          '4th Year': '4'
+        };
+        
+        if (yearMappings[assignment.year_level] === subjectYear) yearMatch = true;
+        
+        if (!yearMatch) return false;
+        
+        // Check semester match with more flexible matching
+        const subjectSemester = String(subject.semester || '').toLowerCase().trim();
+        const assignmentSemester = String(assignment.semester || '').toLowerCase().trim();
+        
+        // Handle different semester formats
+        const semesterMappings: Record<string, string[]> = {
+          'first semester': ['first semester', '1st semester', '1st sem', 'first sem', 'first'],
+          'second semester': ['second semester', '2nd semester', '2nd sem', 'second sem', 'second'],
+          'summer': ['summer', 'summer semester', 'summer sem', 'su', 'sm', 'sum']
+        };
+        
+        // Check if assignment semester matches any of the mapped values
+        const assignmentSemesterKey = Object.keys(semesterMappings).find(key => 
+          semesterMappings[key].includes(assignmentSemester)
+        );
+        
+        if (assignmentSemesterKey) {
+          // Check if subject semester matches any of the mapped values for the assignment semester
+          const subjectMatches = semesterMappings[assignmentSemesterKey].some(mappedValue => 
+            subjectSemester.includes(mappedValue) || mappedValue.includes(subjectSemester) ||
+            subjectSemester === mappedValue
+          );
+          
+          console.log(`Semester matching for ${assignment.semester}:`, {
+            subjectSemester,
+            assignmentSemester,
+            assignmentSemesterKey,
+            mappedValues: semesterMappings[assignmentSemesterKey],
+            subjectMatches
+          });
+          
+          return subjectMatches;
+        }
+        
+        // Fallback to exact match
+        return subjectSemester === assignmentSemester;
+      })
+    : assignment.year_level
+      ? courses.filter(subject => {
+          // Extract the numeric year from the assignment year level (e.g., "1st Year" -> 1)
+          const yearNumber = assignment.year_level.match(/(\d+)/)?.[1];
+          if (!yearNumber) return false;
+          
+          // Compare with subject's year level (handle both string and number formats)
+          const subjectYear = String(subject.year_level || '');
+          
+          // Direct match with the extracted number
+          if (subjectYear === yearNumber) return true;
+          
+          // Try to match with the full year level string
+          if (subjectYear === assignment.year_level) return true;
+          
+          // Try to match with common year level formats
+          const yearMappings: Record<string, string> = {
+            '1st Year': '1',
+            '2nd Year': '2', 
+            '3rd Year': '3',
+            '4th Year': '4'
+          };
+          
+          if (yearMappings[assignment.year_level] === subjectYear) return true;
+          
+          return false;
+        })
+      : [];
 
-  // Filter courses by selected year level - both use the same format now
-  const filteredCourses = assignment.year_level
-    ? courses.filter(subject => subject.year_level === assignment.year_level)
-    : [];
+  // Debug logging
+  console.log('Assignment year level:', assignment.year_level);
+  console.log('Assignment semester:', assignment.semester);
+  console.log('Available courses:', courses);
+  console.log('Filtered courses:', filteredCourses);
+  console.log('Year level types:', courses.map(c => ({ id: c.id, year_level: c.year_level, type: typeof c.year_level, display_name: c.display_name })));
+  console.log('Courses year levels:', courses.map(c => c.year_level));
+  console.log('Courses semesters:', courses.map(c => c.semester));
+ 
+ // Manual filter test for debugging
+ if (assignment.year_level) {
+   const yearNumber = assignment.year_level.match(/(\d+)/)?.[1];
+   console.log('Extracted year number:', yearNumber);
+   console.log('Courses matching year number:', courses.filter(c => String(c.year_level) === yearNumber));
+   console.log('Courses matching full year level:', courses.filter(c => String(c.year_level) === assignment.year_level));
+ }
+
+  // Manual filter test for semester
+  if (assignment.semester) {
+    console.log('Assignment semester:', assignment.semester);
+    console.log('All course semesters:', courses.map(c => ({ id: c.id, code: c.code, semester: c.semester })));
     
-  // Debug logging for edit mode
-  console.log('Modal debug - filteredCourses:', filteredCourses);
-  console.log('Modal debug - selectedSubjects:', selectedSubjects);
-  console.log('Modal debug - selectedDay:', selectedDay);
-  console.log('Modal debug - assignment.year_level:', assignment.year_level);
+    // Special check for the course with code "s"
+    const courseWithCodeS = courses.find(c => c.code === 's' || c.code === 'S');
+    if (courseWithCodeS) {
+      console.log('=== COURSE WITH CODE "S" ANALYSIS ===');
+      console.log('Course details:', courseWithCodeS);
+      console.log('Current semester:', courseWithCodeS.semester);
+      console.log('Should be summer based on code:', true);
+      console.log('=== END ANALYSIS ===');
+    }
+    
+    const semesterMappings: Record<string, string[]> = {
+      'first semester': ['first semester', '1st semester', '1st sem', 'first sem', 'first'],
+      'second semester': ['second semester', '2nd semester', '2nd sem', 'second sem', 'second'],
+      'summer': ['summer', 'summer semester', 'summer sem', 'su', 'sm', 'sum']
+    };
+    
+    const assignmentSemesterKey = Object.keys(semesterMappings).find(key => 
+      semesterMappings[key].includes(String(assignment.semester).toLowerCase().trim())
+    );
+    
+    console.log('Assignment semester key:', assignmentSemesterKey);
+    console.log('Mapped values for assignment semester:', assignmentSemesterKey ? semesterMappings[assignmentSemesterKey] : 'No mapping found');
+    
+    const matchingCourses = courses.filter(c => {
+      const subjectSemester = String(c.semester || '').toLowerCase().trim();
+      const assignmentSemester = String(assignment.semester || '').toLowerCase().trim();
+      
+      if (assignmentSemesterKey) {
+        return semesterMappings[assignmentSemesterKey].some(mappedValue => 
+          subjectSemester.includes(mappedValue) || mappedValue.includes(subjectSemester) ||
+          subjectSemester === mappedValue
+        );
+      }
+      
+      return subjectSemester === assignmentSemester;
+    });
+    
+    console.log('Courses matching semester (detailed):', matchingCourses);
+   
+   // Debug: Check for potential mislabeling
+   console.log('=== SEMESTER MISLABELING CHECK ===');
+   courses.forEach(course => {
+     const code = String(course.code || '').toLowerCase();
+     const name = String(course.name || '').toLowerCase();
+     const currentSemester = String(course.semester || '').toLowerCase();
+     
+     // Check if course should be summer based on code/name
+     const shouldBeSummer = code.includes('summer') || name.includes('summer') || 
+                            code.includes('su') || name.includes('su') ||
+                            code.includes('sm') || name.includes('sm') ||
+                            code.includes('sum') || name.includes('sum') ||
+                            code === 's';
+     
+     // Check if course should be second semester based on code/name
+     const shouldBeSecond = code.includes('2') || name.includes('second') || 
+                            code.includes('2nd') || name.includes('2nd') ||
+                            code.includes('ii') || name.includes('ii');
+     
+     // Check if course should be first semester based on code/name
+     const shouldBeFirst = (code.includes('1') && !code.includes('10') && !code.includes('11') && !code.includes('12')) || 
+                           name.includes('first') || 
+                           code.includes('1st') || name.includes('1st') ||
+                           (code.includes('i') && !code.includes('ii') && !code.includes('iii') && !code.includes('iv'));
+     
+     if (shouldBeSummer && currentSemester !== 'summer') {
+       console.warn(`POTENTIAL MISLABELING: Course ${course.code} (${course.name}) should be Summer but is labeled as ${course.semester}`);
+     }
+     if (shouldBeSecond && currentSemester !== 'second semester' && currentSemester !== '2nd semester') {
+       console.warn(`POTENTIAL MISLABELING: Course ${course.code} (${course.name}) should be Second Semester but is labeled as ${course.semester}`);
+     }
+     if (shouldBeFirst && currentSemester !== 'first semester' && currentSemester !== '1st semester') {
+       console.warn(`POTENTIAL MISLABELING: Course ${course.code} (${course.name}) should be First Semester but is labeled as ${course.semester}`);
+     }
+   });
+   console.log('=== END MISLABELING CHECK ===');
+  }
 
   // Reset selected subjects when year level changes
   React.useEffect(() => {
-    if (assignment.year_level) {
+    if (assignment.year_level || assignment.semester) {
       setSelectedSubjects([]);
     }
+  }, [assignment.year_level, assignment.semester]);
+
+  // Reset section when year level changes
+  React.useEffect(() => {
+    if (assignment.year_level) {
+      handleInputChange({
+        target: { name: 'section', value: '' }
+      } as React.ChangeEvent<HTMLSelectElement>);
+    }
   }, [assignment.year_level]);
-
-  // Sync selectedSubjects and selectedDay when assignment changes (for edit mode)
-  React.useEffect(() => {
-    console.log('Modal useEffect - isEditMode:', isEditMode, 'assignment:', assignment); // Debug log
-    
-    if (isEditMode && assignment.subject_id) {
-      const subjectIds = Array.isArray(assignment.subject_id) ? assignment.subject_id : [assignment.subject_id];
-      console.log('Setting selectedSubjects:', subjectIds); // Debug log
-      setSelectedSubjects(subjectIds);
-    }
-    
-    if (isEditMode && assignment.day) {
-      const dayValue = assignment.day;
-      if (typeof dayValue === 'string') {
-        // Convert abbreviations to full day names for the UI
-        const dayAbbreviations = dayValue.split(',').filter(d => d.trim() !== '');
-        const fullDayNames = dayAbbreviations.map(abbr => dayAbbrToFull[abbr] || abbr);
-        console.log('Setting selectedDay:', fullDayNames); // Debug log
-        setSelectedDay(fullDayNames);
-      } else if (Array.isArray(dayValue)) {
-        setSelectedDay(dayValue);
-      }
-    }
-
-    // Store original assignment for change tracking
-    if (isEditMode && !originalAssignment) {
-      setOriginalAssignment({ ...assignment });
-    }
-
-    // Reset form changes when assignment changes
-    setHasFormChanges(false);
-  }, [isEditMode, assignment.subject_id, assignment.day]);
-
-  // Track form changes for edit mode
-  React.useEffect(() => {
-    if (isEditMode && originalAssignment) {
-      // Get the original values from the stored original assignment
-      const originalSubjectIds = originalAssignment.subject_id ? (Array.isArray(originalAssignment.subject_id) ? originalAssignment.subject_id : [originalAssignment.subject_id]) : [];
-      const originalDays = originalAssignment.day ? originalAssignment.day.split(',').map(d => dayAbbrToFull[d.trim()] || d.trim()).filter(d => d) : [];
-      
-      // Check if any field has changed from the original assignment
-      const hasChanges = 
-        assignment.teacher_id !== originalAssignment.teacher_id ||
-        assignment.section !== originalAssignment.section ||
-        assignment.year_level !== originalAssignment.year_level ||
-        assignment.semester !== originalAssignment.semester ||
-        assignment.time !== originalAssignment.time ||
-        JSON.stringify(selectedSubjects.sort()) !== JSON.stringify(originalSubjectIds.sort()) ||
-        JSON.stringify(selectedDay.sort()) !== JSON.stringify(originalDays.sort());
-
-      console.log('Form changes detected:', hasChanges, 'original:', originalAssignment, 'current:', assignment); // Debug log
-      setHasFormChanges(hasChanges);
-    }
-  }, [isEditMode, originalAssignment, assignment, selectedSubjects, selectedDay]);
 
   // Update assignment.day when selectedDay changes
   React.useEffect(() => {
@@ -234,6 +339,17 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
     );
   };
 
+  // Handle select all subjects
+  const handleSelectAllSubjects = () => {
+    if (selectedSubjects.length === filteredCourses.length) {
+      // If all are selected, unselect all
+      setSelectedSubjects([]);
+    } else {
+      // Select all filtered courses
+      setSelectedSubjects(filteredCourses.map(course => course.id));
+    }
+  };
+
   // Handle day checkbox change
   const handleDayCheckbox = (day: string) => {
     setSelectedDay(prev =>
@@ -249,6 +365,7 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
       assignment.teacher_id &&
       selectedSubjects.length > 0 &&
       assignment.section &&
+      assignment.academic_year &&
       assignment.year_level &&
       assignment.semester &&
       selectedDay.length > 0 &&
@@ -259,7 +376,9 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
   // Get selected teacher name
   const selectedTeacher = teachers.find(t => t.id === assignment.teacher_id);
 
-
+  // Check if all subjects are selected
+  const allSubjectsSelected = filteredCourses.length > 0 && selectedSubjects.length === filteredCourses.length;
+  const someSubjectsSelected = selectedSubjects.length > 0 && selectedSubjects.length < filteredCourses.length;
 
   // State for confirmation modal
   const [showConfirmation, setShowConfirmation] = useState(false);
@@ -294,24 +413,24 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
     setModalError('');
     setModalSuccess('');
     
-          // Create multiple assignments for selected subjects
-      const assignments: TeacherSubject[] = selectedSubjects.map(subjectId => {
-        const abbr = selectedDay.map(d => dayAbbr[d] || d);
-        return {
-          teacher_id: assignment.teacher_id,
-          subject_id: subjectId,
-          section: assignment.section,
-          academic_year: assignment.academic_year || academicYear, // Use assignment state or fallback to calculated
-          year_level: assignment.year_level,
-          semester: assignment.semester || '', // Use the semester selected in the modal form
-          day: abbr.length === 1 ? abbr[0] : abbr.join(','),
-          time: assignment.time,
-          is_active: true
-        };
-      });
+    // Create multiple assignments for selected subjects
+    const assignments: TeacherSubject[] = selectedSubjects.map(subjectId => {
+      const subject = courses.find(c => c.id === subjectId);
+      const abbr = selectedDay.map(d => dayAbbr[d] || d);
+      return {
+        teacher_id: assignment.teacher_id,
+        subject_id: subjectId,
+        section: assignment.section,
+        academic_year: assignment.academic_year,
+        year_level: assignment.year_level,
+        semester: subject?.semester || '',
+        day: abbr.length === 1 ? abbr[0] : abbr.join(','),
+        time: assignment.time,
+        is_active: true
+      };
+    });
     // Debug log
     console.log('DEBUG assignments sent to parent:', assignments);
-    console.log('DEBUG academic year being used:', assignment.academic_year || academicYear);
 
     try {
       // Call the parent's onSubmit with the assignments array
@@ -319,16 +438,10 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
       
       if (result.success) {
         setModalSuccess(result.message);
-        // Close modal after 2 seconds and refresh parent
+        // Close modal after 2 seconds
         setTimeout(() => {
           setShowConfirmation(false);
           setModalSuccess('');
-          // Close the main modal and refresh the parent component
-          onClose();
-          // Call success callback to refresh assignments list
-          if (onSuccess) {
-            onSuccess();
-          }
         }, 2000);
       } else {
         setModalError(result.message);
@@ -345,214 +458,216 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
 
   if (!isOpen) return null;
 
-    return createPortal(
-    <div 
-      className="fixed inset-0 z-[9999] subject-modal-overlay" 
-      style={{ 
-        position: 'fixed', 
-        top: 0, 
-        left: 0, 
-        right: 0, 
-        bottom: 0,
-        width: '100vw',
-        height: '100vh',
-        zIndex: 9999,
-        backdropFilter: 'blur(8px)',
-        WebkitBackdropFilter: 'blur(8px)',
-        transform: 'translateZ(0)',
-        willChange: 'transform'
-      }}
-    >
+  return (
+    <div className="fixed inset-0 z-[9999] subject-modal">
       {/* Semi-transparent overlay with enhanced blur */}
       <div 
-        className="absolute inset-0 bg-black/60 backdrop-blur-md"
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
-        style={{
-          backdropFilter: 'blur(8px)',
-          WebkitBackdropFilter: 'blur(8px)'
-        }}
       />
       
       {/* Modal container */}
-      <div className="flex items-center justify-center h-full p-2 sm:p-6 overflow-hidden">
-        <div className="w-full h-full flex items-center justify-center">
+      <div className="flex items-center justify-center h-full p-2 sm:p-6">
         <motion.div
           initial={{ scale: 0.95, opacity: 0, y: 20 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.95, opacity: 0, y: 20 }}
           transition={{ type: "spring", stiffness: 300, damping: 30 }}
-          className="bg-white/95 backdrop-blur-md rounded-3xl p-6 sm:p-8 max-w-4xl w-full mx-2 sm:mx-4 shadow-2xl border border-white/20 relative z-10 max-h-[95vh] flex flex-col subject-modal-content"
+          className="bg-gradient-to-br from-white/95 to-white/90 backdrop-blur-md rounded-3xl p-6 sm:p-10 max-w-5xl w-full mx-2 sm:mx-4 shadow-2xl border border-white/20 relative z-10 min-h-[60vh] max-h-[90vh] flex flex-col"
           onClick={(e) => e.stopPropagation()}
-          style={{
-            backdropFilter: 'blur(12px)',
-            WebkitBackdropFilter: 'blur(12px)',
-            transform: 'translateZ(0)',
-            willChange: 'transform'
-          }}
         >
           {/* Modal header */}
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <svg className="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            </div>
-            <div className="flex-1">
-              <h3 className="text-xl font-bold text-gray-900">
-                {isEditMode ? 'Edit Subject Assignment' : 'Assign New Subject'}
-              </h3>
-              <p className="text-sm text-gray-600">
-                {isEditMode ? 'Update the subject assignment details' : 'Create a new subject assignment'}
-              </p>
-            </div>
+          <div className="flex items-center justify-between mb-8">
+            <h3 className="text-2xl font-bold text-gray-800">
+              {isEditMode ? 'Edit Subject Assignment' : 'Assign New Subject'}
+            </h3>
             <button 
               onClick={onClose}
-              className="absolute top-3 right-3 w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors focus:outline-none"
+              className="absolute w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center text-lg sm:text-xl font-bold text-white bg-red-500 hover:bg-red-600 rounded-full shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 animate-pop-in hover:scale-110 hover:rotate-90 top-2 right-2 sm:top-3 sm:right-3"
               aria-label="Close modal"
+              style={{ backgroundColor: 'rgb(239, 68, 68)', boxShadow: 'rgba(239, 68, 68, 0.3) 0px 2px 8px', zIndex: 50 }}
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              ×
             </button>
           </div>
           {/* Form - two column on md+ screens */}
-          <form onSubmit={handleFormSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 flex-1">
-            {/* Left column: Basic Info (2x2 grid) + Day & Time */}
-            <div className="flex flex-col gap-4">
-              {/* Basic Info Fields - 2x2 Grid Layout */}
-              <div className="grid grid-cols-2 gap-4">
-                {/* Row 1: Instructor & Academic Year */}
-                <div>
-                  <label htmlFor="teacher_id" className="block text-sm font-medium text-gray-700 mb-1">
-                    Instructor <span className="text-red-500">*</span>
+          <form onSubmit={handleFormSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+            {/* Left column: Teacher, Academic Year, Section, Semester */}
+            <div className="flex flex-col gap-6">
+              {/* Teacher Selection */}
+              <div>
+                <label htmlFor="teacher_id" className="block text-sm font-medium text-gray-700 mb-1">
+                  Teacher <span className="text-red-500">*</span>
+                </label>
+                <select
+                  id="teacher_id"
+                  name="teacher_id"
+                  value={assignment.teacher_id}
+                  onChange={handleInputChange}
+                  className={`w-full px-4 py-3 rounded-xl border ${
+                    formErrors.teacher_id || (!assignment.teacher_id && !isFormValid())
+                      ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
+                      : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
+                  } focus:ring-2 focus:ring-opacity-50 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm`}
+                >
+                  <option value="">Select a teacher</option>
+                  {teachers.map(teacher => (
+                    <option key={teacher.id} value={teacher.id}>
+                      {teacher.full_name} {teacher.department ? `(${teacher.department})` : ''}
+                    </option>
+                  ))}
+                </select>
+                {(formErrors.teacher_id || (!assignment.teacher_id && !isFormValid())) && (
+                  <p className="mt-1 text-sm text-red-600">
+                    {formErrors.teacher_id || 'Please select a teacher'}
+                  </p>
+                )}
+              </div>
+              {/* Academic Year */}
+              <div>
+                <label htmlFor="academic_year" className="block text-sm font-medium text-gray-700 mb-1">
+                  Academic Year <span className="text-red-500">*</span>
+                </label>
+                <select
+                  id="academic_year"
+                  name="academic_year"
+                  value={assignment.academic_year}
+                  onChange={handleInputChange}
+                  className={`w-full px-4 py-3 rounded-xl border ${
+                    formErrors.academic_year || (!assignment.academic_year && !isFormValid())
+                      ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
+                      : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
+                  } focus:ring-2 focus:ring-opacity-50 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm`}
+                  required
+                >
+                  <option value="">Select Academic Year</option>
+                  {academicYears.map((year) => (
+                    <option key={year} value={year}>
+                      {year}
+                    </option>
+                  ))}
+                </select>
+                {(formErrors.academic_year || (!assignment.academic_year && !isFormValid())) && (
+                  <p className="mt-1 text-sm text-red-600">
+                    {formErrors.academic_year || 'Please select an academic year'}
+                  </p>
+                )}
+              </div>
+              {/* Year Level Selection */}
+              <div>
+                <label htmlFor="year_level" className="block text-sm font-medium text-gray-700 mb-1">
+                  Year Level <span className="text-red-500">*</span>
+                </label>
+                <select
+                  id="year_level"
+                  name="year_level"
+                  value={assignment.year_level}
+                  onChange={handleInputChange}
+                  className={`w-full px-4 py-3 rounded-xl border ${
+                    formErrors.year_level || (!assignment.year_level && !isFormValid())
+                      ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
+                      : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
+                  } focus:ring-2 focus:ring-opacity-50 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm`}
+                  required
+                >
+                  <option value="">Select Year Level</option>
+                  {yearLevels.map((level) => (
+                    <option key={level.value} value={level.value}>{level.label}</option>
+                  ))}
+                </select>
+                {(formErrors.year_level || (!assignment.year_level && !isFormValid())) && (
+                  <p className="mt-1 text-sm text-red-600">
+                    {formErrors.year_level || 'Please select a year level'}
+                  </p>
+                )}
+              </div>
+              {/* Semester Selection */}
+              <div>
+                <label htmlFor="semester" className="block text-sm font-medium text-gray-700 mb-1">
+                  Semester <span className="text-red-500">*</span>
+                </label>
+                <select
+                  id="semester"
+                  name="semester"
+                  value={assignment.semester}
+                  onChange={handleInputChange}
+                  className={`w-full px-4 py-3 rounded-xl border ${
+                    formErrors.semester || (!assignment.semester && !isFormValid())
+                      ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
+                      : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
+                  } focus:ring-2 focus:ring-opacity-50 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm`}
+                  required
+                >
+                  <option value="">Select Semester</option>
+                  {semesterTypes.map((semester) => (
+                    <option key={semester.value} value={semester.value}>{semester.label}</option>
+                  ))}
+                </select>
+                {(formErrors.semester || (!assignment.semester && !isFormValid())) && (
+                  <p className="mt-1 text-sm text-red-600">
+                    {formErrors.semester || 'Please select a semester'}
+                  </p>
+                )}
+              </div>
+              {/* Section Selection */}
+              <div>
+                <label htmlFor="section" className="block text-sm font-medium text-gray-700 mb-1">
+                  Section <span className="text-red-500">*</span>
+                </label>
+                <select
+                  id="section"
+                  name="section"
+                  value={assignment.section}
+                  onChange={handleInputChange}
+                  className={`w-full px-4 py-3 rounded-xl border ${
+                    formErrors.section || (!assignment.section && !isFormValid())
+                      ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
+                      : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
+                  } focus:ring-2 focus:ring-opacity-50 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm`}
+                  required
+                >
+                  <option value="">Select Section</option>
+                  {filteredSections.map((section) => (
+                    <option key={section.id} value={section.name}>
+                      Section {section.name}
+                    </option>
+                  ))}
+                </select>
+                {assignment.year_level && filteredSections.length === 0 && (
+                  <p className="mt-1 text-sm text-red-600">No sections available for this year level.</p>
+                )}
+                {(formErrors.section || (!assignment.section && !isFormValid())) && (
+                  <p className="mt-1 text-sm text-red-600">
+                    {formErrors.section || 'Please select a section'}
+                  </p>
+                )}
+              </div>
+              {/* Day and Time Selection (one line) */}
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Day(s) <span className="text-red-500">*</span>
                   </label>
-                  <select
-                    id="teacher_id"
-                    name="teacher_id"
-                    value={assignment.teacher_id}
-                    onChange={handleInputChange}
-                    className={`w-full px-4 py-3 rounded-xl border ${
-                      formErrors.teacher_id || (!assignment.teacher_id && !isFormValid())
-                        ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
-                        : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
-                    } focus:ring-2 focus:ring-opacity-50 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm`}
-                  >
-                    <option value="">Select a instructor</option>
-                    {teachers.map(teacher => (
-                      <option key={teacher.id} value={teacher.id}>
-                        {teacher.full_name} {teacher.department ? `(${teacher.department})` : ''}
-                      </option>
+                  <div className="flex flex-wrap gap-2">
+                    {days.map(day => (
+                      <label key={day} className="inline-flex items-center gap-1 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={selectedDay.includes(day)}
+                          onChange={() => handleDayCheckbox(day)}
+                          className="accent-blue-600 w-4 h-4"
+                        />
+                        {day}
+                      </label>
                     ))}
-                  </select>
-                  {(formErrors.teacher_id || (!assignment.teacher_id && !isFormValid())) && (
+                  </div>
+                   {(formErrors.day || (!selectedDay || selectedDay.length === 0) && !isFormValid()) && (
                     <p className="mt-1 text-sm text-red-600">
-                      {formErrors.teacher_id || 'Please select a instructor'}
+                      {formErrors.day || 'Please select at least one day'}
                     </p>
                   )}
                 </div>
-                
-                <div>
-                  <label htmlFor="academic_year" className="block text-sm font-medium text-gray-700 mb-1">
-                    Academic Year <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    id="academic_year"
-                    name="academic_year"
-                    value={assignment.academic_year || academicYear}
-                    readOnly
-                    className="w-full px-4 py-3 rounded-xl border border-gray-300 bg-gray-50 text-gray-700 cursor-not-allowed"
-                  />
-                 
-                </div>
-                
-                {/* Row 2: Section & Year Level */}
-                <div>
-                  <label htmlFor="section" className="block text-sm font-medium text-gray-700 mb-1">
-                    Section <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    id="section"
-                    name="section"
-                    value={assignment.section}
-                    onChange={handleInputChange}
-                    className={`w-full px-4 py-3 rounded-xl border ${
-                      formErrors.section || (!assignment.section && !isFormValid())
-                        ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
-                        : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
-                    } focus:ring-2 focus:ring-opacity-50 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm`}
-                    required
-                  >
-                    <option value="">Select Section</option>
-                    {sections.map((section) => (
-                      <option key={section} value={section}>
-                        Section {section}
-                      </option>
-                    ))}
-                  </select>
-                  {(formErrors.section || (!assignment.section && !isFormValid())) && (
-                    <p className="mt-1 text-sm text-red-600">
-                      {formErrors.section || 'Please select a section'}
-                    </p>
-                  )}
-                </div>
-                
-                <div>
-                  <label htmlFor="year_level" className="block text-sm font-medium text-gray-700 mb-1">
-                    Year Level <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    id="year_level"
-                    name="year_level"
-                    value={assignment.year_level}
-                    onChange={handleInputChange}
-                    className={`w-full px-4 py-3 rounded-xl border ${
-                      formErrors.year_level || (!assignment.year_level && !isFormValid())
-                        ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
-                        : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
-                    } focus:ring-2 focus:ring-opacity-50 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm`}
-                    required
-                  >
-                    <option value="">Select Year Level</option>
-                    {yearLevels.map((level) => (
-                      <option key={level.value} value={level.value}>{level.label}</option>
-                    ))}
-                  </select>
-                  {(formErrors.year_level || (!assignment.year_level && !isFormValid())) && (
-                    <p className="mt-1 text-sm text-red-600">
-                      {formErrors.year_level || 'Please select a year level'}
-                    </p>
-                  )}
-                </div>
-                
-                <div>
-                  <label htmlFor="semester" className="block text-sm font-medium text-gray-700 mb-1">
-                    Semester <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    id="semester"
-                    name="semester"
-                    value={assignment.semester}
-                    onChange={handleInputChange}
-                    className={`w-full px-4 py-3 rounded-xl border ${
-                      formErrors.semester || (!assignment.semester && !isFormValid())
-                        ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
-                        : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
-                    } focus:ring-2 focus:ring-opacity-50 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm`}
-                    required
-                  >
-                    <option value="">Select Semester</option>
-                    <option value="First Semester">First Semester</option>
-                    <option value="Second Semester">Second Semester</option>
-                    <option value="Summer">Summer</option>
-                  </select>
-                  {(formErrors.semester || (!assignment.semester && !isFormValid())) && (
-                    <p className="mt-1 text-sm text-red-600">
-                      {formErrors.semester || 'Please select a semester'}
-                    </p>
-                  )}
-                </div>
-                
-                <div>
+                <div className="flex-1">
                   <label htmlFor="time" className="block text-sm font-medium text-gray-700 mb-1">
                     Time <span className="text-red-500">*</span>
                   </label>
@@ -577,148 +692,141 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
                   )}
                 </div>
               </div>
-              {/* Day Selection (horizontal line) */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Day(s) <span className="text-red-500">*</span>
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {days.map(day => (
-                    <label key={day} className="inline-flex items-center gap-1 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={selectedDay.includes(day)}
-                        onChange={() => handleDayCheckbox(day)}
-                        className="accent-blue-600 w-4 h-4"
-                      />
-                      {day}
-                    </label>
-                  ))}
-                </div>
-                 {(formErrors.day || (!selectedDay || selectedDay.length === 0) && !isFormValid()) && (
-                  <p className="mt-1 text-sm text-red-600">
-                    {formErrors.day || 'Please select at least one day'}
-                  </p>
-                )}
-              </div>
             </div>
-            {/* Right column: Subject List */}
-            <div className="flex flex-col gap-4">
-              {/* Show all subjects for selected year level as cards/list */}
-              {assignment.year_level && (
-                <div className="pt-0">
+            {/* Right column: Year Level, Subject, Subject List */}
+            <div className="flex flex-col gap-6">
+              {/* Show all subjects for selected year level as cards/list, right after year level selection */}
+              {assignment.year_level && assignment.semester && (
+                <div className="mt-2">
                   <div className="flex items-center justify-between mb-2">
-                    <div>
-                      <h4 className="text-base font-semibold text-gray-800">
-                        Available Subjects
-                      </h4>
-                      <p className="text-xs text-gray-600">
-                        {yearLevels.find(l => l.value === assignment.year_level)?.label || assignment.year_level} • Select one or more subjects
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-xs text-gray-500">
-                        {filteredCourses.length} subject{filteredCourses.length !== 1 ? 's' : ''} available
+                    <h4 className="font-semibold text-gray-700">
+                      Subjects for {yearLevels.find(l => l.value === assignment.year_level)?.label || assignment.year_level} - {semesterTypes.find(s => s.value === assignment.semester)?.label || assignment.semester}:
+                    </h4>
+                    {selectedSubjects.length > 0 && (
+                      <span className="text-xs font-medium bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                        {selectedSubjects.length} selected
                       </span>
-                    </div>
+                    )}
                   </div>
-                  
+                  <p className="text-xs text-gray-500 mb-2">
+                    Select one or more subjects for this year level, semester, and section
+                  </p>
                   {filteredCourses.length > 0 ? (
-                    <div className="overflow-y-auto max-h-80 md:max-h-96 rounded-xl border border-gray-200 bg-white shadow-sm">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4">
-                        {filteredCourses.map(subject => (
-                          <div
-                            key={subject.id}
-                            className="relative"
-                          >
-                            <div
-                              className="bg-white/ border-2 border-gray-200 rounded-xl p-4 h-48 flex flex-col"
-                            >
-                              {/* Checkbox and Semester Badge Row */}
-                              <div className="flex items-start justify-between mb-3 flex-shrink-0">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedSubjects.includes(subject.id)}
-                                  onChange={() => handleSubjectCheckbox(subject.id)}
-                                  className="w-5 h-5 accent-blue-600 rounded border-2 border-gray-300 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex-shrink-0"
-                                  id={`subject-checkbox-${subject.id}`}
-                                />
-                                
-                                {/* Semester Badge - Right aligned */}
-                                {subject.semester && (
-                                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold flex-shrink-0 ${
-                                    subject.semester === 'First Semester' 
-                                      ? 'bg-blue-100 text-blue-800 border border-blue-200'
-                                      : subject.semester === 'Second Semester'
-                                      ? 'bg-green-100 text-green-800 border border-green-200'
-                                      : 'bg-yellow-100 text-yellow-800 border border-yellow-200'
-                                  }`}>
-                                    {subject.semester === 'First Semester' ? '1st Sem' : 
-                                     subject.semester === 'Second Semester' ? '2nd Sem' : 
-                                     'Summer'}
-                                  </span>
-                                )}
-                              </div>
-                              
-                              {/* Subject Code - Left aligned */}
-                              <div className="mb-2 text-left flex-shrink-0">
-                                <span className="inline-block text-sm font-bold text-gray-900 bg-gray-100 px-2 py-1 rounded-md">
-                                  {subject.code}
-                                </span>
-                              </div>
-                              
-                              {/* Subject Name - Left aligned - Flexible height */}
-                              <div className="mb-3 text-left flex-1 min-h-0">
-                                <h5 className="font-semibold text-gray-800 text-sm leading-tight line-clamp-3">
-                                  {subject.name}
-                                </h5>
-                              </div>
-                              
-                              {/* Units and Selection - Bottom row */}
-                              <div className="flex items-center justify-between flex-shrink-0">
-                                <span className="text-xs text-gray-600 font-medium">
-                                  {subject.units} {subject.units === 1 ? 'Unit' : 'Units'}
-                                </span>
-                                
-                                {/* Selection Indicator */}
-                                {selectedSubjects.includes(subject.id) && (
-                                  <div className="w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
-                                    <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                    </svg>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
+                    <div className="overflow-y-auto max-h-72 md:max-h-96 rounded-lg border border-blue-100 bg-white/60">
+                      {/* Select All Checkbox */}
+                      <div className="sticky top-0 bg-blue-100 border-b border-blue-200 p-3">
+                        <label className="flex items-center gap-3 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={allSubjectsSelected}
+                            ref={(input) => {
+                              if (input) {
+                                input.indeterminate = someSubjectsSelected;
+                              }
+                            }}
+                            onChange={handleSelectAllSubjects}
+                            className="accent-blue-600 w-5 h-5"
+                          />
+                          <span className="font-semibold text-blue-900 text-sm">
+                            {allSubjectsSelected ? 'Deselect All' : 'Select All'} Subjects
+                          </span>
+                          <span className="text-xs text-blue-700 bg-blue-200 px-2 py-1 rounded-full">
+                            {selectedSubjects.length} of {filteredCourses.length} selected
+                          </span>
+                        </label>
                       </div>
+                      
+                      <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 p-2">
+                        {filteredCourses.map(subject => (
+                          <li
+                            key={subject.id}
+                            className={`flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-sm text-gray-800 transition-all duration-150 ${selectedSubjects.includes(subject.id) ? 'ring-2 ring-blue-400 bg-blue-100' : ''}`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedSubjects.includes(subject.id)}
+                              onChange={() => handleSubjectCheckbox(subject.id)}
+                              className="accent-blue-600 w-4 h-4"
+                              id={`subject-checkbox-${subject.id}`}
+                            />
+                            <label htmlFor={`subject-checkbox-${subject.id}`} className="cursor-pointer select-none w-full flex items-center gap-2">
+                              {subject.display_name || subject.name || subject.code}
+                              {/* Semester Badge */}
+                              {subject.semester === 'First Semester' && (
+                                <span className="ml-2 inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-xs font-bold px-2 py-0.5 rounded-full">1st Sem</span>
+                              )}
+                              {subject.semester === 'Second Semester' && (
+                                <span className="ml-2 inline-flex items-center gap-1 bg-green-100 text-green-800 text-xs font-bold px-2 py-0.5 rounded-full">2nd Sem</span>
+                              )}
+                              {subject.semester === 'Summer' && (
+                                <span className="ml-2 inline-flex items-center gap-1 bg-yellow-100 text-yellow-800 text-xs font-bold px-2 py-0.5 rounded-full">Summer</span>
+                              )}
+                            </label>
+                          </li>
+                        ))}
+                      </ul>
                     </div>
                   ) : (
-                    <div className="text-center py-8 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300">
-                      <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      <h3 className="mt-2 text-sm font-medium text-gray-900">No subjects available</h3>
-                      <p className="mt-1 text-sm text-gray-500">
-                        No subjects found for {yearLevels.find(l => l.value === assignment.year_level)?.label || assignment.year_level}
-                      </p>
+                    <p className="text-sm text-gray-500">No subjects available for this year level.</p>
+                  )}
+                  {assignment.year_level && filteredCourses.length === 0 && (
+                    <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <p className="text-sm text-yellow-800 font-medium">Debug Information:</p>
+                      <p className="text-xs text-yellow-700">Selected Year Level: {assignment.year_level}</p>
+                      <p className="text-xs text-yellow-700">Selected Semester: {assignment.semester}</p>
+                      <p className="text-xs text-yellow-700">Total Courses: {courses.length}</p>
+                      <p className="text-xs text-yellow-700">Available Year Levels: {Array.from(new Set(courses.map(c => c.year_level))).join(', ')}</p>
+                      <p className="text-xs text-yellow-700">Available Semesters: {Array.from(new Set(courses.map(c => c.semester))).join(', ')}</p>
+                      <p className="text-xs text-yellow-700">Filtered Courses: {filteredCourses.length}</p>
                     </div>
                   )}
                 </div>
               )}
+              {(!assignment.year_level || !assignment.semester) && (
+                <div className="mt-2">
+                  <h4 className="font-semibold text-gray-700 mb-2">Subjects:</h4>
+                  <p className="text-sm text-gray-500">
+                    {!assignment.year_level && !assignment.semester 
+                      ? 'Please select a year level and semester to view available subjects.'
+                      : !assignment.year_level 
+                      ? 'Please select a year level to view available subjects.'
+                      : 'Please select a semester to view available subjects.'
+                    }
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">Total courses available: {courses.length}</p>
+                  {/* <p className="text-xs text-gray-400">Total sections available: {sections.length}</p> */}
+                  {/* {sections.length > 0 && (
+                    <div className="text-xs text-gray-400 mt-1">
+                      <p>Sample sections:</p>
+                      <ul className="ml-2">
+                        {sections.slice(0, 3).map(section => (
+                          <li key={section.id}>ID: {section.id}, Name: {section.name}, Year: {section.year_level}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )} */}
+                  {courses.length > 0 && (
+                    <div className="text-xs text-gray-400 mt-1">
+                      <p>Sample courses:</p>
+                      <ul className="ml-2">
+                        {courses.slice(0, 3).map(course => (
+                          <li key={course.id}>ID: {course.id}, Name: {course.display_name}, Year: {course.year_level}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+              
               {/* Subject validation message */}
               {(formErrors.subject_id || selectedSubjects.length === 0) && (
                 <p className="mt-1 text-sm text-red-600">{formErrors.subject_id || 'Please select at least one subject'}</p>
               )}
-              
-
-              
 
             </div>
             
-            {/* Action Buttons - integrated into main modal */}
-            <div className="md:col-span-2 flex flex-col sm:flex-row justify-end items-center gap-3 mt-0">
+            {/* Action Buttons - full width on mobile, right on desktop */}
+            <div className="md:col-span-2 flex flex-col sm:flex-row justify-end items-center gap-3 mt-8">
               <button
                 type="button"
                 onClick={onClose}
@@ -728,9 +836,9 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
               </button>
               <button
                 type="submit"
-                disabled={formSubmitting || (!isFormValid() && !isEditMode) || (isEditMode && !hasFormChanges)}
+                disabled={formSubmitting || !isFormValid()}
                 className={`w-full sm:w-auto px-5 py-2.5 text-base font-semibold border border-transparent rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 ${
-                  (isFormValid() && !formSubmitting) || (isEditMode && hasFormChanges && !formSubmitting)
+                  isFormValid() && !formSubmitting
                     ? 'text-white bg-blue-600 hover:bg-blue-700 shadow-md'
                     : 'text-gray-400 bg-gray-200 cursor-not-allowed'
                 }`}
@@ -773,12 +881,11 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
               </div>
               <button 
                 onClick={handleCancelConfirmation}
-                className="absolute top-3 right-3 w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors focus:outline-none"
+                className="absolute w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center text-lg sm:text-xl font-bold text-white bg-red-500 hover:bg-red-600 rounded-full shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 hover:scale-110 hover:rotate-90 top-2 right-2 sm:top-3 sm:right-3"
                 aria-label="Close confirmation"
+                style={{ backgroundColor: 'rgb(239, 68, 68)', boxShadow: 'rgba(239, 68, 68, 0.3) 0px 2px 8px', zIndex: 50 }}
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                ×
               </button>
             </div>
 
@@ -833,53 +940,154 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
             {/* Assignment Details */}
             <div className="bg-blue-50 rounded-lg p-4 mb-6">
               <div className="space-y-3 text-sm">
-                <div className="flex justify-between">
-                  <span className="font-medium text-gray-700">Instructor:</span>
-                  <span className="text-gray-900">{selectedTeacher?.full_name}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium text-gray-700">Section:</span>
-                  <span className="text-gray-900">Section {assignment.section}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium text-gray-700">Year Level:</span>
-                  <span className="text-gray-900">{assignment.year_level}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium text-gray-700">Semester:</span>
-                  <span className="text-gray-900">{assignment.semester}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium text-gray-700">Academic Year:</span>
-                  <span className="text-gray-900">{assignment.academic_year}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium text-gray-700">Day(s):</span>
-                  <span className="text-gray-900">{selectedDay && selectedDay.length > 0 ? selectedDay.join(', ') : ''}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium text-gray-700">Time:</span>
-                  <span className="text-gray-900">{assignment.time}</span>
-                </div>
-                <div className="border-t pt-3 mt-3">
-                  <div className="flex justify-between items-start">
-                    <span className="font-medium text-gray-700">Selected Subjects:</span>
-                    <span className="text-gray-900 font-semibold">{selectedSubjects.length} subject{selectedSubjects.length !== 1 ? 's' : ''}</span>
+                {/* Teacher Information */}
+                <div className="bg-white rounded-lg p-3 border border-blue-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                    <span className="font-semibold text-blue-900 text-xs uppercase tracking-wide">Teacher Information</span>
                   </div>
-                  <div className="mt-2 space-y-1">
-                    {selectedSubjects.map(subjectId => {
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium text-gray-700">Name:</span>
+                    <span className="text-gray-900 font-semibold">{selectedTeacher?.full_name}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium text-gray-700">Department:</span>
+                    <span className="text-gray-900">{selectedTeacher?.department || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium text-gray-700">Role:</span>
+                    <span className="text-gray-900 capitalize">{selectedTeacher?.role}</span>
+                  </div>
+                </div>
+
+                {/* Assignment Details */}
+                <div className="bg-white rounded-lg p-3 border border-blue-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <span className="font-semibold text-green-900 text-xs uppercase tracking-wide">Assignment Details</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="flex justify-between">
+                      <span className="font-medium text-gray-700">Section:</span>
+                      <span className="text-gray-900 font-semibold">Section {assignment.section}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-medium text-gray-700">Year Level:</span>
+                      <span className="text-gray-900 font-semibold">{assignment.year_level}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-medium text-gray-700">Semester:</span>
+                      <span className="text-gray-900 font-semibold">{assignment.semester}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-medium text-gray-700">Academic Year:</span>
+                      <span className="text-gray-900 font-semibold">{assignment.academic_year}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Schedule Information */}
+                <div className="bg-white rounded-lg p-3 border border-blue-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                    <span className="font-semibold text-purple-900 text-xs uppercase tracking-wide">Schedule</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="flex justify-between">
+                      <span className="font-medium text-gray-700">Day(s):</span>
+                      <span className="text-gray-900 font-semibold">
+                        {selectedDay && selectedDay.length > 0 ? selectedDay.join(', ') : 'Not specified'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-medium text-gray-700">Time:</span>
+                      <span className="text-gray-900 font-semibold">{assignment.time || 'Not specified'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Subjects Summary */}
+                <div className="bg-white rounded-lg p-3 border border-blue-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                    <span className="font-semibold text-orange-900 text-xs uppercase tracking-wide">Subjects to be Assigned</span>
+                    <span className="ml-auto text-xs font-bold bg-orange-100 text-orange-800 px-2 py-1 rounded-full">
+                      {selectedSubjects.length} subject{selectedSubjects.length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  
+                  {/* Subject List */}
+                  <div className="max-h-32 overflow-y-auto space-y-1">
+                    {selectedSubjects.map((subjectId, index) => {
                       const subject = courses.find(c => c.id === subjectId);
                       return (
-                        <div key={subjectId} className="text-xs text-gray-700 bg-white rounded px-2 py-1 border">
-                          • {subject?.display_name || subjectId}
-                          {subject?.semester && (
-                            <span className={`ml-2 inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full ${subject.semester === 'First Semester' ? 'bg-blue-100 text-blue-800' : subject.semester === 'Second Semester' ? 'bg-green-100 text-green-800' : subject.semester === 'Summer' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-700'}`}>
-                              {subject.semester === 'First Semester' ? '1st Sem' : subject.semester === 'Second Semester' ? '2nd Sem' : subject.semester}
-                            </span>
-                          )}
+                        <div key={subjectId} className="flex items-center justify-between text-xs bg-gray-50 rounded px-2 py-1.5 border border-gray-200">
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-500 font-mono">#{index + 1}</span>
+                            <span className="font-medium text-gray-800">{subject?.code || 'N/A'}</span>
+                            <span className="text-gray-600">-</span>
+                            <span className="text-gray-700 truncate max-w-24">{subject?.name || subjectId}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs text-gray-500">({subject?.units || 0} units)</span>
+                            {subject?.semester && (
+                              <span className={`inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full ${
+                                subject.semester === 'First Semester' ? 'bg-blue-100 text-blue-800' : 
+                                subject.semester === 'Second Semester' ? 'bg-green-100 text-green-800' : 
+                                subject.semester === 'Summer' ? 'bg-yellow-100 text-yellow-800' : 
+                                'bg-gray-100 text-gray-700'
+                              }`}>
+                                {subject.semester === 'First Semester' ? '1st' : 
+                                 subject.semester === 'Second Semester' ? '2nd' : 
+                                 subject.semester === 'Summer' ? 'Sum' : 
+                                 subject.semester}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       );
                     })}
+                  </div>
+                  
+                  {/* Summary Stats */}
+                  <div className="mt-2 pt-2 border-t border-gray-200">
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="flex justify-between">
+                        <span className="font-medium text-gray-600">Total Units:</span>
+                        <span className="font-semibold text-gray-800">
+                          {selectedSubjects.reduce((total, subjectId) => {
+                            const subject = courses.find(c => c.id === subjectId);
+                            return total + (subject?.units || 0);
+                          }, 0)} units
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="font-medium text-gray-600">Average per Subject:</span>
+                        <span className="font-semibold text-gray-800">
+                          {selectedSubjects.length > 0 ? 
+                            (selectedSubjects.reduce((total, subjectId) => {
+                              const subject = courses.find(c => c.id === subjectId);
+                              return total + (subject?.units || 0);
+                            }, 0) / selectedSubjects.length).toFixed(1) : 0
+                          } units
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Warning/Info Box */}
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <div className="flex items-start gap-2">
+                    <div className="w-5 h-5 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <svg className="w-3 h-3 text-amber-600" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="text-xs text-amber-800">
+                      <p className="font-medium mb-1">Please verify all information above is correct.</p>
+                      <p>This will create {selectedSubjects.length} separate subject assignment{selectedSubjects.length !== 1 ? 's' : ''} for the selected instructor.</p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -906,81 +1114,7 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
           </motion.div>
         </div>
       )}
-      </div>
-    </div>,
-    document.body
-  );
-
-  // Additional CSS for modal positioning and blur effects
-  return (
-    <>
-      <style>{`
-        .subject-modal-overlay {
-          position: fixed !important;
-          top: 0 !important;
-          left: 0 !important;
-          right: 0 !important;
-          bottom: 0 !important;
-          width: 100vw !important;
-          height: 100vh !important;
-          z-index: 9999 !important;
-          backdrop-filter: blur(8px) !important;
-          -webkit-backdrop-filter: blur(8px) !important;
-          overflow: hidden !important;
-          animation: fadeIn 0.3s ease-out !important;
-        }
-        
-        .subject-modal-content {
-          backdrop-filter: blur(12px) !important;
-          -webkit-backdrop-filter: blur(12px) !important;
-          transform: translateZ(0) !important;
-          will-change: transform !important;
-          max-height: 95vh !important;
-          overflow: visible !important;
-          animation: slideIn 0.3s ease-out !important;
-        }
-        
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        
-        @keyframes slideIn {
-          from { 
-            opacity: 0; 
-            transform: translateY(-20px) scale(0.95); 
-          }
-          to { 
-            opacity: 1; 
-            transform: translateY(0) scale(1); 
-          }
-        }
-        
-        @media (max-width: 640px) {
-          .subject-modal-overlay {
-            padding: 0.5rem !important;
-          }
-          
-          .subject-modal-content {
-            max-height: 95vh !important;
-            margin: 0.25rem !important;
-            padding: 1rem !important;
-          }
-        }
-        
-        /* Ensure body doesn't scroll when modal is open */
-        body.modal-open {
-          overflow: hidden !important;
-          position: fixed !important;
-          width: 100% !important;
-        }
-        
-        /* Ensure modal is always on top */
-        .subject-modal-overlay * {
-          z-index: 9999 !important;
-        }
-      `}</style>
-    </>
+    </div>
   );
 };
 
