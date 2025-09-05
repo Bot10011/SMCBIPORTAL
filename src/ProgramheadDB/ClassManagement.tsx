@@ -13,9 +13,9 @@ type StudentRow = {
   section?: string | null;
   is_active?: boolean;
 };
- 
+
 type SectionRow = {
-  id: string; 
+  id: string;
   name: string;
   year_level: number | null;
   academic_year?: string | null;
@@ -52,6 +52,20 @@ const ClassManagement: React.FC = () => {
   const [autoAssignLoading, setAutoAssignLoading] = useState(false);
   const [autoAssignError, setAutoAssignError] = useState<string | null>(null);
   const [sectionStudentCounts, setSectionStudentCounts] = useState<Record<string, number>>({});
+  
+  // Transfer functionality state
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [transferLoading, setTransferLoading] = useState(false);
+  const [transferError, setTransferError] = useState<string | null>(null);
+  const [selectedStudentsForTransfer, setSelectedStudentsForTransfer] = useState<Record<string, boolean>>({});
+  const [targetSectionId, setTargetSectionId] = useState<string>('');
+  
+  // Single transfer functionality state
+  const [showSingleTransferModal, setShowSingleTransferModal] = useState(false);
+  const [singleTransferLoading, setSingleTransferLoading] = useState(false);
+  const [singleTransferError, setSingleTransferError] = useState<string | null>(null);
+  const [studentToTransfer, setStudentToTransfer] = useState<StudentRow | null>(null);
+  const [singleTargetSectionId, setSingleTargetSectionId] = useState<string>('');
 
   function getNextSectionName(baseName: string | null | undefined): string {
     const name = (baseName || '').trim();
@@ -450,6 +464,123 @@ const ClassManagement: React.FC = () => {
     return s ? s.name : 'Unassigned';
   }
 
+  // Transfer functionality
+  function openTransferModal() {
+    setSelectedStudentsForTransfer({});
+    setTargetSectionId('');
+    setTransferError(null);
+    setShowTransferModal(true);
+  }
+
+  function handleSelectAllStudents() {
+    const allSelected = sectionStudents.every(student => selectedStudentsForTransfer[student.id]);
+    
+    if (allSelected) {
+      // Deselect all
+      setSelectedStudentsForTransfer({});
+    } else {
+      // Select all
+      const newSelection: Record<string, boolean> = {};
+      sectionStudents.forEach(student => {
+        newSelection[student.id] = true;
+      });
+      setSelectedStudentsForTransfer(newSelection);
+    }
+  }
+
+  // Single transfer functionality
+  function openSingleTransferModal(student: StudentRow) {
+    setStudentToTransfer(student);
+    setSingleTargetSectionId('');
+    setSingleTransferError(null);
+    setShowSingleTransferModal(true);
+  }
+
+  async function handleSingleTransfer() {
+    if (!studentToTransfer || !singleTargetSectionId) {
+      setSingleTransferError('Please select a target section');
+      return;
+    }
+    
+    setSingleTransferLoading(true);
+    setSingleTransferError(null);
+    
+    try {
+      const { error } = await supabase
+        .from('user_profiles')
+        .update({ section: singleTargetSectionId })
+        .eq('id', studentToTransfer.id);
+      
+      if (error) throw error;
+      
+      // Refresh data
+      await fetchStudents();
+      await fetchSectionStudentCounts();
+      if (viewingSection) {
+        await fetchStudentsBySection(viewingSection.id);
+      }
+      
+      // Close modal and reset state
+      setShowSingleTransferModal(false);
+      setStudentToTransfer(null);
+      setSingleTargetSectionId('');
+      
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to transfer student';
+      setSingleTransferError(msg);
+      console.error('Single transfer error:', e);
+    } finally {
+      setSingleTransferLoading(false);
+    }
+  }
+
+  async function handleTransferStudents() {
+    const studentIds = Object.entries(selectedStudentsForTransfer)
+      .filter(([, selected]) => selected)
+      .map(([studentId]) => studentId);
+    
+    if (studentIds.length === 0) {
+      setTransferError('Please select at least one student to transfer');
+      return;
+    }
+    
+    if (!targetSectionId) {
+      setTransferError('Please select a target section');
+      return;
+    }
+    
+    setTransferLoading(true);
+    setTransferError(null);
+    
+    try {
+      const { error } = await supabase
+        .from('user_profiles')
+        .update({ section: targetSectionId })
+        .in('id', studentIds);
+      
+      if (error) throw error;
+      
+      // Refresh data
+      await fetchStudents();
+      await fetchSectionStudentCounts();
+      if (viewingSection) {
+        await fetchStudentsBySection(viewingSection.id);
+      }
+      
+      // Close modal and reset state
+      setShowTransferModal(false);
+      setSelectedStudentsForTransfer({});
+      setTargetSectionId('');
+      
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to transfer students';
+      setTransferError(msg);
+      console.error('Transfer error:', e);
+    } finally {
+      setTransferLoading(false);
+    }
+  }
+
   return (
     <div className="p-4 md:p-6">
       <div 
@@ -776,12 +907,20 @@ const ClassManagement: React.FC = () => {
                       <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">AY {viewingSection.academic_year}</span>
                     )}
                   </div>
-                  <button
-                    onClick={() => setShowViewModal(false)}
-                    className="rounded-md bg-gray-100 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-200"
-                  >
-                    Close
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={openTransferModal}
+                      className="rounded-md bg-orange-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-orange-700"
+                    >
+                      Transfer Multiple
+                    </button>
+                    <button
+                      onClick={() => setShowViewModal(false)}
+                      className="rounded-md bg-gray-100 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-200"
+                    >
+                      Close
+                    </button>
+                  </div>
                 </div>
                 {sectionStudentsLoading ? (
                   <div className="rounded border border-gray-200 bg-white p-6 text-gray-600">Loading…</div>
@@ -793,6 +932,7 @@ const ClassManagement: React.FC = () => {
                         <col className="w-[22rem]" />
                         <col className="w-[26rem]" />
                         <col className="w-24" />
+                        <col className="w-24" />
                       </colgroup>
                       <thead className="bg-gray-50">
                         <tr>
@@ -800,12 +940,13 @@ const ClassManagement: React.FC = () => {
                           <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">Name</th>
                           <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">Email</th>
                           <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">Year</th>
+                          <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">Action</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
                         {sectionStudents.length === 0 && (
                           <tr>
-                            <td colSpan={4} className="px-4 py-4 text-center text-sm text-gray-600">No students assigned yet.</td>
+                            <td colSpan={5} className="px-4 py-4 text-center text-sm text-gray-600">No students assigned yet.</td>
                           </tr>
                         )}
                         {sectionStudents.map((s, idx) => (
@@ -814,6 +955,14 @@ const ClassManagement: React.FC = () => {
                             <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900 truncate">{s.last_name}, {s.first_name}{s.middle_name ? ` ${s.middle_name}` : ''}</td>
                             <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700 truncate">{s.email}</td>
                             <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700">{s.year_level ?? '—'}</td>
+                            <td className="px-4 py-2">
+                              <button
+                                onClick={() => openSingleTransferModal(s)}
+                                className="rounded-md bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700"
+                              >
+                                Transfer
+                              </button>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -919,11 +1068,184 @@ const ClassManagement: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Transfer Students Modal */}
+      {showTransferModal && viewingSection && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowTransferModal(false)} />
+          <div className="relative z-10 w-full max-w-4xl rounded-xl bg-white p-5 shadow-2xl">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-800">Transfer Students</h3>
+                <p className="text-sm text-gray-600">Transfer students from {viewingSection.name} to another section</p>
+              </div>
+              <button
+                onClick={() => setShowTransferModal(false)}
+                className="rounded-md bg-gray-100 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-200"
+              >
+                Close
+              </button>
+            </div>
+            
+            {transferError && (
+              <div className="mb-4 rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">{transferError}</div>
+            )}
+
+            <div className="mb-4 flex items-center gap-4">
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Target Section</label>
+                <select
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                  value={targetSectionId}
+                  onChange={e => setTargetSectionId(e.target.value)}
+                >
+                  <option value="">Select target section</option>
+                  {sections
+                    .filter(s => Number(s.year_level) === Number(viewingSection.year_level) && s.id !== viewingSection.id)
+                    .map(section => (
+                      <option key={section.id} value={section.id}>
+                        {section.name}{section.academic_year ? ` (${section.academic_year})` : ''}
+                      </option>
+                    ))}
+                </select>
+              </div>
+              <div className="flex items-end gap-3">
+                <div className="text-sm text-gray-600">
+                  {Object.values(selectedStudentsForTransfer).filter(Boolean).length} of {sectionStudents.length} selected
+                </div>
+                <button
+                  onClick={handleTransferStudents}
+                  disabled={transferLoading || !targetSectionId || Object.values(selectedStudentsForTransfer).every(v => !v)}
+                  className="rounded-md bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700 disabled:opacity-50"
+                >
+                  {transferLoading ? 'Transferring...' : 'Transfer Selected'}
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto rounded-lg border border-gray-200">
+              <table className="min-w-full table-fixed divide-y divide-gray-200">
+                <colgroup>
+                  <col className="w-10" />
+                  <col className="w-40" />
+                  <col className="w-[22rem]" />
+                  <col className="w-[26rem]" />
+                  <col className="w-24" />
+                </colgroup>
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-2">
+                      <input
+                        type="checkbox"
+                        checked={sectionStudents.length > 0 && sectionStudents.every(student => selectedStudentsForTransfer[student.id])}
+                        onChange={handleSelectAllStudents}
+                        className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                      />
+                    </th>
+                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">Student No.</th>
+                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">Name</th>
+                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">Email</th>
+                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">Year</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {sectionStudents.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-4 text-center text-sm text-gray-600">No students in this section.</td>
+                    </tr>
+                  )}
+                  {sectionStudents.map((student, idx) => (
+                    <tr key={student.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                      <td className="px-4 py-2">
+                        <input
+                          type="checkbox"
+                          checked={!!selectedStudentsForTransfer[student.id]}
+                          onChange={e => setSelectedStudentsForTransfer(prev => ({ 
+                            ...prev, 
+                            [student.id]: e.target.checked 
+                          }))}
+                          className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                        />
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900">{student.student_id || '—'}</td>
+                      <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900 truncate">
+                        {student.last_name}, {student.first_name}{student.middle_name ? ` ${student.middle_name}` : ''}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700 truncate">{student.email}</td>
+                      <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700">{student.year_level ?? '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Single Transfer Modal */}
+      {showSingleTransferModal && studentToTransfer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowSingleTransferModal(false)} />
+          <div className="relative z-10 w-full max-w-lg rounded-xl bg-white p-5 shadow-2xl">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-800">Transfer Student</h3>
+                <p className="text-sm text-gray-600">
+                  Transfer <span className="font-medium">{studentToTransfer.last_name}, {studentToTransfer.first_name}</span> to another section
+                </p>
+              </div>
+              <button
+                onClick={() => setShowSingleTransferModal(false)}
+                className="rounded-md bg-gray-100 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-200"
+              >
+                Close
+              </button>
+            </div>
+            
+            {singleTransferError && (
+              <div className="mb-4 rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">{singleTransferError}</div>
+            )}
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Target Section</label>
+              <select
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                value={singleTargetSectionId}
+                onChange={e => setSingleTargetSectionId(e.target.value)}
+              >
+                <option value="">Select target section</option>
+                {sections
+                  .filter(s => Number(s.year_level) === Number(studentToTransfer.year_level) && s.id !== viewingSection?.id)
+                  .map(section => (
+                    <option key={section.id} value={section.id}>
+                      {section.name}{section.academic_year ? ` (${section.academic_year})` : ''}
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowSingleTransferModal(false)}
+                className="rounded-md px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSingleTransfer}
+                disabled={singleTransferLoading || !singleTargetSectionId}
+                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {singleTransferLoading ? 'Transferring...' : 'Transfer Student'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
 export default ClassManagement;
-
 
 
