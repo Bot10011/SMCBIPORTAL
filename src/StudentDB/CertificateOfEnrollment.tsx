@@ -63,7 +63,7 @@ const COEModal = ({ coe, open, onClose }: { coe: COERecord, open: boolean, onClo
       // Student Info
       let y = 80;
       doc.text(`Student ID: ${coe.student_number || coe.student_id}`, 20, y);
-      doc.text(`Full Name: ${coe.full_name || 'N/A'}`, 120, y);
+      doc.text(`Full Name: ${coe.full_name || 'Loading...'}`, 120, y);
       y += 7;
       doc.text(`School Year: ${coe.school_year}`, 20, y);
       doc.text(`Semester: ${coe.semester}`, 120, y);
@@ -117,7 +117,7 @@ const COEModal = ({ coe, open, onClose }: { coe: COERecord, open: boolean, onClo
       doc.text(`Date: ${coe.date_issued ? new Date(coe.date_issued).toLocaleDateString() : 'N/A'}`, 20, 70);
       let y = 80;
       doc.text(`Student ID: ${coe.student_number || coe.student_id}`, 20, y);
-      doc.text(`Full Name: ${coe.full_name || 'N/A'}`, 120, y);
+      doc.text(`Full Name: ${coe.full_name || 'Loading...'}`, 120, y);
       y += 7;
       doc.text(`School Year: ${coe.school_year}`, 20, y);
       doc.text(`Semester: ${coe.semester}`, 120, y);
@@ -159,6 +159,7 @@ const COEModal = ({ coe, open, onClose }: { coe: COERecord, open: boolean, onClo
           userSelect: 'none',
           touchAction: 'none'
         }}
+        onClick={onClose}
       />
       
       {/* Modal container */}
@@ -181,6 +182,7 @@ const COEModal = ({ coe, open, onClose }: { coe: COERecord, open: boolean, onClo
             pointerEvents: 'auto'
           }}
           ref={contentRef}
+          onClick={(e) => e.stopPropagation()}
         >
           <button
             onClick={onClose}
@@ -225,7 +227,7 @@ const COEModal = ({ coe, open, onClose }: { coe: COERecord, open: boolean, onClo
               </div>
               <div>
                 <p className="text-sm text-gray-500">Full Name</p>
-                <p className="font-medium">{coe.full_name || 'N/A'}</p>
+                <p className="font-medium">{coe.full_name || 'Loading...'}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-500">School Year</p>
@@ -328,24 +330,147 @@ export const CertificateOfEnrollment: React.FC = () => {
             // Fetch instructor assignments for each COE
             const enrichedCOEs = await Promise.all(
               coeData.map(async (coe) => {
-                if (coe.subjects && Array.isArray(coe.subjects)) {
+                console.log('Processing COE:', {
+                  schoolYear: coe.school_year,
+                  semester: coe.semester,
+                  yearLevel: coe.year_level,
+                  fullName: coe.full_name,
+                  studentId: coe.student_id,
+                  studentNumber: coe.student_number,
+                  subjects: coe.subjects
+                });
+
+                // If full_name is missing, try to fetch it from user profile
+                let enrichedCoe = { ...coe };
+                if (!coe.full_name || coe.full_name === 'N/A') {
+                  try {
+                    const { data: userProfile, error: profileError } = await supabase
+                      .from('user_profiles')
+                      .select('first_name, last_name, middle_name')
+                      .eq('id', coe.student_id)
+                      .single();
+
+                    if (!profileError && userProfile) {
+                      const fullName = `${userProfile.first_name} ${userProfile.middle_name ? userProfile.middle_name + ' ' : ''}${userProfile.last_name}`;
+                      enrichedCoe = {
+                        ...coe,
+                        full_name: fullName
+                      };
+                      console.log('Fetched full name from user profile:', fullName);
+                    }
+                  } catch (error) {
+                    console.warn('Could not fetch user profile for full name:', error);
+                  }
+                }
+                
+                if (enrichedCoe.subjects && Array.isArray(enrichedCoe.subjects)) {
                   // For each subject, find the instructor assignment
                   const enrichedSubjects = await Promise.all(
                     coe.subjects.map(async (subject: any) => {
                       try {
-                        // Find the teacher assignment for this subject and section
-                        const { data: assignmentData, error: assignmentError } = await supabase
+                        // First, find the course ID by matching the course code
+                        const { data: courseData, error: courseError } = await supabase
+                          .from('courses')
+                          .select('id')
+                          .eq('code', subject.code)
+                          .single();
+
+                        if (courseError || !courseData) {
+                          console.warn('Could not find course for code:', subject.code);
+                          return {
+                            ...subject,
+                            instructor: 'TBA',
+                            section: subject.section || 'A'
+                          };
+                        }
+
+                        console.log(`Looking for instructor for subject ${subject.code} (course ID: ${courseData.id})`);
+
+                        // Debug: Show all teacher assignments for this course
+                        const { data: allAssignments, error: debugError } = await supabase
                           .from('teacher_subjects')
                           .select(`
                             teacher_id,
-                            section
+                            section,
+                            year_level,
+                            semester,
+                            academic_year,
+                            is_active,
+                            teacher:user_profiles(first_name, last_name)
                           `)
-                          .eq('subject_id', subject.code) // Assuming subject.code maps to course_id
-                          .eq('section', subject.section || 'A') // Default to 'A' if no section specified
+                          .eq('subject_id', courseData.id)
+                          .eq('is_active', true);
+                        
+                        if (!debugError && allAssignments) {
+                          console.log(`Available assignments for ${subject.code}:`, allAssignments);
+                        }
+
+                        // Find the teacher assignment for this subject
+                        // Try multiple matching strategies since COE might not have exact section/year level info
+                        let assignmentData = null;
+                        let assignmentError = null;
+
+                        // Strategy 1: Try exact match with all criteria
+                        const { data: exactMatch, error: exactError } = await supabase
+                          .from('teacher_subjects')
+                          .select(`
+                            teacher_id,
+                            section,
+                            year_level,
+                            semester,
+                            academic_year
+                          `)
+                          .eq('subject_id', courseData.id)
                           .eq('academic_year', coe.school_year)
                           .eq('semester', coe.semester)
                           .eq('year_level', coe.year_level)
-                          .single();
+                          .eq('is_active', true)
+                          .limit(1);
+
+                        if (!exactError && exactMatch && exactMatch.length > 0) {
+                          assignmentData = exactMatch[0];
+                        } else {
+                          // Strategy 2: Try without year level match (in case formats differ)
+                          const { data: yearLevelFlexible, error: yearLevelError } = await supabase
+                            .from('teacher_subjects')
+                            .select(`
+                              teacher_id,
+                              section,
+                              year_level,
+                              semester,
+                              academic_year
+                            `)
+                            .eq('subject_id', courseData.id)
+                            .eq('academic_year', coe.school_year)
+                            .eq('semester', coe.semester)
+                            .eq('is_active', true)
+                            .limit(1);
+
+                          if (!yearLevelError && yearLevelFlexible && yearLevelFlexible.length > 0) {
+                            assignmentData = yearLevelFlexible[0];
+                          } else {
+                            // Strategy 3: Try with just subject and academic year/semester
+                            const { data: basicMatch, error: basicError } = await supabase
+                              .from('teacher_subjects')
+                              .select(`
+                                teacher_id,
+                                section,
+                                year_level,
+                                semester,
+                                academic_year
+                              `)
+                              .eq('subject_id', courseData.id)
+                              .eq('academic_year', coe.school_year)
+                              .eq('is_active', true)
+                              .limit(1);
+
+                            if (!basicError && basicMatch && basicMatch.length > 0) {
+                              assignmentData = basicMatch[0];
+                            } else {
+                              assignmentError = basicError || new Error('No assignment found with any matching strategy');
+                            }
+                          }
+                        }
 
                         if (!assignmentError && assignmentData) {
                           // Fetch teacher details separately
@@ -356,12 +481,23 @@ export const CertificateOfEnrollment: React.FC = () => {
                             .single();
 
                           if (!teacherError && teacherData) {
+                            console.log(`Found instructor for ${subject.code}: ${teacherData.first_name} ${teacherData.last_name}`);
                             return {
                               ...subject,
                               instructor: `${teacherData.first_name} ${teacherData.last_name}`,
                               section: subject.section || assignmentData.section || 'A'
                             };
+                          } else {
+                            console.warn(`Could not fetch teacher details for assignment:`, teacherError);
                           }
+                        } else {
+                          console.warn(`No assignment found for subject ${subject.code} after trying all matching strategies:`, {
+                            courseId: courseData.id,
+                            academicYear: coe.school_year,
+                            semester: coe.semester,
+                            yearLevel: coe.year_level,
+                            assignmentError: assignmentError?.message || 'No assignment found'
+                          });
                         }
 
                         return {
@@ -370,7 +506,7 @@ export const CertificateOfEnrollment: React.FC = () => {
                           section: subject.section || 'A'
                         };
                       } catch (err) {
-                        console.warn('Could not find instructor for subject:', subject.code);
+                        console.warn('Error finding instructor for subject:', subject.code, err);
                         return {
                           ...subject,
                           instructor: 'TBA',
@@ -381,11 +517,11 @@ export const CertificateOfEnrollment: React.FC = () => {
                   );
 
                   return {
-                    ...coe,
+                    ...enrichedCoe,
                     subjects: enrichedSubjects
                   };
                 }
-                return coe;
+                return enrichedCoe;
               })
             );
 
