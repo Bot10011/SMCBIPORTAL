@@ -110,6 +110,21 @@ const ProgramHeadEnrollment: React.FC = () => {
   const [courseSearch, setCourseSearch] = useState('');
   const [isProspectusModalOpen, setIsProspectusModalOpen] = useState(false);
   const [loadingCourses, setLoadingCourses] = useState(false);
+  const [instructorAssignments, setInstructorAssignments] = useState<Array<{
+    id: string;
+    teacher_id: string;
+    subject_id: string;
+    section: string;
+    academic_year: string;
+    semester: string;
+    year_level: string;
+    is_active: boolean;
+    teacher_name: string;
+    teacher_role: string;
+    subject_code: string;
+    subject_name: string;
+    subject_units: number;
+  }>>([]);
 
   // Add sections state for the dropdown
   const [sections, setSections] = useState<Array<{ id: string; name: string; year_level: number; academic_year?: string }>>([]);
@@ -1054,7 +1069,38 @@ const ProgramHeadEnrollment: React.FC = () => {
   useEffect(() => {
     loadEnrollments();
     fetchSections();
+    fetchInstructorAssignments();
   }, []);
+
+  // Refresh instructor assignments when createForm changes (year level or section)
+  useEffect(() => {
+    if (createForm.yearLevel || createForm.section) {
+      // Re-trigger the instructor matching by updating the component
+      // This will cause the getInstructorForCourse function to re-evaluate
+    }
+  }, [createForm.yearLevel, createForm.section]);
+
+  // Update section ID when sections are loaded and we have a selected existing student
+  useEffect(() => {
+    if (selectedExistingStudent && sections.length > 0 && createForm.section === '') {
+      // Check if student.section is already a section ID
+      const isSectionId = sections.some(s => s.id === selectedExistingStudent.section);
+      let sectionId = '';
+      
+      if (isSectionId) {
+        sectionId = selectedExistingStudent.section || '';
+      } else {
+        sectionId = getSectionId(selectedExistingStudent.section) || '';
+      }
+      
+      if (sectionId) {
+        setCreateForm(prev => ({
+          ...prev,
+          section: sectionId
+        }));
+      }
+    }
+  }, [sections, selectedExistingStudent, createForm.section]);
 
   // Function to fetch available sections
   const fetchSections = async () => {
@@ -1081,6 +1127,126 @@ const ProgramHeadEnrollment: React.FC = () => {
     if (!sectionId) return 'Unassigned';
     const section = sections.find(s => s.id === sectionId);
     return section ? section.name : 'Unknown Section';
+  };
+
+  // Helper function to get section ID by name
+  const getSectionId = (sectionName: string | null | undefined): string => {
+    if (!sectionName) return '';
+    const section = sections.find(s => s.name === sectionName);
+    return section ? section.id : '';
+  };
+
+  // Fetch instructor assignments for courses
+  const fetchInstructorAssignments = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('teacher_subjects')
+        .select(`
+          *,
+          teacher:user_profiles!teacher_subjects_teacher_id_fkey(
+            id,
+            first_name,
+            last_name,
+            middle_name,
+            email,
+            role,
+            department,
+            profile_picture_url
+          ),
+          subject:courses!teacher_subjects_subject_id_fkey(
+            id,
+            code,
+            name,
+            units,
+            year_level,
+            semester
+          )
+        `)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      // Transform the data to match our interface
+      const transformedAssignments = (data || []).map((assignment: any) => ({
+        id: assignment.id,
+        teacher_id: assignment.teacher_id,
+        subject_id: assignment.subject_id,
+        section: assignment.section,
+        academic_year: assignment.academic_year,
+        semester: assignment.semester,
+        year_level: assignment.year_level,
+        is_active: assignment.is_active,
+        teacher_name: assignment.teacher 
+          ? `${assignment.teacher.first_name} ${assignment.teacher.middle_name ? assignment.teacher.middle_name + ' ' : ''}${assignment.teacher.last_name}`
+          : 'Unknown Teacher',
+        teacher_role: assignment.teacher?.role || 'Unknown',
+        subject_code: assignment.subject?.code || 'Unknown',
+        subject_name: assignment.subject?.name || 'Unknown',
+        subject_units: assignment.subject?.units || 0
+      }));
+
+      setInstructorAssignments(transformedAssignments);
+    } catch (error) {
+      console.error('Error fetching instructor assignments:', error);
+    }
+  };
+
+  // Helper function to get instructor information for a course
+  const getInstructorForCourse = (courseId: string, studentYearLevel?: string, studentSection?: string) => {
+    const currentAcademicYear = createForm.schoolYear || getDefaultSchoolYear();
+    const currentSemester = createForm.semester || '1st Semester';
+    
+    const assignments = instructorAssignments.filter(assignment => 
+      assignment.subject_id === courseId && 
+      assignment.academic_year === currentAcademicYear &&
+      assignment.semester === currentSemester &&
+      assignment.is_active
+    );
+
+    // If we have student year level and section, try to find exact match first
+    if (studentYearLevel && studentSection) {
+      // Convert section ID to section name for comparison
+      const sectionName = getSectionName(studentSection);
+      
+      const exactMatch = assignments.find(assignment => 
+        assignment.year_level === studentYearLevel && 
+        assignment.section === sectionName
+      );
+      if (exactMatch) {
+        return {
+          ...exactMatch,
+          isExactMatch: true
+        };
+      }
+    }
+
+    // If no exact match, return the first available assignment
+    if (assignments.length > 0) {
+      return {
+        ...assignments[0],
+        isExactMatch: false
+      };
+    }
+
+    return null;
+  };
+
+  // Helper function to check if student section matches instructor section
+  const isSectionMatch = (courseId: string, studentSection?: string) => {
+    if (!studentSection) return false;
+    
+    const currentAcademicYear = createForm.schoolYear || getDefaultSchoolYear();
+    const currentSemester = createForm.semester || '1st Semester';
+    const sectionName = getSectionName(studentSection);
+    
+    return instructorAssignments.some(assignment => 
+      assignment.subject_id === courseId && 
+      assignment.section === sectionName &&
+      assignment.academic_year === currentAcademicYear &&
+      assignment.semester === currentSemester &&
+      assignment.is_active
+    );
   };
 
   useEffect(() => {
@@ -1344,7 +1510,7 @@ const ProgramHeadEnrollment: React.FC = () => {
           if (enrollError) throw enrollError;
         }
         toast.success('Existing student enrollment updated!');
-        setIsCreateDialogOpen(false);
+        handleCloseCreateDialog();
         setCreateForm({ firstName: '', middleName: '', lastName: '', email: '', password: 'TempPass@123', studentType: 'Freshman', yearLevel: 1, schoolYear: getDefaultSchoolYear(), studentId: '', department: 'BSIT', semester: '1st Semester', section: '' });
         setSelectedCourses([]);
         setSelectedExistingStudent(null);
@@ -1478,6 +1644,8 @@ const ProgramHeadEnrollment: React.FC = () => {
   const getVisibleCourses = () => {
     // If Irregular or Transferee, show all
     let filteredCourses = courses;
+    
+    // Apply search filter
     if (courseSearch.trim() !== '') {
       const search = courseSearch.trim().toLowerCase();
       filteredCourses = courses.filter(
@@ -1485,6 +1653,40 @@ const ProgramHeadEnrollment: React.FC = () => {
           c.code.toLowerCase().includes(search) || c.name.toLowerCase().includes(search)
       );
     }
+
+    // Filter courses based on instructor assignments for the selected section
+    if (createForm.section && createForm.section !== '') {
+      const yearMap: Record<string, string> = {
+        '1': '1st Year',
+        '2': '2nd Year',
+        '3': '3rd Year',
+        '4': '4th Year',
+      };
+      const yearLabel = yearMap[String(createForm.yearLevel)] || '1st Year';
+      
+      // Convert section ID to section name for comparison
+      const selectedSectionName = getSectionName(createForm.section);
+      
+      // Get course IDs that have instructors assigned to the selected section and year level
+      const currentAcademicYear = createForm.schoolYear || getDefaultSchoolYear();
+      const currentSemester = createForm.semester || '1st Semester';
+      
+      const availableCourseIds = instructorAssignments
+        .filter(assignment => 
+          assignment.section === selectedSectionName &&
+          assignment.year_level === yearLabel &&
+          assignment.academic_year === currentAcademicYear &&
+          assignment.semester === currentSemester &&
+          assignment.is_active
+        )
+        .map(assignment => assignment.subject_id);
+
+      // Filter courses to only show those with instructor assignments
+      filteredCourses = filteredCourses.filter(course => 
+        availableCourseIds.includes(course.id)
+      );
+    }
+
     const categorized = categorizeCourses(filteredCourses);
     if (["Irregular", "Transferee"].includes(createForm.studentType)) {
       return categorized;
@@ -1515,7 +1717,7 @@ const ProgramHeadEnrollment: React.FC = () => {
     return filtered;
   };
 
-  const visibleCourses = useMemo(() => getVisibleCourses(), [courses, createForm, courseSearch, allowMixedCourses]);
+  const visibleCourses = useMemo(() => getVisibleCourses(), [courses, createForm, courseSearch, allowMixedCourses, instructorAssignments]);
 
   // Filtered students
   const filteredStudents = useMemo(() => students.filter(student => {
@@ -1578,6 +1780,12 @@ const ProgramHeadEnrollment: React.FC = () => {
     setIsExistingModalOpen(true);
   };
 
+  // Handler to close create dialog and clear existing student selection
+  const handleCloseCreateDialog = () => {
+    setIsCreateDialogOpen(false);
+    setSelectedExistingStudent(null);
+  };
+
   // Handler to enroll existing student
   const handleEnrollExisting = (student: Student) => {
     setSelectedExistingStudent(student);
@@ -1599,6 +1807,19 @@ const ProgramHeadEnrollment: React.FC = () => {
       middleName = nameParts.slice(1, nameParts.length - 1).join(' '); // Everything in between is middle name
     }
     
+    // Try to determine if student.section is already an ID or a name
+    let sectionId = '';
+    if (sections.length > 0) {
+      // Check if student.section is already a section ID
+      const isSectionId = sections.some(s => s.id === student.section);
+      if (isSectionId) {
+        sectionId = student.section || '';
+      } else {
+        // Convert section name to section ID
+        sectionId = getSectionId(student.section) || '';
+      }
+    }
+    
     setCreateForm({
       firstName,
       middleName,
@@ -1609,9 +1830,9 @@ const ProgramHeadEnrollment: React.FC = () => {
       yearLevel: student.yearLevel,
       schoolYear: student.schoolYear,
       studentId: student.id, // Always use the original student.id
-              department: student.department,
-        semester: student.semester,
-        section: student.section || '',
+      department: student.department,
+      semester: student.semester,
+      section: sectionId, // Use determined section ID
     });
     setIsExistingModalOpen(false);
     setIsCreateDialogOpen(true);
@@ -3790,7 +4011,7 @@ const ProgramHeadEnrollment: React.FC = () => {
       <Dialog
         open={isCreateDialogOpen}
         onClose={() => {
-          setIsCreateDialogOpen(false);
+          handleCloseCreateDialog();
           setSelectedExistingStudent(null);
           flushNewStudentForm();
         }}
@@ -4120,7 +4341,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                           label="Section"
                           onChange={e => setCreateForm(f => ({ ...f, section: e.target.value }))}
                           required
-                          disabled={sectionsLoading}
+                          disabled={sectionsLoading || selectedExistingStudent !== null}
                           sx={{
                             '& .MuiOutlinedInput-root': {
                               '& fieldset': {
@@ -4138,6 +4359,11 @@ const ProgramHeadEnrollment: React.FC = () => {
                               </MenuItem>
                             ))}
                         </Select>
+                        {selectedExistingStudent !== null && (
+                          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                            Changing section is avaialable at Class Manangement.
+                          </Typography>
+                        )}
                       </FormControl>
                     </Grid>
                   </Grid>
@@ -4387,7 +4613,7 @@ const ProgramHeadEnrollment: React.FC = () => {
               gap: 2
             }}>
               <Button 
-                onClick={() => setIsCreateDialogOpen(false)} 
+                onClick={handleCloseCreateDialog} 
                 disabled={creating}
                 variant="outlined"
                 sx={{
@@ -4763,7 +4989,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                           label="Section"
                           onChange={e => setCreateForm(f => ({ ...f, section: e.target.value }))}
                           required
-                          disabled={sectionsLoading}
+                          disabled={sectionsLoading || selectedExistingStudent !== null}
                           sx={{
                             '& .MuiOutlinedInput-root': {
                               '& fieldset': {
@@ -4787,6 +5013,11 @@ const ProgramHeadEnrollment: React.FC = () => {
                               </MenuItem>
                             ))}
                         </Select>
+                        {selectedExistingStudent !== null && (
+                          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                            Section is pre-assigned for existing student
+                          </Typography>
+                        )}
                       </FormControl>
                     </Grid>
                   </Grid>
@@ -4997,13 +5228,88 @@ const ProgramHeadEnrollment: React.FC = () => {
                                     />
                                   }
                                   label={
-                                    <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-                                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                                        {course.code}
-                                      </Typography>
-                                      <Typography variant="body2" sx={{ color: '#6b7280', fontSize: '0.875rem' }}>
+                                    <Box sx={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+                                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 0.5 }}>
+                                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                          {course.code}
+                                        </Typography>
+                                        <Typography variant="body2" sx={{ 
+                                          fontWeight: 500, 
+                                          color: '#6b7280',
+                                          fontSize: '0.75rem'
+                                        }}>
+                                          {course.units} {course.units === 1 ? 'Unit' : 'Units'}
+                                        </Typography>
+                                      </Box>
+                                      <Typography variant="body2" sx={{ color: '#6b7280', fontSize: '0.875rem', mb: 0.5 }}>
                                         {course.name}
                                       </Typography>
+                                      {(() => {
+                                        const instructor = getInstructorForCourse(course.id, createForm.yearLevel?.toString(), createForm.section);
+                                        const isMatch = isSectionMatch(course.id, createForm.section);
+                                        
+                                        if (instructor) {
+                                          return (
+                                            <Box sx={{ 
+                                              display: 'flex', 
+                                              flexDirection: 'column', 
+                                              gap: 0.5,
+                                              p: 1,
+                                              borderRadius: 1,
+                                              background: instructor.isExactMatch ? '#f0fdf4' : '#fef3c7',
+                                              border: `1px solid ${instructor.isExactMatch ? '#bbf7d0' : '#fde68a'}`,
+                                              mt: 0.5
+                                            }}>
+                                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                <Typography variant="body2" sx={{ 
+                                                  fontSize: '0.75rem',
+                                                  fontWeight: 500,
+                                                  color: instructor.isExactMatch ? '#166534' : '#92400e'
+                                                }}>
+                                                  👨‍🏫 Instructor: {instructor.teacher_name}
+                                                </Typography>
+                                                {instructor.isExactMatch && (
+                                                  <Box sx={{
+                                                    px: 1,
+                                                    py: 0.25,
+                                                    borderRadius: 0.5,
+                                                    background: '#10b981',
+                                                    color: 'white',
+                                                    fontSize: '0.65rem',
+                                                    fontWeight: 600
+                                                  }}>
+                                                    MATCH
+                                                  </Box>
+                                                )}
+                                              </Box>
+                                              <Typography variant="body2" sx={{ 
+                                                fontSize: '0.7rem',
+                                                color: instructor.isExactMatch ? '#166534' : '#92400e'
+                                              }}>
+                                                Section: {instructor.section} • {instructor.teacher_role}
+                                              </Typography>
+                                            </Box>
+                                          );
+                                        } else {
+                                          return (
+                                            <Box sx={{ 
+                                              p: 1,
+                                              borderRadius: 1,
+                                              background: '#f3f4f6',
+                                              border: '1px solid #e5e7eb',
+                                              mt: 0.5
+                                            }}>
+                                              <Typography variant="body2" sx={{ 
+                                                fontSize: '0.75rem',
+                                                color: '#6b7280',
+                                                fontStyle: 'italic'
+                                              }}>
+                                                No instructor assigned
+                                              </Typography>
+                                            </Box>
+                                          );
+                                        }
+                                      })()}
                                     </Box>
                                   }
                                   sx={{
@@ -5024,12 +5330,48 @@ const ProgramHeadEnrollment: React.FC = () => {
                         ))}
                       </Box>
                     ))}
+                    
+                    {/* Show message when no courses are available for selected section */}
+                    {Object.keys(visibleCourses).length === 0 && createForm.section && createForm.section !== '' && (
+                      <Box sx={{ 
+                        textAlign: 'center', 
+                        py: 4,
+                        px: 2
+                      }}>
+                        <Box sx={{ 
+                          mb: 2,
+                          fontSize: '3rem',
+                          color: '#9ca3af'
+                        }}>
+                          📚
+                        </Box>
+                        <Typography variant="h6" sx={{ 
+                          color: '#6b7280', 
+                          mb: 1,
+                          fontWeight: 500
+                        }}>
+                          No Courses Available
+                        </Typography>
+                        <Typography variant="body2" sx={{ 
+                          color: '#9ca3af',
+                          mb: 2
+                        }}>
+                          No courses have instructors assigned to section "{createForm.section}" for {createForm.yearLevel ? `${createForm.yearLevel}${createForm.yearLevel === 1 ? 'st' : createForm.yearLevel === 2 ? 'nd' : createForm.yearLevel === 3 ? 'rd' : 'th'} Year` : 'the selected year level'}.
+                        </Typography>
+                        <Typography variant="body2" sx={{ 
+                          color: '#9ca3af',
+                          fontSize: '0.875rem'
+                        }}>
+                          Please contact the program head to assign instructors to courses for this section.
+                        </Typography>
+                      </Box>
+                    )}
                   </Box>
                 </Grid>
               </Grid>
             </DialogContent>
             <DialogActions>
-              <Button onClick={() => setIsCreateDialogOpen(false)} disabled={creating}>Cancel</Button>
+              <Button onClick={handleCloseCreateDialog} disabled={creating}>Cancel</Button>
               <Button type="submit" variant="contained" color="primary" disabled={creating}>{creating ? 'Enrolling...' : 'Enroll'}</Button>
             </DialogActions>
           </form>
