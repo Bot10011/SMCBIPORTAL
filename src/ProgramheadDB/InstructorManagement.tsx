@@ -45,7 +45,7 @@ import {
   X,
   Eye
 } from 'lucide-react';
-import SubjectAssignmentModal from './SubjectAssignmentModal';
+import SubjectAssignmentModal, { SubjectAssignmentModalProps } from './SubjectAssignmentModal';
 
 interface Instructor {
   id: string;
@@ -2614,7 +2614,6 @@ const InstructorManagement: React.FC = () => {
           full_name: `${instructor.first_name} ${instructor.middle_name ? instructor.middle_name + ' ' : ''}${instructor.last_name}`
         }))}
         courses={courses}
-        sections={sections}
       />
     </Box>
   );
