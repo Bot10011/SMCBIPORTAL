@@ -52,7 +52,7 @@ export interface SubjectAssignmentModalProps {
   isEditMode: boolean;
   teachers: Teacher[];
   courses: Subject[];
-  sections: Section[];
+  sections: Section[]; // Required sections prop for filtering
 }
 
 const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
