@@ -926,6 +926,7 @@ const SubjectAssignment: React.FC = () => {
         isEditMode={modalState.isEditMode}
         teachers={teachers}
         courses={courses}
+        sections={[]}
       />
 
       {/* Student List Modal */}
