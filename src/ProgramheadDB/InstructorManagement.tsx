@@ -274,11 +274,16 @@ const InstructorManagement: React.FC = () => {
         console.log('Courses without year_level:', data.length - coursesWithYearLevel.length);
         
         // Check semester values
-        console.log('Raw semester values:', data.map(c => ({ id: c.id, code: c.code, semester: c.semester, type: typeof c.semester })));
+        console.log('Raw semester values:', data.map(c => ({ id: c.id, code: c.code, semester: c.semester, summer: c.summer, type: typeof c.semester })));
         const coursesWithSemester = data.filter(c => c.semester && c.semester !== null && c.semester !== '');
         console.log('Courses with semester:', coursesWithSemester.length);
         console.log('Courses without semester:', data.length - coursesWithSemester.length);
         console.log('Unique semester values:', Array.from(new Set(data.map(c => c.semester))));
+        
+        // Check summer field values
+        const summerCourses = data.filter(c => c.summer === true);
+        console.log('Courses with summer=true:', summerCourses.length);
+        console.log('Summer courses details:', summerCourses.map(c => ({ id: c.id, code: c.code, name: c.name, summer: c.summer })));
         
         if (coursesWithYearLevel.length === 0) {
           console.warn('WARNING: No courses have year_level values! This is why filtering fails.');
@@ -309,8 +314,18 @@ const InstructorManagement: React.FC = () => {
           // Default to 1st Year if no pattern found
           return '1st Year';
         })(),
-        // Assign default semester if missing
-        semester: course.semester || (() => {
+        // Assign semester based on summer field first, then fallback to existing logic
+        semester: (() => {
+          // Check if course is marked as summer in the database
+          if (course.summer === true) {
+            return 'Summer';
+          }
+          
+          // If semester is already set, use it
+          if (course.semester) {
+            return course.semester;
+          }
+          
           // Try to extract semester from course code or name
           const code = String(course.code || '').toLowerCase();
           const name = String(course.name || '').toLowerCase();
