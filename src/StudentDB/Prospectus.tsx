@@ -8,15 +8,16 @@ import {
   Grid,
   Typography,
   Table,
-  TableBody, 
+  TableBody,
   TableCell,
   TableContainer,
-  TableHead, 
+  TableHead,
   TableRow,
   Button,
   CircularProgress,
   Chip,
 } from '@mui/material';
+import jsPDF from 'jspdf';
 
 interface EnrollmentSubject {
       id: string;
@@ -269,13 +270,331 @@ const Prospectus: React.FC = () => {
     }
   };
 
+  const handleDownloadPDF = async () => {
+    try {
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 8;
+      const contentWidth = pageWidth - (2 * margin);
+      let currentY = margin;
+      
+      // Set font styles
+      pdf.setFont('helvetica');
+      
+      // Header Section
+      pdf.setFontSize(12);
+      pdf.setTextColor(30, 64, 175); // #1e40af
+      pdf.text('St. Mary\'s College of Bansalan, Inc.', pageWidth / 2, currentY, { align: 'center' });
+      currentY += 4;
+      
+      pdf.setFontSize(7);
+      pdf.setTextColor(107, 114, 128); // #6b7280
+      pdf.text('(Formerly: Holy Cross of Bansalan College, Inc.)', pageWidth / 2, currentY, { align: 'center' });
+      currentY += 3;
+      
+      pdf.setTextColor(55, 65, 81); // #374151
+      pdf.text('Dahlia Street, Poblacion Uno, Bansalan, Davao del Sur, 8005 Philippines', pageWidth / 2, currentY, { align: 'center' });
+      currentY += 4;
+      
+      pdf.setFontSize(8);
+      pdf.setTextColor(30, 64, 175); // #1e40af
+      pdf.text('BACHELOR OF SCIENCE IN INFORMATION TECHNOLOGY (BSIT)', pageWidth / 2, currentY, { align: 'center' });
+      currentY += 3;
+      
+      pdf.setFontSize(7);
+      pdf.setTextColor(55, 65, 81); // #374151
+      pdf.text('Effective SY 2020 - 2021', pageWidth / 2, currentY, { align: 'center' });
+      currentY += 6;
+      
+      // Title
+      pdf.setFontSize(10);
+      pdf.setTextColor(30, 64, 175); // #1e40af
+      pdf.text('STUDENT PROSPECTUS', pageWidth / 2, currentY, { align: 'center' });
+      currentY += 8;
+      
+      // Student Information
+      if (profile) {
+        const fullName = `${profile.first_name} ${profile.middle_name || ''} ${profile.last_name}`.trim();
+        pdf.setFontSize(10);
+        pdf.setTextColor(31, 41, 55); // #1f2937
+        pdf.text(fullName, pageWidth / 2, currentY, { align: 'center' });
+        currentY += 6;
+        
+        // Student details box
+        const detailsY = currentY;
+        pdf.setFillColor(240, 249, 255); // #f0f9ff
+        pdf.rect(margin, currentY - 3, contentWidth, 15, 'F');
+        pdf.setDrawColor(186, 230, 253); // #bae6fd
+        pdf.rect(margin, currentY - 3, contentWidth, 15, 'D');
+        
+        currentY += 3;
+        pdf.setFontSize(7);
+        pdf.setTextColor(55, 65, 81); // #374151
+        
+        // Student ID
+        pdf.text('Student ID:', margin + 3, currentY);
+        pdf.setTextColor(31, 41, 55); // #1f2937
+        pdf.text(profile.student_id || '', margin + 50, currentY);
+        currentY += 3;
+        
+        // Student Type
+        pdf.setTextColor(55, 65, 81); // #374151
+        pdf.text('Student Type:', margin + 3, currentY);
+        pdf.setTextColor(31, 41, 55); // #1f2937
+        pdf.text(profile.student_type || '', margin + 50, currentY);
+        currentY += 3;
+        
+        // Year Level
+        pdf.setTextColor(55, 65, 81); // #374151
+        pdf.text('Current Year Level:', margin + 3, currentY);
+        pdf.setTextColor(31, 41, 55); // #1f2937
+        pdf.text(getYearLabel(profile.year_level || ''), margin + 50, currentY);
+        currentY += 3;
+        
+        // Department
+        pdf.setTextColor(55, 65, 81); // #374151
+        pdf.text('Department:', margin + 3, currentY);
+        pdf.setTextColor(31, 41, 55); // #1f2937
+        pdf.text(profile.department || 'BSIT', margin + 50, currentY);
+        
+        currentY = detailsY + 18;
+      }
+      
+      // Subjects Section
+      pdf.setFontSize(9);
+      pdf.setTextColor(31, 41, 55); // #1f2937
+      pdf.text('Subjects', margin, currentY);
+      currentY += 4;
+      
+      // Generate subjects content
+      if (subjects && subjects.length > 0) {
+        // Group subjects by year level
+        const subjectsByYear: Record<string, typeof subjects> = {};
+        subjects.forEach(subject => {
+          const yearLevel = subject.year_level || '1';
+          if (!subjectsByYear[yearLevel]) {
+            subjectsByYear[yearLevel] = [];
+          }
+          subjectsByYear[yearLevel].push(subject);
+        });
+        
+        // Process each year level
+        Object.keys(subjectsByYear).sort().forEach(yearLevel => {
+          const yearSubjects = subjectsByYear[yearLevel];
+          const yearLabel = getYearLabel(yearLevel);
+          
+          // Check if we need a new page
+          if (currentY > pageHeight - 80) {
+            pdf.addPage();
+            currentY = margin;
+          }
+          
+          // Year header
+          pdf.setFillColor(243, 244, 246); // #f3f4f6
+          pdf.rect(margin, currentY - 2, contentWidth, 8, 'F');
+          pdf.setDrawColor(102, 126, 234); // #667eea
+          pdf.rect(margin, currentY - 2, contentWidth, 8, 'D');
+          
+          pdf.setFontSize(8);
+          pdf.setTextColor(31, 41, 55); // #1f2937
+          pdf.text(`${yearLabel} Subjects`, margin + 3, currentY + 2);
+          
+          // Year stats
+          const totalUnits = yearSubjects.reduce((sum: number, subject: any) => sum + (subject.units || 0), 0);
+          pdf.setFontSize(6);
+          pdf.setTextColor(107, 114, 128); // #6b7280
+          pdf.text(`${yearSubjects.length} subjects, ${totalUnits} units`, pageWidth - margin - 3, currentY + 2, { align: 'right' });
+          
+          currentY += 10;
+          
+          // Check if we need a new page for the table
+          if (currentY > pageHeight - 60) {
+            pdf.addPage();
+            currentY = margin;
+          }
+          
+          // Table headers
+          const headers = ['Code', 'Name', 'Units', 'LEC', 'LAB', 'Hours', 'Type', 'Grade', 'Prereq', 'Status'];
+          const colWidths = [15, 45, 12, 12, 12, 15, 15, 15, 20, 15];
+          let colX = margin;
+          
+          // Draw header background
+          pdf.setFillColor(30, 64, 175); // #1e40af
+          pdf.rect(colX, currentY - 2, colWidths.reduce((a, b) => a + b, 0), 6, 'F');
+          
+          // Header text
+          pdf.setFontSize(6);
+          pdf.setTextColor(255, 255, 255);
+          headers.forEach((header, index) => {
+            pdf.text(header, colX + 1, currentY + 1);
+            colX += colWidths[index];
+          });
+          
+          currentY += 7;
+          
+          // Table rows
+          yearSubjects.forEach((subject: any, index: number) => {
+            // Check if we need a new page
+            if (currentY > pageHeight - 15) {
+              pdf.addPage();
+              currentY = margin;
+              
+              // Redraw headers on new page
+              colX = margin;
+              pdf.setFillColor(30, 64, 175);
+              pdf.rect(colX, currentY - 2, colWidths.reduce((a, b) => a + b, 0), 6, 'F');
+              
+              pdf.setFontSize(6);
+              pdf.setTextColor(255, 255, 255);
+              headers.forEach((header, idx) => {
+                pdf.text(header, colX + 1, currentY + 1);
+                colX += colWidths[idx];
+              });
+              
+              currentY += 7;
+            }
+            
+            // Row background (alternating)
+            if (index % 2 === 0) {
+              pdf.setFillColor(241, 245, 249); // #f1f5f9
+              pdf.rect(margin, currentY - 1, colWidths.reduce((a, b) => a + b, 0), 5, 'F');
+            }
+            
+            // Row content
+            colX = margin;
+            pdf.setFontSize(5);
+            pdf.setTextColor(31, 41, 55); // #1f2937
+            
+            // Subject Code
+            pdf.text(subject.code || '', colX + 1, currentY + 1);
+            colX += colWidths[0];
+            
+            // Subject Name
+            const subjectName = subject.name || '';
+            if (subjectName.length > 20) {
+              pdf.text(subjectName.substring(0, 17) + '...', colX + 1, currentY + 1);
+            } else {
+              pdf.text(subjectName, colX + 1, currentY + 1);
+            }
+            colX += colWidths[1];
+            
+            // Units
+            pdf.text(String(subject.units || 0), colX + 1, currentY + 1);
+            colX += colWidths[2];
+            
+            // LEC
+            pdf.text(String(subject.lec_units || 0), colX + 1, currentY + 1);
+            colX += colWidths[3];
+            
+            // LAB
+            pdf.text(String(subject.lab_units || 0), colX + 1, currentY + 1);
+            colX += colWidths[4];
+            
+            // Hours
+            pdf.text(String(subject.hours_per_week || 0), colX + 1, currentY + 1);
+            colX += colWidths[5];
+            
+            // Type
+            const subjectType = subject.code && subject.code.startsWith('IT') ? 'Major' : 'Minor';
+            pdf.text(subjectType, colX + 1, currentY + 1);
+            colX += colWidths[6];
+            
+            // Grade
+            const subjectGrades = gradesBySubjectCode.get(subject.code);
+            if (subjectGrades && (subjectGrades.prelim_grade || subjectGrades.midterm_grade || subjectGrades.final_grade)) {
+              const avgGrade = calculateAverageGrade(
+                subjectGrades.prelim_grade || null,
+                subjectGrades.midterm_grade || null,
+                subjectGrades.final_grade || null
+              );
+              pdf.text(String(avgGrade || 'N/A'), colX + 1, currentY + 1);
+            } else {
+              pdf.text('No grade', colX + 1, currentY + 1);
+            }
+            colX += colWidths[7];
+            
+            // Prerequisites
+            if (subject.prerequisites && subject.prerequisites.length > 0) {
+              const prereqText = subject.prerequisites.join(', ');
+              if (prereqText.length > 15) {
+                pdf.text(prereqText.substring(0, 12) + '...', colX + 1, currentY + 1);
+              } else {
+                pdf.text(prereqText, colX + 1, currentY + 1);
+              }
+            } else {
+              pdf.text('None', colX + 1, currentY + 1);
+            }
+            colX += colWidths[8];
+            
+            // Status
+            const statusText = subject.has_grade ? 
+              (confirmedSubjects.has(subject.code) ? 'Confirmed' : 'Grade Available') : 
+              'No actions';
+            pdf.text(statusText, colX + 1, currentY + 1);
+            
+            currentY += 5;
+          });
+          
+          currentY += 2;
+        });
+      } else {
+        pdf.setFontSize(10);
+        pdf.setTextColor(107, 114, 128); // #6b7280
+        pdf.text('No subjects available', pageWidth / 2, currentY, { align: 'center' });
+      }
+      
+      // Footer
+      const totalPages = (pdf as any).internal.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        pdf.setPage(i);
+        pdf.setFontSize(6);
+        pdf.setTextColor(107, 114, 128); // #6b7280
+        pdf.text(`Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}`, pageWidth / 2, pageHeight - 8, { align: 'center' });
+        pdf.text(`Page ${i} of ${totalPages}`, pageWidth / 2, pageHeight - 4, { align: 'center' });
+      }
+      
+      // Save the PDF
+      pdf.save('student_prospectus.pdf');
+      
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+    }
+  };
+
   return (
     <Box sx={{ p: 3 }}>
       <Card sx={{ mb: 3, borderRadius: 2 }}>
         <CardContent>
-          <Typography variant="h5" sx={{ fontWeight: 700, color: '#1e40af', textAlign: 'center', mb: 2 }}>
-            STUDENT PROSPECTUS
-          </Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h5" sx={{ fontWeight: 700, color: '#1e40af', textAlign: 'center', flex: 1 }}>
+              STUDENT PROSPECTUS
+            </Typography>
+            <Button 
+              onClick={handleDownloadPDF}
+              variant="contained"
+              sx={{
+                borderRadius: 2,
+                px: 3,
+                py: 1.5,
+                fontWeight: 600,
+                background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+                color: 'white',
+                boxShadow: '0 4px 14px 0 rgba(59, 130, 246, 0.3)',
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #2563eb 0%, #1e40af 100%)',
+                  boxShadow: '0 6px 20px 0 rgba(59, 130, 246, 0.4)',
+                  transform: 'translateY(-1px)'
+                },
+                transition: 'all 0.2s ease-in-out'
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box sx={{ fontSize: '1rem' }}>📄</Box>
+                Download PDF
+              </Box>
+            </Button>
+          </Box>
           <Grid container spacing={2}>
             <Grid item xs={12} sm={6}>
               <Typography variant="body2" color="text.secondary">Student ID</Typography>
@@ -453,14 +772,19 @@ const Prospectus: React.FC = () => {
                                     Confirmed
                                   </Box>
                                 ) : (
-                                  <Button 
-                                    size="small" 
-                                    variant="outlined" 
-                                    color="success" 
-                                    onClick={() => handleConfirm(subj.code)}
-                                  >
-                                    Confirm
-                                  </Button>
+                                  <Box sx={{ 
+                                    display: 'inline-block',
+                                    px: 1.5,
+                                    py: 0.5,
+                                    borderRadius: 1,
+                                    fontSize: '0.75rem',
+                                    fontWeight: 500,
+                                    background: '#e0f2fe',
+                                    color: '#0369a1',
+                                    textTransform: 'capitalize'
+                                  }}>
+                                    Grade Available
+                                  </Box>
                                 )
                               ) : (
                                 <Box sx={{ fontSize: '0.75rem', color: '#6b7280', fontStyle: 'italic' }}>No actions</Box>
@@ -551,7 +875,19 @@ const Prospectus: React.FC = () => {
                                 confirmedSubjects.has(subj.code) ? (
                                   <Box sx={{ display: 'inline-block', px: 1.5, py: 0.5, borderRadius: 1, fontSize: '0.75rem', fontWeight: 500, background: '#dcfce7', color: '#166534', textTransform: 'capitalize' }}>Confirmed</Box>
                                 ) : (
-                                  <Button size="small" variant="outlined" color="success" onClick={() => handleConfirm(subj.code)}>Confirm</Button>
+                                  <Box sx={{ 
+                                    display: 'inline-block',
+                                    px: 1.5,
+                                    py: 0.5,
+                                    borderRadius: 1,
+                                    fontSize: '0.75rem',
+                                    fontWeight: 500,
+                                    background: '#e0f2fe',
+                                    color: '#0369a1',
+                                    textTransform: 'capitalize'
+                                  }}>
+                                    Grade Available
+                                  </Box>
                                 )
                               ) : (
                                 <Box sx={{ fontSize: '0.75rem', color: '#6b7280', fontStyle: 'italic' }}>No actions</Box>
@@ -646,7 +982,19 @@ const Prospectus: React.FC = () => {
                                 confirmedSubjects.has(subj.code) ? (
                                   <Box sx={{ display: 'inline-block', px: 1.5, py: 0.5, borderRadius: 1, fontSize: '0.75rem', fontWeight: 500, background: '#dcfce7', color: '#166534', textTransform: 'capitalize' }}>Confirmed</Box>
                                 ) : (
-                                  <Button size="small" variant="outlined" color="success" onClick={() => handleConfirm(subj.code)}>Confirm</Button>
+                                  <Box sx={{ 
+                                    display: 'inline-block',
+                                    px: 1.5,
+                                    py: 0.5,
+                                    borderRadius: 1,
+                                    fontSize: '0.75rem',
+                                    fontWeight: 500,
+                                    background: '#e0f2fe',
+                                    color: '#0369a1',
+                                    textTransform: 'capitalize'
+                                  }}>
+                                    Grade Available
+                                  </Box>
                                 )
                               ) : (
                                 <Box sx={{ fontSize: '0.75rem', color: '#6b7280', fontStyle: 'italic' }}>No actions</Box>
