@@ -9,6 +9,9 @@ interface Student {
   id: string;
   student_id: string;
   display_name: string;        // Changed from first_name + last_name
+  first_name?: string;
+  last_name?: string;
+  middle_name?: string;
   email: string;
   year_level: string;
   enrollment_status: string;
@@ -45,6 +48,18 @@ interface COEData {
 // COEModal for viewing Certificate of Enrollment
 const COEModal = ({ coe, open, onClose }: { coe: COEData, open: boolean, onClose: () => void }) => {
   if (!coe || !open) return null;
+  
+  // Helper function to handle email display with auto-sizing
+  const renderEmailField = (doc: any, y: number) => {
+    // Auto-size the email value if it's long
+    const emailValue = coe.email || 'N/A';
+    const emailFontSize = emailValue.length > 25 ? 8 : 11;
+    doc.setFontSize(emailFontSize);
+    // Display label and value together like other fields, but maintain auto-sizing
+    const fullText = `School Portal Email: ${emailValue}`;
+    doc.text(fullText, 120, y, { maxWidth: 80 });
+  };
+
   // Download as PDF using jsPDF + autoTable function
   const handleDownload = () => {
     // Dynamically import jsPDF and autoTable
@@ -76,7 +91,8 @@ const COEModal = ({ coe, open, onClose }: { coe: COEData, open: boolean, onClose
           doc.text(`Semester: ${coe.semester}`, 120, y);
           y += 7;
           doc.text(`Course&Year: ${coe.department && coe.year_level ? `${coe.department}-${coe.year_level}` : coe.department || coe.year_level || 'N/A'}`, 20, y);
-          doc.text(`School Portal Email: ${coe.email || 'N/A'}`, 120, y);
+          // Use helper function for email
+          renderEmailField(doc, y);
           autoTable(doc, {
             startY: y + 10,
             head: [['Course Code', 'Course Name', 'Units']],
@@ -129,7 +145,8 @@ const COEModal = ({ coe, open, onClose }: { coe: COEData, open: boolean, onClose
           doc.text(`Semester: ${coe.semester}`, 120, y);
           y += 7;
           doc.text(`Course&Year: ${coe.department && coe.year_level ? `${coe.department}-${coe.year_level}` : coe.department || coe.year_level || 'N/A'}`, 20, y);
-          doc.text(`School Portal Email: ${coe.email || 'N/A'}`, 120, y);
+          // Use helper function for email
+          renderEmailField(doc, y);
           autoTable(doc, {
             startY: y + 10,
             head: [['Course Code', 'Course Name', 'Units']],
@@ -379,6 +396,21 @@ const RegistrarEnrollment: React.FC = () => {
 
 
 
+  // Helper function to get student name
+  const getStudentName = (student: {display_name?: string, first_name?: string, last_name?: string, middle_name?: string}) => {
+    if (student?.display_name && student.display_name.trim() !== '') {
+      return student.display_name;
+    }
+    
+    // Fallback to concatenating first_name, last_name, middle_name
+    const firstName = student?.first_name || '';
+    const lastName = student?.last_name || '';
+    const middleName = student?.middle_name || '';
+    
+    const nameParts = [firstName, middleName, lastName].filter(part => part.trim() !== '');
+    return nameParts.length > 0 ? nameParts.join(' ') : 'Unknown Student';
+  };
+
   const fetchStudents = async () => {
     try {
       const { data, error } = await supabase
@@ -387,6 +419,9 @@ const RegistrarEnrollment: React.FC = () => {
           id,
           student_id,
           display_name,
+          first_name,
+          last_name,
+          middle_name,
           email,
           year_level,
           enrollment_status,
@@ -525,7 +560,7 @@ const RegistrarEnrollment: React.FC = () => {
         subjects: enrolledSubjects,
         status: 'active',
         registrar: registrar,
-        full_name: studentProfile.display_name,
+        full_name: getStudentName(studentProfile),
         department: studentProfile.department || '',
         email: studentProfile.email
       };
@@ -555,6 +590,15 @@ const RegistrarEnrollment: React.FC = () => {
     setCOEData(null);
     setCOEModalOpen(true);
     try {
+      // First get the student data to use for name handling
+      const { data: studentData, error: studentError } = await supabase
+        .from('user_profiles')
+        .select('id, student_id, display_name, first_name, last_name, middle_name, email, department, year_level')
+        .eq('id', studentId)
+        .single();
+
+      if (studentError) throw studentError;
+
       const { data, error } = await supabase
         .from('coe')
         .select('*')
@@ -563,7 +607,19 @@ const RegistrarEnrollment: React.FC = () => {
         .limit(1);
       if (error) throw error;
       if (data && data.length > 0) {
-        setCOEData(data[0]);
+        // Use the helper function to get the proper student name
+        const studentName = getStudentName(studentData);
+        const coeRecord = data[0];
+        
+        // Update the COE data with the proper student name
+        setCOEData({
+          ...coeRecord,
+          full_name: studentName,
+          student_number: studentData.student_id,
+          email: studentData.email,
+          department: studentData.department,
+          year_level: studentData.year_level
+        });
       } else {
         setCOEError('No Certificate of Enrollment found for this student.');
       }
@@ -576,7 +632,7 @@ const RegistrarEnrollment: React.FC = () => {
 
   const filteredStudents = students.filter(student => {
     // Handle cases where display_name might be null/undefined
-    const studentName = student.display_name || student.student_id || '';
+    const studentName = getStudentName(student);
     const studentId = student.student_id || '';
     
     const matchesSearch = 
@@ -684,7 +740,7 @@ const RegistrarEnrollment: React.FC = () => {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50 sticky top-0 z-10">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Profile Picture</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Avatar</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student ID</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
@@ -717,7 +773,7 @@ const RegistrarEnrollment: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{student.student_id}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {student.display_name}
+                      {getStudentName(student)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{student.email}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -796,7 +852,7 @@ const RegistrarEnrollment: React.FC = () => {
                     <tbody className="bg-white/90 divide-y divide-gray-200">
                       <tr>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{selectedStudent.student_id}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{selectedStudent.display_name}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{getStudentName(selectedStudent)}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{selectedStudent.email}</td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
