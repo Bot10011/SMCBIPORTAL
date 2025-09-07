@@ -38,6 +38,7 @@ export default function UserManagement() {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [profilePictureUrls, setProfilePictureUrls] = useState<Record<string, string | null>>({});
+  const [sectionMap, setSectionMap] = useState<Map<string, string>>(new Map());
   const { user: currentUser } = useAuth();
   
   // Add back the search and filter state
@@ -61,20 +62,6 @@ export default function UserManagement() {
     setStudentStatusFilter('');
   };
   
-  // Function to refresh user list after editing
-  const handleUserUpdated = useCallback(() => {
-    console.log('UserManagement: Received callback to refresh user list');
-    fetchUsers();
-  }, []);
-  
-  // Set up the callback when opening edit modal
-  const handleEditUser = useCallback((userId: string) => {
-    console.log('UserManagement: Setting up edit modal with callback for user:', userId);
-    setSelectedUserId(userId);
-    setOnEditUserModalClose(handleUserUpdated);
-    setShowEditUserModal(true);
-  }, [setSelectedUserId, setOnEditUserModalClose, setShowEditUserModal, handleUserUpdated]);
-  
   // Memoized filtered users logic
   const filteredUsers = useMemo(() => {
     return users.filter(user => {
@@ -86,7 +73,7 @@ export default function UserManagement() {
         activeTab === 'program_heads' ? user.role === 'program_head' : true;
       
       const matchesSearch = searchTerm === '' || 
-        (user.display_name || '').toLowerCase().includes(searchTerm.toLowerCase());
+        getStudentName(user).toLowerCase().includes(searchTerm.toLowerCase());
       
       // Add student status filtering
       const matchesStudentStatus = studentStatusFilter === '' || 
@@ -116,6 +103,26 @@ export default function UserManagement() {
     };
   }, [users]);
 
+  // Helper function to get student name with fallback logic
+  const getStudentName = (user: {display_name?: string, first_name?: string, last_name?: string, middle_name?: string}) => {
+    if (user.display_name && user.display_name.trim() !== '') {
+      return user.display_name;
+    }
+    
+    const firstName = user.first_name || '';
+    const middleName = user.middle_name || '';
+    const lastName = user.last_name || '';
+    
+    const fullName = [firstName, middleName, lastName].filter(name => name.trim() !== '').join(' ');
+    return fullName || 'No Name';
+  };
+
+  // Helper function to get section display name
+  const getSectionDisplayName = (sectionUid: string | undefined) => {
+    if (!sectionUid) return 'N/A';
+    return sectionMap.get(sectionUid) || sectionUid;
+  };
+
   const fetchUsers = useCallback(async () => {
     try {
       setLoading(true);
@@ -123,7 +130,7 @@ export default function UserManagement() {
       // Fetch user profiles from our table
       let query = supabase
         .from('user_profiles')
-        .select('*, display_name, avatar_url, auth_provider, updated_at')
+        .select('*, display_name, first_name, middle_name, last_name, avatar_url, auth_provider, updated_at')
         .neq('role', 'superadmin') // Exclude superadmin users
         .order('created_at', { ascending: false });
 
@@ -142,11 +149,11 @@ export default function UserManagement() {
         console.log('Sample user auth_provider:', userProfiles[0].auth_provider);
       }
 
-      // Use the existing display_name and avatar_url columns directly
+      // Process users with name fallback logic
       const processedUsers = (userProfiles || []).map(profile => ({
         ...profile,
-        // Use the existing columns from your table
-        display_name: profile.display_name || 'No Name',
+        // Apply name fallback logic
+        display_name: getStudentName(profile),
         avatar_url: profile.avatar_url || null
       }));
 
@@ -162,9 +169,47 @@ export default function UserManagement() {
     }
   }, [currentUser?.id]);
 
+  // Function to refresh user list after editing
+  const handleUserUpdated = useCallback(() => {
+    console.log('UserManagement: Received callback to refresh user list');
+    fetchUsers();
+  }, [fetchUsers]);
+
+  // Set up the callback when opening edit modal
+  const handleEditUser = useCallback((userId: string) => {
+    console.log('UserManagement: Setting up edit modal with callback for user:', userId);
+    setSelectedUserId(userId);
+    setOnEditUserModalClose(handleUserUpdated);
+    setShowEditUserModal(true);
+  }, [setSelectedUserId, setOnEditUserModalClose, setShowEditUserModal, handleUserUpdated]);
+
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
+
+  // Fetch sections data to create section map
+  useEffect(() => {
+    const fetchSections = async () => {
+      try {
+        const { data: sections, error } = await supabase
+          .from('sections')
+          .select('id, name');
+        
+        if (error) throw error;
+        
+        const map = new Map<string, string>();
+        sections?.forEach(section => {
+          map.set(section.id, section.name);
+        });
+        
+        setSectionMap(map);
+      } catch (error) {
+        console.error('Error fetching sections:', error);
+      }
+    };
+
+    fetchSections();
+  }, []);
 
   // Resolve signed URLs for user profile pictures
   useEffect(() => {
@@ -708,14 +753,14 @@ export default function UserManagement() {
                                     ? 'bg-gradient-to-br from-green-500 to-green-600 shadow-green-500/20'
                                     : 'bg-gradient-to-br from-blue-500 to-blue-600 shadow-blue-500/20'
                                 }`}>
-                                  {user.display_name?.charAt(0).toUpperCase() || 
+                                  {getStudentName(user)?.charAt(0).toUpperCase() || 
                                    (user.email?.[0]?.toUpperCase() ?? '?')}
                                 </div>
                               )}
                             </div>
                             <div>
                               <div className="font-semibold text-white">
-                                {user.display_name || 'No Name'}
+                                {getStudentName(user)}
                               </div>
                               <div className="text-sm text-gray-300 mt-0.5">{user.email}</div>
                               {user.role === 'student' && (
@@ -745,7 +790,7 @@ export default function UserManagement() {
                                 <div className="text-sm">
                                   <span className="text-gray-400">Program:</span>{' '}
                                   <span className="font-medium text-white">
-                                    {user.department ? `${user.department} ${user.year_level || 'N/A'}-${user.section || 'N/A'}` : 'N/A'}
+                                    {getSectionDisplayName(user.section)}
                                   </span>
                                 </div>
                               </div>
@@ -919,7 +964,7 @@ export default function UserManagement() {
             }}
             onConfirm={confirmDeleteUser}
             title="Delete User"
-            message={`Are you sure you want to delete ${selectedUserForAction ? (selectedUserForAction.display_name || 'this user') : 'this user'}? This action cannot be undone.`}
+            message={`Are you sure you want to delete ${selectedUserForAction ? getStudentName(selectedUserForAction) : 'this user'}? This action cannot be undone.`}
             confirmText="Delete"
             cancelText="Cancel"
             type="danger"
@@ -937,7 +982,7 @@ export default function UserManagement() {
             }}
             onConfirm={confirmToggleUserStatus}
             title={selectedUserForAction?.is_active ? "Deactivate User" : "Activate User"}
-            message={`Are you sure you want to ${selectedUserForAction?.is_active ? 'deactivate' : 'activate'} ${selectedUserForAction ? (selectedUserForAction.display_name || 'this user') : 'this user'}?`}
+            message={`Are you sure you want to ${selectedUserForAction?.is_active ? 'deactivate' : 'activate'} ${selectedUserForAction ? getStudentName(selectedUserForAction) : 'this user'}?`}
             confirmText={selectedUserForAction?.is_active ? "Deactivate" : "Activate"}
             cancelText="Cancel"
             type="warning"
