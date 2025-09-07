@@ -1,383 +1,1198 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Box,
+  Button,
   Card,
   CardContent,
-  Typography,
-  Tabs,
-  Tab,
-  Button,
+  Chip,
   Dialog,
-  DialogTitle,
-  DialogContent,
   DialogActions,
-  TextField,
+  DialogContent,
+  DialogTitle,
   FormControl,
+  Grid,
   InputLabel,
-  Select,
   MenuItem,
+  Select,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
-  Paper,
-  Chip,
-  IconButton,
+  Typography,
   Alert,
   CircularProgress,
-  Grid,
-  Avatar,
+  TextField,
+  Checkbox,
+  FormGroup,
+  FormControlLabel,
+  Switch,
 } from '@mui/material';
 import { toast } from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
-import { 
-  UserPlus, 
-  Edit, 
-  Trash2, 
-  Search, 
-  Filter,
-  GraduationCap,
-  BookOpen,
-  Users,
-  Plus,
-  X,
-  Eye
-} from 'lucide-react';
-import SubjectAssignmentModal, { SubjectAssignmentModalProps } from './SubjectAssignmentModal';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
-interface Instructor {
+interface Student {
   id: string;
-  email: string;
-  first_name: string;
-  middle_name?: string;
-  last_name: string;
-  role: 'teacher' | 'instructor';
-  department?: string;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-interface TeacherSubject {
-  id?: string;
-  teacher_id: string;
-  subject_id: string;
-  section: string;
-  academic_year: string;
-  year_level: string;
+  firstName?: string;
+  middleName?: string;
+  lastName?: string;
+  name: string;
+  studentType: 'Freshman' | 'Regular' | 'Irregular' | 'Transferee';
+  yearLevel: number;
+  currentSubjects: Subject[];
+  doneSubjects: Subject[];
+  status: 'pending' | 'approved' | 'returned';
+  department: string;
+  schoolYear: string;
   semester: string;
-  is_active: boolean;
-  day?: string;
-  time?: string;
-  created_at?: string;
-  teacher_name?: string;
-  teacher_role?: string;
-  teacher_profile_picture?: string;
-  subject_code?: string;
-  subject_name?: string;
-  subject_units?: number;
+  section?: string;
 }
 
-interface Course {
+interface Subject {
   id: string;
   code: string;
   name: string;
   units: number;
-  year_level: string;
-  display_name: string;
-  semester: string;
+  yearLevel: number;
+  status: 'pending' | 'approved' | 'removed';
+  hours_per_week?: number;
 }
 
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
-}
-
-function TabPanel(props: TabPanelProps) {
-  const { children, value, index, ...other } = props;
-
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`instructor-tabpanel-${index}`}
-      aria-labelledby={`instructor-tab-${index}`}
-      {...other}
-    >
-      {value === index && (
-        <Box sx={{ p: 3 }}>
-          {children}
-        </Box>
-      )}
-    </div>
-  );
-}
-
-const InstructorManagement: React.FC = () => {
-  const [tabValue, setTabValue] = useState(0);
-  const [instructors, setInstructors] = useState<Instructor[]>([]);
+const ProgramHeadEnrollment: React.FC = () => {
+  const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterRole, setFilterRole] = useState('');
-  const [filterDepartment, setFilterDepartment] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedCourses, setSelectedCourses] = useState<string[]>([]);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [courses, setCourses] = useState<Array<{
+    id: string;
+    code: string;
+    name: string;
+    units: number;
+    lec_units?: number;
+    lab_units?: number;
+    hours_per_week?: number;
+    year_level?: string;
+    prerequisites?: string[];
+    summer?: boolean;
+    semester?: string;
+  }>>([]);
+  const [allowMixedCourses, setAllowMixedCourses] = useState(false);
+  const [filterSearch, setFilterSearch] = useState('');
+  const [filterYear, setFilterYear] = useState('');
+  const [filterType, setFilterType] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterSection, setFilterSection] = useState('');
+  const [editForm, setEditForm] = useState<Student | null>(null);
+  const [editFormFields, setEditFormFields] = useState<{
+    firstName: string;
+    middleName: string;
+    lastName: string;
+  }>({
+    firstName: '',
+    middleName: '',
+    lastName: '',
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [isExistingModalOpen, setIsExistingModalOpen] = useState(false);
+  const [existingStudentsByYear, setExistingStudentsByYear] = useState<Record<string, Student[]>>({});
+  const [selectedExistingStudent, setSelectedExistingStudent] = useState<Student | null>(null);
+  const [existingFilterYear, setExistingFilterYear] = useState('');
+  const [existingFilterSection, setExistingFilterSection] = useState('');
+  const [endSemesterOpen, setEndSemesterOpen] = useState(false);
+  const [endSemesterLoading, setEndSemesterLoading] = useState(false);
+  const [endSemesterConfirmation, setEndSemesterConfirmation] = useState('');
+  const [endSemesterConfirmationError, setEndSemesterConfirmationError] = useState(false);
+  const [courseSearch, setCourseSearch] = useState('');
+  const [isProspectusModalOpen, setIsProspectusModalOpen] = useState(false);
+  const [loadingCourses, setLoadingCourses] = useState(false);
+  const [instructorAssignments, setInstructorAssignments] = useState<Array<{
+    id: string;
+    teacher_id: string;
+    subject_id: string;
+    section: string;
+    academic_year: string;
+    semester: string;
+    year_level: string;
+    is_active: boolean;
+    teacher_name: string;
+    teacher_role: string;
+    subject_code: string;
+    subject_name: string;
+    subject_units: number;
+  }>>([]);
+
+  // Add sections state for the dropdown
+  const [sections, setSections] = useState<Array<{ id: string; name: string; year_level: number; academic_year?: string }>>([]);
+  const [sectionsLoading, setSectionsLoading] = useState(false);
+
+  // Fetch courses when prospectus modal opens
+  useEffect(() => {
+    if (isProspectusModalOpen) {
+      const fetchCoursesForProspectus = async () => {
+        setLoadingCourses(true);
+        console.log('=== STARTING COURSE FETCH FOR PROSPECTUS ===');
+        
+        try {
+          // Check current user session first
+          console.log('Step 0: Checking user session...');
+          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+          
+          if (sessionError) {
+            console.error('❌ Session error:', sessionError);
+          } else if (!session) {
+            console.error('❌ No active session');
+          } else {
+            console.log('✅ Active session found:', {
+              userId: session.user.id,
+              email: session.user.email,
+              role: session.user.user_metadata?.role || 'unknown'
+            });
+          }
+          
+          // Check Supabase configuration
+          console.log('Step 0.5: Checking Supabase configuration...');
+          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+          const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+          
+          if (!supabaseUrl || !supabaseKey) {
+            console.error('❌ Missing Supabase environment variables');
+            console.error('URL:', supabaseUrl ? '✅ Set' : '❌ Missing');
+            console.error('Key:', supabaseKey ? '✅ Set' : '❌ Missing');
+          } else {
+            console.log('✅ Supabase environment variables are set');
+            console.log('URL length:', supabaseUrl.length);
+            console.log('Key length:', supabaseKey.length);
+          }
+          
+          // First, let's check if the courses table has any data at all
+          console.log('Step 1: Counting total courses...');
+          const { count, error: countError } = await supabase
+            .from('courses')
+            .select('*', { count: 'exact', head: true });
+          
+          if (countError) {
+            console.error('❌ Error counting courses:', countError);
+          } else {
+            console.log('✅ Total courses in database:', count);
+          }
+          
+          // Test if we can access any tables at all
+          console.log('Step 1.5: Testing table access...');
+          const { data: testData, error: testError } = await supabase
+            .from('user_profiles')
+            .select('id, first_name')
+            .limit(1);
+          
+          if (testError) {
+            console.error('❌ Cannot access user_profiles table:', testError);
+          } else {
+            console.log('✅ Can access user_profiles table:', testData);
+          }
+          
+          // Test database connectivity with a simple operation
+          console.log('Step 1.6: Testing database connectivity...');
+          try {
+            const { data: testInsert, error: insertError } = await supabase
+              .from('user_profiles')
+              .select('id')
+              .limit(1);
+            
+            if (insertError) {
+              console.error('❌ Database connectivity test failed:', insertError);
+            } else {
+              console.log('✅ Database connectivity test passed');
+            }
+          } catch (connectError) {
+            console.error('❌ Database connectivity test exception:', connectError);
+          }
+          
+          // Test if courses table exists at all
+          console.log('Step 1.7: Testing if courses table exists...');
+          try {
+            const { data: tableTest, error: tableError } = await supabase
+              .from('courses')
+              .select('id')
+              .limit(1);
+            
+            if (tableError) {
+              console.error('❌ Courses table test failed:', tableError);
+              console.error('Table error details:', {
+                message: tableError.message,
+                details: tableError.details,
+                hint: tableError.hint,
+                code: tableError.code
+              });
+            } else {
+              console.log('✅ Courses table exists and is accessible');
+              console.log('✅ Table test result:', tableTest);
+            }
+          } catch (tableException) {
+            console.error('❌ Courses table test exception:', tableException);
+          }
+          
+          // Try a completely basic query first
+          console.log('Step 2: Trying basic query (select *)...');
+          const { data: basicData, error: basicError } = await supabase
+            .from('courses')
+            .select('*')
+            .limit(5);
+          
+          if (basicError) {
+            console.error('❌ Basic query error:', basicError);
+            
+            // Try alternative table names
+            console.log('Step 2.5: Trying alternative table names...');
+            const alternativeTables = ['course', 'subject', 'subjects'];
+            
+            for (const tableName of alternativeTables) {
+              console.log(`Trying table: ${tableName}`);
+              const { data: altData, error: altError } = await supabase
+                .from(tableName)
+                .select('*')
+                .limit(1);
+              
+              if (!altError && altData) {
+                console.log(`✅ Found alternative table: ${tableName}`, altData);
+                break;
+              } else {
+                console.log(`❌ Table ${tableName} not accessible:`, altError);
+              }
+            }
+          } else {
+            console.log('✅ Basic query result (first 5):', basicData);
+            console.log('✅ Basic query count:', basicData?.length || 0);
+          }
+          
+          // Now try the specific query we need
+          console.log('Step 3: Trying specific query...');
+          const { data, error } = await supabase
+            .from('courses')
+            .select('id, code, name,  lec_units, lab_units, units, hours_per_week, year_level, prerequisites, summer, semester')
+            .order('code', { ascending: true });
+          
+          if (error) {
+            console.error('❌ Specific query error:', error);
+            console.error('Error details:', {
+              message: error.message,
+              details: error.details,
+              hint: error.hint,
+              code: error.code
+            });
+            
+            // Try a fallback query without ordering
+            console.log('Step 3.5: Trying fallback query without ordering...');
+            const { data: fallbackData, error: fallbackError } = await supabase
+              .from('courses')
+              .select('id, code, name,  lec_units, lab_units, units, hours_per_week, year_level, prerequisites, summer, semester');
+            
+            if (fallbackError) {
+              console.error('❌ Fallback query also failed:', fallbackError);
+              
+              // Try the most basic query possible
+              console.log('Step 3.6: Trying most basic query...');
+              const { data: basicData2, error: basicError2 } = await supabase
+                .from('courses')
+                .select('*');
+              
+              if (basicError2) {
+                console.error('❌ Even basic query failed:', basicError2);
+              } else {
+                console.log('✅ Basic query succeeded:', basicData2);
+                if (basicData2 && basicData2.length > 0) {
+                  setCourses(basicData2);
+                  console.log('✅ Courses set from basic query');
+                }
+              }
+            } else {
+              console.log('✅ Fallback query succeeded:', fallbackData);
+              if (fallbackData && fallbackData.length > 0) {
+                setCourses(fallbackData);
+                console.log('✅ Courses set from fallback query');
+              }
+            }
+          } else {
+            console.log('✅ Specific query success!');
+            console.log('✅ Fetched courses count:', data?.length || 0);
+            console.log('✅ First few courses:', data?.slice(0, 3));
+            console.log('✅ All courses:', data);
+            
+            if (data && data.length > 0) {
+              setCourses(data);
+              console.log('✅ Courses state updated successfully');
+            } else {
+              console.log('⚠️ No courses returned from query');
+            }
+          }
+          
+        } catch (catchError) {
+          console.error('❌ Unexpected error during course fetch:', catchError);
+        } finally {
+          setLoadingCourses(false);
+          console.log('=== COURSE FETCH COMPLETED ===');
+        }
+      };
+      
+      fetchCoursesForProspectus();
+    }
+  }, [isProspectusModalOpen]);
+
+  // Semester helpers used for sub-categorization (must be defined before render)
+  const isFirstSemesterCourse = (course: any) => {
+    if (!course || course.summer) return false;
+    const src = String(course.semester || course.year_level || '').toLowerCase();
+    return src.includes('1') || src.includes('first');
+  };
+
+  const isSecondSemesterCourse = (course: any) => {
+    if (!course || course.summer) return false;
+    const src = String(course.semester || course.year_level || '').toLowerCase();
+    return src.includes('2') || src.includes('second');
+  };
+
+  // Helper function to render subjects
+  const renderSubjects = () => {
+    console.log('renderSubjects called, courses:', courses);
+    console.log('courses length:', courses.length);
+    console.log('loadingCourses:', loadingCourses);
+    console.log('courses data:', JSON.stringify(courses, null, 2));
+    
+    if (loadingCourses) {
+      console.log('Courses are loading, showing loading state');
+      return (
+        <Box sx={{ p: 3, textAlign: 'center', color: '#6b7280' }}>
+          <CircularProgress size={24} sx={{ mb: 2 }} />
+          <Typography variant="body2">
+            Loading courses...
+          </Typography>
+        </Box>
+      );
+    }
+    
+    if (!courses || courses.length === 0) {
+      console.log('No courses available, returning empty');
+      return (
+        <Box sx={{ p: 3, textAlign: 'center', color: '#6b7280' }}>
+          <Typography variant="body2">
+            No courses available. Please check if courses are loaded.
+          </Typography>
+        </Box>
+      );
+    }
+    
+    // First, check if we have any courses with year levels
+    const coursesWithYearLevel = courses.filter(course => course.year_level);
+    const coursesWithoutYearLevel = courses.filter(course => !course.year_level);
+    
+    console.log('Total courses:', courses.length);
+    console.log('Courses with year level:', coursesWithYearLevel.length);
+    console.log('Courses without year level:', coursesWithoutYearLevel.length);
+    
+    // If no courses have year levels, show all courses in one section
+    if (coursesWithYearLevel.length === 0) {
+      const totalUnits = courses.reduce((sum, subj) => sum + (subj.units || 0), 0);
+      console.log('Showing all subjects section, total units:', totalUnits);
+      return (
+        <Box className="year-section">
+          <Box className="year-header">
+            <Box className="year-number">📚</Box>
+            <Typography className="year-title">All Subjects</Typography>
+            <Box className="year-stats">
+              <Box className="stat-item">{courses.length} subjects</Box>
+              <Box className="stat-item">{totalUnits} units</Box>
+              </Box>
+          </Box>
+          
+            {courses.length > 0 ? (
+              <TableContainer>
+              <Table className="prospectus-table" size="small">
+                  <TableHead>
+                   <TableRow>
+                     <TableCell>Subject Code</TableCell>
+                     <TableCell>Subject Name</TableCell>
+                     <TableCell>Enrollment Status</TableCell>
+                     <TableCell>LEC</TableCell>
+                     <TableCell>LAB</TableCell>
+                     <TableCell>Units</TableCell>
+                     <TableCell>Hours/Week</TableCell>
+                     <TableCell>Type</TableCell>
+                     <TableCell>Average Grade</TableCell>
+                     <TableCell>Prerequisites</TableCell>
+                     <TableCell>Status</TableCell>
+                      </TableRow>
+                   </TableHead>
+                   <TableBody>
+                     {courses.map((subject, idx) => (
+                       <TableRow key={subject.id}>
+                         <TableCell className="subject-code">{subject.code}</TableCell>
+                         <TableCell className="subject-name">{subject.name}</TableCell>
+                         <TableCell>
+                           <Box className={`status ${getEnrollmentStatus(subject.id, subject.code) === 'active' ? 'confirmed' : 'pending'}`}>
+                               {getEnrollmentStatus(subject.id, subject.code) === 'active' ? 'Enrolled' : 'Not enrolled'}
+                             </Box>
+                           </TableCell>
+                         <TableCell className="lec-lab">{subject.units}</TableCell>
+                         <TableCell className="lec-lab">{subject.lec_units || 0}</TableCell>
+                         <TableCell className="lec-lab">{subject.lab_units || 0}</TableCell>
+                         <TableCell className="hours">{subject.hours_per_week || 0}</TableCell>
+                         <TableCell>
+                           <Box className={`type ${subject.code.startsWith('IT') ? 'major' : 'minor'}`}>
+                              {subject.code.startsWith('IT') ? 'Major' : 'Minor'}
+                            </Box>
+                          </TableCell>
+                         <TableCell>
+                            {(() => {
+                              const subjectGrades = getSubjectGrades(subject.code);
+                              if (loadingGrades) {
+                                return (
+                                  <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+                                    <CircularProgress size={16} />
+                                  </Box>
+                                );
+                              }
+                              if (subjectGrades) {
+                                const hasGrades = subjectGrades.prelim_grade !== null || 
+                                                subjectGrades.midterm_grade !== null || 
+                                                subjectGrades.final_grade !== null;
+                                if (hasGrades) {
+                                  const averageGrade = calculateAverageGrade(
+                                    subjectGrades.prelim_grade || null,
+                                    subjectGrades.midterm_grade || null,
+                                    subjectGrades.final_grade || null
+                                  );
+                                  return (
+                                   <Box className="grade">
+                                      {averageGrade}
+                                    </Box>
+                                  );
+                                }
+                              }
+                              return (
+                               <Box className="no-grade">
+                                  No grades
+                                </Box>
+                              );
+                            })()}
+                          </TableCell>
+                         <TableCell>
+                            {(() => {
+                              console.log(`Prerequisites for ${subject.code}:`, subject.prerequisites);
+                              return subject.prerequisites && subject.prerequisites.length > 0 ? (
+                               <Box className="prerequisites">
+                                 {subject.prerequisites.join(', ')}
+                                </Box>
+                              ) : (
+                               <Typography className="no-grade">
+                                  None
+                                </Typography>
+                              );
+                            })()}
+                          </TableCell>
+                          <TableCell>
+                             {(() => {
+                               const confirmationStatus = getConfirmationStatus(subject.code);
+                               const isConfirmed = confirmationStatus === 'confirmed';
+                               const subjectGrades = getSubjectGrades(subject.code);
+                               const hasGrades = subjectGrades && (subjectGrades.prelim_grade !== null || 
+                                                subjectGrades.midterm_grade !== null || 
+                                                subjectGrades.final_grade !== null);
+                               
+                               if (isConfirmed) {
+                                 return (
+                                   <Box className={`status ${isConfirmed ? 'confirmed' : 'pending'}`}>
+                                     {isConfirmed ? 'Confirmed' : 'Pending'}
+                                   </Box>
+                                 );
+                               } else if (hasGrades) {
+                                 return (
+                                   <Button 
+                                     size="small" 
+                                     variant="outlined" 
+                                     color="success" 
+                                     onClick={() => handleConfirmSubject(subject.code)}
+                                     sx={{ fontSize: '0.7rem', py: 0.5, px: 1 }}
+                                   >
+                                     Confirm
+                                   </Button>
+                                 );
+                               } else {
+                                 return (
+                                   <Box className={`status ${isConfirmed ? 'confirmed' : 'pending'}`}>
+                                     {isConfirmed ? 'Confirmed' : 'Pending'}
+                                   </Box>
+                                 );
+                               }
+                             })()}
+                           </TableCell>
+                        </TableRow>
+                     ))}
+                   </TableBody>
+                 </Table>
+               </TableContainer>
+             ) : (
+               <Box sx={{ 
+                 p: 3, 
+                 textAlign: 'center',
+                 color: '#6b7280'
+               }}>
+                 <Typography variant="body2">
+                   No subjects available
+                 </Typography>
+               </Box>
+             )}
+           </Box>
+       );
+     }
+     
+     // If courses have year levels, show them by year
+     return [1, 2, 3, 4].map((yearLevel) => {
+       const yearSubjects = courses.filter(course => {
+         // Handle string year_level formats
+         const courseYearLevel = course.year_level;
+         if (courseYearLevel) {
+           // Check for various string formats
+           const matches = courseYearLevel.includes(String(yearLevel)) || 
+                  courseYearLevel.toLowerCase().includes(`${yearLevel}st`) ||
+                  courseYearLevel.toLowerCase().includes(`${yearLevel}nd`) ||
+                  courseYearLevel.toLowerCase().includes(`${yearLevel}rd`) ||
+                  courseYearLevel.toLowerCase().includes(`${yearLevel}th`);
+           if (matches) {
+             console.log(`Course ${course.code} (${courseYearLevel}) matches year ${yearLevel}`);
+           }
+           return matches;
+         }
+         return false;
+       });
+       console.log(`Year ${yearLevel}: ${yearSubjects.length} subjects found`);
+       const categorizedSubjects = categorizeCourses(yearSubjects);
+       const totalUnits = yearSubjects.reduce((sum, subj) => sum + (subj.units || 0), 0);
+      
+      return (
+        <Card key={yearLevel} sx={{ 
+          mb: 2, 
+          borderRadius: 2, 
+          border: '1px solid #e5e7eb',
+          overflow: 'hidden'
+        }}>
+          <Box sx={{ 
+            background: 'linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%)',
+            p: 2,
+            borderBottom: '1px solid #e5e7eb'
+          }}>
+            <Typography variant="h6" sx={{ 
+              fontWeight: 600, 
+              color: '#374151',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1
+            }}>
+              <Box sx={{ 
+                width: 24, 
+                height: 24, 
+                borderRadius: '50%', 
+                background: '#667eea',
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                fontSize: '0.8rem',
+                color: 'white',
+                fontWeight: 600
+              }}>
+                {yearLevel}
+              </Box>
+              {getYearLabel(String(yearLevel))} Subjects
+              <Box sx={{ 
+                ml: 1, 
+                px: 1.5, 
+                py: 0.3, 
+                borderRadius: 1, 
+                background: '#e0e7ef',
+                fontSize: '0.75rem',
+                color: '#374151',
+                fontWeight: 500
+              }}>
+                {yearSubjects.length} subjects
+              </Box>
+              <Box sx={{ 
+                ml: 1, 
+                px: 1.5, 
+                py: 0.3, 
+                borderRadius: 1, 
+                background: '#e0e7ef',
+                fontSize: '0.75rem',
+                color: '#374151',
+                fontWeight: 500
+              }}>
+                {totalUnits} units
+              </Box>
+            </Typography>
+          </Box>
+          
+          <CardContent sx={{ p: 0 }}>
+            {yearSubjects.length > 0 ? (
+              <>
+                {/* 1st Semester */}
+                <Box sx={{ px: 2, pt: 2, pb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Box sx={{ width: 8, height: 8, borderRadius: '50%', background: '#3b82f6' }} />
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#1f2937' }}>1st Semester</Typography>
+                </Box>
+                <TableContainer>
+                  <Table size="small" sx={{ tableLayout: 'fixed', width: '100%' }}>
+                    <colgroup>
+                      <col style={{ width: '16%' }} />
+                      <col style={{ width: '28%' }} />
+                      <col style={{ width: '10%' }} />
+                      <col style={{ width: '6%' }} />
+                      <col style={{ width: '6%' }} />
+                      <col style={{ width: '6%' }} />
+                      <col style={{ width: '8%' }} />
+                      <col style={{ width: '10%' }} />
+                      <col style={{ width: '10%' }} />
+                      <col style={{ width: '10%' }} />
+                      <col style={{ width: '10%' }} />
+                    </colgroup>
+                    <TableHead>
+                      <TableRow sx={{ background: '#f0f9ff' }}>
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd' }}>Subject Code</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd' }}>Subject Name</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd', textAlign: 'center' }}>Enrollment Status</TableCell>
+                        
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd', textAlign: 'center' }}>LEC</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd', textAlign: 'center' }}>LAB</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd', textAlign: 'center' }}>Units</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd', textAlign: 'center' }}>Hours/Week</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd', textAlign: 'center' }}>Type</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd', textAlign: 'center' }}>Average Grade</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd', textAlign: 'center' }}>Prerequisites</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd', textAlign: 'center' }}>Status</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {yearSubjects.filter(isFirstSemesterCourse).map((subject, idx) => (
+                        <TableRow key={subject.id} sx={{ background: idx % 2 === 0 ? '#f0f9ff' : '#ffffff' }}>
+                          <TableCell sx={{ fontWeight: 600, fontFamily: 'monospace', fontSize: '0.875rem', color: '#0369a1' }}>{subject.code}</TableCell>
+                          <TableCell sx={{ fontSize: '0.875rem', color: '#075985', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{subject.name}</TableCell>
+                          <TableCell sx={{ textAlign: 'center' }}>
+                            <Box sx={{ display: 'inline-block', px: 1.5, py: 0.5, borderRadius: 1, fontSize: '0.75rem', fontWeight: 500, background: getEnrollmentStatus(subject.id, subject.code) === 'active' ? '#e0f2fe' : '#f3f4f6', color: getEnrollmentStatus(subject.id, subject.code) === 'active' ? '#0369a1' : '#374151', textTransform: 'capitalize' }}>{getEnrollmentStatus(subject.id, subject.code) === 'active' ? 'Enrolled' : 'Not enrolled'}</Box>
+                          </TableCell>
+                          
+                          <TableCell sx={{ textAlign: 'center', fontWeight: 600, fontSize: '0.875rem', color: '#0369a1' }}>{subject.lec_units || 0}</TableCell>
+                          <TableCell sx={{ textAlign: 'center', fontWeight: 600, fontSize: '0.875rem', color: '#0369a1' }}>{subject.lab_units || 0}</TableCell>
+                          <TableCell sx={{ textAlign: 'center', fontWeight: 600, fontSize: '0.875rem', color: '#0369a1' }}>{subject.units}</TableCell>
+                          <TableCell sx={{ textAlign: 'center', fontWeight: 600, fontSize: '0.875rem', color: '#0369a1' }}>{subject.hours_per_week || 0}</TableCell>
+                          <TableCell sx={{ textAlign: 'center' }}>
+                            <Box sx={{ display: 'inline-block', px: 1.5, py: 0.5, borderRadius: 1, fontSize: '0.75rem', fontWeight: 500, background: subject.code.startsWith('IT') ? '#dbeafe' : '#fef3c7', color: subject.code.startsWith('IT') ? '#1e40af' : '#92400e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{subject.code.startsWith('IT') ? 'Major' : 'Minor'}</Box>
+                          </TableCell>
+                          <TableCell sx={{ textAlign: 'center' }}>
+                            {(() => {
+                              const subjectGrades = getSubjectGrades(subject.code);
+                              if (subjectGrades) {
+                                const hasGrades = subjectGrades.prelim_grade !== null || subjectGrades.midterm_grade !== null || subjectGrades.final_grade !== null;
+                                if (hasGrades) {
+                                  const averageGrade = calculateAverageGrade(subjectGrades.prelim_grade || null, subjectGrades.midterm_grade || null, subjectGrades.final_grade || null);
+                                  return (<Box sx={{ fontSize: '0.875rem', fontWeight: 700, color: '#0284c7', background: '#e0f2fe', px: 1.5, py: 0.5, borderRadius: 1, border: '1px solid #7dd3fc' }}>{averageGrade}</Box>);
+                                }
+                              }
+                              return (<Box sx={{ fontSize: '0.75rem', color: '#6b7280', fontStyle: 'italic' }}>No grades</Box>);
+                            })()}
+                          </TableCell>
+                          <TableCell sx={{ textAlign: 'center' }}>
+                            {subject.prerequisites && subject.prerequisites.length > 0 ? (
+                              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, justifyContent: 'center' }}>
+                                {subject.prerequisites.map((prereq: string, idx: number) => (
+                                  <Chip key={`${subject.id}-prereq-${idx}`} label={prereq} size="small" sx={{ fontSize: '0.7rem', height: '20px', background: '#fef3c7', color: '#92400e', border: '1px solid #f59e0b' }} />
+                                ))}
+                              </Box>
+                            ) : (
+                              <Typography sx={{ fontSize: '0.75rem', color: '#9ca3af', fontStyle: 'italic' }}>None</Typography>
+                            )}
+                          </TableCell>
+                          <TableCell sx={{ textAlign: 'center' }}>
+                            {(() => {
+                              const confirmationStatus = getConfirmationStatus(subject.code);
+                              const isConfirmed = confirmationStatus === 'confirmed';
+                              const subjectGrades = getSubjectGrades(subject.code);
+                              const hasGrades = subjectGrades && (subjectGrades.prelim_grade !== null || 
+                                                subjectGrades.midterm_grade !== null || 
+                                                subjectGrades.final_grade !== null);
+                              
+                              if (isConfirmed) {
+                                return (
+                                  <Box sx={{ display: 'inline-block', px: 1.5, py: 0.5, borderRadius: 1, fontSize: '0.75rem', fontWeight: 500, background: '#dcfce7', color: '#166534', textTransform: 'capitalize' }}>
+                                    Confirmed
+                                  </Box>
+                                );
+                              } else if (hasGrades) {
+                                return (
+                                  <Button 
+                                    size="small" 
+                                    variant="outlined" 
+                                    color="success" 
+                                    onClick={() => handleConfirmSubject(subject.code)}
+                                    sx={{ fontSize: '0.7rem', py: 0.5, px: 1 }}
+                                  >
+                                    Confirm
+                                  </Button>
+                                );
+                              } else {
+                                return (
+                                  <Box sx={{ display: 'inline-block', px: 1.5, py: 0.5, borderRadius: 1, fontSize: '0.75rem', fontWeight: 500, background: '#e5e7eb', color: '#374151', textTransform: 'capitalize' }}>
+                                    Pending
+                                  </Box>
+                                );
+                              }
+                            })()}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+
+                {/* 2nd Semester */}
+                <Box sx={{ px: 2, pt: 3, pb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Box sx={{ width: 8, height: 8, borderRadius: '50%', background: '#0ea5e9' }} />
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#1f2937' }}>2nd Semester</Typography>
+                </Box>
+                <TableContainer>
+                  <Table size="small" sx={{ tableLayout: 'fixed', width: '100%' }}>
+                    <colgroup>
+                      <col style={{ width: '16%' }} />
+                      <col style={{ width: '28%' }} />
+                      <col style={{ width: '10%' }} />
+                      <col style={{ width: '6%' }} />
+                      <col style={{ width: '6%' }} />
+                      <col style={{ width: '6%' }} />
+                      <col style={{ width: '8%' }} />
+                      <col style={{ width: '10%' }} />
+                      <col style={{ width: '10%' }} />
+                      <col style={{ width: '10%' }} />
+                      <col style={{ width: '10%' }} />
+                    </colgroup>
+                    <TableHead>
+                      <TableRow sx={{ background: '#f0f9ff' }}>
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd' }}>Subject Code</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd' }}>Subject Name</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd', textAlign: 'center' }}>Enrollment Status</TableCell>
+                        
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd', textAlign: 'center' }}>LEC</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd', textAlign: 'center' }}>LAB</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd', textAlign: 'center' }}>Units</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd', textAlign: 'center' }}>Hours/Week</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd', textAlign: 'center' }}>Type</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd', textAlign: 'center' }}>Average Grade</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd', textAlign: 'center' }}>Prerequisites</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#0369a1', fontSize: '0.875rem', borderBottom: '2px solid #bae6fd', textAlign: 'center' }}>Status</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {yearSubjects.filter(isSecondSemesterCourse).map((subject, idx) => (
+                        <TableRow key={subject.id} sx={{ background: idx % 2 === 0 ? '#f0f9ff' : '#ffffff' }}>
+                          <TableCell sx={{ fontWeight: 600, fontFamily: 'monospace', fontSize: '0.875rem', color: '#0369a1' }}>{subject.code}</TableCell>
+                          <TableCell sx={{ fontSize: '0.875rem', color: '#075985', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{subject.name}</TableCell>
+                          <TableCell sx={{ textAlign: 'center' }}>
+                            <Box sx={{ display: 'inline-block', px: 1.5, py: 0.5, borderRadius: 1, fontSize: '0.75rem', fontWeight: 500, background: getEnrollmentStatus(subject.id, subject.code) === 'active' ? '#e0f2fe' : '#f3f4f6', color: getEnrollmentStatus(subject.id, subject.code) === 'active' ? '#0369a1' : '#374151', textTransform: 'capitalize' }}>{getEnrollmentStatus(subject.id, subject.code) === 'active' ? 'Enrolled' : 'Not enrolled'}</Box>
+                          </TableCell>
+                          
+                          <TableCell sx={{ textAlign: 'center', fontWeight: 600, fontSize: '0.875rem', color: '#0369a1' }}>{subject.lec_units || 0}</TableCell>
+                          <TableCell sx={{ textAlign: 'center', fontWeight: 600, fontSize: '0.875rem', color: '#0369a1' }}>{subject.lab_units || 0}</TableCell>
+                          <TableCell sx={{ textAlign: 'center', fontWeight: 600, fontSize: '0.875rem', color: '#0369a1' }}>{subject.units}</TableCell>
+                          <TableCell sx={{ textAlign: 'center', fontWeight: 600, fontSize: '0.875rem', color: '#0369a1' }}>{subject.hours_per_week || 0}</TableCell>
+                          <TableCell sx={{ textAlign: 'center' }}>
+                            <Box sx={{ display: 'inline-block', px: 1.5, py: 0.5, borderRadius: 1, fontSize: '0.75rem', fontWeight: 500, background: subject.code.startsWith('IT') ? '#dbeafe' : '#fef3c7', color: subject.code.startsWith('IT') ? '#1e40af' : '#92400e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{subject.code.startsWith('IT') ? 'Major' : 'Minor'}</Box>
+                          </TableCell>
+                          <TableCell sx={{ textAlign: 'center' }}>
+                            {(() => {
+                              const subjectGrades = getSubjectGrades(subject.code);
+                              if (subjectGrades) {
+                                const hasGrades = subjectGrades.prelim_grade !== null || subjectGrades.midterm_grade !== null || subjectGrades.final_grade !== null;
+                                if (hasGrades) {
+                                  const averageGrade = calculateAverageGrade(subjectGrades.prelim_grade || null, subjectGrades.midterm_grade || null, subjectGrades.final_grade || null);
+                                  return (<Box sx={{ fontSize: '0.875rem', fontWeight: 700, color: '#0284c7', background: '#e0f2fe', px: 1.5, py: 0.5, borderRadius: 1, border: '1px solid #7dd3fc' }}>{averageGrade}</Box>);
+                                }
+                              }
+                              return (<Box sx={{ fontSize: '0.75rem', color: '#6b7280', fontStyle: 'italic' }}>No grades</Box>);
+                            })()}
+                          </TableCell>
+                          <TableCell sx={{ textAlign: 'center' }}>
+                            {subject.prerequisites && subject.prerequisites.length > 0 ? (
+                              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, justifyContent: 'center' }}>
+                                {subject.prerequisites.map((prereq: string, idx: number) => (
+                                  <Chip key={`${subject.id}-prereq-${idx}`} label={prereq} size="small" sx={{ fontSize: '0.7rem', height: '20px', background: '#fef3c7', color: '#92400e', border: '1px solid #f59e0b' }} />
+                                ))}
+                              </Box>
+                            ) : (
+                              <Typography sx={{ fontSize: '0.75rem', color: '#9ca3af', fontStyle: 'italic' }}>None</Typography>
+                            )}
+                          </TableCell>
+                          <TableCell sx={{ textAlign: 'center' }}>
+                            {(() => {
+                              const confirmationStatus = getConfirmationStatus(subject.code);
+                              const isConfirmed = confirmationStatus === 'confirmed';
+                              const subjectGrades = getSubjectGrades(subject.code);
+                              const hasGrades = subjectGrades && (subjectGrades.prelim_grade !== null || 
+                                                subjectGrades.midterm_grade !== null || 
+                                                subjectGrades.final_grade !== null);
+                              
+                              if (isConfirmed) {
+                                return (
+                                  <Box sx={{ display: 'inline-block', px: 1.5, py: 0.5, borderRadius: 1, fontSize: '0.75rem', fontWeight: 500, background: '#dcfce7', color: '#166534', textTransform: 'capitalize' }}>
+                                    Confirmed
+                                  </Box>
+                                );
+                              } else if (hasGrades) {
+                                return (
+                                  <Button 
+                                    size="small" 
+                                    variant="outlined" 
+                                    color="success" 
+                                    onClick={() => handleConfirmSubject(subject.code)}
+                                    sx={{ fontSize: '0.7rem', py: 0.5, px: 1 }}
+                                  >
+                                    Confirm
+                                  </Button>
+                                );
+                              } else {
+                                return (
+                                  <Box sx={{ display: 'inline-block', px: 1.5, py: 0.5, borderRadius: 1, fontSize: '0.75rem', fontWeight: 500, background: '#e5e7eb', color: '#374151', textTransform: 'capitalize' }}>
+                                    Pending
+                                  </Box>
+                                );
+                              }
+                            })()}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+
+                {/* Summer */}
+                <Box sx={{ px: 2, pt: 3, pb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Box sx={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b' }} />
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#1f2937' }}>Summer</Typography>
+                </Box>
+                <TableContainer>
+                  <Table size="small" sx={{ tableLayout: 'fixed', width: '100%' }}>
+                    <colgroup>
+                      <col style={{ width: '16%' }} />
+                      <col style={{ width: '28%' }} />
+                      <col style={{ width: '10%' }} />
+                      <col style={{ width: '6%' }} />
+                      <col style={{ width: '6%' }} />
+                      <col style={{ width: '6%' }} />
+                      <col style={{ width: '8%' }} />
+                      <col style={{ width: '10%' }} />
+                      <col style={{ width: '10%' }} />
+                      <col style={{ width: '10%' }} />
+                      <col style={{ width: '10%' }} />
+                    </colgroup>
+                    <TableHead>
+                      <TableRow sx={{ background: '#fff7ed' }}>
+                        <TableCell sx={{ fontWeight: 700, color: '#92400e', fontSize: '0.875rem', borderBottom: '2px solid #fde68a' }}>Subject Code</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#92400e', fontSize: '0.875rem', borderBottom: '2px solid #fde68a' }}>Subject Name</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#92400e', fontSize: '0.875rem', borderBottom: '2px solid #fde68a', textAlign: 'center' }}>Enrollment Status</TableCell>
+                        
+                        <TableCell sx={{ fontWeight: 700, color: '#92400e', fontSize: '0.875rem', borderBottom: '2px solid #fde68a', textAlign: 'center' }}>LEC</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#92400e', fontSize: '0.875rem', borderBottom: '2px solid #fde68a', textAlign: 'center' }}>LAB</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#92400e', fontSize: '0.875rem', borderBottom: '2px solid #fde68a', textAlign: 'center' }}>Units</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#92400e', fontSize: '0.875rem', borderBottom: '2px solid #fde68a', textAlign: 'center' }}>Hours/Week</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#92400e', fontSize: '0.875rem', borderBottom: '2px solid #fde68a', textAlign: 'center' }}>Type</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#92400e', fontSize: '0.875rem', borderBottom: '2px solid #fde68a', textAlign: 'center' }}>Average Grade</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#92400e', fontSize: '0.875rem', borderBottom: '2px solid #fde68a', textAlign: 'center' }}>Prerequisites</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#92400e', fontSize: '0.875rem', borderBottom: '2px solid #fde68a', textAlign: 'center' }}>Status</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {yearSubjects.filter(s => s.summer).map((subject, idx) => (
+                        <TableRow key={subject.id} sx={{ background: idx % 2 === 0 ? '#fff7ed' : '#ffffff' }}>
+                          <TableCell sx={{ fontWeight: 600, fontFamily: 'monospace', fontSize: '0.875rem', color: '#92400e' }}>{subject.code}</TableCell>
+                          <TableCell sx={{ fontSize: '0.875rem', color: '#7c2d12', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{subject.name}</TableCell>
+                          <TableCell sx={{ textAlign: 'center' }}>
+                            <Box sx={{ display: 'inline-block', px: 1.5, py: 0.5, borderRadius: 1, fontSize: '0.75rem', fontWeight: 500, background: getEnrollmentStatus(subject.id, subject.code) === 'active' ? '#fef3c7' : '#f3f4f6', color: getEnrollmentStatus(subject.id, subject.code) === 'active' ? '#92400e' : '#374151', textTransform: 'capitalize' }}>
+                              {getEnrollmentStatus(subject.id, subject.code) === 'active' ? 'Enrolled' : 'Not enrolled'}
+                            </Box>
+                          </TableCell>
+                          
+                          <TableCell sx={{ textAlign: 'center', fontWeight: 600, fontSize: '0.875rem', color: '#92400e' }}>{subject.lec_units || 0}</TableCell>
+                          <TableCell sx={{ textAlign: 'center', fontWeight: 600, fontSize: '0.875rem', color: '#92400e' }}>{subject.lab_units || 0}</TableCell>
+                          <TableCell sx={{ textAlign: 'center', fontWeight: 600, fontSize: '0.875rem', color: '#92400e' }}>{subject.units}</TableCell>
+                          <TableCell sx={{ textAlign: 'center', fontWeight: 600, fontSize: '0.875rem', color: '#92400e' }}>{subject.hours_per_week || 0}</TableCell>
+                          <TableCell sx={{ textAlign: 'center' }}>
+                            <Box sx={{ display: 'inline-block', px: 1.5, py: 0.5, borderRadius: 1, fontSize: '0.75rem', fontWeight: 500, background: subject.code.startsWith('IT') ? '#dbeafe' : '#fef3c7', color: subject.code.startsWith('IT') ? '#1e40af' : '#92400e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                              {subject.code.startsWith('IT') ? 'Major' : 'Minor'}
+                            </Box>
+                          </TableCell>
+                          <TableCell sx={{ textAlign: 'center' }}>
+                            {(() => {
+                              const subjectGrades = getSubjectGrades(subject.code);
+                              if (subjectGrades) {
+                                const hasGrades = subjectGrades.prelim_grade !== null || subjectGrades.midterm_grade !== null || subjectGrades.final_grade !== null;
+                                if (hasGrades) {
+                                  const averageGrade = calculateAverageGrade(subjectGrades.prelim_grade || null, subjectGrades.midterm_grade || null, subjectGrades.final_grade || null);
+                                  return (<Box sx={{ fontSize: '0.875rem', fontWeight: 700, color: '#b45309', background: '#fffbeb', px: 1.5, py: 0.5, borderRadius: 1, border: '1px solid #f59e0b' }}>{averageGrade}</Box>);
+                                }
+                              }
+                              return (<Box sx={{ fontSize: '0.75rem', color: '#6b7280', fontStyle: 'italic' }}>No grades</Box>);
+                            })()}
+                          </TableCell>
+                          <TableCell sx={{ textAlign: 'center' }}>
+                            {subject.prerequisites && subject.prerequisites.length > 0 ? (
+                              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, justifyContent: 'center' }}>
+                                {subject.prerequisites.map((prereq, idx) => (
+                                  <Chip key={`${subject.id}-prereq-${idx}`} label={prereq} size="small" sx={{ fontSize: '0.7rem', height: '20px', background: '#fef3c7', color: '#92400e', border: '1px solid #f59e0b' }} />
+                                ))}
+                              </Box>
+                            ) : (
+                              <Typography sx={{ fontSize: '0.75rem', color: '#9ca3af', fontStyle: 'italic' }}>None</Typography>
+                            )}
+                          </TableCell>
+                          <TableCell sx={{ textAlign: 'center' }}>
+                            {(() => {
+                              const confirmationStatus = getConfirmationStatus(subject.code);
+                              const isConfirmed = confirmationStatus === 'confirmed';
+                              const subjectGrades = getSubjectGrades(subject.code);
+                              const hasGrades = subjectGrades && (subjectGrades.prelim_grade !== null || 
+                                                subjectGrades.midterm_grade !== null || 
+                                                subjectGrades.final_grade !== null);
+                              
+                              if (isConfirmed) {
+                                return (
+                                  <Box sx={{ display: 'inline-block', px: 1.5, py: 0.5, borderRadius: 1, fontSize: '0.75rem', fontWeight: 500, background: '#dcfce7', color: '#166534', textTransform: 'capitalize' }}>
+                                    Confirmed
+                                  </Box>
+                                );
+                              } else if (hasGrades) {
+                                return (
+                                  <Button 
+                                    size="small" 
+                                    variant="outlined" 
+                                    color="success" 
+                                    onClick={() => handleConfirmSubject(subject.code)}
+                                    sx={{ fontSize: '0.7rem', py: 0.5, px: 1 }}
+                                  >
+                                    Confirm
+                                  </Button>
+                                );
+                              } else {
+                                return (
+                                  <Box sx={{ display: 'inline-block', px: 1.5, py: 0.5, borderRadius: 1, fontSize: '0.75rem', fontWeight: 500, background: '#e5e7eb', color: '#374151', textTransform: 'capitalize' }}>
+                                    Pending
+                                  </Box>
+                                );
+                              }
+                            })()}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </>
+             ) : (
+               <Box sx={{ 
+                 p: 3, 
+                 textAlign: 'center',
+                 color: '#6b7280'
+               }}>
+                 <Typography variant="body2">
+                   No subjects available for {getYearLabel(String(yearLevel))}
+                 </Typography>
+               </Box>
+             )}
+           </CardContent>
+         </Card>
+       );
+     });
+   };
+
+  // Prerequisite checking function
+  const checkPrerequisites = async (studentId: string, courseCode: string): Promise<{ canEnroll: boolean; missingPrerequisites: string[] }> => {
+    try {
+      // Get the course with its prerequisites
+      const { data: courseData, error: courseError } = await supabase
+        .from('courses')
+        .select('prerequisites')
+        .eq('code', courseCode)
+        .single();
+
+      if (courseError || !courseData?.prerequisites || courseData.prerequisites.length === 0) {
+        return { canEnroll: true, missingPrerequisites: [] };
+      }
+
+      const prerequisites = courseData.prerequisites as string[];
+      
+      // Get student's completed subjects (grades with passing marks)
+      const { data: studentGrades, error: gradesError } = await supabase
+        .from('grades')
+        .select(`
+          course:courses(code),
+          final_grade
+        `)
+        .eq('student_id', studentId);
+
+      if (gradesError) {
+        console.error('Error fetching student grades:', gradesError);
+        return { canEnroll: false, missingPrerequisites: prerequisites };
+      }
+
+      // Get student's profile year level for Year Standing checks
+      const { data: profileData } = await supabase
+        .from('user_profiles')
+        .select('year_level')
+        .eq('id', studentId)
+        .single();
+      const studentYear = Number((profileData as any)?.year_level || 0);
+
+      // Check if student has completed all prerequisites
+      const completedSubjects = (studentGrades || [])
+        .filter(grade => grade.final_grade && grade.final_grade >= 75) // Assuming 75 is passing
+        .map(grade => (grade.course as any)?.code)
+        .filter(Boolean);
+
+      const missingPrerequisites: string[] = [];
+
+      for (const prereq of prerequisites) {
+        // Year Standing pattern: '1st Year Standing', '2nd Year Standing', etc.
+        const ysMatch = prereq.match(/^(\d)(st|nd|rd|th)\s+Year\s+Standing$/i);
+        if (ysMatch) {
+          const requiredYear = Number(ysMatch[1]);
+          if (!studentYear || studentYear < requiredYear) {
+            missingPrerequisites.push(prereq);
+          }
+          continue;
+        }
+        // Subject prerequisite
+        if (!completedSubjects.includes(prereq)) {
+          missingPrerequisites.push(prereq);
+        }
+      }
+
+      return {
+        canEnroll: missingPrerequisites.length === 0,
+        missingPrerequisites
+      };
+    } catch (error) {
+      console.error('Error checking prerequisites:', error);
+      return { canEnroll: false, missingPrerequisites: [] };
+    }
+  };
+  const [selectedStudentForProspectus, setSelectedStudentForProspectus] = useState<Student | null>(null);
+  const [studentGrades, setStudentGrades] = useState<Array<{
+    id: string;
+    student_id: string;
+    subject_code: string;
+    subject_name: string;
+    prelim_grade?: number;
+    midterm_grade?: number;
+    final_grade?: number;
+    remarks?: string;
+    year_level?: string;
+    semester?: string;
+    academic_year?: string;
+  }>>([]);
+  const [loadingGrades, setLoadingGrades] = useState(false);
+  const prospectusContentRef = useRef<HTMLDivElement>(null);
+
+  const getDefaultSchoolYear = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const nextYear = year + 1;
+    return `${year}-${nextYear}`;
+  };
+
   const [createForm, setCreateForm] = useState({
     firstName: '',
     middleName: '',
     lastName: '',
     email: '',
-    role: 'instructor' as 'teacher' | 'instructor', // default to instructor
-    department: 'BSIT', // default to BSIT
     password: 'TempPass@123',
-  });
-
-  // Edit Instructor State
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [editForm, setEditForm] = useState({
-    id: '',
-    firstName: '',
-    middleName: '',
-    lastName: '',
-    email: '',
-    role: 'instructor' as 'teacher' | 'instructor',
+    studentType: 'Freshman',
+    yearLevel: 1,
+    schoolYear: getDefaultSchoolYear(),
+    studentId: '',
     department: 'BSIT',
-    is_active: true,
-  });
-
-  // Delete Confirmation State
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [instructorToDelete, setInstructorToDelete] = useState<Instructor | null>(null);
-
-  // View Instructor State
-  const [viewDialogOpen, setViewDialogOpen] = useState(false);
-  const [instructorToView, setInstructorToView] = useState<Instructor | null>(null);
-
-  // Subject Assignment Modal State
-  const [subjectAssignmentModal, setSubjectAssignmentModal] = useState({
-    isOpen: false,
-    selectedTeacherId: '',
-    selectedTeacherName: ''
-  });
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [sections, setSections] = useState<Array<{
-    id: string;
-    name: string;
-    year_level: string;
-  }>>([]);
-  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-  const [formSubmitting, setFormSubmitting] = useState(false);
-  const [newAssignment, setNewAssignment] = useState<TeacherSubject>({
-    teacher_id: '',
-    subject_id: '',
+    semester: '1st Semester',
     section: '',
-    academic_year: '',
-    semester: '',
-    year_level: '',
-    is_active: true,
-    day: '',
-    time: ''
   });
 
-  // Year Level Assigned Subjects State
-  const [assignments, setAssignments] = useState<TeacherSubject[]>([]);
-  const [assignmentsLoading, setAssignmentsLoading] = useState(true);
-  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
-  const [selectedYearLevel, setSelectedYearLevel] = useState<string>('all');
-  
-  // Assignment Detail Modal State
-  const [assignmentDetailModal, setAssignmentDetailModal] = useState<{
-    isOpen: boolean;
-    assignment: TeacherSubject | null;
-  }>({
-    isOpen: false,
-    assignment: null
-  });
+  useEffect(() => {
+    loadEnrollments();
+    fetchSections();
+    fetchInstructorAssignments();
+  }, []);
 
-  // Edit Assignment Modal State
-  const [editAssignmentModal, setEditAssignmentModal] = useState<{
-    isOpen: boolean;
-    assignment: TeacherSubject | null;
-    loading: boolean;
-  }>({
-    isOpen: false,
-    assignment: null,
-    loading: false
-  });
+  // Refresh instructor assignments when createForm changes (year level or section)
+  useEffect(() => {
+    if (createForm.yearLevel || createForm.section) {
+      // Re-trigger the instructor matching by updating the component
+      // This will cause the getInstructorForCourse function to re-evaluate
+    }
+  }, [createForm.yearLevel, createForm.section]);
 
+  // Update section ID when sections are loaded and we have a selected existing student
+  useEffect(() => {
+    if (selectedExistingStudent && sections.length > 0 && createForm.section === '') {
+      // Check if student.section is already a section ID
+      const isSectionId = sections.some(s => s.id === selectedExistingStudent.section);
+      let sectionId = '';
+      
+      if (isSectionId) {
+        sectionId = selectedExistingStudent.section || '';
+      } else {
+        sectionId = getSectionId(selectedExistingStudent.section) || '';
+      }
+      
+      if (sectionId) {
+        setCreateForm(prev => ({
+          ...prev,
+          section: sectionId
+        }));
+      }
+    }
+  }, [sections, selectedExistingStudent, createForm.section]);
+
+  // Function to fetch available sections
   const fetchSections = async () => {
+    setSectionsLoading(true);
     try {
-      console.log('Fetching sections...');
       const { data, error } = await supabase
         .from('sections')
-        .select('id, name, year_level')
+        .select('id, name, year_level, academic_year')
+        .order('year_level', { ascending: true })
         .order('name', { ascending: true });
- 
+      
       if (error) throw error;
-      
-      console.log('Fetched sections:', data);
-      
-      // Validate that sections have proper year_level data
-      const validSections = (data || []).filter(section => 
-        section.year_level !== null && 
-        section.year_level !== undefined && 
-        section.name && 
-        section.name.trim() !== ''
-      );
-      
-      console.log('Valid sections:', validSections);
-      setSections(validSections);
-    } catch (error) {
-      console.error('Error fetching sections:', error);
-      toast.error('Failed to load sections');
+      setSections(data || []);
+    } catch (err) {
+      console.error('Failed to fetch sections:', err);
       setSections([]);
+    } finally {
+      setSectionsLoading(false);
     }
   };
 
-  const fetchCourses = async () => {
-    try {
-      console.log('Starting fetchCourses...');
-      console.log('Supabase client:', supabase);
-      
-      // Fetch courses with all necessary fields
-      const { data, error } = await supabase
-        .from('courses')
-        .select('*')
-        .order('code', { ascending: true });
-
-      console.log('Raw response:', { data, error });
-      
-      if (error) {
-        console.error('Supabase error:', error);
-        throw error;
-      }
-      
-      console.log('Data received:', data);
-      console.log('Data type:', typeof data);
-      console.log('Data length:', data ? data.length : 'null');
-      
-      // Debug: Show raw year_level values
-      if (data && data.length > 0) {
-        console.log('Raw year_level values:', data.map(c => ({ id: c.id, year_level: c.year_level, type: typeof c.year_level })));
-        console.log('Sample course data:', data[0]);
-        console.log('All available fields in first course:', Object.keys(data[0]));
-        
-        // Check if year_level field exists and has values
-        const coursesWithYearLevel = data.filter(c => c.year_level && c.year_level !== null && c.year_level !== '');
-        console.log('Courses with year_level:', coursesWithYearLevel.length);
-        console.log('Courses without year_level:', data.length - coursesWithYearLevel.length);
-        
-        // Check semester values
-        console.log('Raw semester values:', data.map(c => ({ id: c.id, code: c.code, semester: c.semester, summer: c.summer, type: typeof c.semester })));
-        const coursesWithSemester = data.filter(c => c.semester && c.semester !== null && c.semester !== '');
-        console.log('Courses with semester:', coursesWithSemester.length);
-        console.log('Courses without semester:', data.length - coursesWithSemester.length);
-        console.log('Unique semester values:', Array.from(new Set(data.map(c => c.semester))));
-        
-        // Check summer field values
-        const summerCourses = data.filter(c => c.summer === true);
-        console.log('Courses with summer=true:', summerCourses.length);
-        console.log('Summer courses details:', summerCourses.map(c => ({ id: c.id, code: c.code, name: c.name, summer: c.summer })));
-        
-        if (coursesWithYearLevel.length === 0) {
-          console.warn('WARNING: No courses have year_level values! This is why filtering fails.');
-          console.warn('You may need to populate the year_level field in the courses table.');
-        }
-       
-        if (coursesWithSemester.length === 0) {
-          console.warn('WARNING: No courses have semester values! This is why semester filtering fails.');
-          console.warn('You may need to populate the semester field in the courses table.');
-        }
-      }
-      
-      // Transform the data to ensure display_name is available
-      const transformedCourses = (data || []).map((course: any) => ({
-        ...course,
-        display_name: course.display_name || course.name || course.code,
-        // Assign default year level if missing
-        year_level: course.year_level || (() => {
-          // Try to extract year from course code or name
-          const code = String(course.code || '').toLowerCase();
-          const name = String(course.name || '').toLowerCase();
-          
-          if (code.includes('1') || name.includes('1') || code.includes('first') || name.includes('first')) return '1st Year';
-          if (code.includes('2') || name.includes('2') || code.includes('second') || name.includes('second')) return '2nd Year';
-          if (code.includes('3') || name.includes('3') || code.includes('third') || name.includes('third')) return '3rd Year';
-          if (code.includes('4') || name.includes('4') || code.includes('fourth') || name.includes('fourth')) return '4th Year';
-          
-          // Default to 1st Year if no pattern found
-          return '1st Year';
-        })(),
-        // Assign semester based on summer field first, then fallback to existing logic
-        semester: (() => {
-          // Check if course is marked as summer in the database
-          if (course.summer === true) {
-            return 'Summer';
-          }
-          
-          // If semester is already set, use it
-          if (course.semester) {
-            return course.semester;
-          }
-          
-          // Try to extract semester from course code or name
-          const code = String(course.code || '').toLowerCase();
-          const name = String(course.name || '').toLowerCase();
-          
-          // Check for summer courses first (highest priority)
-          if (code.includes('summer') || name.includes('summer') || 
-              code.includes('su') || name.includes('su') ||
-              code.includes('sm') || name.includes('sm') ||
-              code === 's' || code === 'sum') {
-            return 'Summer';
-          }
-          
-          // Check for second semester courses
-          if (code.includes('2') || name.includes('second') || 
-              code.includes('2nd') || name.includes('2nd') ||
-              code.includes('ii') || name.includes('ii')) {
-            return 'Second Semester';
-          }
-          
-          // Check for first semester courses (but be more careful to avoid mislabeling)
-          if ((code.includes('1') && !code.includes('10') && !code.includes('11') && !code.includes('12')) || 
-              name.includes('first') || 
-              code.includes('1st') || name.includes('1st') ||
-              (code.includes('i') && !code.includes('ii') && !code.includes('iii') && !code.includes('iv'))) {
-            return 'First Semester';
-          }
-          
-          // Default to First Semester if no pattern found
-          return 'First Semester';
-        })()
-      }));
-      
-      console.log('Fetched courses:', data);
-      console.log('Transformed courses:', transformedCourses);
-      console.log('Setting courses state with:', transformedCourses);
-      
-      setCourses(transformedCourses);
-    } catch (error) {
-      console.error('Error fetching courses:', error);
-      console.error('Error details:', {
-        message: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : 'No stack trace',
-        error
-      });
-      toast.error('Failed to load courses');
-      setCourses([]);
-    }
+  // Helper function to get section name by ID
+  const getSectionName = (sectionId: string | null | undefined): string => {
+    if (!sectionId) return 'Unassigned';
+    const section = sections.find(s => s.id === sectionId);
+    return section ? section.name : 'Unknown Section';
   };
 
-  const fetchAssignments = async () => {
+  // Helper function to get section ID by name
+  const getSectionId = (sectionName: string | null | undefined): string => {
+    if (!sectionName) return '';
+    const section = sections.find(s => s.name === sectionName);
+    return section ? section.id : '';
+  };
+
+  // Fetch instructor assignments for courses
+  const fetchInstructorAssignments = async () => {
     try {
-      setAssignmentsLoading(true);
       const { data, error } = await supabase
         .from('teacher_subjects')
         .select(`
@@ -401,6 +1216,7 @@ const InstructorManagement: React.FC = () => {
             semester
           )
         `)
+        .eq('is_active', true)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -415,1110 +1231,2851 @@ const InstructorManagement: React.FC = () => {
         semester: assignment.semester,
         year_level: assignment.year_level,
         is_active: assignment.is_active,
-        day: assignment.day,
-        time: assignment.time,
-        created_at: assignment.created_at,
         teacher_name: assignment.teacher 
           ? `${assignment.teacher.first_name} ${assignment.teacher.middle_name ? assignment.teacher.middle_name + ' ' : ''}${assignment.teacher.last_name}`
           : 'Unknown Teacher',
         teacher_role: assignment.teacher?.role || 'Unknown',
-        teacher_profile_picture: assignment.teacher?.profile_picture_url || null,
         subject_code: assignment.subject?.code || 'Unknown',
         subject_name: assignment.subject?.name || 'Unknown',
         subject_units: assignment.subject?.units || 0
       }));
 
-      setAssignments(transformedAssignments);
+      setInstructorAssignments(transformedAssignments);
     } catch (error) {
-      console.error('Error fetching assignments:', error);
-      toast.error('Failed to load assignments');
-    } finally {
-      setAssignmentsLoading(false);
+      console.error('Error fetching instructor assignments:', error);
     }
   };
 
-  const fetchInstructors = async () => {
-    try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .in('role', ['teacher', 'instructor'])
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setInstructors(data || []);
-    } catch (error) {
-      console.error('Error fetching instructors:', error);
-      toast.error('Failed to load instructors');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Edit Instructor Functions
-  const handleEditInstructor = (instructor: Instructor) => {
-    setEditForm({
-      id: instructor.id,
-      firstName: instructor.first_name,
-      middleName: instructor.middle_name || '',
-      lastName: instructor.last_name,
-      email: instructor.email,
-      role: instructor.role,
-      department: instructor.department || 'BSIT',
-      is_active: instructor.is_active,
-    });
-    setEditDialogOpen(true);
-  };
-
-  const handleUpdateInstructor = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setEditing(true);
-    try {
-      const { error } = await supabase
-        .from('user_profiles')
-        .update({
-          first_name: editForm.firstName,
-          middle_name: editForm.middleName,
-          last_name: editForm.lastName,
-          role: editForm.role,
-          department: editForm.department,
-          is_active: editForm.is_active,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', editForm.id);
-
-      if (error) throw error;
-
-      toast.success('Instructor updated successfully!');
-      setEditDialogOpen(false);
-      resetEditForm();
-      fetchInstructors();
-    } catch (error) {
-      console.error('Error updating instructor:', error);
-      toast.error('Failed to update instructor');
-    } finally {
-      setEditing(false);
-    }
-  };
-
-  const resetEditForm = () => {
-    setEditForm({
-      id: '',
-      firstName: '',
-      middleName: '',
-      lastName: '',
-      email: '',
-      role: 'instructor',
-      department: 'BSIT',
-      is_active: true,
-    });
-  };
-
-  // Delete Instructor Functions
-  const handleDeleteInstructor = (instructor: Instructor) => {
-    setInstructorToDelete(instructor);
-    setDeleteDialogOpen(true);
-  };
-
-  const confirmDeleteInstructor = async () => {
-    if (!instructorToDelete) return;
+  // Helper function to get instructor information for a course
+  const getInstructorForCourse = (courseId: string, studentYearLevel?: string, studentSection?: string) => {
+    const currentAcademicYear = createForm.schoolYear || getDefaultSchoolYear();
+    const currentSemester = createForm.semester || '1st Semester';
     
-    setDeleting(true);
-    try {
-      // First, check if instructor has any subject assignments
-      const { data: assignments, error: assignmentError } = await supabase
-        .from('teacher_subjects')
-        .select('id')
-        .eq('teacher_id', instructorToDelete.id);
+    const assignments = instructorAssignments.filter(assignment => 
+      assignment.subject_id === courseId && 
+      assignment.academic_year === currentAcademicYear &&
+      assignment.semester === currentSemester &&
+      assignment.is_active
+    );
 
-      if (assignmentError) throw assignmentError;
-
-      if (assignments && assignments.length > 0) {
-        toast.error('Cannot delete instructor with active subject assignments. Please remove assignments first.');
-        setDeleteDialogOpen(false);
-        setInstructorToDelete(null);
-        return;
-      }
-
-      // Delete from user_profiles
-      const { error: profileError } = await supabase
-        .from('user_profiles')
-        .delete()
-        .eq('id', instructorToDelete.id);
-
-      if (profileError) throw profileError;
-
-      // Note: We don't delete the auth user for security reasons
-      // The auth user will remain but won't be able to access the system
-
-      toast.success('Instructor deleted successfully!');
-      setDeleteDialogOpen(false);
-      setInstructorToDelete(null);
-      fetchInstructors();
-    } catch (error) {
-      console.error('Error deleting instructor:', error);
-      toast.error('Failed to delete instructor');
-    } finally {
-      setDeleting(false);
-    }
-  };
-
-  const resetDeleteDialog = () => {
-    setDeleteDialogOpen(false);
-    setInstructorToDelete(null);
-  };
-
-  // View Instructor Functions
-  const handleViewInstructor = (instructor: Instructor) => {
-    setInstructorToView(instructor);
-    setViewDialogOpen(true);
-  };
-
-  const closeViewDialog = () => {
-    setViewDialogOpen(false);
-    setInstructorToView(null);
-  };
-
-  // Fetch instructors on component mount
-  useEffect(() => {
-    fetchInstructors();
-    fetchCourses();
-    fetchSections();
-  }, []);
-
-  // Fetch assignments when tab changes to Year Level Assigned Subjects
-  useEffect(() => {
-    if (tabValue === 1) {
-      fetchAssignments();
-    }
-  }, [tabValue]);
-
-  const handleCreateInstructor = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setCreating(true);
-    try {
-      const fullEmail = createForm.email + '@smcbi.edu.ph';
+    // If we have student year level and section, try to find exact match first
+    if (studentYearLevel && studentSection) {
+      // Convert section ID to section name for comparison
+      const sectionName = getSectionName(studentSection);
       
-      // Check if email already exists
-      const { count: emailCount, error: emailError } = await supabase
-        .from('user_profiles')
-        .select('id', { count: 'exact', head: true })
-        .eq('email', fullEmail);
-      
-      if (emailError) throw emailError;
-      if (emailCount && emailCount > 0) {
-        toast.error('Email already exists. Please choose a different email.');
-        return;
+      const exactMatch = assignments.find(assignment => 
+        assignment.year_level === studentYearLevel && 
+        assignment.section === sectionName
+      );
+      if (exactMatch) {
+        return {
+          ...exactMatch,
+          isExactMatch: true
+        };
       }
-
-      // Create auth user
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: fullEmail,
-        password: createForm.password,
-        options: {
-          data: {
-            role: createForm.role,
-            first_name: createForm.firstName,
-            last_name: createForm.lastName
-          }
-        }
-      });
-
-      if (authError) throw authError;
-      if (!authData.user) throw new Error('Failed to create auth user');
-
-      // Create user profile
-      const { error: profileError } = await supabase.from('user_profiles').insert({
-        id: authData.user.id,
-        email: fullEmail,
-        first_name: createForm.firstName,
-        middle_name: createForm.middleName,
-        last_name: createForm.lastName,
-        role: createForm.role,
-        department: createForm.department,
-        is_active: true,
-        password_changed: false,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      });
-
-      if (profileError) throw profileError;
-
-      toast.success('Instructor created successfully!');
-      setCreateDialogOpen(false);
-      resetCreateForm();
-      fetchInstructors();
-    } catch (error) {
-      console.error('Error creating instructor:', error);
-      toast.error('Failed to create instructor');
-    } finally {
-      setCreating(false);
     }
+
+    // If no exact match, return the first available assignment
+    if (assignments.length > 0) {
+      return {
+        ...assignments[0],
+        isExactMatch: false
+      };
+    }
+
+    return null;
   };
 
-  const resetCreateForm = () => {
-    setCreateForm({
-      firstName: '',
-      middleName: '',
-      lastName: '',
-      email: '',
-      role: 'instructor', // default to instructor
-      department: 'BSIT', // default to BSIT
-      password: 'TempPass@123',
-    });
+  // Helper function to check if student section matches instructor section
+  const isSectionMatch = (courseId: string, studentSection?: string) => {
+    if (!studentSection) return false;
+    
+    const currentAcademicYear = createForm.schoolYear || getDefaultSchoolYear();
+    const currentSemester = createForm.semester || '1st Semester';
+    const sectionName = getSectionName(studentSection);
+    
+    return instructorAssignments.some(assignment => 
+      assignment.subject_id === courseId && 
+      assignment.section === sectionName &&
+      assignment.academic_year === currentAcademicYear &&
+      assignment.semester === currentSemester &&
+      assignment.is_active
+    );
   };
 
-  // Auto-generate email when first and last name are entered
   useEffect(() => {
+    // Auto-generate email when first and last name are entered
     if (createForm.firstName && createForm.lastName) {
       const email = (createForm.lastName + createForm.firstName).replace(/\s+/g, '').toLowerCase();
       setCreateForm(f => ({ ...f, email }));
     } else {
       setCreateForm(f => ({ ...f, email: '' }));
     }
+    // eslint-disable-next-line
   }, [createForm.firstName, createForm.lastName]);
 
-  // Filter instructors based on search and filters
-  const filteredInstructors = instructors.filter(instructor => {
-    const matchesSearch = !searchTerm || 
-      instructor.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      instructor.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      instructor.email.toLowerCase().includes(searchTerm.toLowerCase());
+  useEffect(() => {
+    // If year level is 2 or higher, set student type to 'Regular' and restrict 'Freshman'
+    if (Number(createForm.yearLevel) >= 2 && createForm.studentType === 'Freshman') {
+      setCreateForm(f => ({ ...f, studentType: 'Regular' }));
+    }
+    // Clear section when year level changes
+    setCreateForm(f => ({ ...f, section: '' }));
+  }, [createForm.yearLevel]);
+
+  useEffect(() => {
+    // Auto-generate student ID when school year, first and last name are entered
+    const generateStudentId = async () => {
+      if (createForm.schoolYear && createForm.firstName && createForm.lastName) {
+        // Extract last two digits of school year start
+        const match = createForm.schoolYear.match(/(\d{4})/);
+        if (!match) {
+          setCreateForm(f => ({ ...f, studentId: '' }));
+          return;
+        }
+        const yearPrefix = match[1].slice(-2);
+        
+        try {
+          // Query how many students are already enrolled in this school year
+          const { count, error } = await supabase
+            .from('user_profiles')
+            .select('id', { count: 'exact', head: true })
+            .ilike('student_id', `C-${yearPrefix}%`);
+          
+          if (error) {
+            console.error('Error counting existing students:', error);
+            return;
+          }
+          
+          let regNum = 1;
+          if (typeof count === 'number') {
+            regNum = count + 1;
+          }
+          
+          // Generate a unique student ID with padding
+          const regNumStr = regNum.toString().padStart(4, '0');
+          const studentId = `C-${yearPrefix}${regNumStr}`;
+          
+          // Double-check that this ID doesn't already exist
+          const { data: existingStudent, error: checkError } = await supabase
+            .from('user_profiles')
+            .select('id')
+            .eq('student_id', studentId)
+            .single();
+          
+          if (checkError && checkError.code !== 'PGRST116') { // PGRST116 = no rows returned
+            console.error('Error checking existing student ID:', checkError);
+            return;
+          }
+          
+          if (existingStudent) {
+            // If ID exists, increment and try again
+            regNum += 1;
+            const newRegNumStr = regNum.toString().padStart(4, '0');
+            const newStudentId = `C-${yearPrefix}${newRegNumStr}`;
+            setCreateForm(f => ({ ...f, studentId: newStudentId }));
+          } else {
+            setCreateForm(f => ({ ...f, studentId }));
+          }
+        } catch (err) {
+          console.error('Error generating student ID:', err);
+        }
+      } else {
+        setCreateForm(f => ({ ...f, studentId: '' }));
+      }
+    };
     
-    const matchesRole = !filterRole || instructor.role === filterRole;
-    const matchesDepartment = !filterDepartment || instructor.department === filterDepartment;
-    const matchesStatus = !filterStatus || 
-      (filterStatus === 'active' && instructor.is_active) ||
-      (filterStatus === 'inactive' && !instructor.is_active);
+    // Add a small delay to prevent rapid successive calls
+    const timeoutId = setTimeout(generateStudentId, 100);
+    return () => clearTimeout(timeoutId);
+    // eslint-disable-next-line
+  }, [createForm.schoolYear, createForm.firstName, createForm.lastName]);
 
-    return matchesSearch && matchesRole && matchesDepartment && matchesStatus;
-  });
+  useEffect(() => {
+    // Fetch courses on mount
+    const fetchCourses = async () => {
+      setLoadingCourses(true);
+      console.log('Initial fetchCourses called');
+      const { data, error } = await supabase
+        .from('courses')
+        .select('id, code, name, units, lec_units, lab_units, hours_per_week, year_level, prerequisites, summer, semester')
+        .order('code', { ascending: true });
+      if (!error && data) {
+        console.log('Initial fetchCourses success:', data);
+        console.log('Initial courses count:', data.length);
+        setCourses(data);
+      } else if (error) {
+        console.error('Initial fetchCourses error:', error);
+        console.error('Initial error details:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        });
+      }
+      setLoadingCourses(false);
+    };
+    fetchCourses();
+  }, []);
 
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
-    setTabValue(newValue);
-  };
+  // Initialize edit form fields when editForm is set
+  useEffect(() => {
+    if (editForm) {
+      // Prefer explicit fields if present, fallback to parsing full name
+      const derivedFirst = editForm.firstName || '';
+      const derivedMiddle = editForm.middleName || '';
+      const derivedLast = editForm.lastName || '';
 
-  // Subject Assignment Functions
-  const handleAssignSubject = (instructor: Instructor) => {
-    setSubjectAssignmentModal({
-      isOpen: true,
-      selectedTeacherId: instructor.id,
-      selectedTeacherName: `${instructor.first_name} ${instructor.middle_name ? instructor.middle_name + ' ' : ''}${instructor.last_name}`
-    });
-    
-    // Pre-fill the assignment form with the selected teacher
-    setNewAssignment({
-      teacher_id: instructor.id,
-      subject_id: '',
-      section: '',
-      academic_year: getDefaultSchoolYear(),
-      semester: '1st Semester',
-      year_level: '',
-      is_active: true,
-      day: '',
-      time: ''
-    });
-  };
+      if (derivedFirst || derivedMiddle || derivedLast) {
+        setEditFormFields({ firstName: derivedFirst, middleName: derivedMiddle, lastName: derivedLast });
+        return;
+      }
 
-  const getDefaultSchoolYear = () => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const nextYear = year + 1;
-    return `${year}-${nextYear}`;
-  };
+      const nameParts = editForm.name.split(' ').filter(Boolean);
+      let firstName = '';
+      let middleName = '';
+      let lastName = '';
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setNewAssignment(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
+      if (nameParts.length === 1) {
+        lastName = nameParts[0];
+      } else if (nameParts.length === 2) {
+        firstName = nameParts[1];
+        lastName = nameParts[0];
+      } else if (nameParts.length >= 3) {
+        firstName = nameParts[nameParts.length - 1];
+        lastName = nameParts[0];
+        middleName = nameParts.slice(1, nameParts.length - 1).join(' ');
+      }
 
-  const handleSubjectAssignmentSubmit = async (assignments: TeacherSubject[]): Promise<{ success: boolean; message: string }> => {
+      setEditFormFields({ firstName, middleName, lastName });
+    }
+  }, [editForm]);
+
+  const loadEnrollments = async () => {
     try {
-      setFormSubmitting(true);
-      
-      // Insert the assignment into the database
-      const { error } = await supabase
-        .from('teacher_subjects')
-        .insert(assignments);
-
+      setLoading(true);
+      // Fetch real students from the database
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('role', 'student')
+        .order('created_at', { ascending: true });
       if (error) throw error;
-
-      toast.success('Subject assigned successfully!');
-      setSubjectAssignmentModal({ isOpen: false, selectedTeacherId: '', selectedTeacherName: '' });
       
-      return { success: true, message: 'Subject assigned successfully!' };
-    } catch (error) {
-      console.error('Error assigning subject:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to assign subject';
-      toast.error(errorMessage);
-      return { success: false, message: errorMessage };
+      // Map to Student interface if needed
+      const students = (data || []).map((student: Record<string, unknown>, index: number) => {
+        const firstName = String(student.first_name || '');
+        const middleName = String(student.middle_name || '');
+        const lastName = String(student.last_name || '');
+        
+        // Construct full name with middle name if available
+        const fullName = middleName 
+          ? `${lastName} ${middleName} ${firstName}`
+          : `${lastName} ${firstName}`;
+        
+        // Use a unique identifier: prefer student_id if available, otherwise use UUID with index fallback
+        const uniqueId = student.student_id 
+          ? String(student.student_id)
+          : `${String(student.id)}-${index}`;
+        
+        return {
+          id: uniqueId,
+          name: fullName,
+          firstName,
+          middleName,
+          lastName,
+          studentType: (student.student_type as Student['studentType']) || 'Freshman',
+          yearLevel: Number(student.year_level) || 1,
+          currentSubjects: [],
+          doneSubjects: [],
+          status: (student.enrollment_status as Student['status']) || 'pending',
+          department: String(student.department || ''),
+          schoolYear: String(student.school_year || ''),
+          semester: String(student.semester || ''),
+          section: String(student.section || ''),
+        };
+      });
+      
+      // Remove any potential duplicates by filtering unique IDs
+      const uniqueStudents = students.filter((student, index, self) => 
+        index === self.findIndex(s => s.id === student.id)
+      );
+      
+      setStudents(uniqueStudents);
+    } catch (err) {
+      setError('Failed to load enrollments');
+      console.error('Error loading enrollments:', err);
     } finally {
-      setFormSubmitting(false);
+      setLoading(false);
     }
   };
 
-  const handleCloseSubjectAssignmentModal = () => {
-    setSubjectAssignmentModal({ isOpen: false, selectedTeacherId: '', selectedTeacherName: '' });
-    setNewAssignment({
-      teacher_id: '',
-      subject_id: '',
-      section: '',
-      academic_year: '',
-      semester: '',
-      year_level: '',
-      is_active: true,
-      day: '',
-      time: ''
-    });
-  };
-
-  // Year Level Assigned Subjects Helper Functions
-  const toggleSection = (yearLevel: string) => {
-    setExpandedSections(prev => ({
-      ...prev,
-      [yearLevel]: !prev[yearLevel]
-    }));
-  };
-
-  // Open Subject Assignment Modal prefilled for a specific year level
-  const handleOpenSubjectAssignmentForYear = (yearLevel: string) => {
-    setFormErrors({});
-    setNewAssignment({
-      teacher_id: '',
-      subject_id: '',
-      section: '',
-      academic_year: getDefaultSchoolYear(),
-      semester: '',
-      year_level: yearLevel,
-      is_active: true,
-      day: '',
-      time: ''
-    });
-    setSubjectAssignmentModal({ isOpen: true, selectedTeacherId: '', selectedTeacherName: '' });
-  };
-
-  const openAssignmentDetail = (assignment: TeacherSubject) => {
-    setAssignmentDetailModal({
-      isOpen: true,
-      assignment
-    });
-  };
-
-  const closeAssignmentDetail = () => {
-    setAssignmentDetailModal({
-      isOpen: false,
-      assignment: null
-    });
-  };
-
-  const openEditAssignment = (assignment: TeacherSubject) => {
-    setEditAssignmentModal({
-      isOpen: true,
-      assignment,
-      loading: false
-    });
-  };
-
-  const closeEditAssignment = () => {
-    setEditAssignmentModal({
-      isOpen: false,
-      assignment: null,
-      loading: false
-    });
-  };
-
-  const handleEditAssignment = async (e: React.FormEvent) => {
+  const handleCreateStudent = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editAssignmentModal.assignment) return;
-
-    setEditAssignmentModal(prev => ({ ...prev, loading: true }));
-
+    setCreating(true);
     try {
-      const { error } = await supabase
-        .from('teacher_subjects')
-        .update({
-          teacher_id: editAssignmentModal.assignment.teacher_id,
-          subject_id: editAssignmentModal.assignment.subject_id,
-          section: editAssignmentModal.assignment.section,
-          academic_year: editAssignmentModal.assignment.academic_year,
-          semester: editAssignmentModal.assignment.semester,
-          year_level: editAssignmentModal.assignment.year_level,
-          day: editAssignmentModal.assignment.day,
-          time: editAssignmentModal.assignment.time,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', editAssignmentModal.assignment.id);
+      // Capitalize first letter of first name and last name
+      const capitalizedFirstName = createForm.firstName.charAt(0).toUpperCase() + createForm.firstName.slice(1).toLowerCase();
+      const capitalizedLastName = createForm.lastName.charAt(0).toUpperCase() + createForm.lastName.slice(1).toLowerCase();
+      const capitalizedMiddleName = createForm.middleName ? createForm.middleName.charAt(0).toUpperCase() + createForm.middleName.slice(1).toLowerCase() : '';
 
-      if (error) throw error;
-
-      toast.success('Assignment updated successfully');
-      closeEditAssignment();
-      fetchAssignments(); // Refresh the assignments list
-    } catch (error) {
-      console.error('Error updating assignment:', error);
-      toast.error('Failed to update assignment');
+      // Note: The authentication issue where creating a student would log out the program head
+      // has been resolved by removing the problematic signInWithPassword calls in ProtectedRoute
+      // and StudentDashboard components. The password change modal will only appear for actual students.
+      if (selectedExistingStudent) {
+        // Look up the UUID for the existing student_id
+        const { data: userProfile, error: lookupError } = await supabase
+          .from('user_profiles')
+          .select('id, student_id')
+          .eq('student_id', selectedExistingStudent.id)
+          .single();
+        if (lookupError || !userProfile) throw new Error('Could not find user UUID for this student');
+        const userId = userProfile.id;
+        const originalStudentId = userProfile.student_id;
+        // Update existing student profile
+        const { error: updateError } = await supabase.from('user_profiles').update({
+          first_name: capitalizedFirstName,
+          middle_name: capitalizedMiddleName,
+          last_name: capitalizedLastName,
+          student_type: createForm.studentType,
+          year_level: String(createForm.yearLevel),
+          school_year: createForm.schoolYear,
+          student_id: originalStudentId,
+          department: createForm.department,
+          semester: createForm.semester,
+          section: createForm.section || null,
+          enrollment_status: 'pending',
+          updated_at: new Date().toISOString(),
+        }).eq('student_id', originalStudentId);
+        if (updateError) throw updateError;
+        // Insert or update enrollments for selected courses (upsert)
+        if (selectedCourses.length > 0) {
+          const enrollments = selectedCourses.map(courseId => ({
+            student_id: userId, // Use UUID here
+            subject_id: courseId,
+            status: 'active',
+            enrollment_date: new Date().toISOString(),
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            school_year: createForm.schoolYear,
+            semester: createForm.semester,
+          }));
+          const { error: enrollError } = await supabase.from('enrollcourse').upsert(enrollments, { onConflict: 'student_id,subject_id' });
+          if (enrollError) throw enrollError;
+        }
+        toast.success('Existing student enrollment updated!');
+        handleCloseCreateDialog();
+        setCreateForm({ firstName: '', middleName: '', lastName: '', email: '', password: 'TempPass@123', studentType: 'Freshman', yearLevel: 1, schoolYear: getDefaultSchoolYear(), studentId: '', department: 'BSIT', semester: '1st Semester', section: '' });
+        setSelectedCourses([]);
+        setSelectedExistingStudent(null);
+        loadEnrollments();
+        return;
+      }
+      const fullEmail = createForm.email + '@smcbi.edu.ph';
+      // 1. Check if email already exists
+      const { count: emailCount, error: emailError } = await supabase
+        .from('user_profiles')
+        .select('id', { count: 'exact', head: true })
+        .eq('email', fullEmail);
+      if (emailError) throw emailError;
+      if (emailCount && emailCount > 0) {
+        toast.error('Email already exists. Please choose a different email.');
+        setCreating(false);
+        return;
+      }
+      
+      // 2. Create auth user first
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: fullEmail,
+        password: createForm.password,
+        options: {
+          data: {
+            role: 'student',
+            first_name: capitalizedFirstName,
+            last_name: capitalizedLastName
+          }
+        }
+      });
+      if (authError) throw authError;
+      if (!authData.user) throw new Error('Failed to create auth user');
+      
+      // 3. Create user profile with the auth user ID
+      const { error: profileError } = await supabase.from('user_profiles').insert({
+        id: authData.user!.id, // Use the auth user ID
+        email: fullEmail,
+        first_name: capitalizedFirstName,
+        middle_name: capitalizedMiddleName,
+        last_name: capitalizedLastName,
+        role: 'student',
+        is_active: true,
+        student_type: createForm.studentType,
+        year_level: String(createForm.yearLevel),
+        school_year: createForm.schoolYear,
+        student_id: createForm.studentId,
+        department: createForm.department,
+        semester: createForm.semester,
+        section: createForm.section || null,
+        enrollment_status: 'pending',
+        password_changed: false, // Initialize as false since they're using default password
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+      if (profileError) throw profileError;
+      // Insert enrollments for selected courses
+      if (selectedCourses.length > 0) {
+        const enrollments = selectedCourses.map(courseId => ({
+          student_id: authData.user!.id, // Use the auth user ID directly
+          subject_id: courseId,
+          status: 'active',
+          enrollment_date: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }));
+        const { error: enrollError } = await supabase.from('enrollcourse').insert(enrollments);
+        if (enrollError) throw enrollError;
+      }
+      toast.success('Student account successfully created.');
+      setIsCreateDialogOpen(false);
+      setCreateForm({ firstName: '', middleName: '', lastName: '', email: '', password: 'TempPass@123', studentType: 'Freshman', yearLevel: 1, schoolYear: getDefaultSchoolYear(), studentId: '', department: 'BSIT', semester: '1st Semester', section: '' });
+      setSelectedCourses([]);
+      setSelectedExistingStudent(null);
+      loadEnrollments();
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to create student';
+      toast.error(errorMessage);
     } finally {
-      setEditAssignmentModal(prev => ({ ...prev, loading: false }));
+      setCreating(false);
     }
   };
 
-  const dayAbbr: Record<string, string> = {
-    'Monday': 'M',
-    'Tuesday': 'T',
-    'Wednesday': 'W',
-    'Thursday': 'Th',
-    'Friday': 'F',
-    'Saturday': 'S',
-    'Sunday': 'Su',
+  const handleCourseCheckbox = (courseId: string) => {
+    setSelectedCourses(prev =>
+      prev.includes(courseId)
+        ? prev.filter(id => id !== courseId)
+        : [...prev, courseId]
+    );
   };
+
+  // Helper to categorize courses
+  const categorizeCourses = (courses: Array<{
+    id: string;
+    code: string;
+    name: string;
+    units: number;
+    year_level?: string;
+  }>) => {
+    const categories: Record<string, Record<string, Array<{
+      id: string;
+      code: string;
+      name: string;
+      units: number;
+      year_level?: string;
+    }>>> = {};
+    courses.forEach((course) => {
+      if (course.code.startsWith('IT')) {
+        // Major
+        const yearDigit = course.code.replace('IT', '').trim()[0];
+        let yearLabel = '';
+        if (yearDigit === '1') yearLabel = '1st Year';
+        else if (yearDigit === '2') yearLabel = '2nd Year';
+        else if (yearDigit === '3') yearLabel = '3rd Year';
+        else if (yearDigit === '4') yearLabel = '4th Year';
+        else yearLabel = 'Other Year';
+        if (!categories['Major']) categories['Major'] = {};
+        if (!categories['Major'][yearLabel]) categories['Major'][yearLabel] = [];
+        categories['Major'][yearLabel].push(course);
+      } else {
+        // Minor (was 'Other')
+        if (!categories['Minor']) categories['Minor'] = {};
+        if (!categories['Minor']['All']) categories['Minor']['All'] = [];
+        categories['Minor']['All'].push(course);
+      }
+    });
+    return categories;
+  };
+
+  // Helper to filter courses by student type, year level, and search
+  const getVisibleCourses = () => {
+    // If Irregular or Transferee, show all
+    let filteredCourses = courses;
+    
+    // Apply search filter
+    if (courseSearch.trim() !== '') {
+      const search = courseSearch.trim().toLowerCase();
+      filteredCourses = courses.filter(
+        (c: { id: string; code: string; name: string; units: number; year_level?: string; status?: string }) =>
+          c.code.toLowerCase().includes(search) || c.name.toLowerCase().includes(search)
+      );
+    }
+
+    // Filter courses based on instructor assignments for the selected section
+    if (createForm.section && createForm.section !== '') {
+      const yearMap: Record<string, string> = {
+        '1': '1st Year',
+        '2': '2nd Year',
+        '3': '3rd Year',
+        '4': '4th Year',
+      };
+      const yearLabel = yearMap[String(createForm.yearLevel)] || '1st Year';
+      
+      // Convert section ID to section name for comparison
+      const selectedSectionName = getSectionName(createForm.section);
+      
+      // Get course IDs that have instructors assigned to the selected section and year level
+      const currentAcademicYear = createForm.schoolYear || getDefaultSchoolYear();
+      const currentSemester = createForm.semester || '1st Semester';
+      
+      const availableCourseIds = instructorAssignments
+        .filter(assignment => 
+          assignment.section === selectedSectionName &&
+          assignment.year_level === yearLabel &&
+          assignment.academic_year === currentAcademicYear &&
+          assignment.semester === currentSemester &&
+          assignment.is_active
+        )
+        .map(assignment => assignment.subject_id);
+
+      // Filter courses to only show those with instructor assignments
+      filteredCourses = filteredCourses.filter(course => 
+        availableCourseIds.includes(course.id)
+      );
+    }
+
+    const categorized = categorizeCourses(filteredCourses);
+    if (["Irregular", "Transferee"].includes(createForm.studentType)) {
+      return categorized;
+    }
+    if (createForm.studentType === "Regular" && allowMixedCourses) {
+      return categorized;
+    }
+    const yearMap: Record<string, string> = {
+      '1': '1st Year',
+      '2': '2nd Year',
+      '3': '3rd Year',
+      '4': '4th Year',
+    };
+    const yearLabel = yearMap[String(createForm.yearLevel)] || '1st Year';
+    const filtered: Record<string, Record<string, Array<{
+      id: string;
+      code: string;
+      name: string;
+      units: number;
+      year_level?: string;
+    }>>> = {};
+    if (categorized['Major'] && categorized['Major'][yearLabel]) {
+      filtered['Major'] = { [yearLabel]: categorized['Major'][yearLabel] };
+    }
+    if (categorized['Minor']) {
+      filtered['Minor'] = categorized['Minor'];
+    }
+    return filtered;
+  };
+
+  const visibleCourses = useMemo(() => getVisibleCourses(), [courses, createForm, courseSearch, allowMixedCourses, instructorAssignments]);
+
+  // Filtered students
+  const filteredStudents = useMemo(() => students.filter(student => {
+    const matchesSearch =
+      filterSearch === '' ||
+      student.name.toLowerCase().includes(filterSearch.toLowerCase()) ||
+      (student.id && student.id.toLowerCase().includes(filterSearch.toLowerCase()));
+    const matchesYear = filterYear === '' || String(student.yearLevel) === filterYear;
+    const matchesType = filterType === '' || student.studentType === filterType;
+    const matchesStatus = filterStatus === '' || (student.status && student.status.toLowerCase() === filterStatus.toLowerCase());
+    const matchesSection = filterSection === '' || student.section === filterSection;
+    return matchesSearch && matchesYear && matchesType && matchesStatus && matchesSection;
+  }), [students, filterSearch, filterYear, filterType, filterStatus, filterSection]);
+
+  // Handler to save edited student
+  const handleSaveEdit = async () => {
+    if (!editForm) return;
+    setSavingEdit(true);
+    try {
+      // Capitalize first letter of first name and last name
+      const capitalizedFirstName = editFormFields.firstName.charAt(0).toUpperCase() + editFormFields.firstName.slice(1).toLowerCase();
+      const capitalizedLastName = editFormFields.lastName.charAt(0).toUpperCase() + editFormFields.lastName.slice(1).toLowerCase();
+      const capitalizedMiddleName = editFormFields.middleName ? editFormFields.middleName.charAt(0).toUpperCase() + editFormFields.middleName.slice(1).toLowerCase() : '';
+
+      const { error } = await supabase.from('user_profiles').update({
+        first_name: capitalizedFirstName,
+        middle_name: capitalizedMiddleName,
+        last_name: capitalizedLastName,
+        student_type: editForm.studentType,
+        year_level: String(editForm.yearLevel),
+        school_year: editForm.schoolYear,
+        student_id: editForm.id,
+        department: editForm.department,
+        semester: editForm.semester,
+        enrollment_status: editForm.status,
+      }).eq('student_id', editForm.id);
+      if (error) throw error;
+      toast.success('Student info updated!');
+      setEditForm(null);
+      setEditFormFields({ firstName: '', middleName: '', lastName: '' });
+      loadEnrollments();
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update student';
+      toast.error(errorMessage);
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  // Handler to open existing student modal
+  const handleOpenExistingModal = () => {
+    // Categorize students by year level
+    const byYear: Record<string, Student[]> = {};
+    students.forEach(student => {
+      const year = String(student.yearLevel);
+      if (!byYear[year]) byYear[year] = [];
+      byYear[year].push(student);
+    });
+    setExistingStudentsByYear(byYear);
+    setIsExistingModalOpen(true);
+  };
+
+  // Handler to close create dialog and clear existing student selection
+  const handleCloseCreateDialog = () => {
+    setIsCreateDialogOpen(false);
+    setSelectedExistingStudent(null);
+  };
+
+  // Handler to enroll existing student
+  const handleEnrollExisting = (student: Student) => {
+    setSelectedExistingStudent(student);
+    
+    // Parse the student name to handle middle names
+    const nameParts = student.name.split(' ');
+    let firstName = '';
+    let middleName = '';
+    let lastName = '';
+    
+    if (nameParts.length === 1) {
+      lastName = nameParts[0];
+    } else if (nameParts.length === 2) {
+      firstName = nameParts[1];
+      lastName = nameParts[0];
+    } else if (nameParts.length >= 3) {
+      firstName = nameParts[nameParts.length - 1]; // Last part is first name
+      lastName = nameParts[0]; // First part is last name
+      middleName = nameParts.slice(1, nameParts.length - 1).join(' '); // Everything in between is middle name
+    }
+    
+    // Try to determine if student.section is already an ID or a name
+    let sectionId = '';
+    if (sections.length > 0) {
+      // Check if student.section is already a section ID
+      const isSectionId = sections.some(s => s.id === student.section);
+      if (isSectionId) {
+        sectionId = student.section || '';
+      } else {
+        // Convert section name to section ID
+        sectionId = getSectionId(student.section) || '';
+      }
+    }
+    
+    setCreateForm({
+      firstName,
+      middleName,
+      lastName,
+      email: '', // Not editable
+      password: 'TempPass@123', // Not editable
+      studentType: student.studentType,
+      yearLevel: student.yearLevel,
+      schoolYear: student.schoolYear,
+      studentId: student.id, // Always use the original student.id
+      department: student.department,
+      semester: student.semester,
+      section: sectionId, // Use determined section ID
+    });
+    setIsExistingModalOpen(false);
+    setIsCreateDialogOpen(true);
+  };
+
+  // Helper to format year level as ordinal
+  const getYearLabel = (year: string) => {
+    switch (year) {
+      case '1': return '1st Year';
+      case '2': return '2nd Year';
+      case '3': return '3rd Year';
+      case '4': return '4th Year';
+      default: return `${year} Year`;
+    }
+  };
+
+  // Handler for end semester
+  const handleEndSemester = async () => {
+    setEndSemesterLoading(true);
+    try {
+      const { error } = await supabase.from('user_profiles').update({ enrollment_status: 'active' }).eq('enrollment_status', 'enrolled');
+      if (error) throw error;
+      toast.success('All enrolled students are now active!');
+      setEndSemesterOpen(false);
+      setEndSemesterConfirmation('');
+      setEndSemesterConfirmationError(false);
+      loadEnrollments();
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to end semester';
+      toast.error(errorMessage);
+    } finally {
+      setEndSemesterLoading(false);
+    }
+  };
+
+  // Helper to reset end semester modal state
+  const handleOpenEndSemesterModal = () => {
+    setEndSemesterOpen(true);
+    setEndSemesterConfirmation('');
+    setEndSemesterConfirmationError(false);
+  };
+
+  const handleCloseEndSemesterModal = () => {
+    setEndSemesterOpen(false);
+    setEndSemesterConfirmation('');
+    setEndSemesterConfirmationError(false);
+  };
+
+  // Handler to open prospectus modal
+  const handleOpenProspectusModal = (student: Student) => {
+    setSelectedStudentForProspectus(student);
+    setIsProspectusModalOpen(true);
+    // We need to get the UUID from user_profiles since student.id contains the formatted student_id
+    fetchStudentGradesByFormattedId(student.id);
+    fetchStudentEnrollmentsByFormattedId(student.id);
+    fetchStudentConfirmations(student.id);
+  };
+
+  // Handler to close prospectus modal
+  const handleCloseProspectusModal = () => {
+    setIsProspectusModalOpen(false);
+    setSelectedStudentForProspectus(null);
+    setStudentGrades([]);
+  };
+
+  // Handler to confirm subject for program head
+  const handleConfirmSubject = async (subjectCode: string) => {
+    if (!selectedStudentForProspectus) return;
+    
+    try {
+      // Get the UUID from user_profiles using the formatted student_id
+      const { data: profileData, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('id')
+        .eq('student_id', selectedStudentForProspectus.id)
+        .single();
+      
+      if (profileError) {
+        console.error('Error finding user profile:', profileError);
+        toast.error('Failed to find student profile');
+        return;
+      }
+      
+      // Insert confirmation into Supabase
+      const { error } = await supabase
+        .from('subject_actions')
+        .insert({
+          student_id: profileData.id,
+          subject_code: subjectCode,
+          action_type: 'confirm',
+          status: 'pending'
+        });
+
+      if (error) {
+        console.error('Error saving confirmation:', error);
+        toast.error('Failed to confirm subject');
+        return;
+      }
+
+      // Refresh the prospectus data
+      await fetchStudentConfirmations(selectedStudentForProspectus.id);
+      toast.success('Subject confirmed successfully');
+    } catch (error) {
+      console.error('Error confirming subject:', error);
+      toast.error('Failed to confirm subject');
+    }
+  };
+
+  // Function to fetch student grades
+  const fetchStudentGrades = async (studentId: string) => {
+    try {
+      setLoadingGrades(true);
+      const { data: gradesData, error: gradesError } = await supabase
+        .from('grades')
+        .select(`
+          *,
+          course:courses (code, name)
+        `)
+        .eq('student_id', studentId);
+
+      if (gradesError) {
+        console.error('Error fetching grades:', gradesError);
+        return;
+      }
+
+      const grades = (gradesData || []).map(grade => ({
+        id: grade.id,
+        student_id: grade.student_id,
+        subject_code: grade.course?.code || '',
+        subject_name: grade.course?.name || '',
+        prelim_grade: grade.prelim_grade,
+        midterm_grade: grade.midterm_grade,
+        final_grade: grade.final_grade,
+        remarks: grade.remarks,
+        year_level: grade.year_level,
+        semester: grade.semester,
+        academic_year: grade.academic_year,
+      }));
+
+      setStudentGrades(grades);
+    } catch (error) {
+      console.error('Error fetching student grades:', error);
+    } finally {
+      setLoadingGrades(false);
+    }
+  };
+
+  const fetchStudentGradesByFormattedId = async (formattedStudentId: string) => {
+    try {
+      setLoadingGrades(true);
+      console.log('Fetching grades for formatted student ID:', formattedStudentId);
+      
+      // First get the UUID from user_profiles using the formatted student_id
+      const { data: profileData, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('id')
+        .eq('student_id', formattedStudentId)
+        .single();
+      
+      if (profileError) {
+        console.error('Error finding user profile:', profileError);
+        return;
+      }
+      
+      console.log('Found profile with UUID:', profileData?.id);
+      
+      // Now fetch grades using the UUID
+      const { data: gradesData, error: gradesError } = await supabase
+        .from('grades')
+        .select(`
+          *,
+          course:courses (code, name)
+        `)
+        .eq('student_id', profileData.id);
+
+      if (gradesError) {
+        console.error('Error fetching grades:', gradesError);
+        return;
+      }
+
+      const grades = (gradesData || []).map(grade => ({
+        id: grade.id,
+        student_id: grade.student_id,
+        subject_code: grade.course?.code || '',
+        subject_name: grade.course?.name || '',
+        prelim_grade: grade.prelim_grade,
+        midterm_grade: grade.midterm_grade,
+        final_grade: grade.final_grade,
+        remarks: grade.remarks,
+        year_level: grade.year_level,
+        semester: grade.semester,
+        academic_year: grade.academic_year,
+      }));
+
+      setStudentGrades(grades);
+    } catch (error) {
+      console.error('Error fetching student grades by formatted ID:', error);
+    } finally {
+      setLoadingGrades(false);
+    }
+  };
+
+  // Helper function to get grades for a specific subject
+  const getSubjectGrades = (subjectCode: string) => {
+    return studentGrades.find(grade => grade.subject_code === subjectCode);
+  };
+
+  // Helper function to calculate average grade
+  const calculateAverageGrade = (prelim: number | null, midterm: number | null, final: number | null) => {
+    const grades = [prelim, midterm, final].filter(grade => grade !== null && grade !== undefined);
+    if (grades.length === 0) return null;
+    
+    const sum = grades.reduce((acc, grade) => acc + (grade || 0), 0);
+    return Math.round((sum / grades.length) * 100) / 100; // Round to 2 decimal places
+  };
+
+  // Fetch enrollment selections to compute enrollment status per subject
+  const [studentEnrollments, setStudentEnrollments] = useState<Array<{ subject_id: string; status: string; subject?: { code: string } }>>([]);
+  const [studentConfirmations, setStudentConfirmations] = useState<Array<{ subject_code: string; status: string }>>([]);
+  const fetchStudentEnrollments = async (studentId: string) => {
+    try {
+      console.log('Fetching enrollments for student UUID:', studentId);
+      
+      const { data, error } = await supabase
+        .from('enrollcourse')
+        .select(`
+          subject_id, 
+          status,
+          subject:courses(code)
+        `)
+        .eq('student_id', studentId);
+      
+      if (error) {
+        console.error('Error fetching enrollments:', error);
+        return;
+      }
+      
+      console.log('Raw enrollment data:', data);
+      if (data) {
+        setStudentEnrollments(data as any);
+        console.log('Processed enrollments:', data);
+      }
+    } catch (e) {
+      console.error('Error fetching enrollments', e);
+    }
+  };
+
+  const fetchStudentEnrollmentsByFormattedId = async (formattedStudentId: string) => {
+    try {
+      console.log('Fetching enrollments for formatted student ID:', formattedStudentId);
+      
+      // First get the UUID from user_profiles using the formatted student_id
+      const { data: profileData, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('id')
+        .eq('student_id', formattedStudentId)
+        .single();
+      
+      if (profileError) {
+        console.error('Error finding user profile:', profileError);
+        return;
+      }
+      
+      console.log('Found profile with UUID:', profileData?.id);
+      
+      // Now fetch enrollments using the UUID
+      const { data, error } = await supabase
+        .from('enrollcourse')
+        .select(`
+          subject_id, 
+          status,
+          subject:courses(code)
+        `)
+        .eq('student_id', profileData.id);
+      
+      if (error) {
+        console.error('Error fetching enrollments:', error);
+        return;
+      }
+      
+      console.log('Raw enrollment data:', data);
+      if (data) {
+        setStudentEnrollments(data as any);
+        console.log('Processed enrollments:', data);
+      }
+    } catch (e) {
+      console.error('Error fetching enrollments by formatted ID', e);
+    }
+  };
+
+  // Function to fetch student confirmations
+  const fetchStudentConfirmations = async (formattedStudentId: string) => {
+    try {
+      console.log('Fetching confirmations for formatted student ID:', formattedStudentId);
+      
+      // First get the UUID from user_profiles using the formatted student_id
+      const { data: profileData, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('id')
+        .eq('student_id', formattedStudentId)
+        .single();
+      
+      if (profileError) {
+        console.error('Error finding user profile:', profileError);
+        return;
+      }
+      
+      console.log('Found profile with UUID:', profileData?.id);
+      
+      // Now fetch confirmations using the UUID
+      const { data, error } = await supabase
+        .from('subject_actions')
+        .select('subject_code, status')
+        .eq('student_id', profileData.id)
+        .eq('action_type', 'confirm');
+      
+      if (error) {
+        console.error('Error fetching confirmations:', error);
+        return;
+      }
+      
+      console.log('Raw confirmation data:', data);
+      if (data) {
+        setStudentConfirmations(data);
+        console.log('Processed confirmations:', data);
+      }
+    } catch (e) {
+      console.error('Error fetching confirmations by formatted ID', e);
+    }
+  };
+  
+  const getEnrollmentStatus = (courseId: string, courseCode?: string) => {
+    // Try to find by subject_id first, then by subject code as fallback
+    let rec = studentEnrollments.find(e => e.subject_id === courseId);
+    
+    if (!rec && courseCode) {
+      rec = studentEnrollments.find(e => e.subject?.code === courseCode);
+    }
+    
+    return rec?.status || 'not enrolled';
+  };
+
+  // Helper function to get confirmation status for a subject
+  const getConfirmationStatus = (subjectCode: string) => {
+    const confirmation = studentConfirmations.find(c => c.subject_code === subjectCode);
+    console.log(`Checking confirmation for ${subjectCode}:`, confirmation ? 'confirmed' : 'pending');
+    return confirmation ? 'confirmed' : 'pending';
+  };
+
+  // Helper functions for course selection
+  const getTotalAvailableCourses = () => {
+    return Object.values(visibleCourses).reduce((total, subcats) => {
+      return total + Object.values(subcats as Record<string, unknown[]>).reduce((subTotal, courseList) => {
+        return subTotal + (courseList as any[]).length;
+      }, 0);
+    }, 0);
+  };
+
+  const getAllAvailableCourseIds = () => {
+    const allIds: string[] = [];
+    Object.values(visibleCourses).forEach(subcats => {
+      Object.values(subcats as Record<string, unknown[]>).forEach(courseList => {
+        (courseList as any[]).forEach(course => {
+          allIds.push(course.id);
+        });
+      });
+    });
+    return allIds;
+  };
+
+  // Helper to reset the new student form
+  const flushNewStudentForm = () => {
+    setCreateForm({
+      firstName: '',
+      middleName: '',
+      lastName: '',
+      email: '',
+      password: 'TempPass@123',
+      studentType: 'Freshman',
+      yearLevel: 1,
+      schoolYear: getDefaultSchoolYear(),
+      studentId: '',
+      department: 'BSIT',
+      semester: '1st Semester',
+      section: '',
+    });
+    setSelectedCourses([]);
+
+    
+    setAllowMixedCourses(false);
+  };
+
+  // Print handler
+  const handlePrintProspectus = () => {
+    if (prospectusContentRef.current) {
+      const printContents = prospectusContentRef.current.innerHTML;
+      const printWindow = window.open('', '', 'height=800,width=1200');
+      if (printWindow) {
+        printWindow.document.write('<html><head><title>Student Prospectus</title>');
+        printWindow.document.write(`
+          <style>
+            @media print {
+              body { 
+                font-family: 'Arial', 'Helvetica', sans-serif; 
+                font-size: 7px;
+                line-height: 1.0;
+                color: #000;
+                margin: 0;
+                padding: 4px;
+                background: white;
+              }
+              
+              /* Header Styling */
+              .prospectus-header {
+                text-align: center;
+                margin-bottom: 5px;
+                padding-bottom: 4px;
+                border-bottom: 1px solid #333;
+              }
+              
+              .school-name {
+                font-size: 9px;
+                font-weight: bold;
+                margin-bottom: 1px;
+                color: #1e40af;
+              }
+              
+              .school-subtitle {
+                font-size: 6px;
+                font-style: italic;
+                margin-bottom: 1px;
+                color: #666;
+              }
+              
+              .school-address {
+                font-size: 5px;
+                margin-bottom: 1px;
+                color: #333;
+              }
+              
+              .course-title {
+                font-size: 7px;
+                font-weight: bold;
+                margin-bottom: 1px;
+                color: #1e40af;
+              }
+              
+              .prospectus-title {
+                font-size: 10px;
+                font-weight: bold;
+                margin: 4px 0;
+                color: #1f2937;
+                text-transform: uppercase;
+                letter-spacing: 0.3px;
+              }
+              
+              /* Student Info Styling */
+              .student-info {
+                margin: 4px 0;
+                padding: 3px;
+                background: #f8fafc;
+                border: 1px solid #e5e7eb;
+                border-radius: 2px;
+              }
+              
+              .student-name {
+                font-size: 14px;
+                font-weight: bold;
+                text-align: center;
+                margin-bottom: 10px;
+                color: #1f2937;
+              }
+              
+              .info-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 10px;
+                margin-bottom: 5px;
+              }
+              
+              .info-item {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 3px 0;
+                border-bottom: 0.5px solid #e5e7eb;
+              }
+              
+              .info-label {
+                font-weight: 600;
+                color: #374151;
+                min-width: 100px;
+                font-size: 9px;
+              }
+              
+              .info-value {
+                font-weight: 500;
+                color: #1f2937;
+                text-align: right;
+                font-size: 9px;
+              }
+              
+              /* Table Styling */
+              .prospectus-table {
+                width: 100%;
+                border-collapse: collapse;
+                margin: 4px 0;
+                font-size: 6px;
+                page-break-inside: avoid;
+                border: none;
+              }
+              
+              .prospectus-table th {
+                background: #1e40af;
+                color: white;
+                font-weight: 700;
+                text-align: center;
+                padding: 1px 1px;
+                border: none;
+                font-size: 6px;
+                vertical-align: middle;
+                position: relative;
+                text-transform: uppercase;
+                letter-spacing: 0.2px;
+              }
+              
+              .prospectus-table th:not(:last-child)::after {
+                content: '';
+                position: absolute;
+                right: 0;
+                top: 0;
+                bottom: 0;
+                width: 0px;
+                background: transparent;
+              }
+              
+              .prospectus-table td {
+                padding: 0px 1px;
+                border: none;
+                text-align: center;
+                vertical-align: middle;
+                font-size: 6px;
+                position: relative;
+              }
+              
+              .prospectus-table td:not(:last-child)::after {
+                content: '';
+                position: absolute;
+                right: 0;
+                top: 0;
+                bottom: 0;
+                width: 0px;
+                background: transparent;
+              }
+              
+              .prospectus-table tr:not(:last-child) td::before {
+                content: '';
+                position: absolute;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                height: 0px;
+                background: transparent;
+              }
+              
+              .prospectus-table .subject-code {
+                font-weight: 600;
+                font-family: 'Courier New', monospace;
+                color: #1e40af;
+                text-align: left;
+                padding-left: 4px;
+                font-size: 7px;
+              }
+              
+              .prospectus-table .subject-name {
+                text-align: left;
+                padding-left: 4px;
+                color: #374151;
+                max-width: 150px;
+                word-wrap: break-word;
+                font-size: 7px;
+                line-height: 1.1;
+              }
+              
+              .prospectus-table .units {
+                font-weight: 600;
+                color: #059669;
+                font-size: 7px;
+              }
+              
+              .prospectus-table .lec-lab {
+                font-weight: 600;
+                color: #0369a1;
+                font-size: 7px;
+              }
+              
+              .prospectus-table .hours {
+                font-weight: 600;
+                color: #7c3aed;
+                font-size: 7px;
+              }
+              
+              .prospectus-table .type {
+                font-size: 6px;
+                font-weight: 600;
+                padding: 1px 2px;
+                border-radius: 2px;
+                text-transform: uppercase;
+              }
+              
+              .prospectus-table .type.major {
+                background: #dbeafe;
+                color: #1e40af;
+              }
+              
+              .prospectus-table .type.minor {
+                background: #fef3c7;
+                color: #92400e;
+              }
+              
+              .prospectus-table .grade {
+                font-weight: 700;
+                color: #0ea5e9;
+                background: #f0f9ff;
+                padding: 1px 3px;
+                border-radius: 2px;
+                border: 0.5px solid #0ea5e9;
+                font-size: 7px;
+              }
+              
+              .prospectus-table .no-grade {
+                font-size: 6px;
+                color: #6b7280;
+                font-style: italic;
+              }
+              
+              .prospectus-table .prerequisites {
+                font-size: 6px;
+                color: #92400e;
+                max-width: 80px;
+                word-wrap: break-word;
+                line-height: 1.1;
+              }
+              
+              .prospectus-table .status {
+                font-size: 6px;
+                font-weight: 600;
+                padding: 1px 3px;
+                border-radius: 2px;
+                text-transform: capitalize;
+              }
+              
+              .prospectus-table .status.confirmed {
+                background: #dcfce7;
+                color: #166534;
+              }
+              
+              .prospectus-table .status.pending {
+                background: #e5e7eb;
+                color: #374151;
+              }
+              
+              /* Year Level Section Styling */
+              .year-section {
+                margin: 5px 0;
+                page-break-inside: avoid;
+              }
+              
+              .year-header {
+                background: #f3f4f6;
+                padding: 4px 6px;
+                border: 1px solid #d1d5db;
+                border-bottom: 1px solid #667eea;
+                margin-bottom: 0;
+                display: flex;
+                align-items: center;
+                gap: 4px;
+              }
+              
+              .year-number {
+                background: #667eea;
+                color: white;
+                width: 18px;
+                height: 18px;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-weight: bold;
+                font-size: 9px;
+              }
+              
+              .year-title {
+                font-size: 10px;
+                font-weight: 700;
+                color: #374151;
+                margin: 0;
+              }
+              
+              .year-stats {
+                margin-left: auto;
+                display: flex;
+                gap: 10px;
+              }
+              
+              .stat-item {
+                background: #e0e7ef;
+                padding: 1px 3px;
+                border-radius: 2px;
+                font-size: 6px;
+                color: #374151;
+                font-weight: 500;
+              }
+              
+              /* Semester Section Styling */
+              .semester-section {
+                margin: 3px 0;
+                page-break-inside: avoid;
+              }
+              
+              .semester-header {
+                display: flex;
+                align-items: center;
+                gap: 3px;
+                padding: 3px 6px;
+                background: #f8fafc;
+                border-left: 3px solid #3b82f6;
+                margin: 5px 0 4px 0;
+              }
+              
+              .semester-dot {
+                width: 4px;
+                height: 4px;
+                border-radius: 50%;
+                background: #3b82f6;
+              }
+              
+              .semester-title {
+                font-size: 8px;
+                font-weight: 700;
+                color: #1f2937;
+                margin: 0;
+              }
+              
+              /* Summer Section */
+              .semester-header.summer {
+                border-left-color: #f59e0b;
+              }
+              
+              .semester-header.summer .semester-dot {
+                background: #f59e0b;
+              }
+              
+              /* Page Break Controls */
+              .page-break {
+                page-break-before: always;
+              }
+              
+              .avoid-break {
+                page-break-inside: avoid;
+              }
+              
+              /* Footer */
+              .prospectus-footer {
+                margin-top: 10px;
+                padding-top: 8px;
+                border-top: 0.5px solid #e5e7eb;
+                text-align: center;
+                font-size: 6px;
+                color: #6b7280;
+              }
+              
+              /* Alternating row colors for better readability */
+              .prospectus-table tr:nth-child(even) {
+                background-color: #f1f5f9;
+              }
+              
+              .prospectus-table tr:nth-child(odd) {
+                background-color: #ffffff;
+              }
+              
+              /* Enhanced table styling */
+              .prospectus-table td {
+                padding: 0px 1px;
+                min-height: 8px;
+              }
+              
+              .prospectus-table th {
+                padding: 1px 1px;
+              }
+              
+              /* Better spacing for content */
+              .prospectus-table .subject-name {
+                line-height: 1.1;
+                max-width: 120px;
+              }
+              
+              .prospectus-table .prerequisites {
+                max-width: 60px;
+                line-height: 1.1;
+              }
+              
+              /* Responsive adjustments for print */
+              @page {
+                margin: 0.3in;
+                size: A4;
+              }
+              
+              /* Hide elements not needed in print */
+              .no-print {
+                display: none !important;
+              }
+            }
+            
+            /* Screen styles for preview */
+            @media screen {
+              body { 
+                font-family: 'Arial', 'Helvetica', sans-serif; 
+                font-size: 10px;
+                line-height: 1.2;
+                color: #000;
+                margin: 0;
+                padding: 15px;
+                background: white;
+              }
+              
+              .prospectus-header {
+                text-align: center;
+                margin-bottom: 20px;
+                padding-bottom: 15px;
+                border-bottom: 1px solid #333;
+              }
+              
+              .school-name {
+                font-size: 16px;
+                font-weight: bold;
+                margin-bottom: 3px;
+                color: #1e40af;
+              }
+              
+              .school-subtitle {
+                font-size: 10px;
+                font-style: italic;
+                margin-bottom: 3px;
+                color: #666;
+              }
+              
+              .school-address {
+                font-size: 9px;
+                margin-bottom: 3px;
+                color: #333;
+              }
+              
+              .course-title {
+                font-size: 12px;
+                font-weight: bold;
+                margin-bottom: 3px;
+                color: #1e40af;
+              }
+              
+              .prospectus-title {
+                font-size: 18px;
+                font-weight: bold;
+                margin: 15px 0;
+                color: #1f2937;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+              }
+              
+              .student-info {
+                margin: 15px 0;
+                padding: 10px;
+                background: #f8fafc;
+                border: 1px solid #e5e7eb;
+                border-radius: 3px;
+              }
+              
+              .student-name {
+                font-size: 14px;
+                font-weight: bold;
+                text-align: center;
+                margin-bottom: 10px;
+                color: #1f2937;
+              }
+              
+              .info-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 10px;
+                margin-bottom: 5px;
+              }
+              
+              .info-item {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 3px 0;
+                border-bottom: 0.5px solid #e5e7eb;
+              }
+              
+              .info-label {
+                font-weight: 600;
+                color: #374151;
+                min-width: 100px;
+                font-size: 9px;
+              }
+              
+              .info-value {
+                font-weight: 500;
+                color: #1f2937;
+                text-align: right;
+                font-size: 9px;
+              }
+              
+              .prospectus-table {
+                width: 100%;
+                border-collapse: collapse;
+                margin: 15px 0;
+                font-size: 8px;
+                border: 1px solid #374151;
+              }
+              
+              .prospectus-table th {
+                background: #1e40af;
+                color: white;
+                font-weight: 700;
+                text-align: center;
+                padding: 1px 1px;
+                border: none;
+                font-size: 6px;
+                vertical-align: middle;
+                position: relative;
+                text-transform: uppercase;
+                letter-spacing: 0.2px;
+              }
+              
+              .prospectus-table th:not(:last-child)::after {
+                content: '';
+                position: absolute;
+                right: 0;
+                top: 0;
+                bottom: 0;
+                width: 0px;
+                background: transparent;
+              }
+              
+              .prospectus-table td {
+                padding: 0px 1px;
+                border: none;
+                text-align: center;
+                vertical-align: middle;
+                font-size: 6px;
+                position: relative;
+              }
+              
+              .prospectus-table td:not(:last-child)::after {
+                content: '';
+                position: absolute;
+                right: 0;
+                top: 0;
+                bottom: 0;
+                width: 0px;
+                background: transparent;
+              }
+              
+              .prospectus-table tr:not(:last-child) td::before {
+                content: '';
+                position: absolute;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                height: 0px;
+                background: transparent;
+              }
+              
+              .prospectus-table .subject-code {
+                font-weight: 600;
+                font-family: 'Courier New', monospace;
+                color: #1e40af;
+                text-align: left;
+                padding-left: 4px;
+                font-size: 7px;
+              }
+              
+              .prospectus-table .subject-name {
+                text-align: left;
+                padding-left: 4px;
+                color: #374151;
+                max-width: 150px;
+                word-wrap: break-word;
+                font-size: 7px;
+                line-height: 1.1;
+              }
+              
+              .prospectus-table .units {
+                font-weight: 600;
+                color: #059669;
+                font-size: 7px;
+              }
+              
+              .prospectus-table .lec-lab {
+                font-weight: 600;
+                color: #0369a1;
+                font-size: 7px;
+              }
+              
+              .prospectus-table .hours {
+                font-weight: 600;
+                color: #7c3aed;
+                font-size: 7px;
+              }
+              
+              .prospectus-table .type {
+                font-size: 6px;
+                font-weight: 600;
+                padding: 1px 2px;
+                border-radius: 2px;
+                text-transform: uppercase;
+              }
+              
+              .prospectus-table .type.major {
+                background: #dbeafe;
+                color: #1e40af;
+              }
+              
+              .prospectus-table .type.minor {
+                background: #fef3c7;
+                color: #92400e;
+              }
+              
+              .prospectus-table .grade {
+                font-weight: 700;
+                color: #0ea5e9;
+                background: #f0f9ff;
+                padding: 1px 3px;
+                border-radius: 2px;
+                border: 0.5px solid #0ea5e9;
+                font-size: 7px;
+              }
+              
+              .prospectus-table .no-grade {
+                font-size: 6px;
+                color: #6b7280;
+                font-style: italic;
+              }
+              
+              .prospectus-table .prerequisites {
+                font-size: 6px;
+                color: #92400e;
+                max-width: 80px;
+                word-wrap: break-word;
+                line-height: 1.1;
+              }
+              
+              .prospectus-table .status {
+                font-size: 6px;
+                font-weight: 600;
+                padding: 1px 3px;
+                border-radius: 2px;
+                text-transform: capitalize;
+              }
+              
+              .prospectus-table .status.confirmed {
+                background: #dcfce7;
+                color: #166534;
+              }
+              
+              .prospectus-table .status.pending {
+                background: #e5e7eb;
+                color: #374151;
+              }
+              
+              .year-section {
+                margin: 20px 0;
+              }
+              
+              .year-header {
+                background: #f3f4f6;
+                padding: 4px 6px;
+                border: 1px solid #d1d5db;
+                border-bottom: 1px solid #667eea;
+                margin-bottom: 0;
+                display: flex;
+                align-items: center;
+                gap: 4px;
+              }
+              
+              .year-number {
+                background: #667eea;
+                color: white;
+                width: 18px;
+                height: 18px;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-weight: bold;
+                font-size: 9px;
+              }
+              
+              .year-title {
+                font-size: 10px;
+                font-weight: 700;
+                color: #374151;
+                margin: 0;
+              }
+              
+              .year-stats {
+                margin-left: auto;
+                display: flex;
+                gap: 10px;
+              }
+              
+              .stat-item {
+                background: #e0e7ef;
+                padding: 1px 3px;
+                border-radius: 2px;
+                font-size: 6px;
+                color: #374151;
+                font-weight: 500;
+              }
+              
+              .semester-section {
+                margin: 10px 0;
+              }
+              
+              .semester-header {
+                display: flex;
+                align-items: center;
+                gap: 3px;
+                padding: 3px 6px;
+                background: #f8fafc;
+                border-left: 3px solid #3b82f6;
+                margin: 5px 0 4px 0;
+              }
+              
+              .semester-dot {
+                width: 4px;
+                height: 4px;
+                border-radius: 50%;
+                background: #3b82f6;
+              }
+              
+              .semester-title {
+                font-size: 8px;
+                font-weight: 700;
+                color: #1f2937;
+                margin: 0;
+              }
+              
+              .semester-header.summer {
+                border-left-color: #f59e0b;
+              }
+              
+              .semester-header.summer .semester-dot {
+                background: #f59e0b;
+              }
+              
+              .prospectus-footer {
+                margin-top: 20px;
+                padding-top: 15px;
+                border-top: 0.5px solid #e5e7eb;
+                text-align: center;
+                font-size: 8px;
+                color: #6b7280;
+              }
+              
+              /* Alternating row colors for better readability */
+              .prospectus-table tr:nth-child(even) {
+                background-color: #f1f5f9;
+              }
+              
+              .prospectus-table tr:nth-child(odd) {
+                background-color: #ffffff;
+              }
+              
+              /* Hover effect for rows */
+              .prospectus-table tr:hover {
+                background-color: #f0f9ff !important;
+              }
+            }
+          </style>
+        `);
+        printWindow.document.write('</head><body>');
+        printWindow.document.write(printContents);
+        printWindow.document.write('</body></html>');
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => {
+          printWindow.print();
+          printWindow.close();
+        }, 500);
+      }
+    }
+  };
+
+  // PDF handler - Generate proper PDF instead of screenshot
+  const handleDownloadPDF = async () => {
+    if (prospectusContentRef.current) {
+      try {
+      const pdf = new jsPDF('p', 'mm', 'a4');
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
+        const margin = 8;
+        const contentWidth = pageWidth - (2 * margin);
+        let currentY = margin;
+        
+        // Set font styles
+        pdf.setFont('helvetica');
+        
+        // Header Section
+        pdf.setFontSize(12);
+        pdf.setTextColor(30, 64, 175); // #1e40af
+        pdf.text('St. Mary\'s College of Bansalan, Inc.', pageWidth / 2, currentY, { align: 'center' });
+        currentY += 4;
+        
+        pdf.setFontSize(7);
+        pdf.setTextColor(107, 114, 128); // #6b7280
+        pdf.text('(Formerly: Holy Cross of Bansalan College, Inc.)', pageWidth / 2, currentY, { align: 'center' });
+        currentY += 3;
+        
+        pdf.setTextColor(55, 65, 81); // #374151
+        pdf.text('Dahlia Street, Poblacion Uno, Bansalan, Davao del Sur, 8005 Philippines', pageWidth / 2, currentY, { align: 'center' });
+        currentY += 4;
+        
+        pdf.setFontSize(8);
+        pdf.setTextColor(30, 64, 175); // #1e40af
+        pdf.text('BACHELOR OF SCIENCE IN INFORMATION TECHNOLOGY (BSIT)', pageWidth / 2, currentY, { align: 'center' });
+        currentY += 3;
+        
+        pdf.setFontSize(7);
+        pdf.setTextColor(55, 65, 81); // #374151
+        pdf.text('Effective SY 2020 - 2021', pageWidth / 2, currentY, { align: 'center' });
+        currentY += 6;
+        
+        // Title
+        pdf.setFontSize(10);
+        pdf.setTextColor(30, 64, 175); // #1e40af
+        pdf.text('STUDENT PROSPECTUS', pageWidth / 2, currentY, { align: 'center' });
+        currentY += 8;
+        
+        // Student Information
+        if (selectedStudentForProspectus) {
+          pdf.setFontSize(10);
+          pdf.setTextColor(31, 41, 55); // #1f2937
+          pdf.text(selectedStudentForProspectus.name, pageWidth / 2, currentY, { align: 'center' });
+          currentY += 6;
+          
+          // Student details box
+          const detailsY = currentY;
+          pdf.setFillColor(240, 249, 255); // #f0f9ff
+          pdf.rect(margin, currentY - 3, contentWidth, 15, 'F');
+          pdf.setDrawColor(186, 230, 253); // #bae6fd
+          pdf.rect(margin, currentY - 3, contentWidth, 15, 'D');
+          
+          currentY += 3;
+          pdf.setFontSize(7);
+          pdf.setTextColor(55, 65, 81); // #374151
+          
+          // Student ID
+          pdf.text('Student ID:', margin + 3, currentY);
+          pdf.setTextColor(31, 41, 55); // #1f2937
+          pdf.text(selectedStudentForProspectus.id, margin + 50, currentY);
+          currentY += 3;
+          
+          // Student Type
+          pdf.setTextColor(55, 65, 81); // #374151
+          pdf.text('Student Type:', margin + 3, currentY);
+          pdf.setTextColor(31, 41, 55); // #1f2937
+          pdf.text(selectedStudentForProspectus.studentType, margin + 50, currentY);
+          currentY += 3;
+          
+          // Year Level
+          pdf.setTextColor(55, 65, 81); // #374151
+          pdf.text('Current Year Level:', margin + 3, currentY);
+          pdf.setTextColor(31, 41, 55); // #1f2937
+          pdf.text(String(selectedStudentForProspectus.yearLevel), margin + 50, currentY);
+          currentY += 3;
+          
+          // Department
+          pdf.setTextColor(55, 65, 81); // #374151
+          pdf.text('Department:', margin + 3, currentY);
+          pdf.setTextColor(31, 41, 55); // #1f2937
+          pdf.text(selectedStudentForProspectus.department, margin + 50, currentY);
+          
+          currentY = detailsY + 18;
+        }
+        
+        // Subjects Section
+        pdf.setFontSize(9);
+        pdf.setTextColor(31, 41, 55); // #1f2937
+        pdf.text('Subjects', margin, currentY);
+        currentY += 4;
+        
+        // Check if we need to add a new page
+        if (currentY > pageHeight - 50) {
+          pdf.addPage();
+          currentY = margin;
+        }
+        
+        // Generate subjects content
+        if (courses && courses.length > 0) {
+          // Group courses by year level
+          const coursesByYear: Record<string, typeof courses> = {};
+          courses.forEach(course => {
+            const yearLevel = course.year_level || '1';
+            if (!coursesByYear[yearLevel]) {
+              coursesByYear[yearLevel] = [];
+            }
+            coursesByYear[yearLevel].push(course);
+          });
+          
+          // Process each year level
+          Object.keys(coursesByYear).sort().forEach(yearLevel => {
+            const yearCourses = coursesByYear[yearLevel];
+            const yearLabel = getYearLabel(yearLevel);
+            
+            // Check if we need a new page
+            if (currentY > pageHeight - 80) {
+              pdf.addPage();
+              currentY = margin;
+            }
+            
+            // Year header
+            pdf.setFillColor(243, 244, 246); // #f3f4f6
+            pdf.rect(margin, currentY - 2, contentWidth, 8, 'F');
+            pdf.setDrawColor(102, 126, 234); // #667eea
+            pdf.rect(margin, currentY - 2, contentWidth, 8, 'D');
+            
+            pdf.setFontSize(8);
+            pdf.setTextColor(31, 41, 55); // #1f2937
+            pdf.text(`${yearLabel} Subjects`, margin + 3, currentY + 2);
+            
+            // Year stats
+            const totalUnits = yearCourses.reduce((sum: number, course: any) => sum + (course.units || 0), 0);
+            pdf.setFontSize(6);
+            pdf.setTextColor(107, 114, 128); // #6b7280
+            pdf.text(`${yearCourses.length} subjects, ${totalUnits} units`, pageWidth - margin - 3, currentY + 2, { align: 'right' });
+            
+            currentY += 10;
+            
+            // Check if we need a new page for the table
+            if (currentY > pageHeight - 60) {
+              pdf.addPage();
+              currentY = margin;
+            }
+            
+            // Table headers
+            const headers = ['Code', 'Name', 'Units', 'LEC', 'LAB', 'Hours', 'Type', 'Grade', 'Prereq', 'Status'];
+            const colWidths = [15, 45, 12, 12, 12, 15, 15, 15, 20, 15];
+            let colX = margin;
+            
+            // Draw header background
+            pdf.setFillColor(30, 64, 175); // #1e40af
+            pdf.rect(colX, currentY - 2, colWidths.reduce((a, b) => a + b, 0), 6, 'F');
+            
+            // Header text
+            pdf.setFontSize(6);
+            pdf.setTextColor(255, 255, 255);
+            headers.forEach((header, index) => {
+              pdf.text(header, colX + 1, currentY + 1);
+              colX += colWidths[index];
+            });
+            
+            currentY += 7;
+            
+            // Table rows
+            yearCourses.forEach((course: any, index: number) => {
+              // Check if we need a new page
+              if (currentY > pageHeight - 15) {
+                pdf.addPage();
+                currentY = margin;
+                
+                // Redraw headers on new page
+                colX = margin;
+                pdf.setFillColor(30, 64, 175);
+                pdf.rect(colX, currentY - 2, colWidths.reduce((a, b) => a + b, 0), 6, 'F');
+                
+                pdf.setFontSize(6);
+                pdf.setTextColor(255, 255, 255);
+                headers.forEach((header, idx) => {
+                  pdf.text(header, colX + 1, currentY + 1);
+                  colX += colWidths[idx];
+                });
+                
+                currentY += 7;
+              }
+              
+              // Row background (alternating)
+              if (index % 2 === 0) {
+                pdf.setFillColor(241, 245, 249); // #f1f5f9
+                pdf.rect(margin, currentY - 1, colWidths.reduce((a, b) => a + b, 0), 5, 'F');
+              }
+              
+              // Row content
+              colX = margin;
+              pdf.setFontSize(5);
+              pdf.setTextColor(31, 41, 55); // #1f2937
+              
+              // Subject Code
+              pdf.text(course.code || '', colX + 1, currentY + 1);
+              colX += colWidths[0];
+              
+              // Subject Name
+              const courseName = course.name || '';
+              if (courseName.length > 20) {
+                pdf.text(courseName.substring(0, 17) + '...', colX + 1, currentY + 1);
+              } else {
+                pdf.text(courseName, colX + 1, currentY + 1);
+              }
+              colX += colWidths[1];
+              
+              // Units
+              pdf.text(String(course.units || 0), colX + 1, currentY + 1);
+              colX += colWidths[2];
+              
+              // LEC
+              pdf.text(String(course.lec_units || 0), colX + 1, currentY + 1);
+              colX += colWidths[3];
+              
+              // LAB
+              pdf.text(String(course.lab_units || 0), colX + 1, currentY + 1);
+              colX += colWidths[4];
+              
+              // Hours
+              pdf.text(String(course.hours_per_week || 0), colX + 1, currentY + 1);
+              colX += colWidths[5];
+              
+              // Type
+              const courseType = course.code && course.code.startsWith('IT') ? 'Major' : 'Minor';
+              pdf.text(courseType, colX + 1, currentY + 1);
+              colX += colWidths[6];
+              
+              // Grade
+              const subjectGrades = getSubjectGrades(course.code);
+              if (subjectGrades && (subjectGrades.prelim_grade || subjectGrades.midterm_grade || subjectGrades.final_grade)) {
+                const avgGrade = calculateAverageGrade(
+                  subjectGrades.prelim_grade || null,
+                  subjectGrades.midterm_grade || null,
+                  subjectGrades.final_grade || null
+                );
+                pdf.text(String(avgGrade || 'N/A'), colX + 1, currentY + 1);
+              } else {
+                pdf.text('No grade', colX + 1, currentY + 1);
+              }
+              colX += colWidths[7];
+              
+              // Prerequisites
+              if (course.prerequisites && course.prerequisites.length > 0) {
+                const prereqText = course.prerequisites.join(', ');
+                if (prereqText.length > 15) {
+                  pdf.text(prereqText.substring(0, 12) + '...', colX + 1, currentY + 1);
+                } else {
+                  pdf.text(prereqText, colX + 1, currentY + 1);
+                }
+              } else {
+                pdf.text('None', colX + 1, currentY + 1);
+              }
+              colX += colWidths[8];
+              
+              // Status
+              const enrollmentStatus = getEnrollmentStatus(course.id, course.code);
+              const statusText = enrollmentStatus === 'active' ? 'Enrolled' : 'Not enrolled';
+              pdf.text(statusText, colX + 1, currentY + 1);
+              
+              currentY += 5;
+            });
+            
+            currentY += 2;
+          });
+        } else {
+          pdf.setFontSize(10);
+          pdf.setTextColor(107, 114, 128); // #6b7280
+          pdf.text('No courses available', pageWidth / 2, currentY, { align: 'center' });
+        }
+        
+        // Footer
+        const totalPages = (pdf as any).internal.getNumberOfPages();
+        for (let i = 1; i <= totalPages; i++) {
+          pdf.setPage(i);
+          pdf.setFontSize(6);
+          pdf.setTextColor(107, 114, 128); // #6b7280
+          pdf.text(`Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}`, pageWidth / 2, pageHeight - 8, { align: 'center' });
+          pdf.text(`Page ${i} of ${totalPages}`, pageWidth / 2, pageHeight - 4, { align: 'center' });
+        }
+        
+        // Save the PDF
+      pdf.save('student_prospectus.pdf');
+        
+      } catch (error) {
+        console.error('Error generating PDF:', error);
+        toast.error('Failed to generate PDF. Please try again.');
+      }
+    }
+  };
+
+  if (loading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (error) {
+    return (
+      <Box p={3}>
+        <Alert severity="error">{error}</Alert>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ 
       minHeight: '100vh',
       p: { xs: 2, sm: 4 },
-      background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)'
+      position: 'relative'
     }}>
-      {/* Header */}
+      {/* Header Section */}
       <Box sx={{ 
         mb: 4, 
-        background: 'linear-gradient(to right, #667eea, #764ba2)',
+        background: 'linear-gradient(to right, #2563eb, #9333ea)',
         px: 3,
         py: 2,
         borderRadius: 4,
-        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
         display: 'flex',
-        alignItems: 'center',
-        gap: 2
+        flexDirection: { xs: 'column', sm: 'row' },
+        alignItems: { xs: 'flex-start', sm: 'center' },
+        justifyContent: 'space-between',
+        gap: 1.5
       }}>
-        <GraduationCap className="w-8 h-8 text-white" />
-        <Box>
-          <Typography variant="h4" sx={{ 
-            fontWeight: 700, 
-            color: 'white',
-            fontSize: '1.5rem'
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Box>
+            <Typography variant="h4" sx={{ 
+              fontWeight: 700, 
+              color: 'white',
+              letterSpacing: '-0.025em',
+              fontSize: '1.5rem'
+            }}>
+              Enrollment Management
+            </Typography>
+            <Typography variant="body2" sx={{ 
+              color: 'rgba(255, 255, 255, 0.8)', 
+              fontSize: '0.875rem',
+              fontWeight: 500
+            }}>
+              Manage student enrollments, course assignments, and academic status
+            </Typography>
+          </Box>
+        </Box>
+       
+      </Box>
+
+      {/* Action Cards Section */}
+      <Box sx={{ mb: 2, width: '100%' }}>
+        <Typography variant="h6" sx={{ 
+          fontWeight: 600, 
+          color: '#374151',
+          mb: 1.5,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+          fontSize: '1rem'
+        }}>
+          <Box sx={{ 
+            width: 18, 
+            height: 18, 
+            borderRadius: '50%', 
+            background: '#667eea',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '0.7rem',
+            color: 'white'
           }}>
-            Instructor Management
-          </Typography>
-          <Typography variant="body2" sx={{ 
-            color: 'rgba(255, 255, 255, 0.8)', 
-            fontSize: '0.875rem'
+            ⚡
+          </Box>
+          Quick Actions
+        </Typography>
+        <Box sx={{ 
+          display: 'grid', 
+          gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(4, 1fr)' },
+          gap: 1,
+          mb: 1,
+          width: '100%',
+          maxWidth: 600,
+          mx: 'auto',
+        }}>
+
+          {/* Enroll New Student - Temporarily Hidden */}
+          {<Card sx={{ 
+            borderRadius: 2,
+            boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
+            background: '#fff',
+            border: '1px solid #e5e7eb',
+            transition: 'all 0.2s',
+            minHeight: 60,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            p: 0,
           }}>
-            Manage instructors and their subject assignments
-          </Typography>
+            
+            <CardContent sx={{ p: 0.5, textAlign: 'center', width: '100%', pb: '8px!important' }}>
+              <Button 
+                variant="contained" 
+                color="primary" 
+                size="small"
+                onClick={() => { setSelectedExistingStudent(null); flushNewStudentForm(); setIsCreateDialogOpen(true); }}
+                sx={{
+                  borderRadius: 1.5,
+                  px: 0.8,
+                  py: 0.4,
+                  fontWeight: 500,
+                  fontSize: '0.8rem',
+                  background: '#667eea',
+                  minHeight: 28,
+                  width: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 0.2
+                }}
+              >
+                <Box sx={{ fontSize: '0.9rem', mb: 0.1 }}>➕</Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 500, color: 'white', fontSize: '0.8rem' }}>
+                  Enroll New
+                </Typography>
+              </Button>
+            </CardContent>
+          </Card>}
+          {/* Enroll Existing Student */}
+          <Card sx={{ 
+            borderRadius: 2,
+            boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
+            background: '#fff',
+            border: '1px solid #e5e7eb',
+            transition: 'all 0.2s',
+            minHeight: 60,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            p: 0,
+          }}>
+            <CardContent sx={{ p: 0.5, textAlign: 'center', width: '100%', pb: '8px!important' }}>
+              <Button 
+                variant="contained" 
+                color="success" 
+                size="small"
+                onClick={handleOpenExistingModal}
+                sx={{
+                  borderRadius: 1.5,
+                  px: 0.8,
+                  py: 0.4,
+                  fontWeight: 500,
+                  fontSize: '0.8rem',
+                  background: '#10b981',
+                  minHeight: 28,
+                  width: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 0.2
+                }}
+              >
+                <Box sx={{ fontSize: '0.9rem', mb: 0.1 }}>👥</Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 500, color: 'white', fontSize: '0.8rem' }}>
+                  Enroll Existing
+                </Typography>
+              </Button>
+            </CardContent>
+          </Card>
+          {/* Refresh List */}
+          <Card sx={{ 
+            borderRadius: 2,
+            boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
+            background: '#fff',
+            border: '1px solid #e5e7eb',
+            transition: 'all 0.2s',
+            minHeight: 60,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            p: 0,
+          }}>
+            <CardContent sx={{ p: 0.5, textAlign: 'center', width: '100%', pb: '8px!important' }}>
+              <Button 
+                variant="outlined" 
+                color="primary" 
+                size="small"
+                onClick={loadEnrollments}
+                sx={{
+                  borderRadius: 1.5,
+                  px: 0.8,
+                  py: 0.4,
+                  fontWeight: 500,
+                  fontSize: '0.8rem',
+                  borderColor: '#667eea',
+                  color: '#667eea',
+                  minHeight: 28,
+                  width: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 0.2
+                }}
+              >
+                <Box sx={{ fontSize: '0.9rem', mb: 0.1 }}>🔄</Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 500, fontSize: '0.8rem' }}>
+                  Refresh
+                </Typography>
+              </Button>
+            </CardContent>
+          </Card>
+          {/* End Semester */}
+          <Card sx={{ 
+            borderRadius: 2,
+            boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
+            background: '#fff',
+            border: '1px solid #e5e7eb',
+            transition: 'all 0.2s',
+            minHeight: 60,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            p: 0,
+          }}>
+            <CardContent sx={{ p: 0.5, textAlign: 'center', width: '100%', pb: '8px!important' }}>
+              <Button 
+                variant="outlined" 
+                color="error" 
+                size="small"
+                onClick={handleOpenEndSemesterModal}
+                sx={{
+                  borderRadius: 1.5,
+                  px: 0.8,
+                  py: 0.4,
+                  fontWeight: 500,
+                  fontSize: '0.8rem',
+                  borderColor: '#ef4444',
+                  color: '#ef4444',
+                  minHeight: 28,
+                  width: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 0.2
+                }}
+              >
+                <Box sx={{ fontSize: '0.9rem', mb: 0.1 }}>⚠️</Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 500, fontSize: '0.8rem' }}>
+                  End Semester
+                </Typography>
+              </Button>
+            </CardContent>
+          </Card>
         </Box>
       </Box>
 
-      {/* Tabs */}
-      <Card sx={{ mb: 3, borderRadius: 3, boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
-        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Tabs 
-            value={tabValue} 
-            onChange={handleTabChange}
-            sx={{
-              '& .MuiTab-root': {
-                fontWeight: 600,
-                fontSize: '1rem',
-                textTransform: 'none',
-                minHeight: 64,
-              },
-              '& .Mui-selected': {
-                color: '#667eea',
-              },
-              '& .MuiTabs-indicator': {
-                backgroundColor: '#667eea',
-                height: 3,
-              }
-            }}
-          >
-            <Tab 
-              label={
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Users className="w-5 h-5" />
-                  Instructors
-                </Box>
-              } 
-            />
-            <Tab 
-              label={
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <BookOpen className="w-5 h-5" />
-                  Year Level Assigned Subjects
-                </Box>
-              } 
-            />
-          </Tabs>
-        </Box>
-
-        {/* Instructors Tab */}
-        <TabPanel value={tabValue} index={0}>
-          <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
-            <Typography variant="h6" sx={{ fontWeight: 600, color: '#374151' }}>
-              Manage Instructors ({filteredInstructors.length})
-            </Typography>
-            <Button
-              variant="contained"
-              startIcon={<UserPlus className="w-5 h-5" />}
-              onClick={() => setCreateDialogOpen(true)}
-              sx={{
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                '&:hover': {
-                  background: 'linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%)',
+      {/* Filters Section */}
+      <Card sx={{ 
+        mb: 4, 
+        borderRadius: 3, 
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+        background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+        border: '1px solid #e5e7eb'
+      }}>
+        <CardContent sx={{ p: 3 }}>
+          <Typography variant="h6" sx={{ 
+            fontWeight: 600, 
+            color: '#374151',
+            mb: 3,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1
+          }}>
+            <Box sx={{ 
+              width: 24, 
+              height: 24, 
+              borderRadius: '50%', 
+              background: '#10b981',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '0.8rem',
+              color: 'white'
+            }}>
+              🔍
+            </Box>
+            Search & Filter
+          </Typography>
+          
+          <Box sx={{ 
+            display: 'grid', 
+            gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' },
+            gap: 2
+          }}>
+            <TextField
+              label="Search by Name or Student ID"
+              value={filterSearch}
+              onChange={e => setFilterSearch(e.target.value)}
+              size="small"
+              sx={{ 
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: 2,
+                  '& fieldset': {
+                    borderColor: '#d1d5db'
+                  },
+                  '&:hover fieldset': {
+                    borderColor: '#9ca3af'
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: '#667eea'
+                  }
                 }
               }}
-            >
-              Add Instructor
-            </Button>
-          </Box>
-
-          {/* Filters */}
-          <Card sx={{ mb: 3, p: 2, background: 'rgba(255, 255, 255, 0.8)' }}>
-            <Grid container spacing={2} alignItems="center">
-              <Grid item xs={12} sm={3}>
-                <TextField
-                  fullWidth
-                  placeholder="Search instructors..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  InputProps={{
-                    startAdornment: <Search className="w-4 h-4 text-gray-400 mr-2" />
-                  }}
-                  size="small"
-                />
-              </Grid>
-              <Grid item xs={12} sm={2}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Role</InputLabel>
-                  <Select
-                    value={filterRole}
-                    label="Role"
-                    onChange={(e) => setFilterRole(e.target.value)}
-                  >
-                    <MenuItem value="">All Roles</MenuItem>
-                    <MenuItem value="teacher">Teacher</MenuItem>
-                    <MenuItem value="instructor">Instructor</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12} sm={3}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Department</InputLabel>
-                  <Select
-                    value={filterDepartment}
-                    label="Department"
-                    onChange={(e) => setFilterDepartment(e.target.value)}
-                  >
-                    <MenuItem value="">All Departments</MenuItem>
-                    <MenuItem value="BSIT">BSIT</MenuItem>
-                    <MenuItem value="BSBA">BSBA</MenuItem>
-                    <MenuItem value="BSA">BSA</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12} sm={2}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Status</InputLabel>
-                  <Select
-                    value={filterStatus}
-                    label="Status"
-                    onChange={(e) => setFilterStatus(e.target.value)}
-                  >
-                    <MenuItem value="">All Status</MenuItem>
-                    <MenuItem value="active">Active</MenuItem>
-                    <MenuItem value="inactive">Inactive</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-            </Grid>
-          </Card>
-
-          {/* Instructors Table */}
-          <Card sx={{ borderRadius: 3, overflow: 'hidden' }}>
-            <TableContainer>
-              <Table>
-                <TableHead sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
-                  <TableRow>
-                    <TableCell sx={{ color: 'white', fontWeight: 600 }}>Name</TableCell>
-                    <TableCell sx={{ color: 'white', fontWeight: 600 }}>Email</TableCell>
-                    <TableCell sx={{ color: 'white', fontWeight: 600 }}>Role</TableCell>
-                    <TableCell sx={{ color: 'white', fontWeight: 600 }}>Department</TableCell>
-                    <TableCell sx={{ color: 'white', fontWeight: 600 }}>Status</TableCell>
-                    <TableCell sx={{ color: 'white', fontWeight: 600 }}>Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {loading ? (
-                    <TableRow>
-                      <TableCell colSpan={6} sx={{ textAlign: 'center', py: 4 }}>
-                        <CircularProgress />
-                        <Typography sx={{ mt: 1 }}>Loading instructors...</Typography>
-                      </TableCell>
-                    </TableRow>
-                  ) : filteredInstructors.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={6} sx={{ textAlign: 'center', py: 4 }}>
-                        <Typography color="textSecondary">No instructors found</Typography>
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    filteredInstructors.map((instructor) => (
-                      <TableRow key={instructor.id} hover>
-                        <TableCell>
-                          <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                            {instructor.first_name} {instructor.middle_name ? instructor.middle_name + ' ' : ''}{instructor.last_name}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>{instructor.email}</TableCell>
-                        <TableCell>
-                          <Chip 
-                            label={instructor.role.charAt(0).toUpperCase() + instructor.role.slice(1)} 
-                            size="small"
-                            color={instructor.role === 'teacher' ? 'primary' : 'secondary'}
-                          />
-                        </TableCell>
-                        <TableCell>{instructor.department || '-'}</TableCell>
-                        <TableCell>
-                          <Chip 
-                            label={instructor.is_active ? 'Active' : 'Inactive'} 
-                            size="small"
-                            color={instructor.is_active ? 'success' : 'default'}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <IconButton 
-                            size="small" 
-                            color="info"
-                            onClick={() => handleViewInstructor(instructor)}
-                            title="View Instructor"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </IconButton>
-                          <IconButton 
-                            size="small" 
-                            color="success"
-                            onClick={() => handleAssignSubject(instructor)}
-                            title="Assign Subject"
-                          >
-                            <Plus className="w-4 h-4" />
-                          </IconButton>
-                          <IconButton 
-                            size="small" 
-                            color="primary"
-                            onClick={() => handleEditInstructor(instructor)}
-                            title="Edit Instructor"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </IconButton>
-                          <IconButton 
-                            size="small" 
-                            color="error"
-                            onClick={() => handleDeleteInstructor(instructor)}
-                            title="Delete Instructor"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </IconButton>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Card>
-        </TabPanel>
-
-        {/* Year Level Assigned Subjects Tab */}
-        <TabPanel value={tabValue} index={1}>
-          <Box sx={{ mb: 3 }}>
-            <Typography variant="h6" sx={{ fontWeight: 600, color: '#374151', mb: 2 }}>
-              Year Level Assigned Subjects
-            </Typography>
+              InputProps={{ 
+                startAdornment: (
+                  <Box sx={{ mr: 1, color: '#6b7280' }}>
+                    🔍
+                  </Box>
+                )
+              }}
+            />
             
-            {/* Year Level Filter */}
-            <Card sx={{ mb: 3, p: 2, background: 'rgba(255, 255, 255, 0.8)' }}>
-              <Grid container spacing={2} alignItems="center">
-                <Grid item xs={12} sm={4}>
-                  <FormControl fullWidth size="small">
-                    <InputLabel>Filter by Year Level</InputLabel>
-                    <Select
-                      value={selectedYearLevel}
-                      label="Filter by Year Level"
-                      onChange={(e) => setSelectedYearLevel(e.target.value)}
-                    >
-                      <MenuItem value="all">All Year Levels</MenuItem>
-                      <MenuItem value="1st Year">1st Year</MenuItem>
-                      <MenuItem value="2nd Year">2nd Year</MenuItem>
-                      <MenuItem value="3rd Year">3rd Year</MenuItem>
-                      <MenuItem value="4th Year">4th Year</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
-                <Grid item xs={12} sm={4}>
-                  <Typography variant="body2" color="textSecondary">
-                    {selectedYearLevel === 'all' 
-                      ? `${assignments.length} total assigned`
-                      : `${assignments.filter(a => a.year_level === selectedYearLevel).length} assignments in ${selectedYearLevel}`
+            <FormControl size="small">
+              <InputLabel>Year Level</InputLabel>
+              <Select
+                value={filterYear}
+                label="Year Level"
+                onChange={e => setFilterYear(e.target.value)}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2,
+                    '& fieldset': {
+                      borderColor: '#d1d5db'
+                    },
+                    '&:hover fieldset': {
+                      borderColor: '#9ca3af'
+                    },
+                    '&.Mui-focused fieldset': {
+                      borderColor: '#667eea'
                     }
-                  </Typography>
-                </Grid>
-                <Grid item xs={12} sm={4} sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <Button
-                    variant="contained"
-                    onClick={() => handleOpenSubjectAssignmentForYear(selectedYearLevel === 'all' ? '' : selectedYearLevel)}
-                    sx={{
-                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                      '&:hover': { background: 'linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%)' }
-                    }}
-                  >
-                    Assign Instructor
-                  </Button>
-                </Grid>
-                <Grid item xs={12} sm={12} sx={{ display: 'flex', justifyContent: 'center', mt: 1 }}>
-                  
-                </Grid>
-              </Grid>
-            </Card>
-
-            {/* Assignments Display */}
-            {assignmentsLoading ? (
-              <Box sx={{ textAlign: 'center', py: 8 }}>
-                <CircularProgress />
-                <Typography sx={{ mt: 2 }}>Loading assignments...</Typography>
-              </Box>
-            ) : assignments.length === 0 ? (
-              <Box sx={{ textAlign: 'center', py: 8 }}>
-                <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <Typography variant="h6" color="textSecondary" sx={{ mb: 2 }}>
-                  No Subject Assignments
-                </Typography>
-                <Typography variant="body2" color="textSecondary">
-                  No subjects have been assigned to instructors yet.
-                </Typography>
-              </Box>
-            ) : selectedYearLevel === 'all' ? (
-              // Show collapsible sections for "All Year Levels"
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                {(() => {
-                  const groupedAssignments = assignments.reduce((groups, assignment) => {
-                    const yearLevel = assignment.year_level || 'Unknown';
-                    if (!groups[yearLevel]) {
-                      groups[yearLevel] = [];
+                  }
+                }}
+              >
+                <MenuItem value="">All</MenuItem>
+                <MenuItem value="1">1st Year</MenuItem>
+                <MenuItem value="2">2nd Year</MenuItem>
+                <MenuItem value="3">3rd Year</MenuItem>
+                <MenuItem value="4">4th Year</MenuItem>
+              </Select>
+            </FormControl>
+            
+            <FormControl size="small">
+              <InputLabel>Student Type</InputLabel>
+              <Select
+                value={filterType}
+                label="Student Type"
+                onChange={e => setFilterType(e.target.value)}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2,
+                    '& fieldset': {
+                      borderColor: '#d1d5db'
+                    },
+                    '&:hover fieldset': {
+                      borderColor: '#9ca3af'
+                    },
+                    '&.Mui-focused fieldset': {
+                      borderColor: '#667eea'
                     }
-                    groups[yearLevel].push(assignment);
-                    return groups;
-                  }, {} as Record<string, TeacherSubject[]>);
-
-                  const yearLevelOrder = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
-                  const sortedYearLevels = Object.keys(groupedAssignments).sort((a, b) => {
-                    return yearLevelOrder.indexOf(a) - yearLevelOrder.indexOf(b);
-                  });
-
-                  return sortedYearLevels.map(yearLevel => (
-                    <Card key={yearLevel} sx={{ borderRadius: 3, overflow: 'hidden' }}>
-                      {/* Year Level Header - Clickable */}
-                      <Box 
-                        onClick={() => toggleSection(yearLevel)}
-                        sx={{ 
-                          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                          px: 3,
-                          py: 2,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          cursor: 'pointer',
-                          '&:hover': { 
-                            background: 'linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%)'
-                          },
-                          transition: 'background 0.2s ease'
-                        }}
-                      >
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                          <Box sx={{ 
-                            width: 32, 
-                            height: 32, 
-                            bg: 'rgba(255, 255, 255, 0.2)', 
-                            borderRadius: '50%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}>
-                            <Typography sx={{ color: 'white', fontWeight: 'bold', fontSize: '0.875rem' }}>
-                              {yearLevel.split(' ')[0]}
-                            </Typography>
-                          </Box>
-                          <Typography variant="h6" sx={{ color: 'white', fontWeight: 'bold' }}>
-                            {yearLevel}
-                          </Typography>
-                          <Chip 
-                            label={`${groupedAssignments[yearLevel].length} ${groupedAssignments[yearLevel].length === 1 ? 'Assignment' : 'Assignments'}`}
-                            size="small"
-                            sx={{ 
-                              bg: 'rgba(255, 255, 255, 0.2)', 
-                              color: 'white',
-                              fontWeight: 'medium'
-                            }}
-                          />
-                        </Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenSubjectAssignmentForYear(yearLevel);
-                            }}
-                            variant="outlined"
-                            size="small"
-                            sx={{ 
-                              color: 'white',
-                              borderColor: 'rgba(255,255,255,0.6)',
-                              '&:hover': { borderColor: 'white', bg: 'rgba(255,255,255,0.1)' }
-                            }}
-                          >
-                            Assign Instructor
-                          </Button>
-                          <Button
-                            onClick={(e) => {
-                              e.stopPropagation(); // Prevent triggering the parent onClick
-                              toggleSection(yearLevel);
-                            }}
-                            sx={{ 
-                              color: 'white',
-                              '&:hover': { bg: 'rgba(255, 255, 255, 0.1)' }
-                            }}
-                          >
-                            {expandedSections[yearLevel] ? 'Hide' : 'Show'}
-                          </Button>
-                        </Box>
-                      </Box>
-
-                      {/* Assignments Grid - Collapsible */}
-                      {expandedSections[yearLevel] && (
-                        <Box sx={{ p: 3 }}>
-                          <Grid container spacing={2}>
-                            {groupedAssignments[yearLevel].map((assignment) => (
-                              <Grid item xs={12} md={6} lg={4} key={assignment.id}>
-                                <Card 
-                                  onClick={() => openAssignmentDetail(assignment)}
-                                  sx={{ 
-                                    cursor: 'pointer',
-                                    bg: '#ffffff',
-                                    border: '1px solid #e5e7eb',
-                                    borderRadius: 2,
-                                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-                                    '&:hover': { 
-                                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-                                      transform: 'translateY(-1px)',
-                                      transition: 'all 0.2s ease-in-out'
-                                    },
-                                    transition: 'all 0.2s ease-in-out',
-                                    overflow: 'hidden'
-                                  }}
-                                >
-                                  {/* Compact View - Always Visible */}
-                                  <Box sx={{ p: 2.5 }}>
-                                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                        <Avatar
-                                          src={assignment.teacher_profile_picture || undefined}
-                                          sx={{ 
-                                            width: 36, 
-                                            height: 36, 
-                                            bgcolor: '#dbeafe',
-                                            color: '#2563eb',
-                                            fontSize: '0.75rem',
-                                            fontWeight: 'semibold',
-                                            border: '2px solid #e5e7eb'
-                                          }}
-                                        >
-                                          {assignment.teacher_name?.split(' ').map((n: string) => n[0]).join('')}
-                                        </Avatar>
-                                        <Box>
-                                          <Typography variant="body2" sx={{ fontWeight: '600', color: '#111827', mb: 0.5 }}>
-                                            {assignment.teacher_name}
-                                          </Typography>
-                                          <Chip 
-                                            label={assignment.teacher_role ? assignment.teacher_role.charAt(0).toUpperCase() + assignment.teacher_role.slice(1) : 'Unknown'}
-                                            size="small"
-                                            sx={{ 
-                                              bgcolor: assignment.teacher_role === 'instructor' ? '#fef3c7' : '#dbeafe',
-                                              color: assignment.teacher_role === 'instructor' ? '#92400e' : '#1e40af',
-                                              fontSize: '0.7rem',
-                                              fontWeight: '500'
-                                            }}
-                                          />
-                                        </Box>
-                                      </Box>
-                                                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                         <Chip 
-                                           label={`${assignment.subject_units} ${assignment.subject_units === 1 ? 'Unit' : 'Units'}`}
-                                           size="medium"
-                                           sx={{ 
-                                             bg: '#3b82f6', 
-                                             color: 'white', 
-                                             fontSize: '0.85rem',
-                                             fontWeight: '600',
-                                             px: 1
-                                           }}
-                                         />
-                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                           <IconButton
-                                             size="small"
-                                             onClick={(e) => {
-                                               e.stopPropagation();
-                                               openEditAssignment(assignment);
-                                             }}
-                                             sx={{ 
-                                               p: 1,
-                                               color: '#6b7280',
-                                               '&:hover': { 
-                                                 color: '#3b82f6',
-                                                 bg: 'rgba(59, 130, 246, 0.1)'
-                                               }
-                                             }}
-                                           >
-                                             <Edit className="w-4 h-4" />
-                                           </IconButton>
-                                           <Box sx={{ 
-                                             color: '#6b7280',
-                                             fontSize: '1rem',
-                                             display: 'flex',
-                                             alignItems: 'center',
-                                             justifyContent: 'center',
-                                             width: 32,
-                                             height: 32,
-                                             borderRadius: '50%',
-                                             '&:hover': { 
-                                               bg: 'rgba(107, 114, 128, 0.1)'
-                                             }
-                                           }}>
-                                             <Typography variant="body2" sx={{ color: '#6b7280', fontSize: '1.2rem' }}>
-                                               👁
-                                             </Typography>
-                                           </Box>
-                                         </Box>
-                                       </Box>
-                                    </Box>
-                                    
-                                    {/* Subject Info - Compact */}
-                                    <Box sx={{ 
-                                      bg: '#f8fafc', 
-                                      p: 2, 
-                                      border: '1px solid #e2e8f0',
-                                      borderRadius: 1.5,
-                                      mb: 2
-                                    }}>
-                                      <Typography variant="h6" sx={{ fontWeight: '700', color: '#1e293b', fontSize: '0.9rem', mb: 0.5 }}>
-                                        {assignment.subject_code}
-                                      </Typography>
-                                      <Typography variant="body2" sx={{ color: '#475569', fontSize: '0.8rem', lineHeight: 1.3 }}>
-                                        {assignment.subject_name}
-                                      </Typography>
-                                    </Box>
-
-                                    {/* Quick Details - Compact */}
-                                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                                      <Chip 
-                                        label={`Section ${assignment.section}`}
-                                        size="small"
-                                        sx={{ 
-                                          bg: '#f1f5f9', 
-                                          color: '#475569', 
-                                          fontSize: '0.7rem',
-                                          fontWeight: '500'
-                                        }}
-                                      />
-                                      <Chip 
-                                        label={assignment.semester}
-                                        size="small"
-                                        sx={{ 
-                                          bg: '#f1f5f9', 
-                                          color: '#475569', 
-                                          fontSize: '0.7rem',
-                                          fontWeight: '500'
-                                        }}
-                                      />
-                                      <Chip 
-                                        label={`${typeof assignment.day === 'string' && assignment.day ? assignment.day.split(',').map((d: string) => dayAbbr[d] || d).join(', ') : ''} ${assignment.time || ''}`}
-                                        size="small"
-                                        sx={{ 
-                                          bg: '#f1f5f9', 
-                                          color: '#475569', 
-                                          fontSize: '0.7rem',
-                                          fontWeight: '500'
-                                        }}
-                                      />
-                                    </Box>
-                                  </Box>
-
-
-                                </Card>
-                              </Grid>
-                            ))}
-                          </Grid>
-                        </Box>
-                      )}
-                    </Card>
-                  ));
-                })()}
-              </Box>
-            ) : (
-              // Show filtered assignments for specific year level
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
-                  <Button
-                    variant="contained"
-                    onClick={() => handleOpenSubjectAssignmentForYear(selectedYearLevel)}
-                    sx={{
-                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                      '&:hover': { background: 'linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%)' }
-                    }}
-                  >
-                    Assign Instructor
-                  </Button>
-                </Box>
-                {assignments
-                  .filter(a => a.year_level === selectedYearLevel)
-                  .map((assignment) => (
-                    <Card key={assignment.id} sx={{ p: 2, bg: '#f9fafb', border: '1px solid #e5e7eb' }}>
-                      <Grid container spacing={2} alignItems="center">
-                        <Grid item xs={12} sm={3}>
-                          <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
-                            {assignment.teacher_name}
-                          </Typography>
-                        </Grid>
-                        <Grid item xs={12} sm={2}>
-                          <Typography variant="body2">{assignment.subject_code}</Typography>
-                        </Grid>
-                        <Grid item xs={12} sm={3}>
-                          <Typography variant="body2">{assignment.subject_name}</Typography>
-                        </Grid>
-                        <Grid item xs={12} sm={2}>
-                          <Typography variant="body2">Section {assignment.section}</Typography>
-                        </Grid>
-                        <Grid item xs={12} sm={2}>
-                          <Typography variant="body2">{assignment.semester}</Typography>
-                        </Grid>
-                      </Grid>
-                    </Card>
-                  ))}
-              </Box>
-            )}
+                  }
+                }}
+              >
+                <MenuItem value="">All</MenuItem>
+                <MenuItem value="Freshman">Freshman</MenuItem>
+                <MenuItem value="Regular">Regular</MenuItem>
+                <MenuItem value="Irregular">Irregular</MenuItem>
+                <MenuItem value="Transferee">Transferee</MenuItem>
+              </Select>
+            </FormControl>
+            
+            <FormControl size="small">
+              <InputLabel>Status</InputLabel>
+              <Select
+                value={filterStatus}
+                label="Status"
+                onChange={e => setFilterStatus(e.target.value)}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2,
+                    '& fieldset': {
+                      borderColor: '#d1d5db'
+                    },
+                    '&:hover fieldset': {
+                      borderColor: '#9ca3af'
+                    },
+                    '&.Mui-focused fieldset': {
+                      borderColor: '#667eea'
+                    }
+                  }
+                }}
+              >
+                <MenuItem value="">All</MenuItem>
+                <MenuItem value="pending">Pending</MenuItem>
+                <MenuItem value="enrolled">Enrolled</MenuItem>
+                <MenuItem value="active">Active</MenuItem>
+                <MenuItem value="approved">Approved</MenuItem>
+                <MenuItem value="returned">Returned</MenuItem>
+                <MenuItem value="dropped">Dropped</MenuItem>
+              </Select>
+            </FormControl>
           </Box>
-        </TabPanel>
+        </CardContent>
       </Card>
+      {/* Student List Section */}
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h5" sx={{ 
+          fontWeight: 600, 
+          color: '#374151',
+          mb: 3,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1
+        }}>
+          <Box sx={{ 
+            width: 24, 
+            height: 24, 
+            borderRadius: '50%', 
+            background: '#667eea',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '0.8rem',
+            color: 'white'
+          }}>
+            👥
+          </Box>
+          Student List
+          <Box sx={{ 
+            ml: 2, 
+            px: 2, 
+            py: 0.5, 
+            borderRadius: 2, 
+            background: '#f3f4f6',
+            fontSize: '0.875rem',
+            color: '#6b7280',
+            fontWeight: 500
+          }}>
+            {filteredStudents.length} students
+          </Box>
+        </Typography>
+        
+        <Card sx={{ 
+          borderRadius: 3, 
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+          background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+          border: '1px solid #e5e7eb',
+          overflow: 'hidden'
+        }}>
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow sx={{ background: 'linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%)' }}>
+                  <TableCell sx={{ 
+                    fontWeight: 600, 
+                    color: '#374151',
+                    fontSize: '0.875rem',
+                    borderBottom: '2px solid #e5e7eb'
+                  }}>
+                    Student ID
+                  </TableCell>
+                  <TableCell sx={{ 
+                    fontWeight: 600, 
+                    color: '#374151',
+                    fontSize: '0.875rem',
+                    borderBottom: '2px solid #e5e7eb'
+                  }}>
+                    Name
+                  </TableCell>
+                  <TableCell sx={{ 
+                    fontWeight: 600, 
+                    color: '#374151',
+                    fontSize: '0.875rem',
+                    borderBottom: '2px solid #e5e7eb'
+                  }}>
+                    Type
+                  </TableCell>
+                  <TableCell sx={{ 
+                    fontWeight: 600, 
+                    color: '#374151',
+                    fontSize: '0.875rem',
+                    borderBottom: '2px solid #e5e7eb'
+                  }}>
+                    Year Level
+                  </TableCell>
+                  <TableCell sx={{ 
+                    fontWeight: 600, 
+                    color: '#374151',
+                    fontSize: '0.875rem',
+                    borderBottom: '2px solid #e5e7eb'
+                  }}>
+                    Department
+                  </TableCell>
+                  <TableCell sx={{ 
+                    fontWeight: 600, 
+                    color: '#374151',
+                    fontSize: '0.875rem',
+                    borderBottom: '2px solid #e5e7eb'
+                  }}>
+                    Section
+                  </TableCell>
+                  <TableCell sx={{ 
+                    fontWeight: 600, 
+                    color: '#374151',
+                    fontSize: '0.875rem',
+                    borderBottom: '2px solid #e5e7eb'
+                  }}>
+                    Status
+                  </TableCell>
+                  <TableCell sx={{ 
+                    position: 'sticky', 
+                    right: 0, 
+                    background: 'linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%)',
+                    zIndex: 1,
+                    fontWeight: 600, 
+                    color: '#374151',
+                    fontSize: '0.875rem',
+                    borderBottom: '2px solid #e5e7eb'
+                  }}>
+                    Action
+                  </TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {filteredStudents.map((student, idx) => (
+                  <TableRow 
+                    key={student.id} 
+                    sx={{ 
+                      background: idx % 2 === 0 ? '#f9fafb' : '#ffffff',
+                      '&:hover': {
+                        background: '#f0f9ff',
+                        transform: 'scale(1.01)',
+                        transition: 'all 0.2s ease'
+                      },
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <TableCell sx={{ 
+                      fontWeight: 500, 
+                      fontFamily: 'monospace',
+                      fontSize: '0.875rem'
+                    }}>
+                      {student.id}
+                    </TableCell>
+                    <TableCell sx={{ 
+                      fontWeight: 500,
+                      fontSize: '0.875rem'
+                    }}>
+                      {student.name}
+                    </TableCell>
+                    <TableCell>
+                      <Box sx={{ 
+                        display: 'inline-block',
+                        px: 1.5,
+                        py: 0.5,
+                        borderRadius: 1,
+                        fontSize: '0.75rem',
+                        fontWeight: 500,
+                        background: '#e0e7ef',
+                        color: '#111827',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.05em'
+                      }}>
+                        {student.studentType}
+                      </Box>
+                    </TableCell>
+                    <TableCell sx={{ 
+                      fontWeight: 500,
+                      fontSize: '0.875rem'
+                    }}>
+                      {student.yearLevel}
+                    </TableCell>
+                    <TableCell sx={{ 
+                      fontWeight: 500,
+                      fontSize: '0.875rem'
+                    }}>
+                      {student.department}
+                    </TableCell>
+                    <TableCell sx={{ 
+                      fontWeight: 500,
+                      fontSize: '0.875rem'
+                    }}>
+                      {getSectionName(student.section)}
+                    </TableCell>
+                    <TableCell>
+                      <Box sx={{ 
+                        display: 'inline-block',
+                        px: 1.5,
+                        py: 0.5,
+                        borderRadius: 1,
+                        fontSize: '0.75rem',
+                        fontWeight: 500,
+                        background: '#f3f4f6',
+                        color: '#111827',
+                        textTransform: 'capitalize'
+                      }}>
+                        {student.status}
+                      </Box>
+                    </TableCell>
+                    <TableCell sx={{ 
+                      position: 'sticky', 
+                      right: 0, 
+                      background: idx % 2 === 0 ? '#f9fafb' : '#ffffff',
+                      zIndex: 1
+                    }}>
+                      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                        <Button
+                          variant="contained"
+                          size="small"
+                          onClick={() => { setEditForm(student); }}
+                          title="Review and Edit Student"
+                          sx={{
+                            borderRadius: 2,
+                            px: 2,
+                            py: 0.5,
+                            fontWeight: 600,
+                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                            '&:hover': {
+                              background: 'linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%)',
+                              transform: 'translateY(-1px)',
+                              boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)'
+                            },
+                            transition: 'all 0.2s ease'
+                          }}
+                        >
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <Box sx={{ fontSize: '0.8rem' }}>✏️</Box>
+                            Review
+                          </Box>
+                        </Button>
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          onClick={() => handleOpenProspectusModal(student)}
+                          title="View Prospectus"
+                          sx={{
+                            borderRadius: 2,
+                            px: 2,
+                            py: 0.5,
+                            fontWeight: 600,
+                            borderColor: '#10b981',
+                            color: '#10b981',
+                            '&:hover': {
+                              borderColor: '#059669',
+                              backgroundColor: '#f0fdf4',
+                              transform: 'translateY(-1px)',
+                              boxShadow: '0 4px 12px rgba(16, 185, 129, 0.2)'
+                            },
+                            transition: 'all 0.2s ease'
+                          }}
+                        >
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <Box sx={{ fontSize: '0.8rem' }}>📋</Box>
+                            Prospectus
+                          </Box>
+                        </Button>
+                      </Box>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Card>
+      </Box>
 
-      {/* Create Instructor Dialog */}
-      <Dialog 
-        open={createDialogOpen} 
-        onClose={() => setCreateDialogOpen(false)}
-        maxWidth="md"
+      <Dialog
+        open={isCreateDialogOpen}
+        onClose={() => {
+          handleCloseCreateDialog();
+          setSelectedExistingStudent(null);
+          flushNewStudentForm();
+        }}
+        maxWidth="lg"
         fullWidth
         PaperProps={{
           sx: {
             borderRadius: 3,
-            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)'
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)',
+            overflow: 'hidden'
           }
         }}
       >
@@ -1530,586 +4087,1359 @@ const InstructorManagement: React.FC = () => {
             px: 4,
             display: 'flex',
             alignItems: 'center',
-            gap: 2
+            gap: 2,
+            '& .MuiTypography-root': {
+              fontSize: '1.5rem',
+              fontWeight: 600
+            }
           }}
         >
-          <UserPlus className="w-6 h-6" />
-          Add New Instructor
+          <Box
+            sx={{
+              width: 40,
+              height: 40,
+              borderRadius: '50%',
+              background: 'rgba(255, 255, 255, 0.2)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '1.2rem'
+            }}
+          >
+            {selectedExistingStudent ? '👤' : '➕'}
+          </Box>
+          {selectedExistingStudent ? 'Enroll Existing Student' : 'Enroll New Student'}
         </DialogTitle>
-        
-        <form onSubmit={handleCreateInstructor}>
-          <DialogContent sx={{ p: 4 }}>
-            <Grid container spacing={3}>
-              <Grid item xs={12} sm={4}>
-                <TextField
-                  fullWidth
-                  label="First Name"
-                  value={createForm.firstName}
-                  onChange={(e) => setCreateForm(f => ({ ...f, firstName: e.target.value }))}
-                  required
-                />
-              </Grid>
-              <Grid item xs={12} sm={4}>
-                <TextField
-                  fullWidth
-                  label="Middle Name"
-                  value={createForm.middleName}
-                  onChange={(e) => setCreateForm(f => ({ ...f, middleName: e.target.value }))}
-                />
-              </Grid>
-              <Grid item xs={12} sm={4}>
-                <TextField
-                  fullWidth
-                  label="Last Name"
-                  value={createForm.lastName}
-                  onChange={(e) => setCreateForm(f => ({ ...f, lastName: e.target.value }))}
-                  required
-                />
-              </Grid>
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  label="Email"
-                  value={createForm.email}
-                  InputProps={{
-                    endAdornment: <span style={{ color: '#6b7280' }}>@smcbi.edu.ph</span>,
-                    readOnly: true
-                  }}
-                  disabled
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      backgroundColor: '#f3f4f6'
-                    }
-                  }}
-                />
-              </Grid>
-              {/* Remove Role Dropdown, use hidden input instead */}
-              <input type="hidden" name="role" value="instructor" />
-              {/* Remove Department Dropdown, use read-only text field instead */}
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Department"
-                  value={createForm.department}
-                  InputProps={{ readOnly: true }}
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      backgroundColor: '#f9fafb'
-                    }
-                  }}
-                  helperText="Department is set to BSIT by default."
-                />
-              </Grid>
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  label="Password"
-                  type="text"
-                  value={createForm.password}
-                  InputProps={{ readOnly: true }}
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      backgroundColor: '#f9fafb'
-                    }
-                  }}
-                  helperText="Default password will be used. Instructor should change it on first login."
-                />
-              </Grid>
-            </Grid>
-          </DialogContent>
-          
-          <DialogActions sx={{ p: 3, background: '#f8fafc' }}>
-            <Button 
-              onClick={() => {
-                setCreateDialogOpen(false);
-                resetCreateForm();
-              }}
-              disabled={creating}
-            >
-              Cancel
-            </Button>
-            <Button 
-              type="submit" 
-              variant="contained"
-              disabled={creating}
+        {selectedExistingStudent ? (
+          <form onSubmit={handleCreateStudent}>
+            <DialogContent
               sx={{
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                '&:hover': {
-                  background: 'linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%)',
+                minWidth: { xs: 0, sm: 700, md: 950 },
+                background: 'linear-gradient(135deg, #f8fafc 0%, #e0e7ef 100%)',
+                borderRadius: 0,
+                p: { xs: 2, sm: 4 },
+                position: 'relative',
+                '&::before': {
+                  content: '""',
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: 4,
+                  background: 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)'
                 }
               }}
             >
-              {creating ? 'Creating...' : 'Create Instructor'}
-            </Button>
-          </DialogActions>
-        </form>
-      </Dialog>
-
-      {/* Assignment Detail Modal */}
-      <Dialog
-        open={assignmentDetailModal.isOpen}
-        onClose={closeAssignmentDetail}
-        maxWidth="sm"
-        PaperProps={{
-          sx: {
-            borderRadius: 2,
-            boxShadow: '0 10px 40px rgba(0, 0, 0, 0.15)',
-            maxWidth: '500px',
-            width: '100%'
-          }
-        }}
-      >
-        {assignmentDetailModal.assignment && (
-          <>
-            <DialogTitle 
-              sx={{
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                color: 'white',
-                py: 2,
-                px: 3,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between'
-              }}
-            >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                <BookOpen className="w-5 h-5" />
-                <Typography variant="h6" sx={{ fontWeight: '600', fontSize: '1.1rem' }}>
-                  Assignment Details
-                </Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <IconButton
-                  onClick={() => openEditAssignment(assignmentDetailModal.assignment!)}
-                  sx={{ 
-                    color: 'white', 
-                    p: 1,
-                    '&:hover': { 
-                      bg: 'rgba(255, 255, 255, 0.1)'
-                    }
-                  }}
-                  size="medium"
-                >
-                  <Edit className="w-5 h-5" />
-                </IconButton>
-                <IconButton
-                  onClick={closeAssignmentDetail}
-                  sx={{ color: 'white', p: 1 }}
-                  size="medium"
-                >
-                  <X className="w-5 h-5" />
-                </IconButton>
-              </Box>
-            </DialogTitle>
-            
-            <DialogContent sx={{ p: 3 }}>
-              <Grid container spacing={2}>
-                {/* Teacher Information */}
-                <Grid item xs={12}>
-                  <Card sx={{ p: 2, bg: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                      <Avatar
-                        src={assignmentDetailModal.assignment.teacher_profile_picture || undefined}
-                        sx={{ 
-                          width: 48, 
-                          height: 48, 
-                          bgcolor: '#dbeafe',
-                          color: '#2563eb',
-                          fontSize: '1rem',
-                          fontWeight: 'semibold',
-                          border: '2px solid #e5e7eb'
+              <Grid container spacing={3} alignItems="flex-start">
+                {/* Left side: Existing student info (read-only) */}
+                <Grid item xs={12} md={6}>
+                  <Box sx={{ mb: 3 }}>
+                    <Typography variant="h6" sx={{ 
+                      fontWeight: 600, 
+                      color: '#374151',
+                      mb: 2,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1
+                    }}>
+                      <Box sx={{ 
+                        width: 24, 
+                        height: 24, 
+                        borderRadius: '50%', 
+                        background: '#667eea',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '0.8rem',
+                        color: 'white'
+                      }}>
+                        👤
+                      </Box>
+                      Student Information
+                    </Typography>
+                  </Box>
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} sm={4}>
+                      <TextField 
+                        label="First Name" 
+                        value={createForm.firstName} 
+                        onChange={e => {
+                          const value = e.target.value;
+                          const capitalized = value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+                          setCreateForm(f => ({ ...f, firstName: capitalized }));
                         }}
-                      >
-                        {assignmentDetailModal.assignment.teacher_name?.split(' ').map((n: string) => n[0]).join('')}
-                      </Avatar>
-                      <Box sx={{ flexGrow: 1 }}>
-                        <Typography variant="h6" sx={{ fontWeight: '600', color: '#111827', mb: 0.5 }}>
-                          {assignmentDetailModal.assignment.teacher_name}
-                        </Typography>
-                        <Chip 
-                          label={assignmentDetailModal.assignment.teacher_role ? assignmentDetailModal.assignment.teacher_role.charAt(0).toUpperCase() + assignmentDetailModal.assignment.teacher_role.slice(1) : 'Unknown'}
-                          size="small"
-                          sx={{ 
-                            bgcolor: assignmentDetailModal.assignment.teacher_role === 'instructor' ? '#fef3c7' : '#dbeafe',
-                            color: assignmentDetailModal.assignment.teacher_role === 'instructor' ? '#92400e' : '#1e40af',
-                            fontSize: '0.75rem',
-                            fontWeight: '600'
-                          }}
-                        />
-                      </Box>
-                    </Box>
-                  </Card>
-                </Grid>
-
-                {/* Subject Information */}
-                <Grid item xs={12}>
-                  <Card sx={{ p: 2, bg: '#f0f9ff', border: '1px solid #bae6fd' }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-                      <Box>
-                        <Typography variant="h5" sx={{ fontWeight: '700', color: '#0c4a6e', mb: 0.5 }}>
-                          {assignmentDetailModal.assignment.subject_code}
-                        </Typography>
-                        <Typography variant="body2" sx={{ color: '#0369a1', fontWeight: '500' }}>
-                          {assignmentDetailModal.assignment.subject_name}
-                        </Typography>
-                      </Box>
-                      <Chip 
-                        label={`${assignmentDetailModal.assignment.subject_units} ${assignmentDetailModal.assignment.subject_units === 1 ? 'Unit' : 'Units'}`}
-                        size="small"
-                        sx={{ 
-                          bg: '#0ea5e9', 
-                          color: 'white', 
-                          fontSize: '0.875rem',
-                          fontWeight: '600'
+                        fullWidth 
+                        required 
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            '& fieldset': {
+                              borderColor: '#d1d5db'
+                            },
+                            '&:hover fieldset': {
+                              borderColor: '#9ca3af'
+                            },
+                            '&.Mui-focused fieldset': {
+                              borderColor: '#667eea'
+                            }
+                          }
                         }}
                       />
-                    </Box>
-                  </Card>
-                </Grid>
-
-                {/* Assignment Details */}
-                <Grid item xs={12}>
-                  <Card sx={{ p: 2, bg: '#f9fafb', border: '1px solid #e5e7eb' }}>
-                    <Typography variant="subtitle1" sx={{ fontWeight: '600', color: '#374151', mb: 2 }}>
-                      Assignment Details
-                    </Typography>
-                    <Grid container spacing={1.5}>
-                      <Grid item xs={6}>
-                        <Box sx={{ 
-                          bg: 'white', 
-                          p: 1.5, 
-                          borderRadius: 1, 
-                          border: '1px solid #e5e7eb',
-                          textAlign: 'center'
-                        }}>
-                          <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: '600', textTransform: 'uppercase' }}>
-                            Section
-                          </Typography>
-                          <Typography variant="body1" sx={{ fontWeight: '600', color: '#111827', mt: 0.5 }}>
-                            Section {assignmentDetailModal.assignment.section}
-                          </Typography>
-                        </Box>
-                      </Grid>
-                      <Grid item xs={6}>
-                        <Box sx={{ 
-                          bg: 'white', 
-                          p: 1.5, 
-                          borderRadius: 1, 
-                          border: '1px solid #e5e7eb',
-                          textAlign: 'center'
-                        }}>
-                          <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: '600', textTransform: 'uppercase' }}>
-                            Semester
-                          </Typography>
-                          <Typography variant="body1" sx={{ fontWeight: '600', color: '#111827', mt: 0.5 }}>
-                            {assignmentDetailModal.assignment.semester}
-                          </Typography>
-                        </Box>
-                      </Grid>
-                      <Grid item xs={6}>
-                        <Box sx={{ 
-                          bg: 'white', 
-                          p: 1.5, 
-                          borderRadius: 1, 
-                          border: '1px solid #e5e7eb',
-                          textAlign: 'center'
-                        }}>
-                          <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: '600', textTransform: 'uppercase' }}>
-                            Schedule
-                          </Typography>
-                          <Typography variant="body1" sx={{ fontWeight: '600', color: '#111827', mt: 0.5 }}>
-                            {typeof assignmentDetailModal.assignment.day === 'string' && assignmentDetailModal.assignment.day
-                              ? assignmentDetailModal.assignment.day.split(',').map((d: string) => dayAbbr[d] || d).join(', ')
-                              : ''
-                            }
-                          </Typography>
-                          <Typography variant="body2" sx={{ fontWeight: '500', color: '#6b7280', mt: 0.25 }}>
-                            {assignmentDetailModal.assignment.time || ''}
-                          </Typography>
-                        </Box>
-                      </Grid>
-                      <Grid item xs={6}>
-                        <Box sx={{ 
-                          bg: 'white', 
-                          p: 1.5, 
-                          borderRadius: 1, 
-                          border: '1px solid #e5e7eb',
-                          textAlign: 'center'
-                        }}>
-                          <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: '600', textTransform: 'uppercase' }}>
-                            Academic Year
-                          </Typography>
-                          <Typography variant="body1" sx={{ fontWeight: '600', color: '#111827', mt: 0.5 }}>
-                            {assignmentDetailModal.assignment.academic_year}
-                          </Typography>
-                        </Box>
-                      </Grid>
                     </Grid>
-                  </Card>
+                    <Grid item xs={12} sm={4}>
+                      <TextField 
+                        label="Middle Name" 
+                        value={createForm.middleName} 
+                        onChange={e => {
+                          const value = e.target.value;
+                          const capitalized = value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+                          setCreateForm(f => ({ ...f, middleName: capitalized }));
+                        }}
+                        fullWidth 
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            '& fieldset': {
+                              borderColor: '#d1d5db'
+                            },
+                            '&:hover fieldset': {
+                              borderColor: '#9ca3af'
+                            },
+                            '&.Mui-focused fieldset': {
+                              borderColor: '#667eea'
+                            }
+                          }
+                        }}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={4}>
+                      <TextField 
+                        label="Last Name" 
+                        value={createForm.lastName} 
+                        onChange={e => {
+                          const value = e.target.value;
+                          const capitalized = value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+                          setCreateForm(f => ({ ...f, lastName: capitalized }));
+                        }}
+                        fullWidth 
+                        required 
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            '& fieldset': {
+                              borderColor: '#d1d5db'
+                            },
+                            '&:hover fieldset': {
+                              borderColor: '#9ca3af'
+                            },
+                            '&.Mui-focused fieldset': {
+                              borderColor: '#667eea'
+                            }
+                          }
+                        }}
+                      />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <TextField 
+                        label="Email" 
+                        type="text" 
+                        value={createForm.email} 
+                        fullWidth 
+                        required 
+                        InputProps={{ 
+                          endAdornment: <span style={{ color: '#6b7280' }}>@smcbi.edu.ph</span>, 
+                          readOnly: true 
+                        }} 
+                        disabled
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            backgroundColor: '#f3f4f6',
+                            '& fieldset': {
+                              borderColor: '#d1d5db'
+                            }
+                          }
+                        }}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <FormControl fullWidth>
+                        <InputLabel>Student Type</InputLabel>
+                        <Select 
+                          value={createForm.studentType} 
+                          label="Student Type" 
+                          onChange={e => setCreateForm(f => ({ ...f, studentType: e.target.value }))} 
+                          required 
+                          fullWidth
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              '& fieldset': {
+                                borderColor: '#d1d5db'
+                              }
+                            }
+                          }}
+                        >
+                          <MenuItem value="Freshman">Freshman</MenuItem>
+                          <MenuItem value="Regular">Regular</MenuItem>
+                          <MenuItem value="Irregular">Irregular</MenuItem>
+                          <MenuItem value="Transferee">Transferee</MenuItem>
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <FormControl fullWidth>
+                        <InputLabel>Year Level</InputLabel>
+                        <Select 
+                          value={createForm.yearLevel} 
+                          label="Year Level" 
+                          onChange={e => setCreateForm(f => ({ ...f, yearLevel: Number(e.target.value) }))} 
+                          required 
+                          fullWidth
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              '& fieldset': {
+                                borderColor: '#d1d5db'
+                              }
+                            }
+                          }}
+                        >
+                          <MenuItem value={1}>1st Year</MenuItem>
+                          <MenuItem value={2}>2nd Year</MenuItem>
+                          <MenuItem value={3}>3rd Year</MenuItem>
+                          <MenuItem value={4}>4th Year</MenuItem>
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <TextField 
+                        label="School Year" 
+                        type="text" 
+                        value={createForm.schoolYear} 
+                        fullWidth 
+                        required 
+                        InputProps={{ readOnly: true }}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            backgroundColor: '#f9fafb',
+                            '& fieldset': {
+                              borderColor: '#d1d5db'
+                            }
+                          }
+                        }}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <FormControl fullWidth>
+                        <InputLabel>Semester</InputLabel>
+                        <Select 
+                          value={createForm.semester} 
+                          label="Semester" 
+                          onChange={e => setCreateForm(f => ({ ...f, semester: e.target.value }))} 
+                          required 
+                          fullWidth
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              '& fieldset': {
+                                borderColor: '#d1d5db'
+                              }
+                            }
+                          }}
+                        >
+                          <MenuItem value="1st Semester">1st Semester</MenuItem>
+                          <MenuItem value="2nd Semester">2nd Semester</MenuItem>
+                          <MenuItem value="Summer">Summer</MenuItem>
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <TextField 
+                        label="Student ID" 
+                        type="text" 
+                        value={createForm.studentId} 
+                        fullWidth 
+                        required 
+                        InputProps={{ readOnly: true }}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            backgroundColor: '#f9fafb',
+                            '& fieldset': {
+                              borderColor: '#d1d5db'
+                            }
+                          }
+                        }}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <FormControl fullWidth>
+                        <InputLabel>Course</InputLabel>
+                        <Select 
+                          value={createForm.department} 
+                          label="Course" 
+                          disabled 
+                          fullWidth
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              backgroundColor: '#f3f4f6',
+                              '& fieldset': {
+                                borderColor: '#d1d5db'
+                              }
+                            }
+                          }}
+                        >
+                          <MenuItem value="BSIT">BSIT</MenuItem>
+                          {/* Add more courses here if needed */}
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <FormControl fullWidth>
+                        <InputLabel>Section</InputLabel>
+                        <Select
+                          value={createForm.section}
+                          label="Section"
+                          onChange={e => setCreateForm(f => ({ ...f, section: e.target.value }))}
+                          required
+                          disabled={sectionsLoading || selectedExistingStudent !== null}
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              '& fieldset': {
+                                borderColor: '#d1d5db'
+                              }
+                            }
+                          }}
+                        >
+                          <MenuItem value="">Select Section</MenuItem>
+                          {sections
+                            .filter(section => section.year_level === createForm.yearLevel)
+                            .map(section => (
+                              <MenuItem key={section.id} value={section.id}>
+                                {section.name}{section.academic_year ? ` (${section.academic_year})` : ''}
+                              </MenuItem>
+                            ))}
+                        </Select>
+                        {selectedExistingStudent !== null && (
+                          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                            Changing section is avaialable at Class Manangement.
+                          </Typography>
+                        )}
+                      </FormControl>
+                    </Grid>
+                  </Grid>
                 </Grid>
-
-                {/* Assignment Date */}
-                <Grid item xs={12}>
-                  <Box sx={{ 
-                    bg: '#fef3c7', 
-                    p: 1.5, 
-                    borderRadius: 1, 
-                    border: '1px solid #f59e0b',
-                    textAlign: 'center'
-                  }}>
-                    <Typography variant="body2" sx={{ 
-                      color: '#92400e', 
-                      fontWeight: '600'
+                {/* Right side: Courses Offered (checkboxes) */}
+                <Grid item xs={12} md={6}>
+                  <Box sx={{ mb: 3 }}>
+                    <Typography variant="h6" sx={{ 
+                      fontWeight: 600, 
+                      color: '#374151',
+                      mb: 2,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1
                     }}>
-                      Assigned: {new Date(assignmentDetailModal.assignment.created_at || '').toLocaleDateString()}
+                      <Box sx={{ 
+                        width: 24, 
+                        height: 24, 
+                        borderRadius: '50%', 
+                        background: '#10b981',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '0.8rem',
+                        color: 'white'
+                      }}>
+                        📚
+                      </Box>
+                      Course Selection
                     </Typography>
+                  </Box>
+                  
+                  {/* Search bar for filtering courses */}
+                  <TextField
+                    label="Search Courses"
+                    value={courseSearch}
+                    onChange={e => setCourseSearch(e.target.value)}
+                    size="small"
+                    fullWidth
+                    sx={{ 
+                      mb: 3,
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: 2,
+                        '& fieldset': {
+                          borderColor: '#d1d5db'
+                        },
+                        '&:hover fieldset': {
+                          borderColor: '#9ca3af'
+                        },
+                        '&.Mui-focused fieldset': {
+                          borderColor: '#667eea'
+                        }
+                      }
+                    }}
+                    placeholder="Type course code or name..."
+                    InputProps={{
+                      startAdornment: (
+                        <Box sx={{ mr: 1, color: '#6b7280' }}>
+                          🔍
+                        </Box>
+                      )
+                    }}
+                  />
+                  
+                  {/* Course selection summary and check all option */}
+                  <Box sx={{ 
+                    mb: 2, 
+                    p: 2, 
+                    borderRadius: 2, 
+                    background: selectedCourses.length > 0 ? '#f0f9ff' : '#f9fafb',
+                    border: `1px solid ${selectedCourses.length > 0 ? '#0ea5e9' : '#e5e7eb'}`
+                  }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                      <Typography variant="body2" sx={{ 
+                        fontWeight: 500, 
+                        color: selectedCourses.length > 0 ? '#0369a1' : '#6b7280',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1
+                      }}>
+                        <Box sx={{ 
+                          width: 16, 
+                          height: 16, 
+                          borderRadius: '50%', 
+                          background: selectedCourses.length > 0 ? '#0ea5e9' : '#9ca3af',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '0.6rem',
+                          color: 'white'
+                        }}>
+                          {selectedCourses.length > 0 ? '✓' : '0'}
+                        </Box>
+                        {selectedCourses.length > 0 
+                          ? `${selectedCourses.length} course${selectedCourses.length > 1 ? 's' : ''} selected`
+                          : 'No courses selected'
+                        }
+                      </Typography>
+                      
+                      {/* Check All / Uncheck All Button */}
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        onClick={() => {
+                          if (selectedCourses.length === getTotalAvailableCourses()) {
+                            // If all are selected, uncheck all
+                            setSelectedCourses([]);
+                          } else {
+                            // If not all are selected, check all
+                            const allCourseIds = getAllAvailableCourseIds();
+                            setSelectedCourses(allCourseIds);
+                          }
+                        }}
+                        sx={{
+                          borderRadius: 1,
+                          px: 1.5,
+                          py: 0.5,
+                          fontSize: '0.7rem',
+                          fontWeight: 500,
+                          borderColor: selectedCourses.length === getTotalAvailableCourses() ? '#ef4444' : '#10b981',
+                          color: selectedCourses.length === getTotalAvailableCourses() ? '#ef4444' : '#10b981',
+                          '&:hover': {
+                            borderColor: selectedCourses.length === getTotalAvailableCourses() ? '#dc2626' : '#059669',
+                            background: selectedCourses.length === getTotalAvailableCourses() ? '#fef2f2' : '#f0fdf4'
+                          }
+                        }}
+                      >
+                        {selectedCourses.length === getTotalAvailableCourses() ? 'Uncheck All' : 'Check All'}
+                      </Button>
+                    </Box>
+                  </Box>
+                  
+                  {/* Render categorized courses */}
+                  <Box sx={{ 
+                    maxHeight: 400, 
+                    overflowY: 'auto',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: 2,
+                    p: 2,
+                    background: '#ffffff'
+                  }}>
+                    {Object.entries(visibleCourses).map(([category, subcats]) => (
+                      <Box key={category} mb={3}>
+                        <Typography variant="subtitle1" sx={{ 
+                          fontWeight: 600, 
+                          color: '#374151',
+                          mb: 2,
+                          pb: 1,
+                          borderBottom: '2px solid #f3f4f6'
+                        }}>
+                          {category}
+                        </Typography>
+                        {Object.entries(subcats as Record<string, unknown[]>).map(([subcat, courseList]) => (
+                          <Box key={subcat} mb={2}>
+                            {subcat !== 'All' && (
+                              <Typography variant="body2" sx={{ 
+                                fontWeight: 500, 
+                                mb: 1,
+                                color: '#6b7280',
+                                textTransform: 'uppercase',
+                                fontSize: '0.75rem',
+                                letterSpacing: '0.05em'
+                              }}>
+                                {subcat}
+                              </Typography>
+                            )}
+                            <FormGroup>
+                              {(courseList as { id: string; code: string; name: string; units: number; yearLevel?: number; status?: string; prerequisites?: string[] }[]).map((course) => (
+                                <FormControlLabel
+                                  key={course.id}
+                                  control={
+                                    <Checkbox
+                                      checked={selectedCourses.includes(course.id)}
+                                      onChange={() => handleCourseCheckbox(course.id)}
+                                      sx={{
+                                        color: '#d1d5db',
+                                        '&.Mui-checked': {
+                                          color: '#667eea'
+                                        }
+                                      }}
+                                    />
+                                  }
+                                  label={
+                                    <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                          {course.code}
+                                        </Typography>
+                                        {course.prerequisites && course.prerequisites.length > 0 && (
+                                          <Box sx={{ 
+                                            display: 'flex', 
+                                            alignItems: 'center', 
+                                            gap: 0.5,
+                                            px: 1,
+                                            py: 0.25,
+                                            borderRadius: 0.5,
+                                            background: '#fef3c7',
+                                            border: '1px solid #f59e0b'
+                                          }}>
+                                            <Typography variant="caption" sx={{ 
+                                              color: '#92400e', 
+                                              fontWeight: 600,
+                                              fontSize: '0.7rem'
+                                            }}>
+                                              Prereq
+                                            </Typography>
+                                            <Typography variant="caption" sx={{ 
+                                              color: '#92400e',
+                                              fontSize: '0.7rem'
+                                            }}>
+                                              ({course.prerequisites.length})
+                                            </Typography>
+                                          </Box>
+                                        )}
+                                      </Box>
+                                      <Typography variant="body2" sx={{ color: '#6b7280', fontSize: '0.875rem' }}>
+                                        {course.name}
+                                      </Typography>
+                                    </Box>
+                                  }
+                                  sx={{
+                                    margin: 0,
+                                    padding: '8px 12px',
+                                    borderRadius: 1,
+                                    '&:hover': {
+                                      background: '#f9fafb'
+                                    },
+                                    '&.Mui-checked': {
+                                      background: '#f0f9ff'
+                                    }
+                                  }}
+                                />
+                              ))}
+                            </FormGroup>
+                          </Box>
+                        ))}
+                      </Box>
+                    ))}
                   </Box>
                 </Grid>
               </Grid>
             </DialogContent>
-          </>
-        )}
-      </Dialog>
-
-      {/* Edit Assignment Modal */}
-      <Dialog
-        open={editAssignmentModal.isOpen}
-        onClose={closeEditAssignment}
-        maxWidth="sm"
-        fullWidth
-        PaperProps={{
-          sx: {
-            borderRadius: 2,
-            boxShadow: '0 10px 40px rgba(0, 0, 0, 0.15)'
-          }
-        }}
-      >
-        {editAssignmentModal.assignment && (
-          <form onSubmit={handleEditAssignment}>
-            <DialogTitle 
-              sx={{
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                color: 'white',
-                py: 2,
-                px: 3,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between'
-              }}
-            >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                <Edit className="w-5 h-5" />
-                <Typography variant="h6" sx={{ fontWeight: '600', fontSize: '1.1rem' }}>
-                  Edit Assignment
-                </Typography>
-              </Box>
-              <IconButton
-                onClick={closeEditAssignment}
-                sx={{ color: 'white', p: 0.5 }}
-                size="small"
-              >
-                <X className="w-4 h-4" />
-              </IconButton>
-            </DialogTitle>
-            
-            <DialogContent sx={{ p: 3 }}>
-              <Grid container spacing={2}>
-                {/* Instructor Selection */}
-                <Grid item xs={12}>
-                  <FormControl fullWidth>
-                    <InputLabel>Instructor</InputLabel>
-                    <Select
-                      value={editAssignmentModal.assignment.teacher_id}
-                      onChange={(e) => setEditAssignmentModal(prev => ({
-                        ...prev,
-                        assignment: prev.assignment ? {
-                          ...prev.assignment,
-                          teacher_id: e.target.value
-                        } : null
-                      }))}
-                      label="Instructor"
-                    >
-                      {instructors.map((instructor) => (
-                        <MenuItem key={instructor.id} value={instructor.id}>
-                          {instructor.first_name} {instructor.middle_name ? instructor.middle_name + ' ' : ''}{instructor.last_name}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-
-                {/* Subject Selection */}
-                <Grid item xs={12}>
-                  <FormControl fullWidth>
-                    <InputLabel>Subject</InputLabel>
-                    <Select
-                      value={editAssignmentModal.assignment.subject_id}
-                      onChange={(e) => setEditAssignmentModal(prev => ({
-                        ...prev,
-                        assignment: prev.assignment ? {
-                          ...prev.assignment,
-                          subject_id: e.target.value
-                        } : null
-                      }))}
-                      label="Subject"
-                    >
-                      {courses.map((course) => (
-                        <MenuItem key={course.id} value={course.id}>
-                          {course.code} - {course.name}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-
-                {/* Section */}
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    label="Section"
-                    value={editAssignmentModal.assignment.section}
-                    onChange={(e) => setEditAssignmentModal(prev => ({
-                      ...prev,
-                      assignment: prev.assignment ? {
-                        ...prev.assignment,
-                        section: e.target.value
-                      } : null
-                    }))}
-                  />
-                </Grid>
-
-                {/* Semester */}
-                <Grid item xs={12} sm={6}>
-                  <FormControl fullWidth>
-                    <InputLabel>Semester</InputLabel>
-                    <Select
-                      value={editAssignmentModal.assignment.semester}
-                      onChange={(e) => setEditAssignmentModal(prev => ({
-                        ...prev,
-                        assignment: prev.assignment ? {
-                          ...prev.assignment,
-                          semester: e.target.value
-                        } : null
-                      }))}
-                      label="Semester"
-                    >
-                      <MenuItem value="First Semester">First Semester</MenuItem>
-                      <MenuItem value="Second Semester">Second Semester</MenuItem>
-                      <MenuItem value="Summer">Summer</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
-
-                {/* Academic Year */}
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    label="Academic Year"
-                    value={editAssignmentModal.assignment.academic_year}
-                    onChange={(e) => setEditAssignmentModal(prev => ({
-                      ...prev,
-                      assignment: prev.assignment ? {
-                        ...prev.assignment,
-                        academic_year: e.target.value
-                      } : null
-                    }))}
-                  />
-                </Grid>
-
-                {/* Year Level */}
-                <Grid item xs={12} sm={6}>
-                  <FormControl fullWidth>
-                    <InputLabel>Year Level</InputLabel>
-                    <Select
-                      value={editAssignmentModal.assignment.year_level}
-                      onChange={(e) => setEditAssignmentModal(prev => ({
-                        ...prev,
-                        assignment: prev.assignment ? {
-                          ...prev.assignment,
-                          year_level: e.target.value
-                        } : null
-                      }))}
-                      label="Year Level"
-                    >
-                      <MenuItem value="1st Year">1st Year</MenuItem>
-                      <MenuItem value="2nd Year">2nd Year</MenuItem>
-                      <MenuItem value="3rd Year">3rd Year</MenuItem>
-                      <MenuItem value="4th Year">4th Year</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
-
-                {/* Schedule */}
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    label="Days (e.g., Monday, Tuesday)"
-                    value={editAssignmentModal.assignment.day || ''}
-                    onChange={(e) => setEditAssignmentModal(prev => ({
-                      ...prev,
-                      assignment: prev.assignment ? {
-                        ...prev.assignment,
-                        day: e.target.value
-                      } : null
-                    }))}
-                    placeholder="Monday, Tuesday, Wednesday"
-                  />
-                </Grid>
-
-                {/* Time */}
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    label="Time"
-                    value={editAssignmentModal.assignment.time || ''}
-                    onChange={(e) => setEditAssignmentModal(prev => ({
-                      ...prev,
-                      assignment: prev.assignment ? {
-                        ...prev.assignment,
-                        time: e.target.value
-                      } : null
-                    }))}
-                    placeholder="9:00 AM - 10:30 AM"
-                  />
-                </Grid>
-              </Grid>
-            </DialogContent>
-            
-            <DialogActions sx={{ p: 3, background: '#f8fafc' }}>
+            <DialogActions sx={{ 
+              p: 3, 
+              background: '#f9fafb',
+              borderTop: '1px solid #e5e7eb',
+              gap: 2
+            }}>
               <Button 
-                onClick={closeEditAssignment}
-                disabled={editAssignmentModal.loading}
+                onClick={handleCloseCreateDialog} 
+                disabled={creating}
+                variant="outlined"
+                sx={{
+                  borderRadius: 2,
+                  px: 3,
+                  py: 1.5,
+                  fontWeight: 600,
+                  borderColor: '#d1d5db',
+                  color: '#374151',
+                  '&:hover': {
+                    borderColor: '#9ca3af',
+                    background: '#f3f4f6'
+                  }
+                }}
               >
                 Cancel
               </Button>
               <Button 
                 type="submit" 
-                variant="contained"
-                disabled={editAssignmentModal.loading}
+                variant="contained" 
+                disabled={creating}
                 sx={{
+                  borderRadius: 2,
+                  px: 3,
+                  py: 1.5,
+                  fontWeight: 600,
                   background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                   '&:hover': {
                     background: 'linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%)',
+                    transform: 'translateY(-1px)',
+                    boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)'
+                  },
+                  '&:disabled': {
+                    background: '#d1d5db',
+                    transform: 'none',
+                    boxShadow: 'none'
                   }
                 }}
               >
-                {editAssignmentModal.loading ? 'Updating...' : 'Update Assignment'}
+                {creating ? (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <CircularProgress size={16} sx={{ color: 'white' }} />
+                    Enrolling...
+                  </Box>
+                ) : (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Box sx={{ fontSize: '1rem' }}>✓</Box>
+                    Enroll Student
+                  </Box>
+                )}
               </Button>
+            </DialogActions>
+          </form>
+        ) : (
+          <form onSubmit={handleCreateStudent}>
+            <DialogContent
+              sx={{
+                minWidth: { xs: 0, sm: 700, md: 950 },
+                background: 'linear-gradient(135deg, #f8fafc 0%, #e0e7ef 100%)',
+                borderRadius: 0,
+                p: { xs: 2, sm: 4 },
+                position: 'relative',
+                '&::before': {
+                  content: '""',
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: 4,
+                  background: 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)'
+                }
+              }}
+            >
+              <Grid container spacing={3} alignItems="flex-start">
+                <Grid item xs={12} md={6}>
+                  <Box sx={{ mb: 3 }}>
+                    <Typography variant="h6" sx={{ 
+                      fontWeight: 600, 
+                      color: '#374151',
+                      mb: 2,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1
+                    }}>
+                      <Box sx={{ 
+                        width: 24, 
+                        height: 24, 
+                        borderRadius: '50%', 
+                        background: '#667eea',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '0.8rem',
+                        color: 'white'
+                      }}>
+                        👤
+                      </Box>
+                      Student Information
+                    </Typography>
+                  </Box>
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} sm={4}>
+                      <TextField 
+                        label="First Name" 
+                        value={createForm.firstName} 
+                        onChange={e => {
+                          const value = e.target.value;
+                          const capitalized = value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+                          setCreateForm(f => ({ ...f, firstName: capitalized }));
+                        }} 
+                        fullWidth 
+                        required
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            '& fieldset': {
+                              borderColor: '#d1d5db'
+                            },
+                            '&:hover fieldset': {
+                              borderColor: '#9ca3af'
+                            },
+                            '&.Mui-focused fieldset': {
+                              borderColor: '#667eea'
+                            }
+                          }
+                        }}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={4}>
+                      <TextField 
+                        label="Middle Name" 
+                        value={createForm.middleName} 
+                        onChange={e => {
+                          const value = e.target.value;
+                          const capitalized = value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+                          setCreateForm(f => ({ ...f, middleName: capitalized }));
+                        }} 
+                        fullWidth 
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            '& fieldset': {
+                              borderColor: '#d1d5db'
+                            },
+                            '&:hover fieldset': {
+                              borderColor: '#9ca3af'
+                            },
+                            '&.Mui-focused fieldset': {
+                              borderColor: '#667eea'
+                            }
+                          }
+                        }}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={4}>
+                      <TextField 
+                        label="Last Name" 
+                        value={createForm.lastName} 
+                        onChange={e => {
+                          const value = e.target.value;
+                          const capitalized = value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+                          setCreateForm(f => ({ ...f, lastName: capitalized }));
+                        }} 
+                        fullWidth 
+                        required
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            '& fieldset': {
+                              borderColor: '#d1d5db'
+                            },
+                            '&:hover fieldset': {
+                              borderColor: '#9ca3af'
+                            },
+                            '&.Mui-focused fieldset': {
+                              borderColor: '#667eea'
+                            }
+                          }
+                        }}
+                      />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <TextField 
+                        label="Email" 
+                        type="text" 
+                        value={createForm.email} 
+                        fullWidth 
+                        required 
+                        InputProps={{ 
+                          endAdornment: <span style={{ color: '#6b7280' }}>@smcbi.edu.ph</span>, 
+                          readOnly: true 
+                        }} 
+                        disabled
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            backgroundColor: '#f3f4f6',
+                            '& fieldset': {
+                              borderColor: '#d1d5db'
+                            }
+                          }
+                        }}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <TextField 
+                        label="Password" 
+                        type="text" 
+                        value={createForm.password} 
+                        fullWidth 
+                        required 
+                        InputProps={{ readOnly: true }}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            backgroundColor: '#f9fafb',
+                            '& fieldset': {
+                              borderColor: '#d1d5db'
+                            }
+                          }
+                        }}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <FormControl fullWidth>
+                        <InputLabel>Student Type</InputLabel>
+                        <Select
+                          value={createForm.studentType}
+                          label="Student Type"
+                          onChange={e => setCreateForm(f => ({ ...f, studentType: e.target.value }))}
+                          required
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              '& fieldset': {
+                                borderColor: '#d1d5db'
+                              },
+                              '&:hover fieldset': {
+                                borderColor: '#9ca3af'
+                              },
+                              '&.Mui-focused fieldset': {
+                                borderColor: '#667eea'
+                              }
+                            }
+                          }}
+                        >
+                          <MenuItem value="Freshman" disabled={Number(createForm.yearLevel) >= 2}>Freshman</MenuItem>
+                          <MenuItem value="Regular">Regular</MenuItem>
+                          <MenuItem value="Irregular">Irregular</MenuItem>
+                          <MenuItem value="Transferee">Transferee</MenuItem>
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <FormControl fullWidth>
+                        <InputLabel>Year Level</InputLabel>
+                        <Select
+                          value={createForm.yearLevel}
+                          label="Year Level"
+                          onChange={e => setCreateForm(f => ({ ...f, yearLevel: Number(e.target.value) }))}
+                          required
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              '& fieldset': {
+                                borderColor: '#d1d5db'
+                              },
+                              '&:hover fieldset': {
+                                borderColor: '#9ca3af'
+                              },
+                              '&.Mui-focused fieldset': {
+                                borderColor: '#667eea'
+                              }
+                            }
+                          }}
+                        >
+                          <MenuItem value={1}>1st Year</MenuItem>
+                          <MenuItem value={2}>2nd Year</MenuItem>
+                          <MenuItem value={3}>3rd Year</MenuItem>
+                          <MenuItem value={4}>4th Year</MenuItem>
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <TextField 
+                        label="School Year" 
+                        type="text" 
+                        value={createForm.schoolYear} 
+                        fullWidth 
+                        required 
+                        InputProps={{ readOnly: true }}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            backgroundColor: '#f9fafb',
+                            '& fieldset': {
+                              borderColor: '#d1d5db'
+                            }
+                          }
+                        }}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <FormControl fullWidth>
+                        <InputLabel>Semester</InputLabel>
+                        <Select
+                          value={createForm.semester}
+                          label="Semester"
+                          onChange={e => setCreateForm(f => ({ ...f, semester: e.target.value }))}
+                          required
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              '& fieldset': {
+                                borderColor: '#d1d5db'
+                              },
+                              '&:hover fieldset': {
+                                borderColor: '#9ca3af'
+                              },
+                              '&.Mui-focused fieldset': {
+                                borderColor: '#667eea'
+                              }
+                            }
+                          }}
+                        >
+                          <MenuItem value="1st Semester">1st Semester</MenuItem>
+                          <MenuItem value="2nd Semester">2nd Semester</MenuItem>
+                          <MenuItem value="Summer">Summer</MenuItem>
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <TextField 
+                        label="Student ID" 
+                        type="text" 
+                        value={createForm.studentId} 
+                        fullWidth 
+                        required 
+                        InputProps={{ readOnly: true }}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            backgroundColor: '#f9fafb',
+                            '& fieldset': {
+                              borderColor: '#d1d5db'
+                            }
+                          }
+                        }}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <FormControl fullWidth>
+                        <InputLabel>Course</InputLabel>
+                        <Select
+                          value={createForm.department}
+                          label="Course"
+                          onChange={e => setCreateForm(f => ({ ...f, department: e.target.value }))}
+                          required
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              '& fieldset': {
+                                borderColor: '#d1d5db'
+                              },
+                              '&:hover fieldset': {
+                                borderColor: '#9ca3af'
+                              },
+                              '&.Mui-focused fieldset': {
+                                borderColor: '#667eea'
+                              }
+                            }
+                          }}
+                        >
+                          <MenuItem value="BSIT">BSIT</MenuItem>
+                          {/* Add more courses here if needed */}
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <FormControl fullWidth>
+                        <InputLabel>Section</InputLabel>
+                        <Select
+                          value={createForm.section}
+                          label="Section"
+                          onChange={e => setCreateForm(f => ({ ...f, section: e.target.value }))}
+                          required
+                          disabled={sectionsLoading || selectedExistingStudent !== null}
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              '& fieldset': {
+                                borderColor: '#d1d5db'
+                              },
+                              '&:hover fieldset': {
+                                borderColor: '#9ca3af'
+                              },
+                              '&.Mui-focused fieldset': {
+                                borderColor: '#667eea'
+                              }
+                            }
+                          }}
+                        >
+                          <MenuItem value="">Select Section</MenuItem>
+                          {sections
+                            .filter(section => section.year_level === createForm.yearLevel)
+                            .map(section => (
+                              <MenuItem key={section.id} value={section.id}>
+                                {section.name}{section.academic_year ? ` (${section.academic_year})` : ''}
+                              </MenuItem>
+                            ))}
+                        </Select>
+                        {selectedExistingStudent !== null && (
+                          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                            Section is pre-assigned for existing student
+                          </Typography>
+                        )}
+                      </FormControl>
+                    </Grid>
+                  </Grid>
+                </Grid>
+                {/* Right side: Courses Offered */}
+                <Grid item xs={12} md={6}>
+                  <Box sx={{ mb: 3 }}>
+                    <Typography variant="h6" sx={{ 
+                      fontWeight: 600, 
+                      color: '#374151',
+                      mb: 2,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1
+                    }}>
+                      <Box sx={{ 
+                        width: 24, 
+                        height: 24, 
+                        borderRadius: '50%', 
+                        background: '#10b981',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '0.8rem',
+                        color: 'white'
+                      }}>
+                        📚
+                      </Box>
+                      Course Selection
+                    </Typography>
+                  </Box>
+                  
+                  {/* Search bar for filtering courses */}
+                  <TextField
+                    label="Search Courses"
+                    value={courseSearch}
+                    onChange={e => setCourseSearch(e.target.value)}
+                    size="small"
+                    fullWidth
+                    sx={{ 
+                      mb: 3,
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: 2,
+                        '& fieldset': {
+                          borderColor: '#d1d5db'
+                        },
+                        '&:hover fieldset': {
+                          borderColor: '#9ca3af'
+                        },
+                        '&.Mui-focused fieldset': {
+                          borderColor: '#667eea'
+                        }
+                      }
+                    }}
+                    placeholder="Type course code or name..."
+                    InputProps={{
+                      startAdornment: (
+                        <Box sx={{ mr: 1, color: '#6b7280' }}>
+                          🔍
+                        </Box>
+                      )
+                    }}
+                  />
+                  
+                  {/* Move Mixed year toggle for Regular students */}
+                  {createForm.studentType === 'Regular' && (
+                    <Box sx={{ mb: 2, p: 2, borderRadius: 2, background: '#f0f9ff', border: '1px solid #0ea5e9' }}>
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={allowMixedCourses}
+                            onChange={e => setAllowMixedCourses(e.target.checked)}
+                            sx={{
+                              '& .MuiSwitch-switchBase.Mui-checked': {
+                                color: '#0ea5e9',
+                                '& + .MuiSwitch-track': {
+                                  backgroundColor: '#0ea5e9'
+                                }
+                              }
+                            }}
+                          />
+                        }
+                        label={
+                          <Typography variant="body2" sx={{ fontWeight: 500, color: '#0369a1' }}>
+                            Allow Mixed Year Courses
+                          </Typography>
+                        }
+                      />
+                    </Box>
+                  )}
+                  
+                  {/* Course selection summary and check all option */}
+                  <Box sx={{ 
+                    mb: 2, 
+                    p: 2, 
+                    borderRadius: 2, 
+                    background: selectedCourses.length > 0 ? '#f0f9ff' : '#f9fafb',
+                    border: `1px solid ${selectedCourses.length > 0 ? '#0ea5e9' : '#e5e7eb'}`
+                  }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                      <Typography variant="body2" sx={{ 
+                        fontWeight: 500, 
+                        color: selectedCourses.length > 0 ? '#0369a1' : '#6b7280',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1
+                      }}>
+                        <Box sx={{ 
+                          width: 16, 
+                          height: 16, 
+                          borderRadius: '50%', 
+                          background: selectedCourses.length > 0 ? '#0ea5e9' : '#9ca3af',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '0.6rem',
+                          color: 'white'
+                        }}>
+                          {selectedCourses.length > 0 ? '✓' : '0'}
+                        </Box>
+                        {selectedCourses.length > 0 
+                          ? `${selectedCourses.length} course${selectedCourses.length > 1 ? 's' : ''} selected`
+                          : 'No courses selected'
+                        }
+                      </Typography>
+                      
+                      {/* Check All / Uncheck All Button */}
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        onClick={() => {
+                          if (selectedCourses.length === getTotalAvailableCourses()) {
+                            // If all are selected, uncheck all
+                            setSelectedCourses([]);
+                          } else {
+                            // If not all are selected, check all
+                            const allCourseIds = getAllAvailableCourseIds();
+                            setSelectedCourses(allCourseIds);
+                          }
+                        }}
+                        sx={{
+                          borderRadius: 1,
+                          px: 1.5,
+                          py: 0.5,
+                          fontSize: '0.7rem',
+                          fontWeight: 500,
+                          borderColor: selectedCourses.length === getTotalAvailableCourses() ? '#ef4444' : '#10b981',
+                          color: selectedCourses.length === getTotalAvailableCourses() ? '#ef4444' : '#10b981',
+                          '&:hover': {
+                            borderColor: selectedCourses.length === getTotalAvailableCourses() ? '#dc2626' : '#059669',
+                            background: selectedCourses.length === getTotalAvailableCourses() ? '#fef2f2' : '#f0fdf4'
+                          }
+                        }}
+                      >
+                        {selectedCourses.length === getTotalAvailableCourses() ? 'Uncheck All' : 'Check All'}
+                      </Button>
+                    </Box>
+                  </Box>
+                  
+                  {/* Render categorized courses */}
+                  <Box sx={{ 
+                    maxHeight: 400, 
+                    overflowY: 'auto',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: 2,
+                    p: 2,
+                    background: '#ffffff'
+                  }}>
+                    {Object.entries(visibleCourses).map(([category, subcats]) => (
+                      <Box key={category} mb={3}>
+                        <Typography variant="subtitle1" sx={{ 
+                          fontWeight: 600, 
+                          color: '#374151',
+                          mb: 2,
+                          pb: 1,
+                          borderBottom: '2px solid #f3f4f6'
+                        }}>
+                          {category}
+                        </Typography>
+                        {Object.entries(subcats as Record<string, unknown[]>).map(([subcat, courseList]) => (
+                          <Box key={subcat} mb={2}>
+                            {subcat !== 'All' && (
+                              <Typography variant="body2" sx={{ 
+                                fontWeight: 500, 
+                                mb: 1,
+                                color: '#6b7280',
+                                textTransform: 'uppercase',
+                                fontSize: '0.75rem',
+                                letterSpacing: '0.05em'
+                              }}>
+                                {subcat}
+                              </Typography>
+                            )}
+                            <FormGroup>
+                              {(courseList as { id: string; code: string; name: string; units: number; yearLevel?: number; status?: string }[]).map((course) => (
+                                <FormControlLabel
+                                  key={course.id}
+                                  control={
+                                    <Checkbox
+                                      checked={selectedCourses.includes(course.id)}
+                                      onChange={() => handleCourseCheckbox(course.id)}
+                                      sx={{
+                                        color: '#d1d5db',
+                                        '&.Mui-checked': {
+                                          color: '#667eea'
+                                        }
+                                      }}
+                                    />
+                                  }
+                                  label={
+                                    <Box sx={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+                                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 0.5 }}>
+                                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                          {course.code}
+                                        </Typography>
+                                        <Typography variant="body2" sx={{ 
+                                          fontWeight: 500, 
+                                          color: '#6b7280',
+                                          fontSize: '0.75rem'
+                                        }}>
+                                          {course.units} {course.units === 1 ? 'Unit' : 'Units'}
+                                        </Typography>
+                                      </Box>
+                                      <Typography variant="body2" sx={{ color: '#6b7280', fontSize: '0.875rem', mb: 0.5 }}>
+                                        {course.name}
+                                      </Typography>
+                                      {(() => {
+                                        const instructor = getInstructorForCourse(course.id, createForm.yearLevel?.toString(), createForm.section);
+                                        const isMatch = isSectionMatch(course.id, createForm.section);
+                                        
+                                        if (instructor) {
+                                          return (
+                                            <Box sx={{ 
+                                              display: 'flex', 
+                                              flexDirection: 'column', 
+                                              gap: 0.5,
+                                              p: 1,
+                                              borderRadius: 1,
+                                              background: instructor.isExactMatch ? '#f0fdf4' : '#fef3c7',
+                                              border: `1px solid ${instructor.isExactMatch ? '#bbf7d0' : '#fde68a'}`,
+                                              mt: 0.5
+                                            }}>
+                                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                <Typography variant="body2" sx={{ 
+                                                  fontSize: '0.75rem',
+                                                  fontWeight: 500,
+                                                  color: instructor.isExactMatch ? '#166534' : '#92400e'
+                                                }}>
+                                                  👨‍🏫 Instructor: {instructor.teacher_name}
+                                                </Typography>
+                                                {instructor.isExactMatch && (
+                                                  <Box sx={{
+                                                    px: 1,
+                                                    py: 0.25,
+                                                    borderRadius: 0.5,
+                                                    background: '#10b981',
+                                                    color: 'white',
+                                                    fontSize: '0.65rem',
+                                                    fontWeight: 600
+                                                  }}>
+                                                    MATCH
+                                                  </Box>
+                                                )}
+                                              </Box>
+                                              <Typography variant="body2" sx={{ 
+                                                fontSize: '0.7rem',
+                                                color: instructor.isExactMatch ? '#166534' : '#92400e'
+                                              }}>
+                                                Section: {instructor.section} • {instructor.teacher_role}
+                                              </Typography>
+                                            </Box>
+                                          );
+                                        } else {
+                                          return (
+                                            <Box sx={{ 
+                                              p: 1,
+                                              borderRadius: 1,
+                                              background: '#f3f4f6',
+                                              border: '1px solid #e5e7eb',
+                                              mt: 0.5
+                                            }}>
+                                              <Typography variant="body2" sx={{ 
+                                                fontSize: '0.75rem',
+                                                color: '#6b7280',
+                                                fontStyle: 'italic'
+                                              }}>
+                                                No instructor assigned
+                                              </Typography>
+                                            </Box>
+                                          );
+                                        }
+                                      })()}
+                                    </Box>
+                                  }
+                                  sx={{
+                                    margin: 0,
+                                    padding: '8px 12px',
+                                    borderRadius: 1,
+                                    '&:hover': {
+                                      background: '#f9fafb'
+                                    },
+                                    '&.Mui-checked': {
+                                      background: '#f0f9ff'
+                                    }
+                                  }}
+                                />
+                              ))}
+                            </FormGroup>
+                          </Box>
+                        ))}
+                      </Box>
+                    ))}
+                    
+                    {/* Show message when no courses are available for selected section */}
+                    {Object.keys(visibleCourses).length === 0 && createForm.section && createForm.section !== '' && (
+                      <Box sx={{ 
+                        textAlign: 'center', 
+                        py: 4,
+                        px: 2
+                      }}>
+                        <Box sx={{ 
+                          mb: 2,
+                          fontSize: '3rem',
+                          color: '#9ca3af'
+                        }}>
+                          📚
+                        </Box>
+                        <Typography variant="h6" sx={{ 
+                          color: '#6b7280', 
+                          mb: 1,
+                          fontWeight: 500
+                        }}>
+                          No Courses Available
+                        </Typography>
+                        <Typography variant="body2" sx={{ 
+                          color: '#9ca3af',
+                          mb: 2
+                        }}>
+                          No courses have instructors assigned to section "{createForm.section}" for {createForm.yearLevel ? `${createForm.yearLevel}${createForm.yearLevel === 1 ? 'st' : createForm.yearLevel === 2 ? 'nd' : createForm.yearLevel === 3 ? 'rd' : 'th'} Year` : 'the selected year level'}.
+                        </Typography>
+                        <Typography variant="body2" sx={{ 
+                          color: '#9ca3af',
+                          fontSize: '0.875rem'
+                        }}>
+                          Please contact the program head to assign instructors to courses for this section.
+                        </Typography>
+                      </Box>
+                    )}
+                  </Box>
+                </Grid>
+              </Grid>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={handleCloseCreateDialog} disabled={creating}>Cancel</Button>
+              <Button type="submit" variant="contained" color="primary" disabled={creating}>{creating ? 'Enrolling...' : 'Enroll'}</Button>
             </DialogActions>
           </form>
         )}
       </Dialog>
 
-      {/* Edit Instructor Dialog */}
-      <Dialog 
-        open={editDialogOpen} 
-        onClose={() => setEditDialogOpen(false)}
-        maxWidth="md"
-        fullWidth
+      {/* Edit Student Modal */}
+      <Dialog open={!!editForm} onClose={() => { setEditForm(null); }} maxWidth="md" fullWidth scroll="paper"
         PaperProps={{
           sx: {
             borderRadius: 3,
-            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)'
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)',
+            overflow: 'hidden',
+            maxHeight: '90vh'
           }
         }}
       >
@@ -2121,518 +5451,1045 @@ const InstructorManagement: React.FC = () => {
             px: 4,
             display: 'flex',
             alignItems: 'center',
-            gap: 2
+            gap: 2,
+            '& .MuiTypography-root': {
+              fontSize: '1.5rem',
+              fontWeight: 600
+            }
           }}
         >
-          <Edit className="w-6 h-6" />
-          Edit Instructor
+          <Box
+            sx={{
+              width: 40,
+              height: 40,
+              borderRadius: '50%',
+              background: 'rgba(255, 255, 255, 0.2)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '1.2rem'
+            }}
+          >
+            ✏️
+          </Box>
+          Edit Student Info
         </DialogTitle>
-        
-        <form onSubmit={handleUpdateInstructor}>
-          <DialogContent sx={{ p: 4 }}>
-            <Grid container spacing={3}>
-              <Grid item xs={12} sm={4}>
-                <TextField
-                  fullWidth
-                  label="First Name"
-                  value={editForm.firstName}
-                  onChange={(e) => setEditForm(f => ({ ...f, firstName: e.target.value }))}
-                  required
+        <DialogContent
+          sx={{
+            minWidth: { xs: 0, sm: 700, md: 900 },
+            background: '#ffffff',
+            borderRadius: 0,
+            p: { xs: 2, sm: 4 },
+            position: 'relative',
+            maxHeight: '70vh',
+            overflowY: 'auto',
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 4,
+              background: 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)'
+            }
+          }}
+        >
+          {editForm && (
+            <Grid container spacing={2} alignItems="flex-start" sx={{ mt: 1 }}>
+              <Grid item xs={12} md={4}>
+                <TextField 
+                  label="First Name" 
+                  value={editFormFields.firstName} 
+                  onChange={e => {
+                    const value = e.target.value;
+                    const capitalized = value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+                    setEditFormFields(f => ({ ...f, firstName: capitalized }));
+                  }} 
+                  size="small"
+                  variant="outlined"
+                  fullWidth 
+                  required 
                 />
               </Grid>
-              <Grid item xs={12} sm={4}>
-                <TextField
-                  fullWidth
-                  label="Middle Name"
-                  value={editForm.middleName}
-                  onChange={(e) => setEditForm(f => ({ ...f, middleName: e.target.value }))}
+              <Grid item xs={12} md={4}>
+                <TextField 
+                  label="Middle Name" 
+                  value={editFormFields.middleName} 
+                  onChange={e => {
+                    const value = e.target.value;
+                    const capitalized = value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+                    setEditFormFields(f => ({ ...f, middleName: capitalized }));
+                  }} 
+                  size="small"
+                  variant="outlined"
+                  fullWidth 
                 />
               </Grid>
-              <Grid item xs={12} sm={4}>
-                <TextField
-                  fullWidth
-                  label="Last Name"
-                  value={editForm.lastName}
-                  onChange={(e) => setEditForm(f => ({ ...f, lastName: e.target.value }))}
-                  required
+              <Grid item xs={12} md={4}>
+                <TextField 
+                  label="Last Name" 
+                  value={editFormFields.lastName} 
+                  onChange={e => {
+                    const value = e.target.value;
+                    const capitalized = value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+                    setEditFormFields(f => ({ ...f, lastName: capitalized }));
+                  }} 
+                  size="small"
+                  variant="outlined"
+                  fullWidth 
+                  required 
                 />
               </Grid>
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  label="Email"
-                  value={editForm.email}
-                  InputProps={{ readOnly: true }}
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      backgroundColor: '#f3f4f6'
-                    }
-                  }}
-                  helperText="Email cannot be changed"
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
+              <Grid item xs={12} md={6}>
                 <FormControl fullWidth>
-                  <InputLabel>Role</InputLabel>
+                  <InputLabel>Student Type</InputLabel>
                   <Select
-                    value={editForm.role}
-                    label="Role"
-                    onChange={(e) => setEditForm(f => ({ ...f, role: e.target.value as 'teacher' | 'instructor' }))}
+                    value={editForm.studentType}
+                    label="Student Type"
+                    onChange={e => setEditForm((f: Student | null) => f ? { ...f, studentType: e.target.value as Student['studentType'] } : null)}
+                    size="small" required
                   >
-                    <MenuItem value="teacher">Teacher</MenuItem>
-                    <MenuItem value="instructor">Instructor</MenuItem>
+                    <MenuItem value="Freshman">Freshman</MenuItem>
+                    <MenuItem value="Regular">Regular</MenuItem>
+                    <MenuItem value="Irregular">Irregular</MenuItem>
+                    <MenuItem value="Transferee">Transferee</MenuItem>
+                  </Select>
+                </FormControl>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                <FormControl fullWidth>
+                  <InputLabel>Year Level</InputLabel>
+                  <Select
+                    value={editForm.yearLevel}
+                    label="Year Level"
+                    onChange={e => setEditForm((f: Student | null) => f ? { ...f, yearLevel: e.target.value as Student['yearLevel'] } : null)}
+                    size="small" required
+                  >
+                    <MenuItem value={1}>1st Year</MenuItem>
+                    <MenuItem value={2}>2nd Year</MenuItem>
+                    <MenuItem value={3}>3rd Year</MenuItem>
+                    <MenuItem value={4}>4th Year</MenuItem>
                   </Select>
                 </FormControl>
               </Grid>
-              <Grid item xs={12} sm={6}>
+              <Grid item xs={12} md={6}>
+                <TextField label="School Year" value={editForm.schoolYear} onChange={e => setEditForm((f: Student | null) => f ? { ...f, schoolYear: e.target.value as Student['schoolYear'] } : null)} fullWidth size="small" variant="outlined" required />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <FormControl fullWidth>
+                  <InputLabel>Semester</InputLabel>
+                  <Select
+                    value={editForm.semester}
+                    label="Semester"
+                    onChange={e => setEditForm((f: Student | null) => f ? { ...f, semester: e.target.value as Student['semester'] } : null)}
+                    size="small" required
+                  >
+                    <MenuItem value="1st Semester">1st Semester</MenuItem>
+                    <MenuItem value="2nd Semester">2nd Semester</MenuItem>
+                    <MenuItem value="Summer">Summer</MenuItem>
+                  </Select>
+                </FormControl>
+                </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField label="Student ID" value={editForm.id} fullWidth size="small" variant="outlined" required disabled />
+              </Grid>
+              <Grid item xs={12} md={6}>
                 <FormControl fullWidth>
                   <InputLabel>Department</InputLabel>
-                  <Select
+                <Select
                     value={editForm.department}
                     label="Department"
-                    onChange={(e) => setEditForm(f => ({ ...f, department: e.target.value }))}
+                    onChange={e => setEditForm((f: Student | null) => f ? { ...f, department: e.target.value as Student['department'] } : null)}
+                    size="small" required
                   >
                     <MenuItem value="BSIT">BSIT</MenuItem>
-                    <MenuItem value="BSBA">BSBA</MenuItem>
-                    <MenuItem value="BSA">BSA</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12}>
-                <FormControl fullWidth>
-                  <InputLabel>Status</InputLabel>
-                  <Select
-                    value={editForm.is_active ? 'true' : 'false'}
-                    label="Status"
-                    onChange={(e) => setEditForm(f => ({ ...f, is_active: e.target.value === 'true' }))}
-                  >
-                    <MenuItem value="true">Active</MenuItem>
-                    <MenuItem value="false">Inactive</MenuItem>
-                  </Select>
-                </FormControl>
+                    {/* Add more departments here if needed */}
+                </Select>
+              </FormControl>
               </Grid>
             </Grid>
-          </DialogContent>
-          
-          <DialogActions sx={{ p: 3, background: '#f8fafc' }}>
-            <Button 
-              onClick={() => {
-                setEditDialogOpen(false);
-                resetEditForm();
-              }}
-              disabled={editing}
-            >
-              Cancel
-            </Button>
-            <Button 
-              type="submit" 
-              variant="contained"
-              disabled={editing}
-              sx={{
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                '&:hover': {
-                  background: 'linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%)',
-                }
-              }}
-            >
-              {editing ? 'Updating...' : 'Update Instructor'}
-            </Button>
-          </DialogActions>
-        </form>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => { 
+            setEditForm(null); 
+            setEditFormFields({ firstName: '', middleName: '', lastName: '' }); 
+          }} disabled={savingEdit}>Cancel</Button>
+          <Button onClick={handleSaveEdit} variant="contained" color="primary" disabled={savingEdit}>{savingEdit ? 'Saving...' : 'Save Changes'}</Button>
+        </DialogActions>
       </Dialog>
 
-      {/* View Instructor Dialog */}
-      <Dialog
-        open={viewDialogOpen}
-        onClose={closeViewDialog}
-        maxWidth="md"
-        fullWidth
+      {/* Enroll Existing Student Modal */}
+      <Dialog open={isExistingModalOpen} onClose={() => setIsExistingModalOpen(false)} maxWidth="md" fullWidth
         PaperProps={{
           sx: {
             borderRadius: 3,
-            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)'
-          }
-        }}
-      >
-        {instructorToView && (
-          <>
-            <DialogTitle 
-              sx={{
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                color: 'white',
-                py: 3,
-                px: 4,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between'
-              }}
-            >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Eye className="w-6 h-6" />
-                <Typography variant="h6" sx={{ fontWeight: '600', fontSize: '1.1rem' }}>
-                  Instructor Details
-                </Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <IconButton
-                  onClick={() => handleEditInstructor(instructorToView)}
-                  sx={{ 
-                    color: 'white', 
-                    p: 1,
-                    '&:hover': { 
-                      bg: 'rgba(255, 255, 255, 0.1)'
-                    }
-                  }}
-                  size="medium"
-                >
-                  <Edit className="w-5 h-5" />
-                </IconButton>
-                <IconButton
-                  onClick={closeViewDialog}
-                  sx={{ color: 'white', p: 1 }}
-                  size="medium"
-                >
-                  <X className="w-5 h-5" />
-                </IconButton>
-              </Box>
-            </DialogTitle>
-            
-            <DialogContent sx={{ p: 4 }}>
-              <Grid container spacing={3}>
-                {/* Basic Information */}
-                <Grid item xs={12}>
-                  <Card sx={{ p: 3, bg: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                    <Typography variant="h6" sx={{ fontWeight: '600', color: '#374151', mb: 2 }}>
-                      Basic Information
-                    </Typography>
-                    <Grid container spacing={2}>
-                      <Grid item xs={12} sm={4}>
-                        <Box sx={{ 
-                          bg: 'white', 
-                          p: 2, 
-                          borderRadius: 1, 
-                          border: '1px solid #e5e7eb',
-                          textAlign: 'center'
-                        }}>
-                          <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: '600', textTransform: 'uppercase' }}>
-                            First Name
-                          </Typography>
-                          <Typography variant="body1" sx={{ fontWeight: '600', color: '#111827', mt: 0.5 }}>
-                            {instructorToView.first_name}
-                          </Typography>
-                        </Box>
-                      </Grid>
-                      <Grid item xs={12} sm={4}>
-                        <Box sx={{ 
-                          bg: 'white', 
-                          p: 2, 
-                          borderRadius: 1, 
-                          border: '1px solid #e5e7eb',
-                          textAlign: 'center'
-                        }}>
-                          <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: '600', textTransform: 'uppercase' }}>
-                            Middle Name
-                          </Typography>
-                          <Typography variant="body1" sx={{ fontWeight: '600', color: '#111827', mt: 0.5 }}>
-                            {instructorToView.middle_name || 'N/A'}
-                          </Typography>
-                        </Box>
-                      </Grid>
-                      <Grid item xs={12} sm={4}>
-                        <Box sx={{ 
-                          bg: 'white', 
-                          p: 2, 
-                          borderRadius: 1, 
-                          border: '1px solid #e5e7eb',
-                          textAlign: 'center'
-                        }}>
-                          <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: '600', textTransform: 'uppercase' }}>
-                            Last Name
-                          </Typography>
-                          <Typography variant="body1" sx={{ fontWeight: '600', color: '#111827', mt: 0.5 }}>
-                            {instructorToView.last_name}
-                          </Typography>
-                        </Box>
-                      </Grid>
-                    </Grid>
-                  </Card>
-                </Grid>
-
-                {/* Contact & Role Information */}
-                <Grid item xs={12}>
-                  <Card sx={{ p: 3, bg: '#f0f9ff', border: '1px solid #bae6fd' }}>
-                    <Typography variant="h6" sx={{ fontWeight: '600', color: '#0c4a6e', mb: 2 }}>
-                      Contact & Role Information
-                    </Typography>
-                    <Grid container spacing={2}>
-                      <Grid item xs={12} sm={6}>
-                        <Box sx={{ 
-                          bg: 'white', 
-                          p: 2, 
-                          borderRadius: 1, 
-                          border: '1px solid #bae6fd',
-                          textAlign: 'center'
-                        }}>
-                          <Typography variant="caption" sx={{ color: '#0369a1', fontWeight: '600', textTransform: 'uppercase' }}>
-                            Email Address
-                          </Typography>
-                          <Typography variant="body1" sx={{ fontWeight: '600', color: '#0c4a6e', mt: 0.5 }}>
-                            {instructorToView.email}
-                          </Typography>
-                        </Box>
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <Box sx={{ 
-                          bg: 'white', 
-                          p: 2, 
-                          borderRadius: 1, 
-                          border: '1px solid #bae6fd',
-                          textAlign: 'center'
-                        }}>
-                          <Typography variant="caption" sx={{ color: '#0369a1', fontWeight: '600', textTransform: 'uppercase' }}>
-                            Role
-                          </Typography>
-                          <Chip 
-                            label={instructorToView.role.charAt(0).toUpperCase() + instructorToView.role.slice(1)}
-                            size="small"
-                            sx={{ 
-                              bgcolor: instructorToView.role === 'instructor' ? '#fef3c7' : '#dbeafe',
-                              color: instructorToView.role === 'instructor' ? '#92400e' : '#1e40af',
-                              fontSize: '0.75rem',
-                              fontWeight: '600',
-                              mt: 0.5
-                            }}
-                          />
-                        </Box>
-                      </Grid>
-                    </Grid>
-                  </Card>
-                </Grid>
-
-                {/* Department & Status */}
-                <Grid item xs={12}>
-                  <Card sx={{ p: 3, bg: '#f0fdf4', border: '1px solid #bbf7d0' }}>
-                    <Typography variant="h6" sx={{ fontWeight: '600', color: '#14532d', mb: 2 }}>
-                      Department & Status
-                    </Typography>
-                    <Grid container spacing={2}>
-                      <Grid item xs={12} sm={6}>
-                        <Box sx={{ 
-                          bg: 'white', 
-                          p: 2, 
-                          borderRadius: 1, 
-                          border: '1px solid #bbf7d0',
-                          textAlign: 'center'
-                        }}>
-                          <Typography variant="caption" sx={{ color: '#15803d', fontWeight: '600', textTransform: 'uppercase' }}>
-                            Department
-                          </Typography>
-                          <Typography variant="body1" sx={{ fontWeight: '600', color: '#14532d', mt: 0.5 }}>
-                            {instructorToView.department || 'N/A'}
-                          </Typography>
-                        </Box>
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <Box sx={{ 
-                          bg: 'white', 
-                          p: 2, 
-                          borderRadius: 1, 
-                          border: '1px solid #bbf7d0',
-                          textAlign: 'center'
-                        }}>
-                          <Typography variant="caption" sx={{ color: '#15803d', fontWeight: '600', textTransform: 'uppercase' }}>
-                            Status
-                          </Typography>
-                          <Chip 
-                            label={instructorToView.is_active ? 'Active' : 'Inactive'}
-                            size="small"
-                            color={instructorToView.is_active ? 'success' : 'default'}
-                            sx={{ 
-                              fontSize: '0.75rem',
-                              fontWeight: '600',
-                              mt: 0.5
-                            }}
-                          />
-                        </Box>
-                      </Grid>
-                    </Grid>
-                  </Card>
-                </Grid>
-
-                {/* Account Information */}
-                <Grid item xs={12}>
-                  <Card sx={{ p: 3, bg: '#fef3c7', border: '1px solid #f59e0b' }}>
-                    <Typography variant="h6" sx={{ fontWeight: '600', color: '#92400e', mb: 2 }}>
-                      Account Information
-                    </Typography>
-                    <Grid container spacing={2}>
-                      <Grid item xs={12} sm={6}>
-                        <Box sx={{ 
-                          bg: 'white', 
-                          p: 2, 
-                          borderRadius: 1, 
-                          border: '1px solid #f59e0b',
-                          textAlign: 'center'
-                        }}>
-                          <Typography variant="caption" sx={{ color: '#b45309', fontWeight: '600', textTransform: 'uppercase' }}>
-                            Created Date
-                          </Typography>
-                          <Typography variant="body1" sx={{ fontWeight: '600', color: '#92400e', mt: 0.5 }}>
-                            {new Date(instructorToView.created_at).toLocaleDateString()}
-                          </Typography>
-                        </Box>
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <Box sx={{ 
-                          bg: 'white', 
-                          p: 2, 
-                          borderRadius: 1, 
-                          border: '1px solid #f59e0b',
-                          textAlign: 'center'
-                        }}>
-                          <Typography variant="caption" sx={{ color: '#b45309', fontWeight: '600', textTransform: 'uppercase' }}>
-                            Last Updated
-                          </Typography>
-                          <Typography variant="body1" sx={{ fontWeight: '600', color: '#92400e', mt: 0.5 }}>
-                            {new Date(instructorToView.updated_at).toLocaleDateString()}
-                          </Typography>
-                        </Box>
-                      </Grid>
-                    </Grid>
-                  </Card>
-                </Grid>
-              </Grid>
-            </DialogContent>
-            
-            <DialogActions sx={{ p: 3, background: '#f8fafc' }}>
-              <Button 
-                onClick={closeViewDialog}
-                variant="outlined"
-              >
-                Close
-              </Button>
-              <Button 
-                onClick={() => handleEditInstructor(instructorToView)}
-                variant="contained"
-                sx={{
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                  '&:hover': {
-                    background: 'linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%)',
-                  }
-                }}
-              >
-                Edit Instructor
-              </Button>
-            </DialogActions>
-          </>
-        )}
-      </Dialog>
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog
-        open={deleteDialogOpen}
-        onClose={resetDeleteDialog}
-        maxWidth="sm"
-        PaperProps={{
-          sx: {
-            borderRadius: 3,
-            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)'
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)',
+            overflow: 'hidden'
           }
         }}
       >
         <DialogTitle 
           sx={{
-            background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
             color: 'white',
             py: 3,
             px: 4,
             display: 'flex',
             alignItems: 'center',
-            gap: 2
+            gap: 2,
+            '& .MuiTypography-root': {
+              fontSize: '1.5rem',
+              fontWeight: 600
+            }
           }}
         >
-          <Trash2 className="w-6 h-6" />
-          Delete Instructor
-        </DialogTitle>
-        
-        <DialogContent sx={{ p: 4 }}>
-          <Typography variant="body1" sx={{ mb: 2 }}>
-            Are you sure you want to delete this instructor?
-          </Typography>
-          {instructorToDelete && (
-            <Box sx={{ 
-              bg: '#fef2f2', 
-              p: 3, 
-              borderRadius: 2, 
-              border: '1px solid #fecaca',
-              mb: 2
-            }}>
-              <Typography variant="h6" sx={{ color: '#dc2626', mb: 1 }}>
-                {instructorToDelete.first_name} {instructorToDelete.middle_name ? instructorToDelete.middle_name + ' ' : ''}{instructorToDelete.last_name}
-              </Typography>
-              <Typography variant="body2" sx={{ color: '#6b7280' }}>
-                {instructorToDelete.email}
-              </Typography>
-              <Typography variant="body2" sx={{ color: '#6b7280' }}>
-                {instructorToDelete.role.charAt(0).toUpperCase() + instructorToDelete.role.slice(1)} • {instructorToDelete.department}
-              </Typography>
-            </Box>
-          )}
-          <Alert severity="warning" sx={{ mb: 2 }}>
-            <Typography variant="body2">
-              <strong>Warning:</strong> This action cannot be undone. The instructor will be permanently removed from the system.
-            </Typography>
-          </Alert>
-        </DialogContent>
-        
-        <DialogActions sx={{ p: 3, background: '#f8fafc' }}>
-          <Button 
-            onClick={resetDeleteDialog}
-            disabled={deleting}
-          >
-            Cancel
-          </Button>
-          <Button 
-            onClick={confirmDeleteInstructor}
-            variant="contained"
-            disabled={deleting}
+          <Box
             sx={{
-              background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+              width: 40,
+              height: 40,
+              borderRadius: '50%',
+              background: 'rgba(255, 255, 255, 0.2)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '1.2rem'
+            }}
+          >
+            👥
+          </Box>
+          Enroll Existing Student
+        </DialogTitle>
+        <DialogContent 
+          sx={{ 
+            minWidth: { xs: 0, sm: 600, md: 800 }, 
+            p: { xs: 2, sm: 4 },
+            background: 'linear-gradient(135deg, #f8fafc 0%, #e0e7ef 100%)',
+            position: 'relative',
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 4,
+              background: 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)'
+            }
+          }}
+        >
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="h6" sx={{ 
+              fontWeight: 600, 
+              color: '#374151',
+              mb: 2,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1
+            }}>
+              <Box sx={{ 
+                width: 24, 
+                height: 24, 
+                borderRadius: '50%', 
+                background: '#10b981',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '0.8rem',
+                color: 'white'
+              }}>
+                🔍
+              </Box>
+              Student Filter
+            </Typography>
+          </Box>
+          <Box mb={3} display="flex" alignItems="center" gap={2}>
+            <FormControl size="small" sx={{ minWidth: 180 }}>
+              <InputLabel>Filter by Year Level</InputLabel>
+              <Select
+                value={existingFilterYear}
+                label="Filter by Year Level"
+                onChange={e => setExistingFilterYear(e.target.value)}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    '& fieldset': {
+                      borderColor: '#d1d5db'
+                    },
+                    '&:hover fieldset': {
+                      borderColor: '#9ca3af'
+                    },
+                    '&.Mui-focused fieldset': {
+                      borderColor: '#667eea'
+                    }
+                  }
+                }}
+              >
+                <MenuItem value="">All</MenuItem>
+                <MenuItem value="1">1st Year</MenuItem>
+                <MenuItem value="2">2nd Year</MenuItem>
+                <MenuItem value="3">3rd Year</MenuItem>
+                <MenuItem value="4">4th Year</MenuItem>
+              </Select>
+            </FormControl>
+            <FormControl size="small" sx={{ minWidth: 180 }}>
+              <InputLabel>Filter by Section</InputLabel>
+              <Select
+                value={existingFilterSection}
+                label="Filter by Section"
+                onChange={e => setExistingFilterSection(e.target.value)}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    '& fieldset': {
+                      borderColor: '#d1d5db'
+                    },
+                    '&:hover fieldset': {
+                      borderColor: '#9ca3af'
+                    },
+                    '&.Mui-focused fieldset': {
+                      borderColor: '#667eea'
+                    }
+                  }
+                }}
+              >
+                <MenuItem value="">All Sections</MenuItem>
+                {sections
+                  .filter(section => !existingFilterYear || section.year_level === Number(existingFilterYear))
+                  .map(section => (
+                    <MenuItem key={section.id} value={section.id}>
+                      {section.name}
+                    </MenuItem>
+                  ))}
+              </Select>
+            </FormControl>
+          </Box>
+          {Object.keys(existingStudentsByYear).sort().filter(year => !existingFilterYear || year === existingFilterYear).map(year => {
+            // Filter students by section if section filter is applied
+            const filteredStudents = existingStudentsByYear[year].filter(student => 
+              !existingFilterSection || student.section === existingFilterSection
+            );
+            
+            // Only show year if there are students after filtering
+            if (filteredStudents.length === 0) return null;
+            
+            return (
+            <Box key={year} mb={4}>
+              <Typography variant="h6" sx={{ 
+                mb: 2, 
+                fontWeight: 600,
+                color: '#374151',
+                pb: 1,
+                borderBottom: '2px solid #f3f4f6',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1
+              }}>
+                <Box sx={{ 
+                  width: 20, 
+                  height: 20, 
+                  borderRadius: '50%', 
+                  background: '#667eea',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '0.7rem',
+                  color: 'white'
+                }}>
+                  {year}
+                </Box>
+                {getYearLabel(year)}
+              </Typography>
+              <TableContainer sx={{ 
+                borderRadius: 2,
+                border: '1px solid #e5e7eb',
+                overflow: 'hidden',
+                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+              }}>
+                <Table>
+                  <TableHead>
+                    <TableRow sx={{ background: '#f9fafb' }}>
+                      <TableCell sx={{ fontWeight: 600, color: '#374151', fontSize: '0.875rem' }}>Student ID</TableCell>
+                      <TableCell sx={{ fontWeight: 600, color: '#374151', fontSize: '0.875rem' }}>Name</TableCell>
+                      <TableCell sx={{ fontWeight: 600, color: '#374151', fontSize: '0.875rem' }}>Type</TableCell>
+                      <TableCell sx={{ fontWeight: 600, color: '#374151', fontSize: '0.875rem' }}>Section</TableCell>
+                      <TableCell sx={{ fontWeight: 600, color: '#374151', fontSize: '0.875rem' }}>Status</TableCell>
+                      <TableCell sx={{ fontWeight: 600, color: '#374151', fontSize: '0.875rem' }}>Action</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {filteredStudents.map(student => (
+                      <TableRow key={student.id} sx={{ 
+                        '&:hover': { 
+                          background: '#f9fafb',
+                          transform: 'scale(1.01)',
+                          transition: 'all 0.2s ease'
+                        },
+                        transition: 'all 0.2s ease'
+                      }}>
+                        <TableCell sx={{ fontWeight: 500, fontFamily: 'monospace' }}>{student.id}</TableCell>
+                        <TableCell sx={{ fontWeight: 500 }}>{student.name}</TableCell>
+                        <TableCell>
+                          <Box sx={{ 
+                            display: 'inline-block',
+                            px: 1.5,
+                            py: 0.5,
+                            borderRadius: 1,
+                            fontSize: '0.75rem',
+                            fontWeight: 500,
+                            background: '#e0e7ef',
+                            color: '#111827',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em'
+                          }}>
+                            {student.studentType}
+                          </Box>
+                        </TableCell>
+                        <TableCell>
+                          <Box sx={{ 
+                            display: 'inline-block',
+                            px: 1.5,
+                            py: 0.5,
+                            borderRadius: 1,
+                            fontSize: '0.75rem',
+                            fontWeight: 500,
+                            background: '#e0e7ef',
+                            color: '#111827',
+                            textTransform: 'capitalize'
+                          }}>
+                            {getSectionName(student.section)}
+                          </Box>
+                        </TableCell>
+                        <TableCell>
+                          <Box sx={{ 
+                            display: 'inline-block',
+                            px: 1.5,
+                            py: 0.5,
+                            borderRadius: 1,
+                            fontSize: '0.75rem',
+                            fontWeight: 500,
+                            background: '#f3f4f6',
+                            color: '#111827',
+                            textTransform: 'capitalize'
+                          }}>
+                            {student.status}
+                          </Box>
+                        </TableCell>
+                        <TableCell>
+                          <Button 
+                            variant="contained" 
+                            size="small" 
+                            onClick={() => handleEnrollExisting(student)}
+                            sx={{
+                              borderRadius: 2,
+                              px: 2,
+                              py: 0.5,
+                              fontWeight: 600,
+                              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                              '&:hover': {
+                                background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                                transform: 'translateY(-1px)',
+                                boxShadow: '0 4px 12px rgba(16, 185, 129, 0.4)'
+                              },
+                              transition: 'all 0.2s ease'
+                            }}
+                          >
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                              <Box sx={{ fontSize: '0.8rem' }}>➕</Box>
+                              Enroll
+                            </Box>
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Box>
+            );
+          })}
+        </DialogContent>
+        <DialogActions sx={{ 
+          p: 3, 
+          background: '#f9fafb',
+          borderTop: '1px solid #e5e7eb',
+          gap: 2
+        }}>
+          <Button 
+            onClick={() => setIsExistingModalOpen(false)}
+            variant="outlined"
+            sx={{
+              borderRadius: 2,
+              px: 3,
+              py: 1.5,
+              fontWeight: 600,
+              borderColor: '#d1d5db',
+              color: '#374151',
               '&:hover': {
-                background: 'linear-gradient(135deg, #b91c1c 0%, #991b1b 100%)',
+                borderColor: '#9ca3af',
+                background: '#f3f4f6'
               }
             }}
           >
-            {deleting ? 'Deleting...' : 'Delete Instructor'}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ fontSize: '1rem' }}>✕</Box>
+              Close
+            </Box>
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Subject Assignment Modal */}
-      <SubjectAssignmentModal
-        isOpen={subjectAssignmentModal.isOpen}
-        onClose={handleCloseSubjectAssignmentModal}
-        onSubmit={handleSubjectAssignmentSubmit}
-        formErrors={formErrors}
-        assignment={newAssignment}
-        handleInputChange={handleInputChange}
-        formSubmitting={formSubmitting}
-        isEditMode={false}
-        teachers={instructors.map(instructor => ({
-          id: instructor.id,
-          first_name: instructor.first_name,
-          last_name: instructor.last_name,
-          email: instructor.email,
-          role: instructor.role,
-          department: instructor.department,
-          is_active: instructor.is_active,
-          full_name: `${instructor.first_name} ${instructor.middle_name ? instructor.middle_name + ' ' : ''}${instructor.last_name}`
-        }))}
-        courses={courses}
-        sections={sections} // Sections for filtering by year level
-      />
+      {/* End Semester Confirmation Dialog */}
+      <Dialog open={endSemesterOpen} onClose={handleCloseEndSemesterModal}
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)',
+            overflow: 'hidden'
+          }
+        }}
+      >
+        <DialogTitle 
+          sx={{
+            background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+            color: 'white',
+            py: 3,
+            px: 4,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2,
+            '& .MuiTypography-root': {
+              fontSize: '1.5rem',
+              fontWeight: 600
+            }
+          }}
+        >
+          <Box
+            sx={{
+              width: 40,
+              height: 40,
+              borderRadius: '50%',
+              background: 'rgba(255, 255, 255, 0.2)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '1.2rem'
+            }}
+          >
+            ⚠️
+          </Box>
+          End Semester
+        </DialogTitle>
+        <DialogContent
+          sx={{
+            p: 4,
+            background: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)',
+            position: 'relative',
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 4,
+              background: 'linear-gradient(90deg, #ef4444 0%, #dc2626 100%)'
+            }
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+            <Box sx={{ 
+              width: 48, 
+              height: 48, 
+              borderRadius: '50%', 
+              background: '#fef3c7',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '1.5rem'
+            }}>
+              ⚠️
+            </Box>
+            <Typography variant="h6" sx={{ fontWeight: 600, color: '#991b1b' }}>
+              Important Action Required
+            </Typography>
+          </Box>
+          
+          <Typography sx={{ 
+            color: '#7f1d1d',
+            fontSize: '1rem',
+            lineHeight: 1.6,
+            mb: 3
+          }}>
+            Are you sure you want to end the semester? This action will:
+          </Typography>
+          
+          <Box sx={{ 
+            mb: 3,
+            p: 3,
+            borderRadius: 2,
+            background: 'rgba(239, 68, 68, 0.05)',
+            border: '1px solid rgba(239, 68, 68, 0.2)'
+          }}>
+            <Typography sx={{ 
+              color: '#7f1d1d',
+              fontSize: '0.95rem',
+              mb: 2,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              fontWeight: 500
+            }}>
+              <Box sx={{ 
+                width: 20, 
+                height: 20, 
+                borderRadius: '50%', 
+                background: '#ef4444',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '0.8rem',
+                color: 'white'
+              }}>
+                1
+              </Box>
+              Set all students with status 'enrolled' to 'active'
+            </Typography>
+            <Typography sx={{ 
+              color: '#7f1d1d',
+              fontSize: '0.95rem',
+              mb: 2,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              fontWeight: 500
+            }}>
+              <Box sx={{ 
+                width: 20, 
+                height: 20, 
+                borderRadius: '50%', 
+                background: '#ef4444',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '0.8rem',
+                color: 'white'
+              }}>
+                2
+              </Box>
+              This action cannot be undone
+            </Typography>
+            <Typography sx={{ 
+              color: '#7f1d1d',
+              fontSize: '0.95rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              fontWeight: 500
+            }}>
+              <Box sx={{ 
+                width: 20, 
+                height: 20, 
+                borderRadius: '50%', 
+                background: '#ef4444',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '0.8rem',
+                color: 'white'
+              }}>
+                3
+              </Box>
+              Please ensure all enrollments are complete
+            </Typography>
+          </Box>
+          
+          <Box sx={{ 
+            p: 2, 
+            borderRadius: 2, 
+            background: '#fef3c7',
+            border: '1px solid #f59e0b',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            mb: 3
+          }}>
+            <Box sx={{ fontSize: '1.2rem' }}>💡</Box>
+            <Typography sx={{ 
+              color: '#92400e',
+              fontSize: '0.875rem',
+              fontWeight: 500
+            }}>
+              Tip: Review all student enrollments before proceeding
+            </Typography>
+          </Box>
+          
+          {/* Typing Confirmation Section */}
+          <Box sx={{ 
+            p: 3, 
+            borderRadius: 2, 
+            background: '#f8fafc',
+            border: '1px solid #e5e7eb',
+            mb: 3
+          }}>
+            <Typography sx={{ 
+              color: '#374151',
+              fontSize: '0.95rem',
+              fontWeight: 600,
+              mb: 2,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1
+            }}>
+              <Box sx={{ 
+                width: 20, 
+                height: 20, 
+                borderRadius: '50%', 
+                background: '#ef4444',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '0.8rem',
+                color: 'white'
+              }}>
+                🔒
+              </Box>
+              Safety Confirmation Required
+            </Typography>
+            
+            <Typography sx={{ 
+              color: '#6b7280',
+              fontSize: '0.875rem',
+              mb: 2
+            }}>
+              To prevent accidental actions, please type <strong>"END SEMESTER"</strong> to confirm:
+            </Typography>
+            
+            <TextField
+              fullWidth
+              size="small"
+              placeholder="Type 'END SEMESTER' to confirm"
+              value={endSemesterConfirmation}
+              onChange={(e) => {
+                setEndSemesterConfirmation(e.target.value);
+                setEndSemesterConfirmationError(false);
+              }}
+              error={endSemesterConfirmationError}
+              helperText={endSemesterConfirmationError ? "Please type exactly 'END SEMESTER' to continue" : ""}
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  '& fieldset': {
+                    borderColor: endSemesterConfirmationError ? '#ef4444' : '#d1d5db'
+                  },
+                  '&:hover fieldset': {
+                    borderColor: endSemesterConfirmationError ? '#ef4444' : '#9ca3af'
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: endSemesterConfirmationError ? '#ef4444' : '#667eea'
+                  }
+                }
+              }}
+            />
+            
+            <Box sx={{ 
+              mt: 2, 
+              p: 2, 
+              borderRadius: 1, 
+              background: endSemesterConfirmation === 'END SEMESTER' ? '#f0fdf4' : '#fef2f2',
+              border: `1px solid ${endSemesterConfirmation === 'END SEMESTER' ? '#bbf7d0' : '#fecaca'}`
+            }}>
+              <Typography sx={{ 
+                color: endSemesterConfirmation === 'END SEMESTER' ? '#166534' : '#991b1b',
+                fontSize: '0.875rem',
+                fontWeight: 500,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1
+              }}>
+                <Box sx={{ fontSize: '1rem' }}>
+                  {endSemesterConfirmation === 'END SEMESTER' ? '✅' : '⏳'}
+                </Box>
+                {endSemesterConfirmation === 'END SEMESTER' 
+                  ? 'Confirmation complete - Proceed with caution'
+                  : 'Waiting for confirmation...'
+                }
+              </Typography>
+            </Box>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ 
+          p: 3, 
+          background: '#fef2f2',
+          borderTop: '1px solid #fecaca',
+          gap: 2
+        }}>
+          <Button 
+            onClick={handleCloseEndSemesterModal} 
+            disabled={endSemesterLoading}
+            variant="outlined"
+            sx={{
+              borderRadius: 2,
+              px: 3,
+              py: 1.5,
+              fontWeight: 600,
+              borderColor: '#fca5a5',
+              color: '#991b1b',
+              '&:hover': {
+                borderColor: '#f87171',
+                background: '#fef2f2'
+              },
+              '&:disabled': {
+                borderColor: '#d1d5db',
+                color: '#9ca3af'
+              }
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ fontSize: '1rem' }}>✕</Box>
+              Cancel
+            </Box>
+          </Button>
+          <Button 
+            onClick={() => {
+              if (endSemesterConfirmation !== 'END SEMESTER') {
+                setEndSemesterConfirmationError(true);
+                return;
+              }
+              handleEndSemester();
+            }}
+            variant="contained" 
+            disabled={endSemesterLoading || endSemesterConfirmation !== 'END SEMESTER'}
+            sx={{
+              borderRadius: 2,
+              px: 3,
+              py: 1.5,
+              fontWeight: 600,
+              background: endSemesterConfirmation === 'END SEMESTER' 
+                ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
+                : '#d1d5db',
+              '&:hover': {
+                background: endSemesterConfirmation === 'END SEMESTER'
+                  ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)'
+                  : '#d1d5db',
+                transform: endSemesterConfirmation === 'END SEMESTER' ? 'translateY(-1px)' : 'none',
+                boxShadow: endSemesterConfirmation === 'END SEMESTER' 
+                  ? '0 4px 12px rgba(239, 68, 68, 0.4)'
+                  : 'none'
+              },
+              '&:disabled': {
+                background: '#d1d5db',
+                transform: 'none',
+                boxShadow: 'none'
+              }
+            }}
+          >
+            {endSemesterLoading ? (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <CircularProgress size={16} sx={{ color: 'white' }} />
+                Processing...
+              </Box>
+            ) : (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box sx={{ fontSize: '1rem' }}>
+                  {endSemesterConfirmation === 'END SEMESTER' ? '⚠️' : '🔒'}
+                </Box>
+                {endSemesterConfirmation === 'END SEMESTER' 
+                  ? 'Confirm End Semester'
+                  : 'Type Confirmation First'
+                }
+              </Box>
+            )}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Prospectus Modal */}
+      <Dialog
+        open={isProspectusModalOpen}
+        onClose={handleCloseProspectusModal}
+        maxWidth="lg"
+        fullWidth
+        scroll="paper"
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
+            background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+            border: '1px solid #e5e7eb'
+          }
+        }}
+      >
+        <DialogTitle sx={{ display: 'none' }} />
+        
+        <DialogContent sx={{ p: 0 }}>
+          <Box ref={prospectusContentRef}>
+            {/* Header area with proper CSS classes */}
+            <Box className="prospectus-header" sx={{ background: 'white', p: 3, borderBottom: '1px solid #e5e7eb' }}>
+              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, width: '100%' }}>
+                <Box sx={{ 
+                  width: 50, height: 50, borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  border: '2px solid #1e40af', position: 'relative' }}>
+                  <Box sx={{ fontSize: '1.25rem', color: 'white', fontWeight: 'bold', textAlign: 'center', lineHeight: 1 }}>M</Box>
+                  <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: '1rem', color: 'white', fontWeight: 'bold' }}>✝</Box>
+                </Box>
+                <Box sx={{ flex: 1 }}>
+                  <Typography className="school-name" variant="h6" sx={{ fontWeight: 700, color: '#1f2937', mb: 0.25, fontSize: '1.125rem' }}>
+                    St. Mary's College of Bansalan, Inc.
+                  </Typography>
+                  <Typography className="school-subtitle" variant="caption" sx={{ color: '#6b7280', fontStyle: 'italic', mb: 0.25, fontSize: '0.75rem' }}>
+                    (Formerly: Holy Cross of Bansalan College, Inc.)
+                  </Typography>
+                  <Typography className="school-address" variant="caption" sx={{ color: '#374151', mb: 0.5, fontSize: '0.75rem' }}>
+                    Dahlia Street, Poblacion Uno, Bansalan, Davao del Sur, 8005 Philippines
+                  </Typography>
+                  <Typography className="course-title" variant="body1" sx={{ fontWeight: 700, color: '#1e40af', mb: 0.25, fontSize: '1rem' }}>
+                    BACHELOR OF SCIENCE IN INFORMATION TECHNOLOGY (BSIT)
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: '#374151', fontSize: '0.75rem' }}>
+                    Effective SY 2020 - 2021
+                  </Typography>
+                </Box>
+              </Box>
+              <Box sx={{ textAlign: 'center', mt: 2 }}>
+                <Typography className="prospectus-title" variant="h5" sx={{ fontWeight: 700, fontSize: '1.5rem', color: '#1e40af' }}>
+                  STUDENT PROSPECTUS
+                </Typography>
+              </Box>
+            </Box>
+
+            {/* Body content */}
+            <Box sx={{ p: 3 }}>
+              {/* Student Name */}
+              <Typography className="student-name" variant="h5" sx={{ 
+              fontWeight: 700,
+              fontSize: '1.5rem',
+              color: '#1f2937',
+              textAlign: 'center',
+              mb: 2
+            }}>
+              {selectedStudentForProspectus?.name}
+            </Typography>
+
+            {/* Student Information */}
+              <Box className="student-info" sx={{ 
+              mb: 3, 
+              borderRadius: 2, 
+              background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+                border: '1px solid #bae6fd',
+                p: 2.5
+              }}>
+                <Box className="info-grid">
+                  <Box className="info-item">
+                    <Typography className="info-label" variant="body2" sx={{ fontWeight: 500 }}>
+                      Student ID
+                    </Typography>
+                    <Typography className="info-value" variant="body1" sx={{ fontWeight: 600, fontFamily: 'monospace' }}>
+                      {selectedStudentForProspectus?.id}
+                    </Typography>
+                  </Box>
+                  <Box className="info-item">
+                    <Typography className="info-label" variant="body2" sx={{ fontWeight: 500 }}>
+                      Student Type
+                    </Typography>
+                    <Typography className="info-value" variant="body1" sx={{ fontWeight: 600 }}>
+                      {selectedStudentForProspectus?.studentType}
+                    </Typography>
+                  </Box>
+                  <Box className="info-item">
+                    <Typography className="info-label" variant="body2" sx={{ fontWeight: 500 }}>
+                      Current Year Level
+                    </Typography>
+                    <Typography className="info-value" variant="body1" sx={{ fontWeight: 600 }}>
+                      {selectedStudentForProspectus?.yearLevel}
+                    </Typography>
+                  </Box>
+                  <Box className="info-item">
+                    <Typography className="info-label" variant="body2" sx={{ fontWeight: 500 }}>
+                      Department
+                    </Typography>
+                    <Typography className="info-value" variant="body1" sx={{ fontWeight: 600 }}>
+                      {selectedStudentForProspectus?.department}
+                    </Typography>
+                  </Box>
+                </Box>
+              </Box>
+
+            {/* Available Subjects by Year Level */}
+            <Typography variant="h6" sx={{ 
+              fontWeight: 600, 
+              color: '#374151',
+              mb: 2,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1
+            }}>
+              <Box sx={{ fontSize: '1.2rem' }}>📚</Box>
+              Subjects
+            </Typography>
+
+            {/* Show all subjects from 1st to 4th year */}
+            {renderSubjects()}
+            </Box>
+            
+            {/* Footer */}
+            <Box className="prospectus-footer" sx={{ p: 3, textAlign: 'center' }}>
+              <Typography variant="caption" sx={{ color: '#6b7280', fontSize: '0.75rem' }}>
+                Generated on {new Date().toLocaleDateString()} at {new Date().toLocaleTimeString()}
+              </Typography>
+            </Box>
+          </Box>
+        </DialogContent>
+        
+        <DialogActions sx={{ 
+          p: 3, 
+          background: '#f8fafc',
+          borderTop: '1px solid #e5e7eb',
+          gap: 2
+        }}>
+          <Button 
+            onClick={handleDownloadPDF}
+            variant="outlined"
+            sx={{
+              borderRadius: 2,
+              px: 3,
+              py: 1.5,
+              fontWeight: 600,
+              borderColor: '#d1d5db',
+              color: '#374151',
+              '&:hover': {
+                borderColor: '#9ca3af',
+                background: '#f9fafb'
+              }
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ fontSize: '1rem' }}>⬇️</Box>
+              Download PDF
+            </Box>
+          </Button>
+          <Button 
+            onClick={handleCloseProspectusModal}
+            variant="outlined"
+            sx={{
+              borderRadius: 2,
+              px: 3,
+              py: 1.5,
+              fontWeight: 600,
+              borderColor: '#d1d5db',
+              color: '#374151',
+              '&:hover': {
+                borderColor: '#9ca3af',
+                background: '#f9fafb'
+              }
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ fontSize: '1rem' }}>✕</Box>
+              Close
+            </Box>
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
 
-export default InstructorManagement; 
+export default ProgramHeadEnrollment; 
