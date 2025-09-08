@@ -65,6 +65,8 @@ const DashboardOverview: React.FC = () => {
   const [enrollmentData, setEnrollmentData] = useState<EnrollmentData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showActivityModal, setShowActivityModal] = useState(false);
+  const [showCapacityModal, setShowCapacityModal] = useState(false);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -417,13 +419,11 @@ const DashboardOverview: React.FC = () => {
 
 
   const handleViewAllActivity = () => {
-    // Navigate to activity log page or show modal
-    console.log('View all activity clicked');
+    setShowActivityModal(true);
   };
 
   const handleViewCapacityDetails = () => {
-    // Navigate to capacity details page or show modal
-    console.log('View capacity details clicked');
+    setShowCapacityModal(true);
   };
 
   const handleViewEnrollmentDetails = () => {
@@ -457,6 +457,84 @@ const DashboardOverview: React.FC = () => {
 
   return (
     <div className="space-y-8">
+      {/* Global fullscreen modals - centered on the monitor */}
+      {showActivityModal && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowActivityModal(false)}></div>
+          <div className="relative bg-white rounded-2xl shadow-2xl w-[92%] max-w-3xl max-h-[85vh] overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b">
+              <h3 className="text-lg font-semibold text-gray-800">All Recent Activity</h3>
+              <button onClick={() => setShowActivityModal(false)} className="p-2 rounded-lg hover:bg-gray-100">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5 text-gray-600"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="p-5 overflow-y-auto" style={{ maxHeight: '75vh' }}>
+              {recentActivities.length === 0 ? (
+                <div className="text-center text-gray-500 py-10">No recent activity.</div>
+              ) : (
+                <div className="space-y-3">
+                  {recentActivities.map(item => (
+                    <div key={item.id} className="flex items-start p-3 rounded-xl border hover:bg-gray-50 transition">
+                      <div className="w-2 h-2 rounded-full bg-blue-500 mt-2 mr-3 flex-shrink-0"></div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-gray-800 font-medium truncate">
+                          {item.action || item.description}
+                          {item.student && <span className="text-blue-600"> - {item.student}</span>}
+                          {item.subject && <span className="text-green-600"> - {item.subject}</span>}
+                          {item.classes && <span className="text-red-600"> - {item.classes}</span>}
+                        </p>
+                        <p className="text-gray-500 text-sm">{item.time || item.created_at}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="px-5 py-3 border-t bg-gray-50 flex justify-end">
+              <button onClick={() => setShowActivityModal(false)} className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCapacityModal && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowCapacityModal(false)}></div>
+          <div className="relative bg-white rounded-2xl shadow-2xl w-[92%] max-w-4xl max-h-[85vh] overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b">
+              <h3 className="text-lg font-semibold text-gray-800">Capacity Details</h3>
+              <button onClick={() => setShowCapacityModal(false)} className="p-2 rounded-lg hover:bg-gray-100">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5 text-gray-600"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="p-5 overflow-y-auto" style={{ maxHeight: '75vh' }}>
+              {capacityData.length === 0 ? (
+                <div className="text-center text-gray-500 py-10">No capacity data available.</div>
+              ) : (
+                <div className="divide-y">
+                  {capacityData.map(row => (
+                    <div key={row.id} className="py-3 flex items-center justify-between">
+                      <div className="min-w-0">
+                        <p className="text-gray-900 font-semibold truncate">{row.program} - {row.yearLevel}</p>
+                        <p className="text-gray-600 text-sm">Section: {row.section}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-gray-900 font-semibold">{row.studentCount}/{row.maxCapacity}</p>
+                        <div className="w-36 h-2 bg-gray-200 rounded-full overflow-hidden ml-auto">
+                          <div className={`${(row.studentCount/row.maxCapacity)*100 >= 100 ? 'bg-red-500' : (row.studentCount/row.maxCapacity)*100 >= 80 ? 'bg-yellow-500' : 'bg-green-500'} h-2`} style={{ width: `${Math.min((row.studentCount/row.maxCapacity)*100, 100)}%` }}></div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="px-5 py-3 border-t bg-gray-50 flex justify-end">
+              <button onClick={() => setShowCapacityModal(false)} className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
