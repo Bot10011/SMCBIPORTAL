@@ -353,12 +353,55 @@ export const StudentGradeViewer: React.FC = () => {
     // Friendlier, responsive empty-state for no grades found
     if (errorMsg.toLowerCase().includes('no grades found')) {
       return (
-        <div className="w-full h-screen flex items-center justify-center p-4 sm:p-6 sm:h-auto sm:space-y-8">
+        <div className="w-full min-h-screen p-4 sm:p-6 flex flex-col gap-4 sm:gap-6">
+          {/* Mobile Premium Header Section */}
           <motion.div 
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="bg-white rounded-2xl shadow-inner shadow-inner-strong border border-blue-100 p-5 sm:p-6"
+            className="sm:hidden relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 via-white to-purple-50 shadow-inner shadow-inner-strong border border-blue-100 w-full mb-4"
+          >
+            <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-4 py-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
+                    <Award className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h1 className="text-xl font-bold text-white tracking-tight">Academic Grades</h1>
+                    <p className="text-white/80 text-sm font-medium">Track your academic performance</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+          {/* Desktop/Tablet Header */}
+          <motion.div 
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="hidden sm:block relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 via-white to-purple-50 shadow-inner shadow-inner-strong border border-blue-100 w-full"
+          >
+            <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
+                    <Award className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h1 className="text-2xl font-bold text-white tracking-tight">Academic Grades</h1>
+                    <p className="text-white/80 text-sm font-medium">Track your academic performance</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+          {/* Empty state card */}
+          <motion.div 
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="bg-white rounded-2xl shadow-inner shadow-inner-strong border border-blue-100 p-5 sm:p-6 max-w-md w-full mx-auto"
           >
             <div className="flex flex-col items-center text-center">
               <div className="p-3 rounded-full bg-blue-50 mb-4 w-fit">
@@ -425,12 +468,33 @@ export const StudentGradeViewer: React.FC = () => {
 
   return (
     <div className="w-full space-y-8 p-4 sm:p-6">
-    {/* Premium Header Section */}
+    {/* Mobile Premium Header Section */}
     <motion.div 
       initial={{ opacity: 0, y: 24 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 via-white to-purple-50 shadow-inner shadow-inner-strong border border-blue-100"
+      className="sm:hidden relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 via-white to-purple-50 shadow-inner shadow-inner-strong border border-blue-100"
+    >
+      <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-4 py-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
+              <Award className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-white tracking-tight">Academic Grades</h1>
+              <p className="text-white/80 text-sm font-medium">Track your academic performance</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+    {/* Premium Header Section (Desktop/Tablet) */}
+    <motion.div 
+      initial={{ opacity: 0, y: 24 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+      className="hidden sm:block relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 via-white to-purple-50 shadow-inner shadow-inner-strong border border-blue-100"
     >
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
