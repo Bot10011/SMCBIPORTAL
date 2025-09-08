@@ -469,13 +469,36 @@ const DashboardOverview = () => {
     };
   }, [profilePictureUrl]);
 
+  // Fetch current GPA based on released grades
   useEffect(() => {
-    // TODO: Replace with actual API call for GPA
-    setStats(prev => ({
-      ...prev,
-      gpa: 3.75
-    }));
-  }, []);
+    const fetchCurrentGpa = async () => {
+      if (!user?.id) return;
+      try {
+        const { data, error } = await supabase
+          .from('grades')
+          .select('prelim_grade, midterm_grade, final_grade')
+          .eq('student_id', user.id)
+          .eq('is_released', true);
+        if (error) throw error;
+        const gradeAverages: number[] = [];
+        (data || []).forEach((g: { prelim_grade: number | null; midterm_grade: number | null; final_grade: number | null }) => {
+          const parts = [g.prelim_grade, g.midterm_grade, g.final_grade].filter(v => v !== null && v !== undefined) as number[];
+          if (parts.length > 0) {
+            const avg = parts.reduce((a, b) => a + b, 0) / parts.length;
+            gradeAverages.push(avg);
+          }
+        });
+        const currentGpa = gradeAverages.length > 0
+          ? Math.round((gradeAverages.reduce((a, b) => a + b, 0) / gradeAverages.length) * 100) / 100
+          : 0;
+        setStats(prev => ({ ...prev, gpa: currentGpa }));
+      } catch (err) {
+        console.error('Error computing current GPA:', err);
+        setStats(prev => ({ ...prev, gpa: 0 }));
+      }
+    };
+    fetchCurrentGpa();
+  }, [user?.id]);
 
   return (
     <div className="flex flex-col h-full">
@@ -498,6 +521,8 @@ const DashboardOverview = () => {
                       src={profilePictureUrl} 
                       alt="Profile" 
                       className="dashboard-profile-picture w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
+                      crossOrigin="anonymous"
                       onError={handleProfileImageError}
                     />
                   ) : (
@@ -518,7 +543,7 @@ const DashboardOverview = () => {
                     </span>
                   </div>
                   <p className="mt-3 text-sm sm:text-base text-gray-700 max-w-2xl sm:text-left text-center">
-                    Here's what's happening with your academic progress. Stay updated with your courses, grades, and important notifications.
+                    Here's what's happening with your academic progress. Stay updated with your subjects, grades, and important notifications.
                   </p>
                 </div>
               </div>
@@ -532,19 +557,23 @@ const DashboardOverview = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.1 }}
-              className="dashboard-stat-card group relative bg-white/90 rounded-xl p-3 xs:p-4 sm:p-5 md:p-6 border border-[#444] transition-all duration-300"
+              onClick={() => navigate('/dashboard/course')}
+              className="dashboard-stat-card group relative bg-white/90 rounded-xl p-3 xs:p-4 sm:p-5 md:p-6 border border-[#444] transition-all duration-300 min-h-[110px] cursor-pointer hover:shadow-lg hover:scale-[1.02] hover:border-blue-300"
             >
               <div className="absolute inset-0 bg-gradient-to-br from-blue-50/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-xl"></div>
-              <div className="relative flex items-start justify-between h-full">
+              <div className="relative flex flex-col sm:flex-row items-start justify-between h-full">
                 <div className="flex flex-col min-w-0 flex-1">
-                  <p className="text-lg xs:text-lg sm:text-xl md:text-2xl font-bold text-gray-800">
+                  <p className="text-lg xs:text-lg sm:text-xl md:text-2xl font-bold text-gray-800 group-hover:text-blue-700 transition-colors">
                     {stats.enrolledCourses}
                   </p>
-                  <p className="text-[10px] xs:text-xs sm:text-sm font-medium text-gray-800 leading-tight whitespace-nowrap">Enrolled Subjects</p>
+                  <p className="text-[10px] xs:text-xs sm:text-sm font-medium text-gray-800 leading-tight whitespace-nowrap mt-auto group-hover:text-blue-600 transition-colors">Enrolled Subjects</p>
                 </div>
-                <div className="p-1.5 rounded-lg bg-[#2b2d2f] transition-colors duration-300 flex-shrink-0 mt-1">
-                  <BookOpen className="w-3 h-3 xs:w-4 xs:h-4 text-blue-600" />
+                <div className="p-1.5 rounded-lg bg-[#2b2d2f] group-hover:bg-blue-100 transition-colors duration-300 flex-shrink-0 mt-1">
+                  <BookOpen className="w-3 h-3 xs:w-4 xs:h-4 text-blue-600 group-hover:text-blue-700 transition-colors" />
                 </div>
+              </div>
+              <div className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
               </div>
             </motion.div>
 
@@ -553,19 +582,23 @@ const DashboardOverview = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.2 }}
-              className="dashboard-stat-card group relative bg-white/90 rounded-xl p-3 xs:p-4 sm:p-5 md:p-6 border border-[#444] transition-all duration-300"
+              onClick={() => navigate('/dashboard/grades')}
+              className="dashboard-stat-card group relative bg-white/90 rounded-xl p-3 xs:p-4 sm:p-5 md:p-6 border border-[#444] transition-all duration-300 min-h-[110px] cursor-pointer hover:shadow-lg hover:scale-[1.02] hover:border-green-300"
             >
               <div className="absolute inset-0 bg-gradient-to-br from-green-50/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-xl"></div>
-              <div className="relative flex items-start justify-between h-full">
+              <div className="relative flex flex-col sm:flex-row items-start justify-between h-full">
                 <div className="flex flex-col min-w-0 flex-1">
-                  <p className="text-lg xs:text-lg sm:text-xl md:text-2xl font-bold text-gray-800">
-                    {stats.gpa.toFixed(2)}
+                  <p className="text-lg xs:text-lg sm:text-xl md:text-2xl font-bold text-gray-800 group-hover:text-green-700 transition-colors">
+                    {stats.gpa > 0 ? stats.gpa.toFixed(2) : '--'}
                   </p>
-                  <p className="text-[10px] xs:text-xs sm:text-sm font-medium text-gray-800 leading-tight whitespace-nowrap">Current GPA</p>
+                  <p className="text-[10px] xs:text-xs sm:text-sm font-medium text-gray-800 leading-tight whitespace-nowrap mt-auto group-hover:text-green-600 transition-colors">Current GPA</p>
                 </div>
-                <div className="p-1.5 rounded-lg bg-[#2b2d2f] transition-colors duration-300 flex-shrink-0 mt-1">
-                  <TrendingUp className="w-3 h-3 xs:w-4 xs:h-4 text-green-600" />
+                <div className="p-1.5 rounded-lg bg-[#2b2d2f] group-hover:bg-green-100 transition-colors duration-300 flex-shrink-0 mt-1">
+                  <TrendingUp className="w-3 h-3 xs:w-4 xs:h-4 text-green-600 group-hover:text-green-700 transition-colors" />
                 </div>
+              </div>
+              <div className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
               </div>
             </motion.div>
 
@@ -575,13 +608,13 @@ const DashboardOverview = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.3 }}
               onClick={() => navigate('/dashboard/google-classroom')}
-              className="dashboard-stat-card group relative bg-white/90 rounded-xl p-3 xs:p-4 sm:p-5 md:p-6 border border-[#444] transition-all duration-300 cursor-pointer"
+              className="dashboard-stat-card group relative bg-white/90 rounded-xl p-3 xs:p-4 sm:p-5 md:p-6 border border-[#444] transition-all duration-300 cursor-pointer min-h-[110px] hover:shadow-lg hover:scale-[1.02] hover:border-purple-300"
             >
               <div className="absolute inset-0 bg-gradient-to-br from-purple-50/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-xl"></div>
-              <div className="relative flex items-start justify-between h-full">
+              <div className="relative flex flex-col sm:flex-row items-start justify-between h-full">
                 <div className="flex flex-col min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <p className="text-sm xs:text-sm sm:text-base md:text-lg font-bold text-gray-800 leading-tight">
+                    <p className="text-sm xs:text-sm sm:text-base md:text-lg font-bold text-gray-800 leading-tight whitespace-nowrap truncate max-w-[140px] group-hover:text-purple-700 transition-colors">
                       {googleClassroomStatus === 'checking' ? 'Checking...' : 
                        googleClassroomStatus === 'connected' ? 'Connected' : 'Not Connected'}
                     </p>
@@ -595,15 +628,20 @@ const DashboardOverview = () => {
                       <div className="w-1.5 h-1.5 bg-yellow-500 rounded-full animate-pulse"></div>
                     )}
                   </div>
-                  <p className="text-[10px] xs:text-xs sm:text-sm font-medium text-gray-800 leading-tight whitespace-nowrap">Google Classroom</p>
-                  <p className="text-[10px] xs:text-xs sm:text-sm text-gray-600 leading-tight">
-                    {googleClassroomStatus === 'connected' ? '' : 
-                     googleClassroomStatus === 'checking' ? 'Verifying connection' : 'Connect to sync'}
-                  </p>
+                  <div className="mt-auto">
+                    <p className="text-[10px] xs:text-xs sm:text-sm font-medium text-gray-800 leading-tight whitespace-nowrap group-hover:text-purple-600 transition-colors">Google Classroom</p>
+                    <p className="text-[10px] xs:text-xs sm:text-sm text-gray-600 leading-tight">
+                      {googleClassroomStatus === 'connected' ? '' : 
+                       googleClassroomStatus === 'checking' ? 'Verifying connection' : ''}
+                    </p>
+                  </div>
                 </div>
-                <div className="p-1.5 rounded-lg bg-[#2b2d2f] transition-colors duration-300 flex-shrink-0 mt-1">
-                  <ExternalLink className="w-3 h-3 xs:w-4 xs:h-4 text-purple-600" />
+                <div className="p-1.5 rounded-lg bg-[#2b2d2f] group-hover:bg-purple-100 transition-colors duration-300 flex-shrink-0 mt-1">
+                  <ExternalLink className="w-3 h-3 xs:w-4 xs:h-4 text-purple-600 group-hover:text-purple-700 transition-colors" />
                 </div>
+              </div>
+              <div className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
               </div>
             </motion.div>
           </div>
