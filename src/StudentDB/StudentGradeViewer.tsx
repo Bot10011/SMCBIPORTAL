@@ -274,65 +274,114 @@ export const StudentGradeViewer: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="w-full space-y-8 p-4 sm:p-6">
-        {/* Header Skeleton */}
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 via-white to-purple-50 shadow-inner shadow-inner-strong border border-blue-100">
-          <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
-                  <div className="w-6 h-6 bg-white/30 rounded animate-pulse"></div>
-                </div>
-                <div>
-                  <div className="h-8 w-48 bg-white/20 rounded animate-pulse mb-2"></div>
-                  <div className="h-4 w-32 bg-white/20 rounded animate-pulse"></div>
-                </div>
+      <div className="w-full h-screen flex items-center justify-center p-4 sm:p-6 sm:h-auto sm:block">
+        {/* Mobile: Simple centered skeleton */}
+        <div className="w-full sm:hidden">
+          <div className="bg-white rounded-2xl shadow-inner shadow-inner-strong border border-blue-100 p-6">
+            <div className="flex flex-col items-center text-center">
+              <div className="p-3 rounded-full bg-blue-50 mb-4 w-fit">
+                <div className="w-7 h-7 bg-blue-200 rounded animate-pulse"></div>
               </div>
-              <div className="mt-4 flex justify-center sm:justify-start w-full sm:w-auto">
-                <div className="w-44 h-10 bg-white/20 rounded-xl animate-pulse"></div>
-              </div>
+              <div className="h-6 w-48 bg-gray-200 rounded animate-pulse mb-2"></div>
+              <div className="h-4 w-64 bg-gray-200 rounded animate-pulse mb-4"></div>
+              <div className="w-32 h-10 bg-gray-200 rounded-xl animate-pulse"></div>
             </div>
           </div>
         </div>
-
-        {/* Search and Stats Skeleton */}
-        <div className="bg-white rounded-2xl shadow-inner shadow-inner-strong border border-blue-100 p-6">
-          <div className="flex flex-col gap-3 w-full sm:flex-row sm:items-center sm:justify-between">
-            <div className="relative flex-1 max-w-md flex-shrink-0 mb-2 sm:mb-0">
-              <div className="w-full h-12 bg-gray-200 rounded-xl animate-pulse"></div>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-4 items-center justify-end">
-              <div className="flex flex-row gap-2 w-auto sm:gap-4">
-                <div className="w-24 h-10 bg-gray-200 rounded-xl animate-pulse"></div>
-                <div className="w-24 h-10 bg-gray-200 rounded-xl animate-pulse"></div>
-              </div>
-              <div className="w-full sm:w-44 h-10 bg-gray-200 rounded-xl animate-pulse"></div>
-            </div>
-          </div>
-        </div>
-
-        {/* Year Sections Skeleton */}
-        {[1, 2, 3, 4].map((index) => (
-          <div key={index} className="bg-white rounded-2xl shadow-inner shadow-inner-strong border border-blue-100 overflow-hidden">
-            <div className="w-full flex items-center justify-between p-3 sm:p-4">
-              <div className="flex items-center min-w-0 flex-1">
-                <div className="w-1.5 sm:w-2 h-6 sm:h-8 rounded-full bg-gray-200 mr-2 sm:mr-4 flex-shrink-0 animate-pulse"></div>
-                <div className="flex items-center min-w-0 flex-1">
-                  <div className="p-1.5 sm:p-2 rounded-full bg-gray-200 mr-2 sm:mr-3 flex-shrink-0 animate-pulse"></div>
-                  <div className="min-w-0 flex-1">
-                    <div className="h-6 w-32 bg-gray-200 rounded animate-pulse"></div>
+        
+        {/* Desktop: Full skeleton layout */}
+        <div className="hidden sm:block w-full space-y-8">
+          {/* Header Skeleton */}
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 via-white to-purple-50 shadow-inner shadow-inner-strong border border-blue-100">
+            <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
+                    <div className="w-6 h-6 bg-white/30 rounded animate-pulse"></div>
+                  </div>
+                  <div>
+                    <div className="h-8 w-48 bg-white/20 rounded animate-pulse mb-2"></div>
+                    <div className="h-4 w-32 bg-white/20 rounded animate-pulse"></div>
                   </div>
                 </div>
+                <div className="mt-4 flex justify-center sm:justify-start w-full sm:w-auto">
+                  <div className="w-44 h-10 bg-white/20 rounded-xl animate-pulse"></div>
+                </div>
               </div>
-              <div className="w-5 h-5 bg-gray-200 rounded animate-pulse"></div>
             </div>
           </div>
-        ))}
+
+          {/* Search and Stats Skeleton */}
+          <div className="bg-white rounded-2xl shadow-inner shadow-inner-strong border border-blue-100 p-6">
+            <div className="flex flex-col gap-3 w-full sm:flex-row sm:items-center sm:justify-between">
+              <div className="relative flex-1 max-w-md flex-shrink-0 mb-2 sm:mb-0">
+                <div className="w-full h-12 bg-gray-200 rounded-xl animate-pulse"></div>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-4 items-center justify-end">
+                <div className="flex flex-row gap-2 w-auto sm:gap-4">
+                  <div className="w-24 h-10 bg-gray-200 rounded-xl animate-pulse"></div>
+                  <div className="w-24 h-10 bg-gray-200 rounded-xl animate-pulse"></div>
+                </div>
+                <div className="w-full sm:w-44 h-10 bg-gray-200 rounded-xl animate-pulse"></div>
+              </div>
+            </div>
+          </div>
+
+          {/* Year Sections Skeleton */}
+          {[1, 2, 3, 4].map((index) => (
+            <div key={index} className="bg-white rounded-2xl shadow-inner shadow-inner-strong border border-blue-100 overflow-hidden">
+              <div className="w-full flex items-center justify-between p-3 sm:p-4">
+                <div className="flex items-center min-w-0 flex-1">
+                  <div className="w-1.5 sm:w-2 h-6 sm:h-8 rounded-full bg-gray-200 mr-2 sm:mr-4 flex-shrink-0 animate-pulse"></div>
+                  <div className="flex items-center min-w-0 flex-1">
+                    <div className="p-1.5 sm:p-2 rounded-full bg-gray-200 mr-2 sm:mr-3 flex-shrink-0 animate-pulse"></div>
+                    <div className="min-w-0 flex-1">
+                      <div className="h-6 w-32 bg-gray-200 rounded animate-pulse"></div>
+                    </div>
+                  </div>
+                </div>
+                <div className="w-5 h-5 bg-gray-200 rounded animate-pulse"></div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
 
   if (errorMsg) {
+    // Friendlier, responsive empty-state for no grades found
+    if (errorMsg.toLowerCase().includes('no grades found')) {
+      return (
+        <div className="w-full h-screen flex items-center justify-center p-4 sm:p-6 sm:h-auto sm:space-y-8">
+          <motion.div 
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="bg-white rounded-2xl shadow-inner shadow-inner-strong border border-blue-100 p-5 sm:p-6"
+          >
+            <div className="flex flex-col items-center text-center">
+              <div className="p-3 rounded-full bg-blue-50 mb-4 w-fit">
+                <BookOpen className="w-7 h-7 sm:w-8 sm:h-8 text-blue-600" />
+              </div>
+              <h3 className="text-base sm:text-lg font-semibold text-blue-800 mb-2">No grades available yet</h3>
+              <p className="text-xs sm:text-sm text-blue-700 max-w-md">
+              Your grades haven't been posted or released. They will appear here once the registrar publishes them.
+              </p>
+              <div className="mt-5 flex justify-center">
+                <button
+                  onClick={() => window.location.reload()}
+                  className="px-6 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 active:scale-[0.99] transition"
+                >
+                  Refresh
+                </button>
+              </div>  
+            </div>
+          </motion.div>
+        </div>
+      );
+    }
+    // Default error state (other errors)
     return (
       <div className="w-full space-y-8 p-4 sm:p-6">
         <motion.div 
@@ -360,7 +409,7 @@ export const StudentGradeViewer: React.FC = () => {
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="bg-white rounded-2xl shadow-inner shadow-inner-strong border border-red-100 p-6"
+          className="bg-white/90 rounded-2xl shadow-inner shadow-inner-strong border border-red-100 p-6"
         >
           <div className="text-center">
             <div className="p-3 rounded-full bg-red-50 mb-4 mx-auto w-fit">
