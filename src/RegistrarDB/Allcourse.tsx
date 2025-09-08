@@ -31,6 +31,10 @@ export const RegistrarGradeViewer: React.FC = () => {
     teachers: string[];
     students: { name: string; avatar_url: string | null; year_level: string | number | null; section: string | null; school_id: string | null }[];
   } | null>(null);
+  const [studentSearch, setStudentSearch] = useState('');
+  
+  // State to control which program sections are expanded
+  const [openPrograms, setOpenPrograms] = useState<{ [program: string]: boolean }>({});
   
   // State for section mapping
   const [sectionMap, setSectionMap] = useState<Map<string, string>>(new Map());
@@ -320,77 +324,110 @@ export const RegistrarGradeViewer: React.FC = () => {
           </div>
         </div>
 
-        {/* Subjects Display */}
-        {filteredCourses.length === 0 ? (
-          <div className="bg-white/90 rounded-2xl p-12 text-center shadow-lg border border-gray-100">
-            <BookOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-gray-600 mb-2">No subjects found</h3>
-            <p className="text-gray-500 mb-6">
-              {search ? 'Try adjusting your search criteria.' : 'No subjects available.'}
-            </p>
-          </div>
-        ) : (
-          <div className="grid gap-6" style={{ 
-            gridTemplateColumns: `repeat(auto-fit, minmax(280px, 1fr))`,
-            maxHeight: 'calc(5 * (280px + 24px))',
-            overflowY: 'auto'
-          }}>
-            {filteredCourses.map((course) => (
-              <div
-                key={course.id}
-                className="bg-white/90 rounded-2xl shadow-lg border border-gray-100 overflow-hidden hover:shadow-xl transition-all duration-300 group"
-              >
-                <div className="relative h-32 bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center overflow-hidden">
-                  {imageLoading[String(course.id)] ? (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+        {/* Subjects grouped by program/department */}
+        {(() => {
+          const grouped: { [dept: string]: Course[] } = {};
+          filteredCourses.forEach(c => {
+            const key = c.department || 'BSIT';
+            if (!grouped[key]) grouped[key] = [];
+            grouped[key].push(c);
+          });
+          const programNames = Object.keys(grouped).sort((a,b)=>a.localeCompare(b));
+          if (programNames.length === 0) {
+            return (
+              <div className="bg-white/90 rounded-2xl p-12 text-center shadow-lg border border-gray-100">
+                <BookOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-xl font-semibold text-gray-600 mb-2">No subjects found</h3>
+                <p className="text-gray-500 mb-6">
+                  {search ? 'Try adjusting your search criteria.' : 'No subjects available.'}
+                </p>
+              </div>
+            );
+          }
+          return (
+            <div className="space-y-6">
+              {programNames.map(program => (
+                <div key={program} className="bg-white/90 rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+                  <button
+                    className="w-full flex items-center justify-between px-5 py-4 bg-gradient-to-r from-blue-50 to-purple-50 hover:from-blue-100 hover:to-purple-100 transition-colors"
+                    onClick={() => setOpenPrograms(prev => ({ ...prev, [program]: !prev[program] }))}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-blue-100">
+                        <BookOpen className="w-5 h-5 text-blue-600" />
+                      </div>
+                      <div className="text-left">
+                        <div className="text-lg font-bold text-gray-900">{program}</div>
+                        <div className="text-xs text-gray-600">{grouped[program].length} subject(s)</div>
+                      </div>
                     </div>
-                  ) : courseImages[String(course.id)] ? (
-                    <img
-                      src={courseImages[String(course.id)]}
-                      alt={course.name}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        console.error('Image failed to load:', courseImages[String(course.id)]);
-                        e.currentTarget.style.display = 'none';
-                        e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                      }}
-                    />
-                  ) : (
-                    <BookOpen className="w-12 h-12 text-blue-400" />
+                    <span className="text-sm font-medium text-blue-700">{openPrograms[program] ? 'Hide' : 'View'} Subjects</span>
+                  </button>
+                  {openPrograms[program] && (
+                    <div className="p-5 pt-0">
+                      <div className="grid gap-6" style={{ gridTemplateColumns: `repeat(auto-fit, minmax(280px, 1fr))` }}>
+                        {grouped[program].map((course) => (
+                          <div
+                            key={course.id}
+                            className="bg-white rounded-2xl shadow border border-gray-100 overflow-hidden hover:shadow-md transition-all duration-300 group"
+                          >
+                            <div className="relative h-32 bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center overflow-hidden">
+                              {imageLoading[String(course.id)] ? (
+                                <div className="w-full h-full flex items-center justify-center">
+                                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+                                </div>
+                              ) : courseImages[String(course.id)] ? (
+                                <img
+                                  src={courseImages[String(course.id)]}
+                                  alt={course.name}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    console.error('Image failed to load:', courseImages[String(course.id)]);
+                                    (e.target as HTMLImageElement).style.display = 'none';
+                                    (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+                                  }}
+                                />
+                              ) : (
+                                <BookOpen className="w-12 h-12 text-blue-400" />
+                              )}
+                            </div>
+                            <div className="p-6">
+                              <div className="flex items-center justify-between mb-3">
+                                <span className="bg-blue-100 text-blue-800 text-xs font-semibold px-3 py-1 rounded-full">
+                                  {course.code}
+                                </span>
+                                <span className="bg-green-100 text-green-800 text-xs font-semibold px-3 py-1 rounded-full">
+                                  {course.units} Unit{course.units !== 1 ? 's' : ''}
+                                </span>
+                              </div>
+                              <h3 className="text-xl font-bold text-gray-900 mb-2 line-clamp-2">{course.name}</h3>
+                              <p className="text-gray-600 text-sm mb-4 line-clamp-3">{course.description}</p>
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2 text-gray-500 text-sm">
+                                  <span>Created {course.created_at ? new Date(course.created_at).toLocaleDateString() : '-'}</span>
+                                </div>
+                              </div>
+                              <button
+                                className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                                onClick={async () => {
+                                  setSelectedCourse(course);
+                                  setDetailsOpen(true);
+                                  await fetchSubjectDetails(course.id!);
+                                }}
+                              >
+                                View Details
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   )}
                 </div>
-                <div className="p-6">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="bg-blue-100 text-blue-800 text-xs font-semibold px-3 py-1 rounded-full">
-                      {course.code}
-                    </span>
-                    <span className="bg-green-100 text-green-800 text-xs font-semibold px-3 py-1 rounded-full">
-                      {course.units} Unit{course.units !== 1 ? 's' : ''}
-                    </span>
-                  </div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-2 line-clamp-2">{course.name}</h3>
-                  <p className="text-gray-600 text-sm mb-4 line-clamp-3">{course.description}</p>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-gray-500 text-sm">
-                      <span>Created {course.created_at ? new Date(course.created_at).toLocaleDateString() : '-'}</span>
-                    </div>
-                  </div>
-                  <button
-                    className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-                    onClick={async () => {
-                      setSelectedCourse(course);
-                      setDetailsOpen(true);
-                      await fetchSubjectDetails(course.id!);
-                    }}
-                  >
-                    View Details
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          );
+        })()}
       </div>
       {detailsOpen && selectedCourse && createPortal(
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
@@ -411,16 +448,27 @@ export const RegistrarGradeViewer: React.FC = () => {
               <div className="text-center py-8 text-blue-600 font-semibold">Loading...</div>
             ) : subjectDetails ? (
               <>
-                <div className="mb-2 font-semibold text-gray-700 flex items-center justify-between">
-                  <span>Enrolled Students</span>
-                  <span className="text-sm bg-blue-100 text-blue-800 px-3 py-1 rounded-full">{subjectDetails?.students.length || 0}</span>
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div className="font-semibold text-gray-700">Enrolled Students</div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      placeholder="Search student name..."
+                      value={studentSearch}
+                      onChange={(e) => setStudentSearch(e.target.value)}
+                      className="w-48 sm:w-60 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <span className="text-sm bg-blue-100 text-blue-800 px-3 py-1 rounded-full">{subjectDetails?.students.length || 0}</span>
+                  </div>
                 </div>
                 <div className="max-h-64 overflow-y-auto border rounded-lg bg-gray-50 p-3">
                   {subjectDetails.students.length === 0 ? (
                     <div className="text-gray-500 px-2">No students enrolled</div>
                   ) : (
                     <ul className="divide-y">
-                      {subjectDetails.students.map((student, idx) => (
+                      {subjectDetails.students
+                        .filter(s => s.name.toLowerCase().includes(studentSearch.toLowerCase()))
+                        .map((student, idx) => (
                         <li key={idx} className="py-2 flex items-center gap-3">
                           <img
                             src={student.avatar_url || '/img/user-avatar.png'}
@@ -432,13 +480,13 @@ export const RegistrarGradeViewer: React.FC = () => {
                           />
                           <div className="flex-1 min-w-0">
                             <div className="text-gray-900 font-medium truncate">{student.name}</div>
-                                                          <div className="text-xs text-gray-600 flex items-center gap-2">
-                                {(() => {
-                                  const sectionPart = student.section ? student.section : '';
-                                  return <span className="font-semibold">{sectionPart}</span>;
-                                })()}
-                                <span className="ml-2 text-gray-500">{student.school_id ?? '-'}</span>
-                              </div>
+                            <div className="text-xs text-gray-600 flex items-center gap-2">
+                              {(() => {
+                                const sectionPart = student.section ? student.section : '';
+                                return <span className="font-semibold">{sectionPart}</span>;
+                              })()}
+                              <span className="ml-2 text-gray-500">{student.school_id ?? '-'}</span>
+                            </div>
                           </div>
                         </li>
                       ))}
