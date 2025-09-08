@@ -63,7 +63,7 @@ const COEModal = ({ coe, open, onClose }: { coe: COERecord, open: boolean, onClo
       // Student Info
       let y = 80;
       doc.text(`Student ID: ${coe.student_number || coe.student_id}`, 20, y);
-      doc.text(`Full Name: ${coe.full_name || 'Loading...'}`, 120, y);
+      doc.text(`Full Name: ${coe.full_name || 'N/A'}`, 120, y);
       y += 7;
       doc.text(`School Year: ${coe.school_year}`, 20, y);
       doc.text(`Semester: ${coe.semester}`, 120, y);
@@ -117,7 +117,7 @@ const COEModal = ({ coe, open, onClose }: { coe: COERecord, open: boolean, onClo
       doc.text(`Date: ${coe.date_issued ? new Date(coe.date_issued).toLocaleDateString() : 'N/A'}`, 20, 70);
       let y = 80;
       doc.text(`Student ID: ${coe.student_number || coe.student_id}`, 20, y);
-      doc.text(`Full Name: ${coe.full_name || 'Loading...'}`, 120, y);
+      doc.text(`Full Name: ${coe.full_name || 'N/A'}`, 120, y);
       y += 7;
       doc.text(`School Year: ${coe.school_year}`, 20, y);
       doc.text(`Semester: ${coe.semester}`, 120, y);
@@ -159,7 +159,6 @@ const COEModal = ({ coe, open, onClose }: { coe: COERecord, open: boolean, onClo
           userSelect: 'none',
           touchAction: 'none'
         }}
-        onClick={onClose}
       />
       
       {/* Modal container */}
@@ -182,7 +181,6 @@ const COEModal = ({ coe, open, onClose }: { coe: COERecord, open: boolean, onClo
             pointerEvents: 'auto'
           }}
           ref={contentRef}
-          onClick={(e) => e.stopPropagation()}
         >
           <button
             onClick={onClose}
@@ -227,7 +225,7 @@ const COEModal = ({ coe, open, onClose }: { coe: COERecord, open: boolean, onClo
               </div>
               <div>
                 <p className="text-sm text-gray-500">Full Name</p>
-                <p className="font-medium">{coe.full_name || 'Loading...'}</p>
+                <p className="font-medium">{coe.full_name || 'N/A'}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-500">School Year</p>
@@ -253,7 +251,7 @@ const COEModal = ({ coe, open, onClose }: { coe: COERecord, open: boolean, onClo
                           <div className="mt-8">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Enrolled Courses</h3>
                 <div className="rounded-xl border border-gray-200 overflow-hidden w-full shadow-sm">
-                  <table className="coe-certificate-table min-w-full bg-white">
+                  <table className="coe-certificate-table min-w-full bg-white/90">
                     <thead>
                       <tr className="bg-blue-600 rounded-t-xl">
                         <th className="px-4 py-2 text-left text-xs font-bold text-white rounded-tl-xl">Course Code</th>
@@ -330,147 +328,40 @@ export const CertificateOfEnrollment: React.FC = () => {
             // Fetch instructor assignments for each COE
             const enrichedCOEs = await Promise.all(
               coeData.map(async (coe) => {
-                console.log('Processing COE:', {
-                  schoolYear: coe.school_year,
-                  semester: coe.semester,
-                  yearLevel: coe.year_level,
-                  fullName: coe.full_name,
-                  studentId: coe.student_id,
-                  studentNumber: coe.student_number,
-                  subjects: coe.subjects
-                });
-
-                // If full_name is missing, try to fetch it from user profile
-                let enrichedCoe = { ...coe };
-                if (!coe.full_name || coe.full_name === 'N/A') {
-                  try {
-                    const { data: userProfile, error: profileError } = await supabase
-                      .from('user_profiles')
-                      .select('first_name, last_name, middle_name')
-                      .eq('id', coe.student_id)
-                      .single();
-
-                    if (!profileError && userProfile) {
-                      const fullName = `${userProfile.first_name} ${userProfile.middle_name ? userProfile.middle_name + ' ' : ''}${userProfile.last_name}`;
-                      enrichedCoe = {
-                        ...coe,
-                        full_name: fullName
-                      };
-                      console.log('Fetched full name from user profile:', fullName);
-                    }
-                  } catch (error) {
-                    console.warn('Could not fetch user profile for full name:', error);
-                  }
-                }
-                
-                if (enrichedCoe.subjects && Array.isArray(enrichedCoe.subjects)) {
+                if (coe.subjects && Array.isArray(coe.subjects)) {
                   // For each subject, find the instructor assignment
+                  type SubjectRow = { code: string; name: string; units: number; instructor?: string; section?: string };
                   const enrichedSubjects = await Promise.all(
-                    coe.subjects.map(async (subject: any) => {
+                    (coe.subjects as SubjectRow[]).map(async (subject: SubjectRow) => {
                       try {
-                        // First, find the course ID by matching the course code
-                        const { data: courseData, error: courseError } = await supabase
-                          .from('courses')
-                          .select('id')
-                          .eq('code', subject.code)
-                          .single();
-
-                        if (courseError || !courseData) {
-                          console.warn('Could not find course for code:', subject.code);
-                          return {
-                            ...subject,
-                            instructor: 'TBA',
-                            section: subject.section || 'A'
-                          };
+                        // Resolve subject code to the actual course UUID used in teacher_subjects.subject_id
+                        let courseId: string | null = null;
+                        try {
+                          const { data: courseRow, error: courseErr } = await supabase
+                            .from('courses')
+                            .select('id')
+                            .eq('code', subject.code)
+                            .single();
+                          if (!courseErr && courseRow?.id) {
+                            courseId = courseRow.id as string;
+                          }
+                        } catch {
+                          // ignore
                         }
 
-                        console.log(`Looking for instructor for subject ${subject.code} (course ID: ${courseData.id})`);
-
-                        // Debug: Show all teacher assignments for this course
-                        const { data: allAssignments, error: debugError } = await supabase
+                        // Find the teacher assignment for this subject and section
+                        const { data: assignmentData, error: assignmentError } = await supabase
                           .from('teacher_subjects')
                           .select(`
                             teacher_id,
-                            section,
-                            year_level,
-                            semester,
-                            academic_year,
-                            is_active,
-                            teacher:user_profiles(first_name, last_name)
+                            section
                           `)
-                          .eq('subject_id', courseData.id)
-                          .eq('is_active', true);
-                        
-                        if (!debugError && allAssignments) {
-                          console.log(`Available assignments for ${subject.code}:`, allAssignments);
-                        }
-
-                        // Find the teacher assignment for this subject
-                        // Try multiple matching strategies since COE might not have exact section/year level info
-                        let assignmentData = null;
-                        let assignmentError = null;
-
-                        // Strategy 1: Try exact match with all criteria
-                        const { data: exactMatch, error: exactError } = await supabase
-                          .from('teacher_subjects')
-                          .select(`
-                            teacher_id,
-                            section,
-                            year_level,
-                            semester,
-                            academic_year
-                          `)
-                          .eq('subject_id', courseData.id)
+                          .eq('subject_id', courseId || subject.code) // prefer course UUID; fallback to code if schema uses code
+                          .eq('section', subject.section || 'A') // Default to 'A' if no section specified
                           .eq('academic_year', coe.school_year)
                           .eq('semester', coe.semester)
                           .eq('year_level', coe.year_level)
-                          .eq('is_active', true)
-                          .limit(1);
-
-                        if (!exactError && exactMatch && exactMatch.length > 0) {
-                          assignmentData = exactMatch[0];
-                        } else {
-                          // Strategy 2: Try without year level match (in case formats differ)
-                          const { data: yearLevelFlexible, error: yearLevelError } = await supabase
-                            .from('teacher_subjects')
-                            .select(`
-                              teacher_id,
-                              section,
-                              year_level,
-                              semester,
-                              academic_year
-                            `)
-                            .eq('subject_id', courseData.id)
-                            .eq('academic_year', coe.school_year)
-                            .eq('semester', coe.semester)
-                            .eq('is_active', true)
-                            .limit(1);
-
-                          if (!yearLevelError && yearLevelFlexible && yearLevelFlexible.length > 0) {
-                            assignmentData = yearLevelFlexible[0];
-                          } else {
-                            // Strategy 3: Try with just subject and academic year/semester
-                            const { data: basicMatch, error: basicError } = await supabase
-                              .from('teacher_subjects')
-                              .select(`
-                                teacher_id,
-                                section,
-                                year_level,
-                                semester,
-                                academic_year
-                              `)
-                              .eq('subject_id', courseData.id)
-                              .eq('academic_year', coe.school_year)
-                              .eq('is_active', true)
-                              .limit(1);
-
-                            if (!basicError && basicMatch && basicMatch.length > 0) {
-                              assignmentData = basicMatch[0];
-                            } else {
-                              assignmentError = basicError || new Error('No assignment found with any matching strategy');
-                            }
-                          }
-                        }
+                          .maybeSingle();
 
                         if (!assignmentError && assignmentData) {
                           // Fetch teacher details separately
@@ -478,26 +369,15 @@ export const CertificateOfEnrollment: React.FC = () => {
                             .from('user_profiles')
                             .select('first_name, last_name')
                             .eq('id', assignmentData.teacher_id)
-                            .single();
+                            .maybeSingle();
 
                           if (!teacherError && teacherData) {
-                            console.log(`Found instructor for ${subject.code}: ${teacherData.first_name} ${teacherData.last_name}`);
                             return {
                               ...subject,
                               instructor: `${teacherData.first_name} ${teacherData.last_name}`,
                               section: subject.section || assignmentData.section || 'A'
                             };
-                          } else {
-                            console.warn(`Could not fetch teacher details for assignment:`, teacherError);
                           }
-                        } else {
-                          console.warn(`No assignment found for subject ${subject.code} after trying all matching strategies:`, {
-                            courseId: courseData.id,
-                            academicYear: coe.school_year,
-                            semester: coe.semester,
-                            yearLevel: coe.year_level,
-                            assignmentError: assignmentError?.message || 'No assignment found'
-                          });
                         }
 
                         return {
@@ -505,8 +385,8 @@ export const CertificateOfEnrollment: React.FC = () => {
                           instructor: 'TBA',
                           section: subject.section || 'A'
                         };
-                      } catch (err) {
-                        console.warn('Error finding instructor for subject:', subject.code, err);
+                      } catch {
+                        console.warn('Could not find instructor for subject:', subject.code);
                         return {
                           ...subject,
                           instructor: 'TBA',
@@ -517,11 +397,11 @@ export const CertificateOfEnrollment: React.FC = () => {
                   );
 
                   return {
-                    ...enrichedCoe,
+                    ...coe,
                     subjects: enrichedSubjects
                   };
                 }
-                return enrichedCoe;
+                return coe;
               })
             );
 
@@ -641,40 +521,67 @@ export const CertificateOfEnrollment: React.FC = () => {
             </div>
           </div>
         </motion.div>
-        <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 w-full">
+        <div className="bg-white/90 rounded-2xl shadow-lg p-6 border border-gray-100 w-full">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">COE History</h3>
           {coeList.length === 0 ? (
             <div className="text-center text-gray-500">No Certificate of Enrollment records found.</div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">School Year</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Semester</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date Issued</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {processedCOEList.map((coe, idx) => (
-                    <tr key={coe.id || idx} className="coe-table-row hover:bg-gray-50 transition-colors duration-200">
-                      <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">{coe.school_year}</td>
-                      <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">{coe.semester}</td>
-                      <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">{coe.formattedDate}</td>
-                      <td className="px-4 py-2 whitespace-nowrap">
-                        <button
-                          className="coe-view-button inline-flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                          onClick={() => handleViewCOE(coe)}
-                        >
-                          <Eye className="w-4 h-4" /> View
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <>
+              {/* Mobile list - no horizontal scroll */}
+              <div className="sm:hidden space-y-3">
+                {processedCOEList.map((coe, idx) => (
+                  <div key={coe.id || idx} className="rounded-xl border border-gray-200 p-4 bg-white">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-sm font-semibold text-gray-900">{coe.school_year}</div>
+                      <button
+                        className="coe-view-button inline-flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                        onClick={() => handleViewCOE(coe)}
+                      >
+                        <Eye className="w-4 h-4" /> View
+                      </button>
+                    </div>
+                    <div className="text-xs text-gray-600">Semester: <span className="font-medium text-gray-800">{coe.semester}</span></div>
+                    <div className="text-xs text-gray-600">Year Level: <span className="font-medium text-gray-800">{coe.year_level || 'N/A'}</span></div>
+                    <div className="text-xs text-gray-600">Issued: <span className="font-medium text-gray-800">{coe.formattedDate}</span></div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop/tablet table */}
+              <div className="hidden sm:block">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">School Year</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Semester</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Year Level</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date Issued</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {processedCOEList.map((coe, idx) => (
+                        <tr key={coe.id || idx} className="coe-table-row hover:bg-gray-50 transition-colors duration-200">
+                          <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">{coe.school_year}</td>
+                          <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">{coe.semester}</td>
+                          <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">{coe.year_level || 'N/A'}</td>
+                          <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">{coe.formattedDate}</td>
+                          <td className="px-4 py-2 whitespace-nowrap">
+                            <button
+                              className="coe-view-button inline-flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                              onClick={() => handleViewCOE(coe)}
+                            >
+                              <Eye className="w-4 h-4" /> View
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
           )}
         </div>
         {/* Only render the portal when modalOpen and selectedCOE are true */}
