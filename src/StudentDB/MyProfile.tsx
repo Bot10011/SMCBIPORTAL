@@ -10,7 +10,11 @@ import {
   Calendar,
   Users,
   CheckCircle2,
-  XCircle
+  XCircle,
+  Lock,
+  Eye,
+  EyeOff,
+  AlertCircle
 } from 'lucide-react';
  
 
@@ -102,6 +106,20 @@ export const MyProfile: React.FC = () => {
     { status: 'idle' | 'loading' | 'ok' | 'missing_url' | 'download_error' | 'no_file_data' | 'image_failed'; message?: string }
   >({ status: 'idle' });
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  
+  // Password change states
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [isGoogleUser, setIsGoogleUser] = useState(false);
+  const [passwordRequirementsMet, setPasswordRequirementsMet] = useState(false);
 
   useEffect(() => {
     const handleOnline = () => setIsOffline(false);
@@ -129,13 +147,21 @@ export const MyProfile: React.FC = () => {
           });
           const name = getAuthDisplayName(data.user) || data.user.email || '';
           setAuthDisplayName(name);
+          
+          // Check if user is Google OAuth user
+          const isGoogleOAuth = Boolean(data.user.app_metadata?.provider === 'google' || 
+                               data.user.identities?.some(identity => identity.provider === 'google'));
+          setIsGoogleUser(isGoogleOAuth);
+          logProfileDebug('User authentication method', { isGoogleOAuth, provider: data.user.app_metadata?.provider });
         } else {
           logProfileDebug('No auth user in getUser(), fallback to stored', { storedUserId: user?.id, storedEmail: user?.email });
           setAuthDisplayName(user?.email || '');
+          setIsGoogleUser(false);
         }
       } catch (err) {
         logProfileDebug('Error fetching auth user', { error: err instanceof Error ? err.message : String(err) });
         setAuthDisplayName(user?.email || '');
+        setIsGoogleUser(false);
       }
     };
     fetchAuthDisplayName();
@@ -231,6 +257,123 @@ export const MyProfile: React.FC = () => {
 
     fetchProfile();
   }, [user?.id, user, authDisplayName]);
+
+  // Password change functions
+  const validatePassword = (password: string): string | null => {
+    if (password.length < 8) {
+      return 'Password must be at least 8 characters long';
+    }
+    if (!/(?=.*[a-z])/.test(password)) {
+      return 'Password must contain at least one lowercase letter';
+    }
+    if (!/(?=.*[A-Z])/.test(password)) {
+      return 'Password must contain at least one uppercase letter';
+    }
+    if (!/(?=.*\d)/.test(password)) {
+      return 'Password must contain at least one number';
+    }
+    return null;
+  };
+
+  // Check if password meets all requirements
+  const checkPasswordRequirements = (password: string): boolean => {
+    return password.length >= 8 &&
+           /(?=.*[a-z])/.test(password) &&
+           /(?=.*[A-Z])/.test(password) &&
+           /(?=.*\d)/.test(password);
+  };
+
+  const handlePasswordChange = async () => {
+    setPasswordError(null);
+    setPasswordSuccess(false);
+
+    // For Google OAuth users, skip current password validation
+    if (!isGoogleUser) {
+      // Validation for traditional email/password users
+      if (!currentPassword || !newPassword || !confirmPassword) {
+        setPasswordError('All fields are required');
+        return;
+      }
+    } else {
+      // For Google users, only validate new password fields
+      if (!newPassword || !confirmPassword) {
+        setPasswordError('New password and confirmation are required');
+        return;
+      }
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError('New passwords do not match');
+      return;
+    }
+
+    const validationError = validatePassword(newPassword);
+    if (validationError) {
+      setPasswordError(validationError);
+      return;
+    }
+
+    setIsChangingPassword(true);
+
+    try {
+      // Update password using Supabase Auth
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      setPasswordSuccess(true);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      
+      // Close modal after 2 seconds
+      setTimeout(() => {
+        setShowPasswordModal(false);
+        setPasswordSuccess(false);
+      }, 2000);
+
+    } catch (error) {
+      console.error('Error changing password:', error);
+      setPasswordError(error instanceof Error ? error.message : 'Failed to change password');
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
+  const resetPasswordForm = () => {
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setPasswordError(null);
+    setPasswordSuccess(false);
+    setShowCurrentPassword(false);
+    setShowNewPassword(false);
+    setShowConfirmPassword(false);
+  };
+
+  // Update password requirements met state when password fields change
+  useEffect(() => {
+    const checkFormRequirements = (): boolean => {
+      if (isGoogleUser) {
+        return newPassword.length > 0 && 
+               confirmPassword.length > 0 && 
+               newPassword === confirmPassword && 
+               checkPasswordRequirements(newPassword);
+      } else {
+        return currentPassword.length > 0 && 
+               newPassword.length > 0 && 
+               confirmPassword.length > 0 && 
+               newPassword === confirmPassword && 
+               checkPasswordRequirements(newPassword);
+      }
+    };
+    
+    setPasswordRequirementsMet(checkFormRequirements());
+  }, [currentPassword, newPassword, confirmPassword, isGoogleUser]);
 
   // Memoized profile data processing
   const processedProfile = useMemo(() => {
@@ -386,6 +529,7 @@ export const MyProfile: React.FC = () => {
                   )}
                 </div>
               </motion.div>
+              
             </div>
           </div>
           {/* Student Info Row as card footer, Neumorphism style, fully visible */}
@@ -429,7 +573,203 @@ export const MyProfile: React.FC = () => {
             </div>
           </div>
         </motion.div>
+
+        {/* Change Password Button */}
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.6 }}
+          className="text-center"
+        >
+          <button
+            onClick={() => {
+              resetPasswordForm();
+              setShowPasswordModal(true);
+            }}
+            className="inline-flex items-center gap-3 px-6 py-3 rounded-xl shadow bg-blue-600  border-blue-200 "
+          >
+            <Lock className="w-6 h-6 text-white" />
+            <span className="text-lg font-semibold text-white">Change Password</span>
+          </button>
+        </motion.div>
       </div>
+
+      {/* Password Change Modal */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-gray-900">
+                {isGoogleUser ? 'Set Password' : 'Change Password'}
+              </h2>
+              <button
+                onClick={() => {
+                  setShowPasswordModal(false);
+                  resetPasswordForm();
+                }}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <XCircle className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Current Password - Only show for non-Google users */}
+              {!isGoogleUser && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Current Password
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showCurrentPassword ? 'text' : 'password'}
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Enter current password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showCurrentPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Google User Notice */}
+              {isGoogleUser && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <CheckCircle2 className="w-5 h-5 text-blue-600" />
+                    <span className="text-sm font-medium text-blue-800">Google Account</span>
+                  </div>
+                  <p className="text-sm text-blue-700">
+                    You're signed in with Google. You can set a password for your account to enable email/password login in the future.
+                  </p>
+                </div>
+              )}
+
+              {/* New Password */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  New Password
+                </label>
+                <div className="relative">
+                  <input
+                    type={showNewPassword ? 'text' : 'password'}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter new password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showNewPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Confirm Password */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Confirm New Password
+                </label>
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Confirm new password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Password Requirements */}
+              <div className="text-xs text-gray-500 bg-gray-50 p-3 rounded-lg">
+                <p className="font-medium mb-2">Password requirements:</p>
+                <ul className="space-y-1">
+                  <li className={`flex items-center gap-2 ${newPassword.length >= 8 ? 'text-green-600' : 'text-gray-500'}`}>
+                    <CheckCircle2 className={`w-3 h-3 ${newPassword.length >= 8 ? 'text-green-600' : 'text-gray-400'}`} />
+                    At least 8 characters long
+                  </li>
+                  <li className={`flex items-center gap-2 ${/(?=.*[a-z])/.test(newPassword) ? 'text-green-600' : 'text-gray-500'}`}>
+                    <CheckCircle2 className={`w-3 h-3 ${/(?=.*[a-z])/.test(newPassword) ? 'text-green-600' : 'text-gray-400'}`} />
+                    Contains lowercase letter
+                  </li>
+                  <li className={`flex items-center gap-2 ${/(?=.*[A-Z])/.test(newPassword) ? 'text-green-600' : 'text-gray-500'}`}>
+                    <CheckCircle2 className={`w-3 h-3 ${/(?=.*[A-Z])/.test(newPassword) ? 'text-green-600' : 'text-gray-400'}`} />
+                    Contains uppercase letter
+                  </li>
+                  <li className={`flex items-center gap-2 ${/(?=.*\d)/.test(newPassword) ? 'text-green-600' : 'text-gray-500'}`}>
+                    <CheckCircle2 className={`w-3 h-3 ${/(?=.*\d)/.test(newPassword) ? 'text-green-600' : 'text-gray-400'}`} />
+                    Contains at least one number
+                  </li>
+                  <li className={`flex items-center gap-2 ${newPassword === confirmPassword && confirmPassword.length > 0 ? 'text-green-600' : 'text-gray-500'}`}>
+                    <CheckCircle2 className={`w-3 h-3 ${newPassword === confirmPassword && confirmPassword.length > 0 ? 'text-green-600' : 'text-gray-400'}`} />
+                    Passwords match
+                  </li>
+                </ul>
+              </div>
+
+              {/* Error Message */}
+              {passwordError && (
+                <div className="flex items-center gap-2 text-red-600 bg-red-50 p-3 rounded-lg">
+                  <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                  <span className="text-sm">{passwordError}</span>
+                </div>
+              )}
+
+              {/* Success Message */}
+              {passwordSuccess && (
+                <div className="flex items-center gap-2 text-green-600 bg-green-50 p-3 rounded-lg">
+                  <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+                  <span className="text-sm">Password changed successfully!</span>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={() => {
+                    setShowPasswordModal(false);
+                    resetPasswordForm();
+                  }}
+                  className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                  disabled={isChangingPassword}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handlePasswordChange}
+                  disabled={isChangingPassword || !passwordRequirementsMet}
+                  className="flex-1 px-4 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isChangingPassword ? (isGoogleUser ? 'Setting...' : 'Changing...') : (isGoogleUser ? 'Set Password' : 'Change Password')}
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }; 
