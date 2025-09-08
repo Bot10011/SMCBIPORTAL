@@ -18,6 +18,8 @@ import {
   Chip,
 } from '@mui/material';
 import jsPDF from 'jspdf';
+import { motion } from 'framer-motion';
+import { FileText } from 'lucide-react';
 
 interface EnrollmentSubject {
       id: string;
@@ -564,7 +566,7 @@ const Prospectus: React.FC = () => {
 
   return (
     <Box sx={{ p: 3 }}>
-      <Card sx={{ mb: 3, borderRadius: 2 }}>
+      <Card sx={{ mb: 3, borderRadius: 2, display: { xs: 'none', sm: 'block' } }}>
         <CardContent>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
             <Typography variant="h5" sx={{ fontWeight: 700, color: '#1e40af', textAlign: 'center', flex: 1 }}>
@@ -616,6 +618,67 @@ const Prospectus: React.FC = () => {
         </CardContent>
       </Card>
 
+      {/* Simplified mobile-friendly view: only guidance and download button */}
+      <Box sx={{ maxWidth: 520, mx: 'auto', mb: 2, display: { xs: 'block', sm: 'none' } }}>
+        <motion.div 
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 via-white to-purple-50 shadow-inner border border-blue-100"
+        >
+          <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-4 py-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
+                  <FileText className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-xl font-bold text-white tracking-tight">Student Prospectus</h1>
+                  <p className="text-white/80 text-sm font-medium">View, download, and print your official Prospectus</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Section container with CTA button (matches screenshot) */}
+        <Card sx={{ mt: 2, borderRadius: 2 }}>
+          <CardContent>
+            <Typography variant="h6" sx={{ fontWeight: 700, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ fontSize: '1.1rem' }}>📱</Box>
+              Mobile View
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              The prospectus table is too complex for mobile viewing. Please download the PDF version for better readability.
+            </Typography>
+            <Button 
+              onClick={handleDownloadPDF}
+              variant="contained"
+              fullWidth
+              sx={{
+                borderRadius: 2,
+                py: 1.25,
+                fontWeight: 800,
+                letterSpacing: 0.3,
+                textTransform: 'uppercase',
+                fontSize: '0.8rem',
+                background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                color: 'white',
+                boxShadow: 'inset 0 -2px 0 rgba(255,255,255,0.25), 0 8px 20px rgba(79,70,229,0.35)',
+                '&:hover': { background: 'linear-gradient(135deg, #585cf0 0%, #7c3aed 100%)' }
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <FileText size={16} />
+                Download Prospectus PDF
+              </Box>
+            </Button>
+          </CardContent>
+        </Card>
+      </Box>
+
+      {/* Detailed tables visible on tablet/desktop only */}
+      <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
       <Typography variant="h6" sx={{ fontWeight: 600, color: '#374151', mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
         <Box sx={{ fontSize: '1.2rem' }}>📚</Box>
         Subjects
@@ -1015,6 +1078,7 @@ const Prospectus: React.FC = () => {
           </Card>
         );
       })}
+      </Box>
 
 
     </Box>
