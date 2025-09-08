@@ -263,12 +263,14 @@ const sidebarItems: SidebarItem[] = [
     icon: <PiBookOpenTextBold className="w-5 h-5" />,
     roles: ['student'],
   },
+  /*
   {
     label: 'Receipt & Permit',
     path: '/dashboard/receipt-permit',
     icon: <FileText className="w-5 h-5" />,
     roles: ['student'],
   },
+ */
   {
     label: 'Grade Report',
     path: '/dashboard/grades',
