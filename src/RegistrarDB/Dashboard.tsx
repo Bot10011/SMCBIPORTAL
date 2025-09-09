@@ -9,7 +9,6 @@ import Settings from './Settings';
 import { 
   CheckSquare, 
   FileText, 
-  AlertTriangle, 
   BookOpen, 
   BarChart4, 
   Clock,
@@ -38,7 +37,7 @@ type ActivityLog = {
 
 
 type EnrollmentData = {
-  month: string;
+  year: string;
   count: number;
   status: string;
 };
@@ -52,13 +51,28 @@ type CapacityData = {
   maxCapacity: number;
 };
 
+// Helper function to format school year professionally
+const formatSchoolYear = (year: string): string => {
+  if (!year || year === 'Unknown') return 'Unknown';
+  
+  // If it's already formatted (e.g., "2023-2024"), return as is
+  if (year.includes('-')) return year;
+  
+  // If it's a single year, format it as "YYYY-YYYY+1"
+  const yearNum = parseInt(year);
+  if (!isNaN(yearNum)) {
+    return `${yearNum}-${yearNum + 1}`;
+  }
+  
+  return year;
+};
+
 const DashboardOverview: React.FC = () => {
   const navigate = useNavigate();
   const [stats, setStats] = useState({
     pendingEnrollments: 0,
     totalCourses: 0,
-    studentRecords: 0,
-    classesWithConflicts: 0
+    studentRecords: 0
   });
   const [recentActivities, setRecentActivities] = useState<ActivityLog[]>([]);
   const [capacityData, setCapacityData] = useState<CapacityData[]>([]);
@@ -113,8 +127,6 @@ const DashboardOverview: React.FC = () => {
           throw studentError;
         }
 
-        // Fetch classes with conflicts (check for schedule overlaps)
-        const conflicts = await fetchClassConflicts();
 
         // Fetch recent activities from real data
         const activities = await fetchRecentActivities();
@@ -128,8 +140,7 @@ const DashboardOverview: React.FC = () => {
         setStats({
           pendingEnrollments: enrollments.length,
           totalCourses: subjects.length,
-          studentRecords: studentCount || 0,
-          classesWithConflicts: conflicts.length
+          studentRecords: studentCount || 0
         });
         setRecentActivities(activities);
         setCapacityData(capacityStats);
@@ -144,60 +155,6 @@ const DashboardOverview: React.FC = () => {
     fetchDashboardData();
   }, []);
 
-  const fetchClassConflicts = async (): Promise<Array<{id: string, class_name: string, conflict: string}>> => {
-    try {
-      // Try to fetch class conflicts, but handle missing status column gracefully
-      let conflicts: Array<{id: string, subject?: {code?: string, name?: string}[], student?: {student_id?: string, first_name?: string, last_name?: string, middle_name?: string, display_name?: string}[]}> = [];
-      try {
-        const { data: conflictsData, error } = await supabase
-          .from('enrollcourse')
-          .select(`
-            id,
-            subject:courses(code, name),
-            student:user_profiles(student_id, first_name, last_name, middle_name, display_name)
-          `)
-          .eq('status', 'conflict')
-          .limit(5);
-        
-        if (!error) {
-          conflicts = conflictsData || [];
-        }
-      } catch {
-        // If status column doesn't exist, return empty array
-        conflicts = [];
-      }
-      
-      return conflicts?.map(conflict => {
-        // Helper function to get student name
-        const getStudentName = (student: {display_name?: string, first_name?: string, last_name?: string, middle_name?: string}) => {
-          if (student.display_name && student.display_name.trim() !== '') {
-            return student.display_name;
-          }
-          
-          // Fallback to concatenating first_name, last_name, middle_name
-          const firstName = student.first_name || '';
-          const lastName = student.last_name || '';
-          const middleName = student.middle_name || '';
-          
-          const nameParts = [firstName, middleName, lastName].filter(part => part.trim() !== '');
-          return nameParts.length > 0 ? nameParts.join(' ') : 'Unknown Student';
-        };
-
-        const studentName = conflict.student && conflict.student.length > 0 
-          ? getStudentName(conflict.student[0]) 
-          : 'Unknown Student';
-
-        return {
-          id: conflict.id,
-          class_name: (conflict.subject && conflict.subject.length > 0 ? conflict.subject[0]?.code : undefined) || 'Unknown',
-          conflict: `Schedule conflict detected for ${studentName}`
-        };
-      }) || [];
-    } catch (error) {
-      console.error('Error in fetchClassConflicts:', error);
-      return [];
-    }
-  };
 
   const fetchRecentActivities = async (): Promise<ActivityLog[]> => {
     try {
@@ -380,39 +337,47 @@ const DashboardOverview: React.FC = () => {
 
   const fetchEnrollmentData = async (): Promise<EnrollmentData[]> => {
     try {
-      // Fetch real enrollment data by month from user_profiles table
+      // Fetch ALL students with school_year
       const { data: enrollments, error } = await supabase
         .from('user_profiles')
-        .select('created_at, enrollment_status')
+        .select('school_year, enrollment_status')
         .eq('role', 'student')
-        .gte('created_at', new Date(new Date().getFullYear(), 0, 1).toISOString()); // From January 1st of current year
+        .not('school_year', 'is', null); // Only get students with school_year
       
       if (error) {
         console.error('Error fetching enrollment data:', error);
         return [];
       }
       
-      // Group enrollments by month
-      const monthlyData: { [key: string]: number } = {};
-      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      // Group students by school_year
+      const yearlyData: { [key: string]: number } = {};
       
       enrollments?.forEach(enrollment => {
-        const date = new Date(enrollment.created_at);
-        const month = monthNames[date.getMonth()];
-        monthlyData[month] = (monthlyData[month] || 0) + 1;
+        const schoolYear = enrollment.school_year?.toString() || 'Unknown';
+        yearlyData[schoolYear] = (yearlyData[schoolYear] || 0) + 1;
       });
       
-      // Convert to array format
-      return monthNames.map(month => ({
-        month,
-        count: monthlyData[month] || 0,
-        status: monthNames.indexOf(month) < new Date().getMonth() ? 'completed' : 'pending'
-      }));
+      // Convert to array format and sort by year with professional formatting
+      const result = Object.entries(yearlyData)
+        .map(([year, count]) => ({
+          year: formatSchoolYear(year),
+          count,
+          status: 'current'
+        }))
+        .sort((a, b) => {
+          // Sort by year numerically if possible, otherwise alphabetically
+          const yearA = parseInt(a.year.split('-')[0]) || 0;
+          const yearB = parseInt(b.year.split('-')[0]) || 0;
+          return yearB - yearA; // Most recent first
+        });
+      
+      return result;
     } catch (error) {
       console.error('Error in fetchEnrollmentData:', error);
       return [];
     }
   };
+
 
 
 
@@ -564,7 +529,7 @@ const DashboardOverview: React.FC = () => {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5, delay: 0.1 }}
-        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
       >
         <StatsCard 
           title="Pending Enrollments" 
@@ -584,14 +549,6 @@ const DashboardOverview: React.FC = () => {
           value={stats.studentRecords} 
           icon={<Users className="w-8 h-8 text-purple-500" />} 
           color="purple"
-  
-        />
-        <StatsCard 
-          title="Classes with Conflicts" 
-          value={stats.classesWithConflicts} 
-          icon={<AlertTriangle className="w-8 h-8 text-red-500" />} 
-          color="red"
-        
         />
       </motion.div>
 
@@ -693,47 +650,138 @@ const DashboardOverview: React.FC = () => {
         </motion.div>
       </div>
 
-      {/* Enrollment Summary Chart */}
+      {/* Clean Enrollment Summary */}
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.4 }}
-        className="bg-white/90 rounded-2xl shadow-lg p-6 hover:shadow-xl transition-shadow duration-300"
+        className="bg-white/90 rounded-xl shadow-sm border border-gray-200 p-6"
       >
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-gray-800 flex items-center">
-            <BarChart4 className="w-5 h-5 mr-2 text-gray-600" />
-            Enrollment Summary
-          </h2>
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+              <BarChart4 className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Enrollment Summary</h2>
+              <p className="text-sm text-gray-500">Students by school year</p>
+            </div>
+          </div>
           <button 
             onClick={handleViewEnrollmentDetails}
-            className="text-blue-600 hover:text-blue-800 text-sm font-medium hover:underline"
+            className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg text-sm font-medium transition-colors"
           >
-            View Details
+            View All →
           </button>
         </div>
-        <div className="h-60">
+
+        {/* Professional Bar Chart with Proper Alignment */}
+        <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-6 border border-gray-200">
           {enrollmentData.length > 0 ? (
-            <div className="flex items-end justify-between h-full space-x-2">
-              {enrollmentData.map((item, index) => (
-                <div key={index} className="flex flex-col items-center flex-1">
-                  <div 
-                    className="w-full bg-gradient-to-t from-blue-500 to-blue-300 rounded-t-lg transition-all duration-300 hover:from-blue-600 hover:to-blue-400"
-                    style={{ height: `${(item.count / 300) * 200}px` }}
-                  ></div>
-                  <div className="text-xs text-gray-600 mt-2 text-center">
-                    <div className="font-medium">{item.month}</div>
-                    <div className="text-gray-400">{item.count}</div>
+            <div className="space-y-4">
+              {/* Chart Header */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                  <span className="text-sm font-medium text-gray-600">Total Students</span>
+                </div>
+                <div className="text-sm text-gray-500">
+                  {enrollmentData.reduce((sum, item) => sum + item.count, 0)} total students
+                </div>
+              </div>
+
+              {/* Chart Container - Dynamic Responsive Design */}
+              <div className="relative overflow-x-auto">
+                {/* Chart area with dynamic spacing based on number of years */}
+                <div className={`flex h-64 ${enrollmentData.length <= 3 ? 'min-w-[400px]' : enrollmentData.length <= 6 ? 'min-w-[600px]' : 'min-w-[800px]'}`}>
+                  {/* Y-axis with proper alignment */}
+                  <div className="flex flex-col justify-between pr-3 text-xs text-gray-500 font-medium flex-shrink-0">
+                    {[1000, 900, 800, 700, 600, 500, 400, 300, 200, 100].map((value, i) => (
+                      <div key={i} className="h-6 flex items-center justify-end">
+                        {value}
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {/* Chart area with grid lines and bars */}
+                  <div className="flex-1 relative">
+                    {/* Horizontal grid lines with proper spacing */}
+                    <div className="absolute inset-0 flex flex-col justify-between">
+                      {[1000, 900, 800, 700, 600, 500, 400, 300, 200, 100].map((value, i) => (
+                        <div key={i} className="border-t border-gray-300 h-6"></div>
+                      ))}
+                    </div>
+                    
+                    {/* Dynamic bars with responsive spacing */}
+                    <div className={`relative flex items-end h-full px-2 ${enrollmentData.length <= 3 ? 'gap-6' : enrollmentData.length <= 6 ? 'gap-4' : 'gap-2'} -translate-x-1 sm:-translate-x-2`}>
+                      {enrollmentData.map((item) => {
+                        // Use fixed 100-1000 scale for consistent Y-axis indicators
+                        const minScale = 100;
+                        const maxScale = 1000;
+                        const scaleRange = maxScale - minScale;
+                        
+                        // Ensure the value is within the scale range
+                        const clampedValue = Math.max(minScale, Math.min(maxScale, item.count));
+                        
+                        // Calculate height percentage that aligns with grid lines
+                        const heightPercentage = ((clampedValue - minScale) / scaleRange) * 100;
+                        
+                        // Dynamic bar width based on number of years
+                        const barWidth = enrollmentData.length <= 3 ? 'w-16 sm:w-20 md:w-24' : 
+                                       enrollmentData.length <= 6 ? 'w-14 sm:w-16 md:w-20' : 
+                                       'w-12 sm:w-14 md:w-16';
+                        
+                        return (
+                          <div key={item.year} className={`flex flex-col items-center justify-end h-full ${barWidth}`}>
+                            {/* Value indicator above bar */}
+                            <div className="text-xs font-bold text-gray-800 mb-1 bg-white px-2 py-1 rounded-full shadow-sm border whitespace-nowrap">
+                              {item.count}
+                            </div>
+                            
+                            {/* Bar with dynamic height */}
+                            <div 
+                              className={`${barWidth} bg-gradient-to-t from-blue-600 to-blue-400 rounded-t-lg shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer relative group`}
+                              style={{ 
+                                height: `${Math.max(heightPercentage, 1)}%` // Minimum 1% for visibility
+                              }}
+                            >
+                              {/* Hover effect */}
+                              <div className="absolute inset-0 bg-gradient-to-t from-blue-700 to-blue-500 rounded-t-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
-              ))}
+                
+                {/* Dynamic year labels with responsive spacing */}
+                <div className={`flex mt-2 px-2 ${enrollmentData.length <= 3 ? 'gap-6' : enrollmentData.length <= 6 ? 'gap-4' : 'gap-2'}`}>
+                  {enrollmentData.map((item) => {
+                    // Dynamic label width based on number of years
+                    const labelWidth = enrollmentData.length <= 3 ? 'w-16 sm:w-20 md:w-24' : 
+                                     enrollmentData.length <= 6 ? 'w-14 sm:w-16 md:w-20' : 
+                                     'w-12 sm:w-14 md:w-16';
+                    
+                    return (
+                      <div key={item.year} className={`text-center ${labelWidth}`}>
+                        <div className="w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white py-1.5 rounded-lg text-xs sm:text-sm font-semibold shadow-md hover:shadow-lg transition-shadow duration-300 whitespace-nowrap translate-x-3 sm:translate-x-7">
+                          {item.year}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           ) : (
-            <div className="h-full flex items-center justify-center">
-              <div className="text-center text-gray-500">
-                <BarChart4 className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-                <p>No enrollment data available</p>
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
+                <BarChart4 className="w-8 h-8 text-gray-400" />
               </div>
+              <p className="text-gray-600 font-semibold text-lg">No Enrollment Data</p>
+              <p className="text-sm text-gray-500 mt-1">Students will appear here once they enroll</p>
             </div>
           )}
         </div>
