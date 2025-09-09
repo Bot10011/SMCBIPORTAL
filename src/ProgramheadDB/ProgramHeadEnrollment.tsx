@@ -36,10 +36,12 @@ import html2canvas from 'html2canvas';
 
 interface Student {
   id: string;
+  studentId?: string; // The actual student ID (e.g., C-250007)
   firstName?: string;
   middleName?: string;
   lastName?: string;
   name: string;
+  gender?: 'Male' | 'Female' | 'Other';
   studentType: 'Freshman' | 'Regular' | 'Irregular' | 'Transferee';
   yearLevel: number;
   currentSubjects: Subject[];
@@ -1109,6 +1111,7 @@ const ProgramHeadEnrollment: React.FC = () => {
     firstName: '',
     middleName: '',
     lastName: '',
+    gender: 'Male',
     email: '',
     password: 'TempPass@123',
     studentType: 'Freshman',
@@ -1336,27 +1339,39 @@ const ProgramHeadEnrollment: React.FC = () => {
         const yearPrefix = match[1].slice(-2);
         
         try {
-          // Query how many students are already enrolled in this school year
-          const { count, error } = await supabase
+          // Get all existing student IDs for this year to find the highest number
+          const { data: existingStudents, error } = await supabase
             .from('user_profiles')
-            .select('id', { count: 'exact', head: true })
-            .ilike('student_id', `C-${yearPrefix}%`);
+            .select('student_id')
+            .ilike('student_id', `C-${yearPrefix}%`)
+            .not('student_id', 'is', null);
           
           if (error) {
-            console.error('Error counting existing students:', error);
+            console.error('Error fetching existing students:', error);
             return;
           }
           
-          let regNum = 1;
-          if (typeof count === 'number') {
-            regNum = count + 1;
+          // Extract numbers from existing student IDs and find the highest
+          let maxRegNum = 0;
+          if (existingStudents && existingStudents.length > 0) {
+            existingStudents.forEach(student => {
+              if (student.student_id) {
+                const match = student.student_id.match(/C-\d{2}(\d{4})/);
+                if (match) {
+                  const regNum = parseInt(match[1], 10);
+                  if (regNum > maxRegNum) {
+                    maxRegNum = regNum;
+                  }
+                }
+              }
+            });
           }
           
-          // Generate a unique student ID with padding
-          const regNumStr = regNum.toString().padStart(4, '0');
-          const studentId = `C-${yearPrefix}${regNumStr}`;
+          // Generate the next available student ID
+          let regNum = maxRegNum + 1;
+          let studentId = `C-${yearPrefix}${regNum.toString().padStart(4, '0')}`;
           
-          // Double-check that this ID doesn't already exist
+          // Double-check that this ID doesn't already exist (extra safety)
           const { data: existingStudent, error: checkError } = await supabase
             .from('user_profiles')
             .select('id')
@@ -1368,15 +1383,33 @@ const ProgramHeadEnrollment: React.FC = () => {
             return;
           }
           
-          if (existingStudent) {
-            // If ID exists, increment and try again
+          // If somehow the ID still exists, keep incrementing until we find a free one
+          while (existingStudent) {
             regNum += 1;
-            const newRegNumStr = regNum.toString().padStart(4, '0');
-            const newStudentId = `C-${yearPrefix}${newRegNumStr}`;
-            setCreateForm(f => ({ ...f, studentId: newStudentId }));
-          } else {
-            setCreateForm(f => ({ ...f, studentId }));
+            studentId = `C-${yearPrefix}${regNum.toString().padStart(4, '0')}`;
+            
+            const { data: checkStudent, error: checkErr } = await supabase
+              .from('user_profiles')
+              .select('id')
+              .eq('student_id', studentId)
+              .single();
+            
+            if (checkErr && checkErr.code === 'PGRST116') {
+              // No student found with this ID, we can use it
+              break;
+            } else if (checkErr) {
+              console.error('Error checking student ID:', checkErr);
+              return;
+            }
+            
+            // If we've tried too many times, something is wrong
+            if (regNum > maxRegNum + 100) {
+              console.error('Could not find available student ID after 100 attempts');
+              return;
+            }
           }
+          
+          setCreateForm(f => ({ ...f, studentId }));
         } catch (err) {
           console.error('Error generating student ID:', err);
         }
@@ -1386,7 +1419,7 @@ const ProgramHeadEnrollment: React.FC = () => {
     };
     
     // Add a small delay to prevent rapid successive calls
-    const timeoutId = setTimeout(generateStudentId, 100);
+    const timeoutId = setTimeout(generateStudentId, 200);
     return () => clearTimeout(timeoutId);
     // eslint-disable-next-line
   }, [createForm.schoolYear, createForm.firstName, createForm.lastName]);
@@ -1455,12 +1488,67 @@ const ProgramHeadEnrollment: React.FC = () => {
     try {
       setLoading(true);
       // Fetch real students from the database
+      // First try to get all fields including gender
       const { data, error } = await supabase
         .from('user_profiles')
-        .select('*')
+        .select('id, email, first_name, middle_name, last_name, gender, student_type, year_level, enrollment_status, department, school_year, semester, section, student_id, created_at')
         .eq('role', 'student')
         .order('created_at', { ascending: true });
-      if (error) throw error;
+      if (error) {
+        console.error('Database error with gender field:', error);
+        // If gender field doesn't exist, try without it
+        console.log('Retrying without gender field...');
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('user_profiles')
+          .select('id, email, first_name, middle_name, last_name, student_type, year_level, enrollment_status, department, school_year, semester, section, student_id, created_at')
+          .eq('role', 'student')
+          .order('created_at', { ascending: true });
+        
+        if (fallbackError) {
+          console.error('Fallback query also failed:', fallbackError);
+          throw fallbackError;
+        }
+        
+        console.log('Fallback query successful, using data without gender field');
+        const students = (fallbackData || []).map((student: Record<string, unknown>, index: number) => {
+          const firstName = String(student.first_name || '');
+          const middleName = String(student.middle_name || '');
+          const lastName = String(student.last_name || '');
+          
+          const fullName = middleName 
+            ? `${lastName} ${middleName} ${firstName}`
+            : `${lastName} ${firstName}`;
+          
+          const uniqueId = String(student.id);
+          
+          return {
+            id: uniqueId,
+            studentId: String(student.student_id || ''),
+            name: fullName,
+            firstName,
+            middleName,
+            lastName,
+            gender: 'Male' as Student['gender'], // Default since gender column doesn't exist
+            studentType: (student.student_type as Student['studentType']) || 'Freshman',
+            yearLevel: Number(student.year_level) || 1,
+            currentSubjects: [],
+            doneSubjects: [],
+            status: (student.enrollment_status as Student['status']) || 'pending',
+            department: String(student.department || ''),
+            schoolYear: String(student.school_year || ''),
+            semester: String(student.semester || ''),
+            section: String(student.section || ''),
+          };
+        });
+        
+        const uniqueStudents = students.filter((student, index, self) => 
+          index === self.findIndex(s => s.id === student.id)
+        );
+        
+        console.log('Processed students without gender field:', uniqueStudents);
+        setStudents(uniqueStudents);
+        return;
+      }
       
       // Map to Student interface if needed
       const students = (data || []).map((student: Record<string, unknown>, index: number) => {
@@ -1473,17 +1561,26 @@ const ProgramHeadEnrollment: React.FC = () => {
           ? `${lastName} ${middleName} ${firstName}`
           : `${lastName} ${firstName}`;
         
-        // Use a unique identifier: prefer student_id if available, otherwise use UUID with index fallback
-        const uniqueId = student.student_id 
-          ? String(student.student_id)
-          : `${String(student.id)}-${index}`;
+        // Use the database UUID as the unique identifier to prevent deduplication issues
+        const uniqueId = String(student.id);
         
-        return {
+        // Handle gender field - check if it exists and is valid
+        let gender: Student['gender'] = 'Male'; // Default fallback
+        if (student.gender && typeof student.gender === 'string') {
+          const genderValue = student.gender as string;
+          if (['Male', 'Female', 'Other'].includes(genderValue)) {
+            gender = genderValue as Student['gender'];
+          }
+        }
+        
+        const studentData = {
           id: uniqueId,
+          studentId: String(student.student_id || ''),
           name: fullName,
           firstName,
           middleName,
           lastName,
+          gender,
           studentType: (student.student_type as Student['studentType']) || 'Freshman',
           yearLevel: Number(student.year_level) || 1,
           currentSubjects: [],
@@ -1494,6 +1591,8 @@ const ProgramHeadEnrollment: React.FC = () => {
           semester: String(student.semester || ''),
           section: String(student.section || ''),
         };
+        
+        return studentData;
       });
       
       // Remove any potential duplicates by filtering unique IDs
@@ -1537,6 +1636,7 @@ const ProgramHeadEnrollment: React.FC = () => {
           first_name: capitalizedFirstName,
           middle_name: capitalizedMiddleName,
           last_name: capitalizedLastName,
+          gender: createForm.gender,
           student_type: createForm.studentType,
           year_level: String(createForm.yearLevel),
           school_year: createForm.schoolYear,
@@ -1565,7 +1665,7 @@ const ProgramHeadEnrollment: React.FC = () => {
         }
         toast.success('Existing student enrollment updated!');
         handleCloseCreateDialog();
-        setCreateForm({ firstName: '', middleName: '', lastName: '', email: '', password: 'TempPass@123', studentType: 'Freshman', yearLevel: 1, schoolYear: getDefaultSchoolYear(), studentId: '', department: 'BSIT', semester: '1st Semester', section: '' });
+        setCreateForm({ firstName: '', middleName: '', lastName: '', gender: 'Male', email: '', password: 'TempPass@123', studentType: 'Freshman', yearLevel: 1, schoolYear: getDefaultSchoolYear(), studentId: '', department: 'BSIT', semester: '1st Semester', section: '' });
         setSelectedCourses([]);
         setSelectedExistingStudent(null);
         loadEnrollments();
@@ -1606,6 +1706,7 @@ const ProgramHeadEnrollment: React.FC = () => {
         first_name: capitalizedFirstName,
         middle_name: capitalizedMiddleName,
         last_name: capitalizedLastName,
+        gender: createForm.gender,
         role: 'student',
         is_active: true,
         student_type: createForm.studentType,
@@ -1636,7 +1737,7 @@ const ProgramHeadEnrollment: React.FC = () => {
       }
       toast.success('Student account successfully created.');
       setIsCreateDialogOpen(false);
-      setCreateForm({ firstName: '', middleName: '', lastName: '', email: '', password: 'TempPass@123', studentType: 'Freshman', yearLevel: 1, schoolYear: getDefaultSchoolYear(), studentId: '', department: 'BSIT', semester: '1st Semester', section: '' });
+      setCreateForm({ firstName: '', middleName: '', lastName: '', gender: 'Male', email: '', password: 'TempPass@123', studentType: 'Freshman', yearLevel: 1, schoolYear: getDefaultSchoolYear(), studentId: '', department: 'BSIT', semester: '1st Semester', section: '' });
       setSelectedCourses([]);
       setSelectedExistingStudent(null);
       loadEnrollments();
@@ -1778,7 +1879,7 @@ const ProgramHeadEnrollment: React.FC = () => {
     const matchesSearch =
       filterSearch === '' ||
       student.name.toLowerCase().includes(filterSearch.toLowerCase()) ||
-      (student.id && student.id.toLowerCase().includes(filterSearch.toLowerCase()));
+      (student.studentId && student.studentId.toLowerCase().includes(filterSearch.toLowerCase()));
     const matchesYear = filterYear === '' || String(student.yearLevel) === filterYear;
     const matchesType = filterType === '' || student.studentType === filterType;
     const matchesStatus = filterStatus === '' || (student.status && student.status.toLowerCase() === filterStatus.toLowerCase());
@@ -1878,6 +1979,7 @@ const ProgramHeadEnrollment: React.FC = () => {
       firstName,
       middleName,
       lastName,
+      gender: student.gender || 'Male', // Default to Male if not specified
       email: '', // Not editable
       password: 'TempPass@123', // Not editable
       studentType: student.studentType,
@@ -1939,10 +2041,12 @@ const ProgramHeadEnrollment: React.FC = () => {
   const handleOpenProspectusModal = (student: Student) => {
     setSelectedStudentForProspectus(student);
     setIsProspectusModalOpen(true);
-    // We need to get the UUID from user_profiles since student.id contains the formatted student_id
-    fetchStudentGradesByFormattedId(student.id);
-    fetchStudentEnrollmentsByFormattedId(student.id);
-    fetchStudentConfirmations(student.id);
+    // Use the studentId (formatted student ID) for the prospectus functions
+    if (student.studentId) {
+      fetchStudentGradesByFormattedId(student.studentId);
+      fetchStudentEnrollmentsByFormattedId(student.studentId);
+      fetchStudentConfirmations(student.studentId);
+    }
   };
 
   // Handler to close prospectus modal
@@ -2263,6 +2367,7 @@ const ProgramHeadEnrollment: React.FC = () => {
       firstName: '',
       middleName: '',
       lastName: '',
+      gender: 'Male',
       email: '',
       password: 'TempPass@123',
       studentType: 'Freshman',
@@ -3938,7 +4043,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                       fontFamily: 'monospace',
                       fontSize: '0.875rem'
                     }}>
-                      {student.id}
+                      {student.studentId || 'N/A'}
                     </TableCell>
                     <TableCell sx={{ 
                       fontWeight: 500,
@@ -4235,6 +4340,28 @@ const ProgramHeadEnrollment: React.FC = () => {
                           }
                         }}
                       />
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <FormControl fullWidth>
+                        <InputLabel>Gender</InputLabel>
+                        <Select 
+                          value={createForm.gender} 
+                          label="Gender" 
+                          onChange={e => setCreateForm(f => ({ ...f, gender: e.target.value }))} 
+                          required 
+                          fullWidth
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              '& fieldset': {
+                                borderColor: '#d1d5db'
+                              }
+                            }
+                          }}
+                        >
+                          <MenuItem value="Male">Male</MenuItem>
+                          <MenuItem value="Female">Female</MenuItem>
+                        </Select>
+                      </FormControl>
                     </Grid>
                     <Grid item xs={12}>
                       <TextField 
@@ -4845,6 +4972,29 @@ const ProgramHeadEnrollment: React.FC = () => {
                           }
                         }}
                       />
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <FormControl fullWidth>
+                        <InputLabel>Gender</InputLabel>
+                        <Select 
+                          value={createForm.gender} 
+                          label="Gender" 
+                          onChange={e => setCreateForm(f => ({ ...f, gender: e.target.value }))} 
+                          required 
+                          fullWidth
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              '& fieldset': {
+                                borderColor: '#d1d5db'
+                              }
+                            }
+                          }}
+                        >
+                          <MenuItem value="Male">Male</MenuItem>
+                          <MenuItem value="Female">Female</MenuItem>
+                          <MenuItem value="Other">Other</MenuItem>
+                        </Select>
+                      </FormControl>
                     </Grid>
                     <Grid item xs={12}>
                       <TextField 
