@@ -158,7 +158,7 @@ const LandingPage = () => {
       fb: 'https://www.facebook.com/retchel.cabaron.1',
     },
     {
-      img: '/img/2.png',
+      img: '/img/2.jpg',
       name: 'Jesson Mondejar',
       role: 'Lead Full-Stack Developer & UX/UI Designer',
       fb: 'https://www.facebook.com/code.write.debug.learn.build.repeat.improve.grow',
