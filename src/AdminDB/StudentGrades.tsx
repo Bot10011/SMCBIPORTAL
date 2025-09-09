@@ -109,6 +109,38 @@ export default function StudentGrades() {
   
   // State for section mapping
   const [sectionMap, setSectionMap] = useState<Map<string, string>>(new Map());
+  // Released grades modal state
+  const [releasedModalOpen, setReleasedModalOpen] = useState(false);
+  const [releasedModalGroup, setReleasedModalGroup] = useState<{
+    year: string;
+    section: string;
+    items: Grade[];
+  } | null>(null);
+  const [releasedModalUpdating, setReleasedModalUpdating] = useState(false);
+  const [releasedModalSearch, setReleasedModalSearch] = useState('');
+
+  const handleHideReleasedGroup = async () => {
+    if (!releasedModalGroup || releasedModalUpdating) return;
+    try {
+      setReleasedModalUpdating(true);
+      const ids = releasedModalGroup.items.map((i) => i.id);
+      const { error } = await supabase
+        .from('grades')
+        .update({ is_released: false })
+        .in('id', ids);
+      if (error) {
+        toast.error('Failed to hide released grades');
+      } else {
+        setGrades((prev) => prev.map((g) => (ids.includes(g.id) ? { ...g, is_released: false } : g)));
+        toast.success('Grades moved back to pending');
+        setReleasedModalOpen(false);
+      }
+    } catch {
+      toast.error('Failed to hide released grades');
+    } finally {
+      setReleasedModalUpdating(false);
+    }
+  };
   
 
   
@@ -1341,7 +1373,8 @@ export default function StudentGrades() {
     let filtered = grades.filter(grade => 
       grade.year_level === selectedYearLevel && 
       grade.section === selectedSection &&
-      grade.course_code === selectedSubject
+      grade.course_code === selectedSubject &&
+      !grade.is_released
     );
     
     // Apply search filter if search term exists
@@ -1433,7 +1466,7 @@ export default function StudentGrades() {
     try {
       // Create a CSV report
       const csvData = [
-        ['Student Name', 'Student ID', 'Course', 'Prelim', 'Midterm', 'Final', 'General Average', 'Remarks', 'Status'],
+        ['Student Name', 'Student ID', 'Subject', 'Prelim', 'Midterm', 'Final', 'GA', 'Status'],
         ...filteredStudents.map(student => [
           student.student_name || 'Unknown',
           student.school_id || student.student_id,
@@ -1442,7 +1475,6 @@ export default function StudentGrades() {
           student.midterm_grade?.toString() || '-',
           student.final_grade?.toString() || '-',
           student.general_average?.toFixed(2) || '-',
-          student.remarks || '-',
           student.is_approved ? 'Approved' : 'Pending'
         ])
       ];
@@ -1478,7 +1510,8 @@ export default function StudentGrades() {
         g.program_name === selectedProgramName &&
         g.year_level === yearLevel && 
         g.section === section && 
-        g.course_code === subject
+        g.course_code === subject &&
+        !g.is_released
       )
       .slice(0, 8); // cap to 8 avatars for layout
   };
@@ -1491,7 +1524,8 @@ export default function StudentGrades() {
         g.program_name === selectedProgramName &&
         g.year_level === yearLevel && 
         g.section === section && 
-        g.course_code === subject
+        g.course_code === subject &&
+        !g.is_released
       )
       .length;
   };
@@ -1499,6 +1533,102 @@ export default function StudentGrades() {
   return (
     <div className="min-h-screen from-blue-50 via-white to-indigo-50 py-8">
       <div className="max-w-7xl mx-auto px-4">
+        {/* Released Grades Modal */}
+        {releasedModalOpen && releasedModalGroup && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/40" onClick={() => setReleasedModalOpen(false)}></div>
+            <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-3xl mx-4 overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                <div>
+                  <div className="text-lg font-semibold text-gray-800">
+                    Released • {getYearLevelDisplayName(releasedModalGroup.year)} • Sec {getSectionDisplayName(releasedModalGroup.section, sectionMap)}
+                  </div>
+                  <div className="text-xs text-gray-500">{releasedModalGroup.items.length} records</div>
+                </div>
+                <button
+                  onClick={() => setReleasedModalOpen(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="px-6 py-3 border-b border-gray-200">
+                <div className="flex items-center gap-3 justify-between">
+                  <div className="relative max-w-md flex-1">
+                    <input
+                      type="text"
+                      value={releasedModalSearch}
+                      onChange={(e) => setReleasedModalSearch(e.target.value)}
+                      placeholder="Search student by name..."
+                      className="w-full h-10 px-4 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    />
+                  </div>
+                  <button
+                    onClick={handleHideReleasedGroup}
+                    disabled={releasedModalUpdating}
+                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${releasedModalUpdating ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : 'bg-gradient-to-r from-red-600 to-pink-600 text-white hover:shadow-md'}`}
+                  >
+                    {releasedModalUpdating ? 'Hiding…' : 'Hide All (Move back to Pending)'}
+                  </button>
+                </div>
+              </div>
+              <div className="max-h-[60vh] overflow-y-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 text-xs uppercase text-gray-500">
+                    <tr>
+                      <th className="px-4 py-2 text-left">Student</th>
+                      <th className="px-4 py-2 text-left">Subject</th>
+                      <th className="px-4 py-2 text-center">GA</th>
+                      <th className="px-4 py-2 text-left">Updated</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {releasedModalGroup.items
+                      .slice()
+                      .sort((a, b) => {
+                        const aDate = new Date(a.updated_at || a.graded_at || a.created_at).getTime();
+                        const bDate = new Date(b.updated_at || b.graded_at || b.created_at).getTime();
+                        return bDate - aDate;
+                      })
+                      .filter((g) => {
+                        if (!releasedModalSearch.trim()) return true;
+                        const q = releasedModalSearch.toLowerCase();
+                        const name = (g.student_name || '').toLowerCase();
+                        const schoolId = (g.school_id || g.student_id || '').toLowerCase();
+                        return name.includes(q) || schoolId.includes(q);
+                      })
+                      .map((g) => (
+                        <tr key={g.id} className="bg-white/90">
+                          <td className="px-4 py-2">
+                            <div className="flex items-center gap-2">
+                              <img
+                                src={g.avatar_url || "/img/user-avatar.png"}
+                                alt={g.student_name || 'Student'}
+                                className="w-8 h-8 rounded-full border border-gray-200"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.src = "/img/user-avatar.png";
+                                }}
+                              />
+                              <span className="text-sm font-medium text-gray-900 truncate max-w-[200px]">{g.student_name || 'Unknown Student'}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-2 text-sm text-gray-700 truncate max-w-[220px]">{g.course_code || 'Unknown'}{g.course_name && g.course_name !== 'Unknown' ? ` - ${g.course_name}` : ''}</td>
+                          <td className="px-4 py-2 text-center text-sm font-semibold text-blue-900">{g.general_average !== null && g.general_average !== undefined ? g.general_average.toFixed(2) : '-'}</td>
+                          <td className="px-4 py-2 text-xs text-gray-500">{new Date(g.updated_at || g.graded_at || g.created_at).toLocaleString()}</td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="px-6 py-3 border-t border-gray-200 flex items-center justify-between">
+                <div className="text-xs text-gray-500">
+                  {releasedModalGroup.items.length} released • {getYearLevelDisplayName(releasedModalGroup.year)} • Sec {getSectionDisplayName(releasedModalGroup.section, sectionMap)}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
         {/* Header */}
         <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 rounded-2xl mb-8">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -1565,27 +1695,28 @@ export default function StudentGrades() {
         ) : error ? (
           <div className="bg-red-100 text-red-700 rounded-xl p-6 text-center font-semibold">{error}</div>
                 ) : showPrograms ? (
-          // Fast Selection Interface
+          <>
+          {/* Fast Selection Interface */}
           <div className="bg-white/90 rounded-2xl shadow-lg border border-gray-100 p-8">
-            <div className="text-center mb-8">
-              <div className="flex items-center justify-between mb-4">
-                <div></div> {/* Left spacer */}
-                                  <div className="text-center">
-              <h2 className="text-2xl font-bold text-gray-800 mb-2">Quick Grade Management</h2>
-                    <p className="text-gray-600">Click on any program to view and manage student grades</p>
-                  </div>
-                  <div></div> {/* Right spacer */}
-              </div>
-            </div>
-            
-            <div className="max-w-6xl mx-auto">
+             <div className="text-center mb-8">
+               <div className="flex items-center justify-between mb-4">
+                 <div></div> {/* Left spacer */}
+                                   <div className="text-center">
+               <h2 className="text-2xl font-bold text-gray-800 mb-2">Quick Grade Management</h2>
+                     <p className="text-gray-600">Click on any program to view and manage student grades</p>
+                   </div>
+                   <div></div> {/* Right spacer */}
+               </div>
+             </div>
+             
+             <div className="max-w-6xl mx-auto">
 
-              
+               
                              {/* Quick Selection Grid */}
-               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                 {programs
-                   .map((program) => (
-                                      <div
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {programs
+                    .map((program) => (
+                                       <div
                       key={program.id}
                       onClick={() => handleProgramClick(program.id)}
                       className={`rounded-xl p-6 border transition-all duration-200 cursor-pointer transform hover:scale-105 ${
@@ -1694,7 +1825,7 @@ export default function StudentGrades() {
               </div>
               
 
-              
+               
                              {(() => {
                  if (programs.length === 0) {
                    return (
@@ -1719,8 +1850,99 @@ export default function StudentGrades() {
               
 
             </div>
-          </div>
-                 ) : showEmptyProgram ? (
+            {/* Released Grades List */}
+            <div className="mt-10">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-800">Released Grades</h3>
+               
+              </div>
+              <div className="bg-white/80 rounded-xl border border-gray-200 overflow-hidden">
+                {(() => {
+                  const released = [...grades.filter(g => g.is_released)]
+                    .sort((a, b) => {
+                      const aDate = new Date(a.updated_at || a.graded_at || a.created_at).getTime();
+                      const bDate = new Date(b.updated_at || b.graded_at || b.created_at).getTime();
+                      return bDate - aDate;
+                    });
+
+                  if (released.length === 0) {
+                    return (
+                      <div className="px-6 py-8 text-center text-gray-500">No released grades yet</div>
+                    );
+                  }
+
+                  // Group by year_level + section
+                  const groupMap = new Map<string, { year: string; section: string; items: typeof released }>();
+                  released.forEach((g) => {
+                    const year = g.year_level || 'Unknown';
+                    const sectionName = getSectionDisplayName(g.section || '', sectionMap);
+                    const key = `${year}__${sectionName}`;
+                    if (!groupMap.has(key)) {
+                      groupMap.set(key, { year, section: sectionName, items: [] as typeof released });
+                    }
+                    groupMap.get(key)!.items.push(g);
+                  });
+
+                  const grouped = Array.from(groupMap.values()).sort((a, b) => {
+                    // Sort groups by most recent item time desc
+                    const aLatest = new Date(a.items[0].updated_at || a.items[0].graded_at || a.items[0].created_at).getTime();
+                    const bLatest = new Date(b.items[0].updated_at || b.items[0].graded_at || b.items[0].created_at).getTime();
+                    return bLatest - aLatest;
+                  });
+
+                  return (
+                    <div className="px-4 py-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                        {grouped.map((group) => (
+                          <div key={`${group.year}-${group.section}`} className="rounded-xl border border-gray-200 bg-white/90 shadow-sm hover:shadow-md transition-all">
+                            <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                                <div className="text-sm font-semibold text-gray-800">{getYearLevelDisplayName(group.year)} • Sec {group.section}</div>
+                              </div>
+                              <div className="text-xs text-gray-500">{group.items.length} released</div>
+                            </div>
+                            <div
+                              className="p-4 cursor-pointer"
+                              onClick={() => {
+                                setReleasedModalGroup({ year: group.year, section: group.section, items: group.items as unknown as Grade[] });
+                                setReleasedModalOpen(true);
+                              }}
+                              title="Click to view details"
+                            >
+                              {/* Avatar grid only - compress to 10 with overlay counter on last */}
+                              <div className="flex flex-wrap gap-1 -space-x-2">
+                                {group.items.slice(0, 10).map((g, idx) => (
+                                  <div key={g.id} className="relative first:ml-0 ml-2">
+                                    <img
+                                      src={g.avatar_url || "/img/user-avatar.png"}
+                                      alt={g.student_name || 'Student'}
+                                      className="w-8 h-8 rounded-full border-2 border-white shadow-sm"
+                                      onError={(e) => {
+                                        const target = e.target as HTMLImageElement;
+                                        target.src = "/img/user-avatar.png";
+                                      }}
+                                    />
+                                    {idx === 9 && group.items.length > 10 && (
+                                      <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center">
+                                        <span className="text-[10px] font-bold text-white">+{group.items.length - 10}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+            </div>
+          </>
+          ) : showEmptyProgram ? (
                    // Empty Program State
                    <div className="space-y-6">
                      {/* Back Button and Header */}
