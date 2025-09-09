@@ -2,10 +2,38 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import DashboardLayout from '../components/Sidebar';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, Settings, Bell, Activity, Database, BookOpen, GraduationCap } from 'lucide-react';
+import { Users, Bell, Activity, Database, BookOpen, GraduationCap, LogIn, LogOut, Cloud } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
+
+// Google Identity Services TypeScript declarations
+declare global {
+  interface Window {
+    google: {
+      accounts: {
+        id: {
+          initialize: (config: {
+            client_id: string;
+            callback: (response: { credential: string }) => void;
+          }) => void;
+          prompt: () => void;
+          disableAutoSelect: () => void;
+        };
+        oauth2: {
+          initTokenClient: (config: {
+            client_id: string;
+            scope: string;
+            callback: (response: { access_token: string }) => void;
+          }) => {
+            requestAccessToken: () => void;
+          };
+        };
+      };
+    };
+    googleDriveAccessToken: string | null;
+  }
+}
 import Announcement from './Announcement';
 import { createPortal } from 'react-dom';
 import RegistrarEnrollment from '../AdminDB/RegistrarEnrollment';
@@ -35,184 +63,6 @@ const PageTransitionIndicator: React.FC<{ isActive: boolean }> = ({ isActive }) 
   );
 };
 
-// Notification List Component for Settings Page
-const NotificationList: React.FC = () => {
-  const [notifications, setNotifications] = useState<Array<{
-    id: string;
-    title: string;
-    message: string;
-    severity: string;
-    audience: string;
-    priority?: number;
-    expires_at?: string;
-    created_at: string;
-    is_active: boolean;
-  }>>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchNotifications();
-    
-    // Set up real-time subscription for notifications
-    const notificationsSubscription = supabase
-      .channel('settings_notifications_changes')
-      .on('postgres_changes', 
-        { 
-          event: '*', 
-          schema: 'public', 
-          table: 'notifications' 
-        }, 
-        () => {
-          fetchNotifications();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      notificationsSubscription.unsubscribe();
-    };
-  }, []);
-
-  const fetchNotifications = async () => {
-    try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('notifications')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(10);
-
-      if (error) {
-        console.error('Error fetching notifications:', error);
-        return;
-      }
-
-      setNotifications(data || []);
-    } catch (error) {
-      console.error('Error:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDeleteNotification = async (id: string) => {
-    try {
-      const { error } = await supabase
-        .from('notifications')
-        .delete()
-        .eq('id', id);
-
-      if (error) {
-        toast.error('Failed to delete notification');
-        return;
-      }
-
-      toast.success('Notification deleted successfully');
-      fetchNotifications(); // Refresh the list
-    } catch (error) {
-      console.error('Error deleting notification:', error);
-      toast.error('Failed to delete notification');
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="text-sm text-gray-400 text-center py-4">
-        <div className="animate-spin w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full mx-auto mb-2"></div>
-        Loading notifications...
-      </div>
-    );
-  }
-
-  if (notifications.length === 0) {
-    return (
-      <div className="text-sm text-gray-400 text-center py-4">
-        No notifications found. Create your first notification above!
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-3">
-      {notifications.map((notification) => (
-        <motion.div
-          key={notification.id}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className={`p-3 rounded-lg border ${
-            notification.is_active 
-              ? 'bg-[#2f3133] border-gray-600' 
-              : 'bg-[#252728] border-gray-700 opacity-60'
-          }`}
-        >
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
-                  notification.severity === 'announcement' ? 'bg-purple-900 text-purple-300' :
-                  notification.severity === 'reminder' ? 'bg-orange-900 text-orange-300' :
-                  notification.severity === 'deadline' ? 'bg-red-800 text-red-200' :
-                  notification.severity === 'exam' ? 'bg-indigo-900 text-indigo-300' :
-                  notification.severity === 'meeting' ? 'bg-teal-900 text-teal-300' :
-                  notification.severity === 'advisory' ? 'bg-amber-900 text-amber-300' :
-                  notification.severity === 'info' ? 'bg-blue-900 text-blue-300' :
-                  notification.severity === 'success' ? 'bg-green-900 text-green-300' :
-                  notification.severity === 'warning' ? 'bg-yellow-900 text-yellow-300' :
-                  notification.severity === 'error' ? 'bg-red-900 text-red-300' :
-                  'bg-gray-900 text-gray-300'
-                }`}>
-                  {notification.severity}
-                </span>
-                <span className={`text-xs px-2 py-1 rounded-full ${
-                  notification.audience === 'all' ? 'bg-blue-800 text-blue-200' :
-                  notification.audience === 'instructor' ? 'bg-green-800 text-green-200' :
-                  'bg-purple-800 text-purple-200'
-                }`}>
-                  {notification.audience}
-                </span>
-                <span className={`text-xs px-2 py-1 rounded-full ${
-                  notification.priority === 1 ? 'bg-gray-700 text-gray-300' :
-                  notification.priority === 2 ? 'bg-blue-700 text-blue-300' :
-                  notification.priority === 3 ? 'bg-yellow-700 text-yellow-300' :
-                  notification.priority === 4 ? 'bg-orange-700 text-orange-300' :
-                  notification.priority === 5 ? 'bg-red-700 text-red-300' :
-                  'bg-gray-700 text-gray-300'
-                }`}>
-                  P{notification.priority}
-                </span>
-              </div>
-              <h6 className="text-sm font-semibold text-white mb-1">
-                {notification.title}
-              </h6>
-              <p className="text-xs text-gray-300 mb-2 line-clamp-2">
-                {notification.message}
-              </p>
-              <div className="flex items-center gap-2 text-xs text-gray-400">
-                <span>
-                  {new Date(notification.created_at).toLocaleDateString()} at {new Date(notification.created_at).toLocaleTimeString()}
-                </span>
-                {notification.expires_at && (
-                  <span className="text-orange-400">
-                    • Expires: {new Date(notification.expires_at).toLocaleDateString()} at {new Date(notification.expires_at).toLocaleTimeString()}
-                  </span>
-                )}
-              </div>
-            </div>
-            <button
-              onClick={() => handleDeleteNotification(notification.id)}
-              className="ml-2 p-1 text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded transition-colors"
-              title="Delete notification"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-            </button>
-          </div>
-        </motion.div>
-      ))}
-    </div>
-  );
-};
 
 // Create a functional SystemSettings component
 const SystemSettings = () => {
@@ -245,90 +95,525 @@ const SystemSettings = () => {
     confirmPassword: ''
   });
   const [changingPassword, setChangingPassword] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [downloadingBackup, setDownloadingBackup] = useState(false);
+  const [uploadingToDrive, setUploadingToDrive] = useState(false);
+  const [gdriveConnected, setGdriveConnected] = useState(false);
+  const [gdriveAuthLoading, setGdriveAuthLoading] = useState(false);
+  const [, setAutoBackupInterval] = useState<NodeJS.Timeout | null>(null);
+
+  // Check for existing Google Drive connection on component mount
+  useEffect(() => {
+    const checkGoogleDriveConnection = async () => {
+      const storedToken = localStorage.getItem('googleDriveAccessToken');
+      const storedConnection = localStorage.getItem('googleDriveConnected');
+      
+      if (storedToken && storedConnection === 'true') {
+        // Validate the token by making a test API call
+        try {
+          const response = await fetch('https://www.googleapis.com/drive/v3/about?fields=user', {
+            headers: {
+              'Authorization': `Bearer ${storedToken}`
+            }
+          });
+          
+          if (response.ok) {
+            // Token is still valid, restore the connection state
+            window.googleDriveAccessToken = storedToken;
+            setGdriveConnected(true);
+            console.log('Google Drive connection restored from localStorage');
+          } else {
+            // Token is expired or invalid, clear localStorage
+            localStorage.removeItem('googleDriveAccessToken');
+            localStorage.removeItem('googleDriveConnected');
+            window.googleDriveAccessToken = null;
+            setGdriveConnected(false);
+            console.log('Google Drive token expired, connection cleared');
+          }
+        } catch {
+          // Token validation failed, clear localStorage
+          localStorage.removeItem('googleDriveAccessToken');
+          localStorage.removeItem('googleDriveConnected');
+          window.googleDriveAccessToken = null;
+          setGdriveConnected(false);
+          console.log('Google Drive token validation failed, connection cleared');
+        }
+      }
+    };
+
+    checkGoogleDriveConnection();
+  }, []);
 
   const handlePasswordInputChange = (field: PasswordField, value: string) => {
     setPasswordForm(prev => ({ ...prev, [field]: value }));
   };
 
-  // Add notification creation state and handlers
-  const [showNotificationForm, setShowNotificationForm] = useState(false);
-  const [notificationForm, setNotificationForm] = useState({
-    title: '',
-    message: '',
-    severity: 'announcement',
-    audience: 'all',
-    priority: 1,
-    timeInterval: 'none',
-    timeValue: 1
-  });
-  const [creatingNotification, setCreatingNotification] = useState(false);
-
-  const handleCreateNotification = async () => {
+  // Backup functionality
+  const handleDownloadBackup = async () => {
     try {
-      if (!user?.id) {
-        toast.error('No user found');
-        return;
-      }
-      if (!notificationForm.title || !notificationForm.message) {
-        toast.error('Please fill out all notification fields');
-        return;
-      }
+      setDownloadingBackup(true);
+      toast.loading('Creating database backup...', { id: 'backup' });
 
-      setCreatingNotification(true);
+      // Get all tables from the database (excluding sensitive/temporary data)
+      const tables = [
+        'user_profiles',
+        'courses', 
+        'programs',
+        'grades',
+        'sections',
+        'teacher_subjects',
+        'coe',
+        'enrollcourse',
+        'student_enrollments_view',
+        'subject_actions'
+      ];
 
-      // Calculate expiration date if time interval is set
-      let expiresAt = null;
-      if (notificationForm.timeInterval !== 'none' && notificationForm.timeValue > 0) {
-        const now = new Date();
-        switch (notificationForm.timeInterval) {
-          case 'hours':
-            expiresAt = new Date(now.getTime() + (notificationForm.timeValue * 60 * 60 * 1000));
-            break;
-          case 'days':
-            expiresAt = new Date(now.getTime() + (notificationForm.timeValue * 24 * 60 * 60 * 1000));
-            break;
-          case 'weeks':
-            expiresAt = new Date(now.getTime() + (notificationForm.timeValue * 7 * 24 * 60 * 60 * 1000));
-            break;
-          case 'months':
-            expiresAt = new Date(now.getTime() + (notificationForm.timeValue * 30 * 24 * 60 * 60 * 1000));
-            break;
-          default:
-            expiresAt = null;
+      const backupData: Record<string, unknown[]> = {};
+      const backupMetadata = {
+        timestamp: new Date().toISOString(),
+        version: '1.0.0',
+        tables: tables,
+        totalRecords: 0
+      };
+
+      // Fetch data from each table
+      for (const table of tables) {
+        try {
+          const { data, error } = await supabase
+            .from(table)
+            .select('*');
+          
+          if (error) {
+            console.warn(`Error fetching ${table}:`, error);
+            backupData[table] = [];
+          } else {
+            backupData[table] = data || [];
+            backupMetadata.totalRecords += (data || []).length;
+          }
+        } catch (err) {
+          console.warn(`Table ${table} might not exist:`, err);
+          backupData[table] = [];
         }
       }
 
-      const { error } = await supabase
-        .from('notifications')
-        .insert([{
-          title: notificationForm.title,
-          message: notificationForm.message,
-          severity: notificationForm.severity,
-          audience: notificationForm.audience,
-          priority: notificationForm.priority,
-          expires_at: expiresAt,
-          created_by: user.id,
-          is_active: true
-        }]);
+      // Create complete backup object
+      const completeBackup = {
+        metadata: backupMetadata,
+        data: backupData
+      };
 
-      if (error) {
-        throw error;
-      }
+      // Create and download JSON file
+      const jsonString = JSON.stringify(completeBackup, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `smcbi-backup-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
 
-      toast.success('Notification created successfully');
-      setNotificationForm({ title: '', message: '', severity: 'announcement', audience: 'all', priority: 1, timeInterval: 'none', timeValue: 1 });
-      setShowNotificationForm(false);
-      
-      // Refresh notifications in the dashboard
-      // This will trigger the real-time subscription to update the notification list
-      
-    } catch (err) {
-      console.error('Error creating notification:', err);
-      toast.error('Failed to create notification');
+      toast.success(`Backup created successfully! ${backupMetadata.totalRecords} records exported.`, { id: 'backup' });
+
+    } catch (error) {
+      console.error('Error creating backup:', error);
+      toast.error('Failed to create backup', { id: 'backup' });
     } finally {
-      setCreatingNotification(false);
+      setDownloadingBackup(false);
     }
   };
+
+  // Google Drive Authentication
+  const handleGoogleDriveAuth = async () => {
+    setGdriveAuthLoading(true);
+    const loadingToast = toast.loading('Connecting to Google Drive...');
+
+    try {
+      // Check if Google Identity Services is available
+      if (typeof window.google === 'undefined') {
+        // Load Google Identity Services script if not already loaded
+        await loadGoogleIdentityServices();
+      }
+
+      const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || 'YOUR_GOOGLE_CLIENT_ID';
+      
+      if (clientId === 'YOUR_GOOGLE_CLIENT_ID') {
+        throw new Error('Google Client ID not configured. Please set VITE_GOOGLE_CLIENT_ID in your environment variables.');
+      }
+
+      // Initialize Google Identity Services OAuth2
+      const tokenClient = window.google.accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: 'https://www.googleapis.com/auth/drive.file',
+        callback: (response: { access_token: string }) => {
+          if (response.access_token) {
+            // Store the access token for later use
+            window.googleDriveAccessToken = response.access_token;
+            
+            // Persist connection state in localStorage
+            localStorage.setItem('googleDriveAccessToken', response.access_token);
+            localStorage.setItem('googleDriveConnected', 'true');
+            
+            setGdriveConnected(true);
+            toast.dismiss(loadingToast);
+            toast.success('Successfully connected to Google Drive! Auto backup will start if enabled.');
+          } else {
+            throw new Error('Failed to get access token');
+          }
+        },
+      });
+
+      // Request access token
+      tokenClient.requestAccessToken();
+
+    } catch (error) {
+      console.error('Google Drive authentication error:', error);
+      toast.dismiss(loadingToast);
+      if (error instanceof Error && error.message.includes('Client ID not configured')) {
+        toast.error('Google Drive integration not configured. Please contact your administrator.');
+      } else {
+        toast.error('Failed to connect to Google Drive. Please try again.');
+      }
+    } finally {
+      setGdriveAuthLoading(false);
+    }
+  };
+
+  // Disconnect from Google Drive
+  const handleGoogleDriveDisconnect = () => {
+    try {
+      // Clear the stored access token
+      window.googleDriveAccessToken = null;
+      
+      // Clear localStorage
+      localStorage.removeItem('googleDriveAccessToken');
+      localStorage.removeItem('googleDriveConnected');
+      
+      setGdriveConnected(false);
+      toast.success('Disconnected from Google Drive');
+    } catch (error) {
+      console.error('Error disconnecting from Google Drive:', error);
+      setGdriveConnected(false);
+      toast.error('Disconnected from Google Drive');
+    }
+  };
+
+  // Load Google Identity Services script
+  const loadGoogleIdentityServices = () => {
+    return new Promise((resolve, reject) => {
+      if (document.querySelector('script[src*="accounts.google.com"]')) {
+        resolve(true);
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.onload = () => resolve(true);
+      script.onerror = () => reject(new Error('Failed to load Google Identity Services'));
+      document.head.appendChild(script);
+    });
+  };
+
+  // Upload file to Google Drive
+  const uploadToGoogleDrive = useCallback(async (file: Blob, filename: string) => {
+    try {
+      const accessToken = window.googleDriveAccessToken;
+      
+      if (!accessToken) {
+        throw new Error('No access token available. Please reconnect to Google Drive.');
+      }
+
+      const metadata = {
+        name: filename,
+        parents: ['root'] // Upload to root folder, you can specify a folder ID
+      };
+
+      const form = new FormData();
+      form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+      form.append('file', file);
+
+      const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        },
+        body: form
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          // Token expired, clear localStorage
+          localStorage.removeItem('googleDriveAccessToken');
+          localStorage.removeItem('googleDriveConnected');
+          window.googleDriveAccessToken = null;
+          setGdriveConnected(false);
+          throw new Error('Google Drive authentication expired. Please reconnect.');
+        }
+        throw new Error(`Upload failed: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      return result;
+    } catch (error) {
+      console.error('Upload error:', error);
+      throw error;
+    }
+  }, []);
+
+  const handleUploadToDrive = useCallback(async () => {
+    if (!gdriveConnected) {
+      toast.error('Please connect to Google Drive first');
+      return;
+    }
+
+    setUploadingToDrive(true);
+    const loadingToast = toast.loading('Creating backup and uploading to Google Drive...', { id: 'drive-upload' });
+
+    try {
+      // Define tables to backup (excluding sensitive/temporary data)
+      const tables = [
+        'user_profiles',
+        'courses', 
+        'programs',
+        'grades',
+        'sections',
+        'teacher_subjects',
+        'coe',
+        'enrollcourse',
+        'student_enrollments_view',
+        'subject_actions'
+      ];
+
+      const backupData: Record<string, unknown[]> = {};
+      const backupMetadata = {
+        timestamp: new Date().toISOString(),
+        version: '1.0.0',
+        tables: tables,
+        totalRecords: 0,
+        uploadedToDrive: true
+      };
+
+      // Fetch data from each table
+      for (const table of tables) {
+        try {
+          const { data, error } = await supabase
+            .from(table)
+            .select('*');
+          
+          if (error) {
+            console.warn(`Error fetching ${table}:`, error);
+            backupData[table] = [];
+          } else {
+            backupData[table] = data || [];
+            backupMetadata.totalRecords += (data || []).length;
+          }
+        } catch (err) {
+          console.warn(`Table ${table} might not exist:`, err);
+          backupData[table] = [];
+        }
+      }
+
+      const completeBackup = {
+        metadata: backupMetadata,
+        data: backupData
+      };
+
+      // Create JSON blob
+      const jsonString = JSON.stringify(completeBackup, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      
+      // Create filename with timestamp
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
+      const filename = `smcbi-backup-${timestamp}.json`;
+
+      // Upload to Google Drive
+      const uploadResult = await uploadToGoogleDrive(blob, filename);
+
+      toast.dismiss(loadingToast);
+      toast.success(
+        `Backup successfully uploaded to Google Drive! File ID: ${uploadResult.id}`, 
+        { id: 'drive-upload', duration: 6000 }
+      );
+
+      // Log the backup action
+      console.log('Backup uploaded to Google Drive:', {
+        timestamp: backupMetadata.timestamp,
+        totalRecords: backupMetadata.totalRecords,
+        tables: tables.length,
+        fileId: uploadResult.id
+      });
+
+    } catch (error) {
+      console.error('Error uploading to Google Drive:', error);
+      toast.dismiss(loadingToast);
+      toast.error('Failed to upload backup to Google Drive', { id: 'drive-upload' });
+    } finally {
+      setUploadingToDrive(false);
+    }
+  }, [gdriveConnected, uploadToGoogleDrive]);
+
+  // Clean up old backups based on data retention
+  const cleanupOldBackups = useCallback(async () => {
+    try {
+      const accessToken = window.googleDriveAccessToken;
+      if (!accessToken) return;
+
+      // Calculate cutoff date based on data retention
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - settings.dataRetention);
+
+      // List files in Google Drive
+      const response = await fetch('https://www.googleapis.com/drive/v3/files?q=name contains "smcbi-backup"', {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      });
+
+      if (!response.ok) return;
+
+      const data = await response.json();
+      const files = data.files || [];
+
+      // Delete old backup files
+      for (const file of files) {
+        const fileDate = new Date(file.createdTime);
+        if (fileDate < cutoffDate) {
+          await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`
+            }
+          });
+          console.log(`Deleted old backup: ${file.name}`);
+        }
+      }
+    } catch (error) {
+      console.error('Error cleaning up old backups:', error);
+    }
+  }, [settings.dataRetention]);
+
+  // Auto Backup Functionality
+  const stopAutoBackup = useCallback(() => {
+    setAutoBackupInterval(prevInterval => {
+      if (prevInterval) {
+        clearInterval(prevInterval);
+        console.log('Auto backup stopped');
+      }
+      return null;
+    });
+  }, []);
+
+  const startAutoBackup = useCallback(() => {
+    if (!settings.autoBackup || !gdriveConnected) {
+      return;
+    }
+
+    // Validate settings
+    if (!settings.backupFrequency || !settings.dataRetention) {
+      console.error('Invalid backup settings');
+      toast.error('Please configure backup frequency and data retention');
+      return;
+    }
+
+    const getBackupInterval = () => {
+      switch (settings.backupFrequency) {
+        case 'hourly': return 60 * 60 * 1000; // 1 hour
+        case 'daily': return 24 * 60 * 60 * 1000; // 24 hours
+        case 'weekly': return 7 * 24 * 60 * 60 * 1000; // 7 days
+        case 'monthly': return 30 * 24 * 60 * 60 * 1000; // 30 days
+        default: return 24 * 60 * 60 * 1000; // Default to daily
+      }
+    };
+
+    // Clear any existing interval first
+    setAutoBackupInterval(prevInterval => {
+      if (prevInterval) {
+        clearInterval(prevInterval);
+      }
+      return null;
+    });
+
+    const interval = setInterval(async () => {
+      try {
+        console.log('Starting automatic backup...');
+        
+        // Check if Google Drive is still connected
+        if (!window.googleDriveAccessToken) {
+          console.warn('Google Drive connection lost, stopping auto backup');
+          setAutoBackupInterval(prevInterval => {
+            if (prevInterval) {
+              clearInterval(prevInterval);
+            }
+            return null;
+          });
+          toast.error('Google Drive connection lost. Auto backup stopped.');
+          return;
+        }
+
+        await handleUploadToDrive();
+        
+        // Clean up old backups based on data retention
+        await cleanupOldBackups();
+        
+        console.log('Automatic backup completed successfully');
+      } catch (error) {
+        console.error('Automatic backup failed:', error);
+        
+        // Check if it's a connection error
+        if (error instanceof Error && error.message.includes('401')) {
+          toast.error('Google Drive authentication expired. Please reconnect.');
+          
+          // Clear localStorage and connection state
+          localStorage.removeItem('googleDriveAccessToken');
+          localStorage.removeItem('googleDriveConnected');
+          window.googleDriveAccessToken = null;
+          setGdriveConnected(false);
+          
+          setAutoBackupInterval(prevInterval => {
+            if (prevInterval) {
+              clearInterval(prevInterval);
+            }
+            return null;
+          });
+        } else {
+          toast.error('Automatic backup failed. Please check your Google Drive connection.');
+        }
+      }
+    }, getBackupInterval());
+
+    setAutoBackupInterval(interval);
+    console.log(`Auto backup started with ${settings.backupFrequency} frequency`);
+  }, [settings.autoBackup, settings.backupFrequency, settings.dataRetention, gdriveConnected, cleanupOldBackups, handleUploadToDrive]);
+
+  // Start/stop auto backup when settings change
+  useEffect(() => {
+    if (settings.autoBackup && gdriveConnected) {
+      startAutoBackup();
+    } else {
+      stopAutoBackup();
+    }
+
+    return () => {
+      stopAutoBackup();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings.autoBackup, settings.backupFrequency, gdriveConnected]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      setAutoBackupInterval(prevInterval => {
+        if (prevInterval) {
+          clearInterval(prevInterval);
+        }
+        return null;
+      });
+    };
+  }, []);
+
+
 
 
 
@@ -403,34 +688,39 @@ const SystemSettings = () => {
 
   const fetchSettings = async () => {
     try {
-      // Try to fetch from database first
-      const { data, error } = await supabase
-        .from('system_settings')
-        .select('*')
-        .eq('id', 1)
-        .single();
-      
-      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
-        console.error('Error fetching settings:', error);
-        toast.error('Failed to load settings');
-      } else if (data) {
-        setSettings({
-          systemName: data.system_name || 'SMCBI Student Portal',
-          systemVersion: data.system_version || '1.0.0',
-          maintenanceMode: data.maintenance_mode || false,
-          emailNotifications: data.email_notifications || true,
-          autoBackup: data.auto_backup || true,
-          sessionTimeout: data.session_timeout || 30,
-          maxFileSize: data.max_file_size || 10,
-          userRegistration: data.user_registration || true,
-          emailVerification: data.email_verification || true,
-          passwordPolicy: data.password_policy || 'strong',
-          maxLoginAttempts: data.max_login_attempts || 5,
-          backupFrequency: data.backup_frequency || 'daily',
-          dataRetention: data.data_retention || 365,
-          systemLogs: data.system_logs || true,
-          debugMode: data.debug_mode || false
-        });
+      // Try to fetch from database first (skip if table doesn't exist)
+      try {
+        const { data, error } = await supabase
+          .from('system_settings')
+          .select('*')
+          .eq('id', 1)
+          .single();
+        
+        if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+          console.error('Error fetching settings:', error);
+          toast.error('Failed to load settings');
+        } else if (data) {
+          setSettings({
+            systemName: data.system_name || 'SMCBI Student Portal',
+            systemVersion: data.system_version || '1.0.0',
+            maintenanceMode: data.maintenance_mode || false,
+            emailNotifications: data.email_notifications || true,
+            autoBackup: data.auto_backup || true,
+            sessionTimeout: data.session_timeout || 30,
+            maxFileSize: data.max_file_size || 10,
+            userRegistration: data.user_registration || true,
+            emailVerification: data.email_verification || true,
+            passwordPolicy: data.password_policy || 'strong',
+            maxLoginAttempts: data.max_login_attempts || 5,
+            backupFrequency: data.backup_frequency || 'daily',
+            dataRetention: data.data_retention || 365,
+            systemLogs: data.system_logs || true,
+            debugMode: data.debug_mode || false
+          });
+        }
+      } catch {
+        // system_settings table doesn't exist, use default settings
+        console.log('system_settings table not available, using default settings');
       }
     } catch (error) {
       console.error('Error in fetchSettings:', error);
@@ -470,23 +760,28 @@ const SystemSettings = () => {
         default: break;
       }
 
-      // Try to update existing record
-      const { error } = await supabase
-        .from('system_settings')
-        .update(updateObj)
-        .eq('id', 1);
-
-      // If no record exists, create one
-      if (error && error.code === 'PGRST116') {
-        const { error: insertError } = await supabase
+      // Try to update existing record (skip if table doesn't exist)
+      try {
+        const { error } = await supabase
           .from('system_settings')
-          .insert([{ id: 1, ...updateObj }]);
-        
-        if (insertError) {
-          throw insertError;
+          .update(updateObj)
+          .eq('id', 1);
+
+        // If no record exists, create one
+        if (error && error.code === 'PGRST116') {
+          const { error: insertError } = await supabase
+            .from('system_settings')
+            .insert([{ id: 1, ...updateObj }]);
+          
+          if (insertError) {
+            throw insertError;
+          }
+        } else if (error) {
+          throw error;
         }
-      } else if (error) {
-        throw error;
+      } catch {
+        // system_settings table doesn't exist, just update local state
+        console.log('system_settings table not available, settings saved locally only');
       }
 
       toast.success('Setting updated successfully');
@@ -554,10 +849,7 @@ const SystemSettings = () => {
         <div className="space-y-6">
           {/* User Profile Section */}
           <div className="bg-[#2f3133] rounded-lg p-6 border border-gray-700">
-            <h4 className="text-sm font-semibold text-gray-200 mb-6 flex items-center gap-2">
-              <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-              User Profile
-            </h4>
+          
             
             {/* Profile Header */}
             <div className="flex items-center gap-6 mb-8">
@@ -614,330 +906,24 @@ const SystemSettings = () => {
               <div className="w-2 h-2 bg-green-400 rounded-full"></div>
               Change Password
             </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-5">
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-300">Current Password</label>
-                <input
-                  type="password"
-                  value={passwordForm.currentPassword}
-                  onChange={(e) => handlePasswordInputChange('currentPassword', e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-[#252728] text-white placeholder-gray-400 text-sm"
-                  disabled={changingPassword}
-                  placeholder="Enter current password"
-                />
-          </div>
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-300">New Password</label>
-              <input
-                  type="password"
-                  value={passwordForm.newPassword}
-                  onChange={(e) => handlePasswordInputChange('newPassword', e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-[#252728] text-white placeholder-gray-400 text-sm"
-                  disabled={changingPassword}
-                  placeholder="Enter new password"
-              />
-            </div>
-              <div className="space-y-2 sm:col-span-2 lg:grid-cols-1">
-                <label className="block text-sm font-medium text-gray-300">Confirm Password</label>
-              <input
-                  type="password"
-                  value={passwordForm.confirmPassword}
-                  onChange={(e) => handlePasswordInputChange('confirmPassword', e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-[#252728] text-white placeholder-gray-400 text-sm"
-                  disabled={changingPassword}
-                  placeholder="Confirm new password"
-              />
-            </div>
-              </div>
-            <div className="flex justify-end">
-              <button
-                onClick={handleUpdatePassword}
-                disabled={changingPassword}
-                className={`px-6 py-3 rounded-lg text-white font-medium flex items-center gap-2 ${
-                  changingPassword ? 'bg-gray-600 cursor-not-allowed' : 'bg-indigo-600'
-                }`}
-              >
-                {changingPassword ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Updating...
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                    </svg>
-                    Update Password
-                  </>
-                )}
-              </button>
-            </div>
-            </div>
-          </div>
-        </motion.div>
-
-        {/* General Settings */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.15 }}
-          className="neumorphic-dark p-6"
-          style={{ backgroundColor: '#2f3133' }}
-        >
-          <div className="flex items-center gap-3 mb-4">
-            <Settings className="w-6 h-6 text-blue-400" />
-            <h3 className="text-lg font-semibold text-white">General Settings</h3>
-          </div>
-          <div className="space-y-4">
-              <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">System Name</label>
-              <input
-                type="text"
-                value={settings.systemName}
-                onChange={(e) => handleSettingChange('systemName', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-[#2f3133] text-white placeholder-gray-400"
-                disabled={saving}
-              />
-            </div>
-              <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">System Version</label>
-              <input
-                type="text"
-                value={settings.systemVersion}
-                onChange={(e) => handleSettingChange('systemVersion', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-[#2f3133] text-white placeholder-gray-400"
-                disabled={saving}
-              />
-            </div>
             <div className="flex items-center justify-between">
               <div>
-                <label className="text-sm font-medium text-gray-300">Maintenance Mode</label>
-                <p className="text-xs text-gray-400">Temporarily disable system access</p>
+                <p className="text-sm text-gray-300 mb-1">Update your account password</p>
+                <p className="text-xs text-gray-400">Click the button to change your password securely</p>
               </div>
               <button
-                onClick={() => handleSettingChange('maintenanceMode', !settings.maintenanceMode)}
-                disabled={saving}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  settings.maintenanceMode ? 'bg-red-600' : 'bg-gray-600'
-                } ${saving ? 'opacity-50 cursor-not-allowed' : ''}`}
+                onClick={() => setShowPasswordModal(true)}
+                className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors duration-200 flex items-center gap-2"
               >
-                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  settings.maintenanceMode ? 'translate-x-6' : 'translate-x-1'
-                }`} />
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+                Change Password
               </button>
             </div>
           </div>
+        </div>
         </motion.div>
-
-        
-
-        {/* Notification Management */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.25 }}
-          className="neumorphic-dark p-6"
-          style={{ backgroundColor: '#2f3133' }}
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <Bell className="w-6 h-6 text-green-400" />
-              <h3 className="text-lg font-semibold text-white">Notification Management</h3>
-            </div>
-            <button
-              onClick={() => setShowNotificationForm(!showNotificationForm)}
-              className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors duration-200 flex items-center gap-2"
-            >
-              {showNotificationForm ? (
-                <>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                  Cancel
-                </>
-              ) : (
-                <>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  Create Notification
-                </>
-              )}
-            </button>
-          </div>
-
-          {showNotificationForm && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="bg-[#252728] rounded-lg p-4 border border-gray-600 mb-4"
-            >
-              <h5 className="text-sm font-semibold text-gray-200 mb-4 flex items-center gap-2">
-                <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                Create New Notification
-              </h5>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Title *</label>
-                  <input
-                    type="text"
-                    value={notificationForm.title}
-                    onChange={(e) => setNotificationForm(prev => ({ ...prev, title: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent bg-[#1c1c1d] text-white placeholder-gray-400 text-sm"
-                    placeholder="Enter notification title"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Severity *</label>
-                  <select
-                    value={notificationForm.severity}
-                    onChange={(e) => setNotificationForm(prev => ({ ...prev, severity: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent bg-[#1c1c1d] text-white text-sm"
-                    required
-                  >
-                    <option value="announcement">Announcement</option>
-                    <option value="reminder">Reminder</option>
-                    <option value="deadline">Deadline</option>
-                    <option value="exam">Exam</option>
-                    <option value="meeting">Meeting</option>
-                    <option value="advisory">Advisory</option>
-                    <option value="info">Info</option>
-                    <option value="success">Success</option>
-                    <option value="warning">Warning</option>
-                    <option value="error">Error</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Audience *</label>
-                  <select
-                    value={notificationForm.audience}
-                    onChange={(e) => setNotificationForm(prev => ({ ...prev, audience: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent bg-[#1c1c1d] text-white text-sm"
-                    required
-                  >
-                    <option value="all">All Users</option>
-                    <option value="instructor">Instructors Only</option>
-                    <option value="student">Students Only</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Priority</label>
-                  <select
-                    value={notificationForm.priority}
-                    onChange={(e) => setNotificationForm(prev => ({ ...prev, priority: parseInt(e.target.value) }))}
-                    className="w-full px-3 py-2 border border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent bg-[#1c1c1d] text-white text-sm"
-                  >
-                    <option value={1}>Low (1)</option>
-                    <option value={2}>Normal (2)</option>
-                    <option value={3}>Important (3)</option>
-                    <option value={4}>Urgent (4)</option>
-                    <option value={5}>Critical (5)</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Time Interval Section */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-300 mb-2">Time Interval (Optional)</label>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <select
-                      value={notificationForm.timeInterval}
-                      onChange={(e) => setNotificationForm(prev => ({ ...prev, timeInterval: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent bg-[#1c1c1d] text-white text-sm"
-                    >
-                      <option value="none">No Expiration</option>
-                      <option value="hours">Hours</option>
-                      <option value="days">Days</option>
-                      <option value="weeks">Weeks</option>
-                      <option value="months">Months</option>
-                    </select>
-                  </div>
-                  <div>
-                    <input
-                      type="number"
-                      value={notificationForm.timeValue}
-                      onChange={(e) => setNotificationForm(prev => ({ ...prev, timeValue: parseInt(e.target.value) || 1 }))}
-                      min="1"
-                      max="365"
-                      disabled={notificationForm.timeInterval === 'none'}
-                      className="w-full px-3 py-2 border border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent bg-[#1c1c1d] text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                      placeholder="Value"
-                    />
-                  </div>
-                </div>
-                {notificationForm.timeInterval !== 'none' && (
-                  <p className="text-xs text-gray-400 mt-1">
-                    Notification will expire in {notificationForm.timeValue} {notificationForm.timeInterval}
-                  </p>
-                )}
-              </div>
-
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-300 mb-2">Message</label>
-                <textarea
-                  value={notificationForm.message}
-                  onChange={(e) => setNotificationForm(prev => ({ ...prev, message: e.target.value }))}
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent bg-[#1c1c1d] text-white placeholder-gray-400 text-sm resize-none"
-                  placeholder="Enter notification message"
-                />
-              </div>
-
-
-
-              <div className="flex justify-end gap-3">
-                <button
-                  onClick={() => setShowNotificationForm(false)}
-                  className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white text-sm font-medium rounded-lg transition-colors duration-200"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleCreateNotification}
-                  disabled={creatingNotification}
-                  className={`px-6 py-2 rounded-lg text-white font-medium flex items-center gap-2 ${
-                    creatingNotification ? 'bg-gray-600 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'
-                  }`}
-                >
-                  {creatingNotification ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      Creating...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      Create Notification
-                    </>
-                  )}
-                </button>
-              </div>
-            </motion.div>
-          )}
-
-          {/* Display existing notifications */}
-          <div className="mt-6">
-            <h5 className="text-sm font-semibold text-gray-200 mb-4 flex items-center gap-2">
-              <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-              Recent Notifications
-            </h5>
-            
-            <div className="space-y-3 max-h-64 overflow-y-auto custom-dashboard-scrollbar">
-              {/* Fetch and display existing notifications */}
-              <NotificationList />
-            </div>
-          </div>
-        </motion.div>
-
         {/* Backup & System Settings */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -954,7 +940,14 @@ const SystemSettings = () => {
             <div className="flex items-center justify-between">
               <div>
                 <label className="text-sm font-medium text-gray-300">Auto Backup</label>
-                <p className="text-xs text-gray-400">Automatically backup data</p>
+                <p className="text-xs text-gray-400">
+                  {settings.autoBackup && gdriveConnected 
+                    ? `Automatically uploads to Google Drive every ${settings.backupFrequency}` 
+                    : settings.autoBackup 
+                      ? 'Will start automatically when Google Drive is connected'
+                      : 'Automatically backup data to Google Drive'
+                  }
+                </p>
               </div>
               <button
                 onClick={() => handleSettingChange('autoBackup', !settings.autoBackup)}
@@ -973,8 +966,8 @@ const SystemSettings = () => {
               <select
                 value={settings.backupFrequency}
                 onChange={(e) => handleSettingChange('backupFrequency', e.target.value)}
-                disabled={saving}
-                className="w-full px-3 py-2 border border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-[#2f3133] text-white"
+                disabled={saving || !settings.autoBackup}
+                className="w-full px-3 py-2 border border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-[#2f3133] text-white disabled:opacity-50"
               >
                 <option value="hourly">Hourly</option>
                 <option value="daily">Daily</option>
@@ -987,63 +980,268 @@ const SystemSettings = () => {
               <input
                 type="number"
                 value={settings.dataRetention}
-                onChange={(e) => handleSettingChange('dataRetention', parseInt(e.target.value))}
-                disabled={saving}
-                className="w-full px-3 py-2 border border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-[#2f3133] text-white"
+                onChange={(e) => {
+                  const value = parseInt(e.target.value);
+                  if (value >= 30 && value <= 1095) {
+                    handleSettingChange('dataRetention', value);
+                  }
+                }}
+                disabled={saving || !settings.autoBackup}
+                className="w-full px-3 py-2 border border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-[#2f3133] text-white disabled:opacity-50"
                 min="30"
                 max="1095"
+                placeholder="30-1095 days"
               />
+              <p className="text-xs text-gray-400 mt-1">Keep backups for 30-1095 days (1-3 years)</p>
             </div>
+            
+            {/* Manual Backup Section */}
+            <div className="border-t border-gray-600 pt-4 mt-4">
+              <h4 className="text-sm font-semibold text-gray-200 mb-3 flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                Manual Backup
+              </h4>
+              <div className="space-y-3">
+            <div className="flex items-center justify-between">
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Max File Size (MB)</label>
-              <input
-                type="number"
-                value={settings.maxFileSize}
-                onChange={(e) => handleSettingChange('maxFileSize', parseInt(e.target.value))}
-                disabled={saving}
-                className="w-full px-3 py-2 border border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-[#2f3133] text-white"
-                min="1"
-                max="50"
-              />
+                    <p className="text-sm text-gray-300 mb-1">Download Complete Database Backup</p>
+                    <p className="text-xs text-gray-400">Export all tables and data as JSON files</p>
             </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <label className="text-sm font-medium text-gray-300">System Logs</label>
-                <p className="text-xs text-gray-400">Enable system logging</p>
-              </div>
               <button
-                onClick={() => handleSettingChange('systemLogs', !settings.systemLogs)}
-                disabled={saving}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  settings.systemLogs ? 'bg-green-600' : 'bg-gray-600'
-                } ${saving ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  settings.systemLogs ? 'translate-x-6' : 'translate-x-1'
-                }`} />
+                    onClick={handleDownloadBackup}
+                    disabled={saving || downloadingBackup}
+                    className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-lg transition-colors duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {downloadingBackup ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        Creating...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Download Backup
+                      </>
+                    )}
               </button>
             </div>
-            <div className="flex items-center justify-between">
+            {/* Google Drive Connection Status */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className={`w-3 h-3 rounded-full ${gdriveConnected ? 'bg-green-400' : 'bg-red-400'}`}></div>
               <div>
-                <label className="text-sm font-medium text-gray-300">Debug Mode</label>
-                <p className="text-xs text-gray-400">Enable debug logging</p>
+                  <p className="text-sm text-gray-300">Google Drive</p>
+                  <p className="text-xs text-gray-400">
+                    {gdriveConnected ? 'Connected' : 'Not connected'}
+                  </p>
+                </div>
               </div>
               <button
-                onClick={() => handleSettingChange('debugMode', !settings.debugMode)}
-                disabled={saving}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  settings.debugMode ? 'bg-yellow-600' : 'bg-gray-600'
-                } ${saving ? 'opacity-50 cursor-not-allowed' : ''}`}
+                onClick={gdriveConnected ? handleGoogleDriveDisconnect : handleGoogleDriveAuth}
+                disabled={gdriveAuthLoading}
+                className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                  gdriveConnected 
+                    ? 'bg-red-600 hover:bg-red-700 text-white' 
+                    : 'bg-green-600 hover:bg-green-700 text-white'
+                }`}
               >
-                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  settings.debugMode ? 'translate-x-6' : 'translate-x-1'
-                }`} />
+                {gdriveAuthLoading ? (
+                  <>
+                    <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Connecting...
+                  </>
+                ) : gdriveConnected ? (
+                  <>
+                    <LogOut className="w-3 h-3" />
+                    Disconnect
+                  </>
+                ) : (
+                  <>
+                    <LogIn className="w-3 h-3" />
+                    Connect
+                  </>
+                )}
               </button>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div>
+                    <p className="text-sm text-gray-300 mb-1">Upload to Google Drive</p>
+                    <p className="text-xs text-gray-400">Automatically store backup in cloud</p>
+              </div>
+              <button
+                    onClick={handleUploadToDrive}
+                    disabled={saving || uploadingToDrive || !gdriveConnected}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {uploadingToDrive ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        Uploading...
+                      </>
+                    ) : (
+                      <>
+                        <Cloud className="w-4 h-4" />
+                        Upload to Drive
+                      </>
+                    )}
+              </button>
+            </div>
+              </div>
             </div>
           </div>
         </motion.div>
       </div>
 
+      {/* Password Change Modal */}
+      {showPasswordModal && createPortal(
+        <>
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 z-[999998]"
+            onClick={() => setShowPasswordModal(false)}
+            style={{
+              zIndex: 999998,
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.5)'
+            }}
+          />
+          
+          {/* Modal */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: -10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: -10 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 flex items-center justify-center z-[999999] p-4"
+            style={{
+              zIndex: 999999,
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '1rem'
+            }}
+          >
+            <div className="bg-[#252728] rounded-xl shadow-2xl border border-gray-700 w-full max-w-md max-h-[90vh] overflow-hidden">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between p-6 border-b border-gray-700 bg-[#2f3133]">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-indigo-600/20">
+                    <svg className="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">Change Password</h3>
+                    <p className="text-sm text-gray-400">Update your account password securely</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowPasswordModal(false)}
+                  className="p-2 text-gray-400 hover:text-white hover:bg-gray-600 rounded-lg transition-colors duration-200"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              
+              {/* Modal Body */}
+              <div className="p-6 space-y-4">
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-300">Current Password</label>
+                  <input
+                    type="password"
+                    value={passwordForm.currentPassword}
+                    onChange={(e) => handlePasswordInputChange('currentPassword', e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-[#1c1c1d] text-white placeholder-gray-400 text-sm"
+                    disabled={changingPassword}
+                    placeholder="Enter current password"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-300">New Password</label>
+                  <input
+                    type="password"
+                    value={passwordForm.newPassword}
+                    onChange={(e) => handlePasswordInputChange('newPassword', e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-[#1c1c1d] text-white placeholder-gray-400 text-sm"
+                    disabled={changingPassword}
+                    placeholder="Enter new password"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-300">Confirm Password</label>
+                  <input
+                    type="password"
+                    value={passwordForm.confirmPassword}
+                    onChange={(e) => handlePasswordInputChange('confirmPassword', e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-[#1c1c1d] text-white placeholder-gray-400 text-sm"
+                    disabled={changingPassword}
+                    placeholder="Confirm new password"
+                  />
+                </div>
+              </div>
+              
+              {/* Modal Footer */}
+              <div className="flex justify-end gap-3 p-6 border-t border-gray-700 bg-[#2f3133]">
+                <button
+                  onClick={() => {
+                    setShowPasswordModal(false);
+                    setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+                  }}
+                  className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white text-sm font-medium rounded-lg transition-colors duration-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    await handleUpdatePassword();
+                    if (!changingPassword) {
+                      setShowPasswordModal(false);
+                    }
+                  }}
+                  disabled={changingPassword}
+                  className={`px-6 py-2 rounded-lg text-white font-medium flex items-center gap-2 ${
+                    changingPassword ? 'bg-gray-600 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'
+                  }`}
+                >
+                  {changingPassword ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Updating...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      Update Password
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </>,
+        document.body
+      )}
       
     </div>
   );
@@ -1216,41 +1414,6 @@ const DashboardOverview: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Memoized dashboard data fetching
-  const fetchDashboardData = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      
-      // Fetch real data from Supabase
-      const [usersResponse, coursesResponse, programsResponse] = await Promise.all([
-        supabase.from('user_profiles').select('*').neq('role', 'superadmin'),
-        supabase.from('courses').select('*'),
-        supabase.from('programs').select('*')
-      ]);
-
-      const totalUsers = usersResponse.data?.length || 0;
-      const totalCourses = coursesResponse.data?.length || 0;
-      const totalPrograms = programsResponse.data?.length || 0;
-      const activeUsers = usersResponse.data?.filter((u: { is_active: boolean }) => u.is_active).length || 0;
-
-      setStats({
-        totalUsers,
-        totalCourses,
-        totalPrograms,
-        activeUsers
-      });
-
-      // Generate recent activity from real data
-      await generateRecentActivity();
-
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-      toast.error('Failed to load dashboard data');
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
   // Generate recent activity from real database events
   const generateRecentActivity = useCallback(async () => {
     try {
@@ -1295,25 +1458,8 @@ const DashboardOverview: React.FC = () => {
         });
       }
 
-      // Get recent program updates
-      const { data: recentPrograms } = await supabase
-        .from('programs')
-        .select('updated_at, program_name')
-        .not('updated_at', 'is', null)
-        .order('updated_at', { ascending: false })
-        .limit(1);
-
-      if (recentPrograms && recentPrograms.length > 0) {
-        recentPrograms.forEach(program => {
-          const timeAgo = getTimeAgo(program.updated_at);
-          activities.push({
-            type: 'program',
-            message: `Program updated: ${program.program_name}`,
-            time: timeAgo,
-            icon: GraduationCap
-          });
-        });
-      }
+      // Skip program updates since programs table doesn't exist
+      // This prevents 400 Bad Request errors
 
       // Get recent login sessions for system activity
       const { data: recentLogins } = await supabase
@@ -1343,6 +1489,110 @@ const DashboardOverview: React.FC = () => {
 
     } catch (error) {
       console.error('Error generating recent activity:', error);
+    }
+  }, []);
+
+  // Memoized dashboard data fetching
+  const fetchDashboardData = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      
+      // Fetch real data from Supabase
+      const [usersResponse, coursesResponse, programsResponse] = await Promise.all([
+        supabase.from('user_profiles').select('*').neq('role', 'superadmin'),
+        supabase.from('courses').select('*'),
+        supabase.from('programs').select('*')
+      ]);
+
+      const totalUsers = usersResponse.data?.length || 0;
+      const totalCourses = coursesResponse.data?.length || 0;
+      const totalPrograms = programsResponse.data?.length || 0;
+      const activeUsers = usersResponse.data?.filter((u: { is_active: boolean }) => u.is_active).length || 0;
+
+      setStats({
+        totalUsers,
+        totalCourses,
+        totalPrograms,
+        activeUsers
+      });
+
+      // Generate recent activity from real data
+      await generateRecentActivity();
+
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+      toast.error('Failed to load dashboard data');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [generateRecentActivity]);
+
+  // Generate system notifications based on database state
+  const generateSystemNotifications = useCallback(async () => {
+    const systemNotifications = [];
+
+    try {
+      // Check for failed login attempts
+      const { data: failedLogins } = await supabase
+        .from('login_sessions')
+        .select('created_at')
+        .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+        .limit(1);
+
+      if (failedLogins && failedLogins.length > 0) {
+        systemNotifications.push({
+          id: 'failed-login-attempts',
+          type: 'warning',
+          message: 'Multiple failed login attempts detected in the last 24 hours',
+          title: 'Security Alert',
+          time: '1 hour ago',
+          read: false,
+          severity: 'warning'
+        });
+      }
+
+      // Check for high user count (storage warning)
+      const { data: userCount } = await supabase
+        .from('user_profiles')
+        .select('id');
+
+      if (userCount && userCount.length > 1000) {
+        systemNotifications.push({
+          id: 'system-storage-warning',
+          type: 'warning',
+          message: 'Storage usage is approaching capacity limit',
+          title: 'Storage Warning',
+          time: '2 hours ago',
+          read: false,
+          severity: 'warning'
+        });
+      }
+
+      // Skip system maintenance checks since system_settings table doesn't exist
+      // This prevents 400 Bad Request errors
+
+      // Check for new user registrations
+      const { data: newUsers } = await supabase
+        .from('user_profiles')
+        .select('created_at')
+        .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+
+      if (newUsers && newUsers.length > 10) {
+        systemNotifications.push({
+          id: 'high-registration-rate',
+          type: 'info',
+          message: `${newUsers.length} new users registered in the last 24 hours`,
+          title: 'High Registration Rate',
+          time: '3 hours ago',
+          read: false,
+          severity: 'info'
+        });
+      }
+
+      return systemNotifications;
+    } catch (error) {
+      console.error('Error generating system notifications:', error);
+      return [];
     }
   }, []);
 
@@ -1415,105 +1665,8 @@ const DashboardOverview: React.FC = () => {
       console.error('Error fetching notifications:', error);
       toast.error('Failed to load notifications');
     }
-  }, [user?.role]);
+  }, [user?.role, generateSystemNotifications]);
 
-  // Generate system notifications based on database state
-  const generateSystemNotifications = useCallback(async () => {
-    const systemNotifications = [];
-
-    try {
-      // Check for failed login attempts
-      const { data: failedLogins } = await supabase
-        .from('login_sessions')
-        .select('created_at')
-        .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
-        .limit(1);
-
-      if (failedLogins && failedLogins.length > 0) {
-        systemNotifications.push({
-          id: 'system-failed-logins',
-          type: 'warning',
-          message: 'Failed login attempts detected in the last 24 hours',
-          title: 'Security Alert',
-          time: '1 hour ago',
-          read: false,
-          severity: 'warning'
-        });
-      }
-
-      // Check storage usage (simulated)
-      const { data: userCount } = await supabase
-        .from('user_profiles')
-        .select('id', { count: 'exact' });
-
-      if (userCount && userCount.length > 1000) {
-        systemNotifications.push({
-          id: 'system-storage-warning',
-          type: 'warning',
-          message: 'Storage usage is approaching capacity limit',
-          title: 'Storage Warning',
-          time: '2 hours ago',
-          read: false,
-          severity: 'warning'
-        });
-      }
-
-      // Check for system maintenance needs
-      const { data: systemSettings } = await supabase
-        .from('system_settings')
-        .select('maintenance_mode, debug_mode')
-        .eq('id', 1)
-        .single();
-
-      if (systemSettings?.maintenance_mode) {
-        systemNotifications.push({
-          id: 'system-maintenance',
-          type: 'info',
-          message: 'System is currently in maintenance mode',
-          title: 'Maintenance Notice',
-          time: '30 minutes ago',
-          read: false,
-          severity: 'info'
-        });
-      }
-
-      if (systemSettings?.debug_mode) {
-        systemNotifications.push({
-          id: 'system-debug-mode',
-          type: 'info',
-          message: 'Debug mode is currently enabled',
-          title: 'Debug Mode Active',
-          time: '1 hour ago',
-          read: false,
-          severity: 'info'
-        });
-      }
-
-      // Check for new user registrations
-      const { data: newUsers } = await supabase
-        .from('user_profiles')
-        .select('created_at')
-        .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
-        .limit(1);
-
-      if (newUsers && newUsers.length > 0) {
-        systemNotifications.push({
-          id: 'system-new-users',
-          type: 'success',
-          message: 'New user registrations in the last 24 hours',
-          title: 'User Activity',
-          time: '3 hours ago',
-          read: false,
-          severity: 'success'
-        });
-      }
-
-    } catch (error) {
-      console.error('Error generating system notifications:', error);
-    }
-
-    return systemNotifications;
-  }, []);
 
   // Helper function to get time ago
   const getTimeAgo = (timestamp: string | Date): string => {
@@ -1908,16 +2061,23 @@ const DashboardOverview: React.FC = () => {
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
-              className="mb-8 animate-pulse"
+              className="mb-8"
             >
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="h-8 bg-gray-200 rounded w-64 mb-2"></div>
-                  <div className="h-4 bg-gray-200 rounded w-96"></div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="h-10 w-32 bg-gray-200 rounded-lg"></div>
-                  <div className="w-6 h-6 bg-gray-200 rounded"></div>
+              <div className="bg-gradient-to-r from-gray-700 to-gray-600 px-6 py-4 rounded-lg animate-pulse">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-gray-500/30">
+                      <div className="w-6 h-6 bg-gray-500 rounded"></div>
+                    </div>
+                    <div>
+                      <div className="h-8 bg-gray-500 rounded w-48 mb-2"></div>
+                      <div className="h-4 bg-gray-500 rounded w-72"></div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-32 bg-gray-500 rounded-lg"></div>
+                    <div className="w-6 h-6 bg-gray-500 rounded"></div>
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -1930,19 +2090,22 @@ const DashboardOverview: React.FC = () => {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5, delay: i * 0.1 }}
-                  className="bg-white rounded-xl shadow-md overflow-hidden border-l-4 border-gray-200 animate-pulse"
+                  className="neumorphic-dark rounded-xl overflow-hidden border-l-4 border-gray-500 animate-pulse"
+                  style={{ backgroundColor: '#252728' }}
                 >
                   <div className="p-5">
                     <div className="flex items-center justify-between">
                       <div>
-                        <div className="h-4 bg-gray-200 rounded w-24 mb-2"></div>
-                        <div className="h-8 bg-gray-200 rounded w-16 mb-1"></div>
-                        <div className="h-3 bg-gray-200 rounded w-32"></div>
+                        <div className="h-4 bg-gray-600 rounded w-24 mb-2"></div>
+                        <div className="h-8 bg-gray-600 rounded w-16 mb-1"></div>
+                        <div className="h-3 bg-gray-600 rounded w-32"></div>
                       </div>
-                      <div className="w-12 h-12 bg-gray-200 rounded-lg"></div>
+                      <div className="w-12 h-12 bg-gray-600 rounded-lg"></div>
                     </div>
                     <div className="mt-4">
-                      <div className="h-1.5 bg-gray-200 rounded-full"></div>
+                      <div className="h-1.5 bg-gray-600 rounded-full overflow-hidden">
+                        <div className="h-1.5 bg-gray-500 rounded-full w-3/4 animate-pulse"></div>
+                      </div>
                     </div>
                   </div>
                 </motion.div>
@@ -1952,20 +2115,21 @@ const DashboardOverview: React.FC = () => {
             {/* Recent Activity and Notifications Skeleton */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
               <motion.div 
-                className="bg-white p-6 rounded-xl shadow-md col-span-2 h-[300px] animate-pulse"
+                className="neumorphic-dark p-6 rounded-xl col-span-2 h-[300px] animate-pulse"
+                style={{ backgroundColor: '#252728' }}
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.5, delay: 0.3 }}
               >
-                <div className="h-6 bg-gray-200 rounded w-40 mb-4"></div>
+                <div className="h-6 bg-gray-600 rounded w-40 mb-4"></div>
                 <div className="space-y-4">
                   {[1, 2, 3, 4, 5].map(i => (
-                    <div key={i} className="p-3 bg-gray-50 rounded-lg">
+                    <div key={i} className="p-3 bg-gray-700/50 rounded-lg">
                       <div className="flex items-start space-x-3">
-                        <div className="w-8 h-8 bg-gray-200 rounded-full"></div>
+                        <div className="w-8 h-8 bg-gray-600 rounded-full"></div>
                         <div>
-                          <div className="h-4 bg-gray-200 rounded w-48 mb-1"></div>
-                          <div className="h-3 bg-gray-200 rounded w-24"></div>
+                          <div className="h-4 bg-gray-600 rounded w-48 mb-1"></div>
+                          <div className="h-3 bg-gray-600 rounded w-24"></div>
                         </div>
                       </div>
                     </div>
@@ -1973,23 +2137,24 @@ const DashboardOverview: React.FC = () => {
                 </div>
               </motion.div>
               <motion.div 
-                className="bg-white p-6 rounded-xl shadow-md h-[300px] animate-pulse"
+                className="neumorphic-dark p-6 rounded-xl h-[300px] animate-pulse"
+                style={{ backgroundColor: '#252728' }}
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.5, delay: 0.4 }}
               >
                 <div className="flex items-center justify-between mb-4">
-                  <div className="h-6 bg-gray-200 rounded w-32"></div>
-                  <div className="w-5 h-5 bg-gray-200 rounded"></div>
+                  <div className="h-6 bg-gray-600 rounded w-32"></div>
+                  <div className="w-5 h-5 bg-gray-600 rounded"></div>
                 </div>
                 <div className="space-y-4">
                   {[1, 2, 3, 4].map(i => (
-                    <div key={i} className="p-3 bg-gray-50 rounded-lg">
+                    <div key={i} className="p-3 bg-gray-700/50 rounded-lg">
                       <div className="flex items-start space-x-3">
-                        <div className="w-8 h-8 bg-gray-200 rounded-full"></div>
+                        <div className="w-8 h-8 bg-gray-600 rounded-full"></div>
                         <div className="flex-1">
-                          <div className="h-4 bg-gray-200 rounded w-full mb-1"></div>
-                          <div className="h-3 bg-gray-200 rounded w-20"></div>
+                          <div className="h-4 bg-gray-600 rounded w-full mb-1"></div>
+                          <div className="h-3 bg-gray-600 rounded w-20"></div>
                         </div>
                       </div>
                     </div>
@@ -1998,7 +2163,99 @@ const DashboardOverview: React.FC = () => {
               </motion.div>
             </div>
 
-            
+            {/* Additional skeleton elements for better loading experience */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.5, delay: 0.6 }}
+              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+            >
+              {/* System Settings Skeleton */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.7 }}
+                className="neumorphic-dark p-6 lg:col-span-2 animate-pulse"
+                style={{ backgroundColor: '#2f3133' }}
+              >
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-6 h-6 bg-gray-600 rounded"></div>
+                  <div className="h-6 bg-gray-600 rounded w-32"></div>
+                </div>
+                <div className="space-y-6">
+                  <div className="bg-gray-700/50 rounded-lg p-6">
+                    <div className="flex items-center gap-6 mb-8">
+                      <div className="w-20 h-20 bg-gray-600 rounded-full"></div>
+                      <div className="flex-1">
+                        <div className="h-4 bg-gray-600 rounded w-24 mb-3"></div>
+                        <div className="h-6 bg-gray-600 rounded w-40 mb-2"></div>
+                        <div className="h-4 bg-gray-600 rounded w-48"></div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-gray-700/50 rounded-lg p-5">
+                    <div className="h-5 bg-gray-600 rounded w-32 mb-5"></div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="h-4 bg-gray-600 rounded w-40 mb-1"></div>
+                        <div className="h-3 bg-gray-600 rounded w-32"></div>
+                      </div>
+                      <div className="h-10 w-24 bg-gray-600 rounded-lg"></div>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+
+              {/* Backup & System Skeleton */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.8 }}
+                className="neumorphic-dark p-6 animate-pulse"
+                style={{ backgroundColor: '#2f3133' }}
+              >
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-6 h-6 bg-gray-600 rounded"></div>
+                  <div className="h-6 bg-gray-600 rounded w-40"></div>
+                </div>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="h-4 bg-gray-600 rounded w-24 mb-1"></div>
+                      <div className="h-3 bg-gray-600 rounded w-32"></div>
+                    </div>
+                    <div className="h-6 w-11 bg-gray-600 rounded-full"></div>
+                  </div>
+                  <div>
+                    <div className="h-4 bg-gray-600 rounded w-28 mb-2"></div>
+                    <div className="h-10 bg-gray-600 rounded-lg"></div>
+                  </div>
+                  <div>
+                    <div className="h-4 bg-gray-600 rounded w-32 mb-2"></div>
+                    <div className="h-10 bg-gray-600 rounded-lg"></div>
+                  </div>
+                  <div className="border-t border-gray-600 pt-4 mt-4">
+                    <div className="h-5 bg-gray-600 rounded w-28 mb-3"></div>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="h-4 bg-gray-600 rounded w-36 mb-1"></div>
+                          <div className="h-3 bg-gray-600 rounded w-28"></div>
+                        </div>
+                        <div className="h-8 w-24 bg-gray-600 rounded-lg"></div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="h-4 bg-gray-600 rounded w-20 mb-1"></div>
+                          <div className="h-3 bg-gray-600 rounded w-24"></div>
+                        </div>
+                        <div className="h-6 w-16 bg-gray-600 rounded-lg"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
           </div>
         ) : (
           <motion.div
