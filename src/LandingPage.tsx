@@ -92,6 +92,19 @@ const LandingPage = () => {
     return () => clearTimeout(timer);
   }, []);
 
+  // Show Google OAuth error immediately on landing if present
+  useEffect(() => {
+    const raw = localStorage.getItem('google_error');
+    if (!raw) return;
+    try {
+      const payload = JSON.parse(raw) as { title?: string; message?: string };
+      toast.error(payload.message || 'We could not complete your sign-in. Please try again.');
+    } catch {
+      // Ignore parsing errors for malformed localStorage data
+    }
+    localStorage.removeItem('google_error');
+  }, []);
+
   // Cooldown ticker for recovery
   useEffect(() => {
     if (recoveryCooldown <= 0) return;
@@ -856,7 +869,8 @@ const LandingPage = () => {
           style={{
             width: '400px',
             height: '530px',
-            top: '80px',
+            top: '50%',
+            transform: 'translateY(-50%)',
             right: showFeedback ? '0px' : '-400px',
             borderRadius: '1.5rem 0 1.5rem 1.5rem',
             borderTopLeftRadius: '1.5rem',
@@ -890,15 +904,34 @@ const LandingPage = () => {
             </div>
             {/* Feedback Content */}
             <div className="flex-1 overflow-y-auto px-8 py-0">
-              <div className="mb-2">
-                <label className="block font-semibold mb-2 text-[#2C3E50]">What was your first impression when you logged into the SMCBI School Portal & Enrollment System?</label>
-                <textarea className="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-green-300 shadow-sm transition" rows={3} placeholder="Your feedback..." />
+              {/* Google Form Button */}
+              <div className="flex flex-col items-center justify-center h-full text-center">
+                <div className="mb-6">
+                  <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full flex items-center justify-center">
+                    <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-semibold text-[#2C3E50] mb-2">Share Your Feedback</h3>
+                  <p className="text-sm text-gray-600 mb-6">
+                    Help us improve the SMCBI School Portal & Enrollment System by sharing your thoughts and suggestions.
+                  </p>
+                </div>
+                
+                <button 
+                  onClick={() => window.open('https://docs.google.com/forms/d/e/1FAIpQLSewLjzE-7HgqN71u1_hMl8u0yX5I0cLUzFfJ7CEGf1z0Y4Xvw/viewform?usp=header', '_blank')}
+                  className="w-full py-3 px-6 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-105 flex items-center justify-center gap-3"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                  Open Feedback Form
+                </button>
+                
+                <p className="text-xs text-gray-500 mt-4">
+                  Opens in a new tab • Takes 2-3 minutes to complete
+                </p>
               </div>
-              <div className="mb-5">
-                <label className="block font-semibold mb-2 text-[#002656]">What do you like the most about our new SMCBI School Portal & Enrollment System?</label>
-                <textarea className="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-green-300 shadow-sm transition" rows={3} placeholder="Your feedback..." />
-              </div>
-              <button className="w-full py-2 rounded-lg bg-[#2C3E50] text-white font-semibold hover:bg-[#1a2634] transition-all duration-200 shadow-md hover:scale-105">Submit Feedback</button>
             </div>
           </div>
         </div>
