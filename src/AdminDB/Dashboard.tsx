@@ -6,7 +6,8 @@ import { Users, Bell, Activity, Database, BookOpen, GraduationCap, LogIn, LogOut
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
-
+import InstructorManagement from './InstructorManagement';
+import ClassManagement from './ClassManagement';
 // Google Identity Services TypeScript declarations
 declare global {
   interface Window {
@@ -37,7 +38,6 @@ declare global {
 import Announcement from './Announcement';
 import { createPortal } from 'react-dom';
 import RegistrarEnrollment from '../AdminDB/RegistrarEnrollment';
-import RegistrarProspectus from '../AdminDB/RegistrarProspectus';
 import StudentGrades from '../AdminDB/StudentGrades';
 
 // Import admin-specific components and styles
@@ -690,33 +690,33 @@ const SystemSettings = () => {
     try {
       // Try to fetch from database first (skip if table doesn't exist)
       try {
-        const { data, error } = await supabase
-          .from('system_settings')
-          .select('*')
-          .eq('id', 1)
-          .single();
-        
-        if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
-          console.error('Error fetching settings:', error);
-          toast.error('Failed to load settings');
-        } else if (data) {
-          setSettings({
-            systemName: data.system_name || 'SMCBI Student Portal',
-            systemVersion: data.system_version || '1.0.0',
-            maintenanceMode: data.maintenance_mode || false,
-            emailNotifications: data.email_notifications || true,
-            autoBackup: data.auto_backup || true,
-            sessionTimeout: data.session_timeout || 30,
-            maxFileSize: data.max_file_size || 10,
-            userRegistration: data.user_registration || true,
-            emailVerification: data.email_verification || true,
-            passwordPolicy: data.password_policy || 'strong',
-            maxLoginAttempts: data.max_login_attempts || 5,
-            backupFrequency: data.backup_frequency || 'daily',
-            dataRetention: data.data_retention || 365,
-            systemLogs: data.system_logs || true,
-            debugMode: data.debug_mode || false
-          });
+      const { data, error } = await supabase
+        .from('system_settings')
+        .select('*')
+        .eq('id', 1)
+        .single();
+      
+      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+        console.error('Error fetching settings:', error);
+        toast.error('Failed to load settings');
+      } else if (data) {
+        setSettings({
+          systemName: data.system_name || 'SMCBI Student Portal',
+          systemVersion: data.system_version || '1.0.0',
+          maintenanceMode: data.maintenance_mode || false,
+          emailNotifications: data.email_notifications || true,
+          autoBackup: data.auto_backup || true,
+          sessionTimeout: data.session_timeout || 30,
+          maxFileSize: data.max_file_size || 10,
+          userRegistration: data.user_registration || true,
+          emailVerification: data.email_verification || true,
+          passwordPolicy: data.password_policy || 'strong',
+          maxLoginAttempts: data.max_login_attempts || 5,
+          backupFrequency: data.backup_frequency || 'daily',
+          dataRetention: data.data_retention || 365,
+          systemLogs: data.system_logs || true,
+          debugMode: data.debug_mode || false
+        });
         }
       } catch {
         // system_settings table doesn't exist, use default settings
@@ -762,22 +762,22 @@ const SystemSettings = () => {
 
       // Try to update existing record (skip if table doesn't exist)
       try {
-        const { error } = await supabase
-          .from('system_settings')
-          .update(updateObj)
-          .eq('id', 1);
+      const { error } = await supabase
+        .from('system_settings')
+        .update(updateObj)
+        .eq('id', 1);
 
-        // If no record exists, create one
-        if (error && error.code === 'PGRST116') {
-          const { error: insertError } = await supabase
-            .from('system_settings')
-            .insert([{ id: 1, ...updateObj }]);
-          
-          if (insertError) {
-            throw insertError;
-          }
-        } else if (error) {
-          throw error;
+      // If no record exists, create one
+      if (error && error.code === 'PGRST116') {
+        const { error: insertError } = await supabase
+          .from('system_settings')
+          .insert([{ id: 1, ...updateObj }]);
+        
+        if (insertError) {
+          throw insertError;
+        }
+      } else if (error) {
+        throw error;
         }
       } catch {
         // system_settings table doesn't exist, just update local state
@@ -2069,10 +2069,10 @@ const DashboardOverview: React.FC = () => {
                     <div className="p-2 rounded-lg bg-gray-500/30">
                       <div className="w-6 h-6 bg-gray-500 rounded"></div>
                     </div>
-                    <div>
+                <div>
                       <div className="h-8 bg-gray-500 rounded w-48 mb-2"></div>
                       <div className="h-4 bg-gray-500 rounded w-72"></div>
-                    </div>
+                </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="h-10 w-32 bg-gray-500 rounded-lg"></div>
@@ -2558,8 +2558,10 @@ const AdminDashboard: React.FC = () => {
             <Route path="/announcements" element={<Announcement />} />
             <Route path="/program-management" element={<ProgramManagement />} />
             <Route path="/enrollment-approvals" element={<RegistrarEnrollment />} />
-            <Route path="/prospectus" element={<RegistrarProspectus />} />
             <Route path="/student-grades" element={<StudentGrades />} />
+            <Route path="/enroll-student" element={<RegistrarEnrollment />} />
+            <Route path="/instructor-management" element={<InstructorManagement />} />
+            <Route path="/class-management" element={<ClassManagement />} />
             <Route path="/settings" element={<SystemSettings />} />
           </Routes>
         </motion.div>
