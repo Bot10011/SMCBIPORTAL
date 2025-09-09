@@ -104,6 +104,24 @@ const sidebarItems: SidebarItem[] = [
     roles: ['admin'],
   },
   {
+    label: 'Enroll Student',
+    path: '/dashboard/enroll-student',
+    icon: <UserPlus className="w-5 h-5" />,
+    roles: ['admin'],
+  },
+  {
+    label: 'Instructor Management',
+    path: '/dashboard/instructor-management',
+    icon: <Users2 className="w-5 h-5" />,
+    roles: ['admin'],
+  },
+  {
+    label: 'Class Management',
+    path: '/dashboard/class-management',
+    icon: <Users2 className="w-5 h-5" />,
+    roles: ['admin'],
+  },
+  {
     label: 'Programs',
     path: '/dashboard/program-management',
     icon: <ClipboardList className="w-5 h-5" />,
@@ -113,12 +131,6 @@ const sidebarItems: SidebarItem[] = [
     label: 'Enrollment Approvals',
     path: '/dashboard/enrollment-approvals',
     icon: <CheckSquare className="w-5 h-5" />,
-    roles: ['admin'],
-  },
-  {
-    label: 'Prospectus',
-    path: '/dashboard/prospectus',
-    icon: <PiBookOpenTextBold className="w-5 h-5" />,
     roles: ['admin'],
   },
   {
@@ -263,14 +275,12 @@ const sidebarItems: SidebarItem[] = [
     icon: <PiBookOpenTextBold className="w-5 h-5" />,
     roles: ['student'],
   },
-  /*
   {
     label: 'Receipt & Permit',
     path: '/dashboard/receipt-permit',
     icon: <FileText className="w-5 h-5" />,
     roles: ['student'],
   },
- */
   {
     label: 'Grade Report',
     path: '/dashboard/grades',
