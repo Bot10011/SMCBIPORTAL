@@ -1123,11 +1123,48 @@ const ProgramHeadEnrollment: React.FC = () => {
     section: '',
   });
 
+  // Track current user role and department to default and lock department for program heads
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [programHeadDepartment, setProgramHeadDepartment] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadCurrentUserDepartment = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('role, department')
+          .eq('id', user.id)
+          .single();
+        const role = (profile as any)?.role ?? null;
+        const dept = (profile as any)?.department ?? null;
+        setCurrentUserRole(role);
+        setProgramHeadDepartment(dept);
+        if (role === 'program_head' && typeof dept === 'string' && dept.trim() !== '') {
+          setCreateForm(prev => ({ ...prev, department: dept }));
+        }
+      } catch (err) {
+        console.warn('Failed to load current user department/role', err);
+      }
+    };
+    loadCurrentUserDepartment();
+  }, []);
+
+  const isProgramHead = currentUserRole === 'program_head';
+
   useEffect(() => {
     loadEnrollments();
     fetchSections();
     fetchInstructorAssignments();
   }, []);
+
+  // Re-load enrollments once current user's department is resolved, so program heads see only their students
+  useEffect(() => {
+    if (isProgramHead && programHeadDepartment) {
+      loadEnrollments();
+    }
+  }, [isProgramHead, programHeadDepartment]);
 
   // Refresh instructor assignments when createForm changes (year level or section)
   useEffect(() => {
@@ -1489,20 +1526,28 @@ const ProgramHeadEnrollment: React.FC = () => {
       setLoading(true);
       // Fetch real students from the database
       // First try to get all fields including gender
-      const { data, error } = await supabase
+      let baseQuery = supabase
         .from('user_profiles')
         .select('id, email, first_name, middle_name, last_name, gender, student_type, year_level, enrollment_status, department, school_year, semester, section, student_id, created_at')
         .eq('role', 'student')
         .order('created_at', { ascending: true });
+      if (isProgramHead && programHeadDepartment) {
+        baseQuery = baseQuery.eq('department', programHeadDepartment);
+      }
+      const { data, error } = await baseQuery;
       if (error) {
         console.error('Database error with gender field:', error);
         // If gender field doesn't exist, try without it
         console.log('Retrying without gender field...');
-        const { data: fallbackData, error: fallbackError } = await supabase
+        let fallbackQuery = supabase
           .from('user_profiles')
           .select('id, email, first_name, middle_name, last_name, student_type, year_level, enrollment_status, department, school_year, semester, section, student_id, created_at')
           .eq('role', 'student')
           .order('created_at', { ascending: true });
+        if (isProgramHead && programHeadDepartment) {
+          fallbackQuery = fallbackQuery.eq('department', programHeadDepartment);
+        }
+        const { data: fallbackData, error: fallbackError } = await fallbackQuery;
         
         if (fallbackError) {
           console.error('Fallback query also failed:', fallbackError);
@@ -1665,7 +1710,7 @@ const ProgramHeadEnrollment: React.FC = () => {
         }
         toast.success('Existing student enrollment updated!');
         handleCloseCreateDialog();
-        setCreateForm({ firstName: '', middleName: '', lastName: '', gender: 'Male', email: '', password: 'TempPass@123', studentType: 'Freshman', yearLevel: 1, schoolYear: getDefaultSchoolYear(), studentId: '', department: 'BSIT', semester: '1st Semester', section: '' });
+        setCreateForm({ firstName: '', middleName: '', lastName: '', gender: 'Male', email: '', password: 'TempPass@123', studentType: 'Freshman', yearLevel: 1, schoolYear: getDefaultSchoolYear(), studentId: '', department: (programHeadDepartment && isProgramHead) ? programHeadDepartment : 'BSIT', semester: '1st Semester', section: '' });
         setSelectedCourses([]);
         setSelectedExistingStudent(null);
         loadEnrollments();
@@ -1737,7 +1782,7 @@ const ProgramHeadEnrollment: React.FC = () => {
       }
       toast.success('Student account successfully created.');
       setIsCreateDialogOpen(false);
-      setCreateForm({ firstName: '', middleName: '', lastName: '', gender: 'Male', email: '', password: 'TempPass@123', studentType: 'Freshman', yearLevel: 1, schoolYear: getDefaultSchoolYear(), studentId: '', department: 'BSIT', semester: '1st Semester', section: '' });
+      setCreateForm({ firstName: '', middleName: '', lastName: '', gender: 'Male', email: '', password: 'TempPass@123', studentType: 'Freshman', yearLevel: 1, schoolYear: getDefaultSchoolYear(), studentId: '', department: (programHeadDepartment && isProgramHead) ? programHeadDepartment : 'BSIT', semester: '1st Semester', section: '' });
       setSelectedCourses([]);
       setSelectedExistingStudent(null);
       loadEnrollments();
@@ -2374,7 +2419,7 @@ const ProgramHeadEnrollment: React.FC = () => {
       yearLevel: 1,
       schoolYear: getDefaultSchoolYear(),
       studentId: '',
-      department: 'BSIT',
+      department: (programHeadDepartment && isProgramHead) ? programHeadDepartment : 'BSIT',
       semester: '1st Semester',
       section: '',
     });
@@ -5164,7 +5209,11 @@ const ProgramHeadEnrollment: React.FC = () => {
                         <Select
                           value={createForm.department}
                           label="Course"
-                          onChange={e => setCreateForm(f => ({ ...f, department: e.target.value }))}
+                          onChange={e => {
+                            if (isProgramHead) return;
+                            setCreateForm(f => ({ ...f, department: e.target.value }));
+                          }}
+                          disabled={isProgramHead}
                           required
                           sx={{
                             '& .MuiOutlinedInput-root': {
