@@ -12,6 +12,7 @@ export interface Database {
           first_name: string;
           last_name: string;
           middle_name?: string;
+          gender?: string;
           profile_picture_url?: string;
           is_active: boolean;
           password_changed?: boolean;
