@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 
 interface TeacherSubject {
@@ -126,6 +127,13 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>(assignment.subject_id ? [assignment.subject_id] : []);
   // Multi-select state for day
   const [selectedDay, setSelectedDay] = useState<string[]>(assignment.day ? assignment.day.split(',') : []);
+
+  // Ensure edit mode correctly shows days checked when parent expands abbreviations later
+  React.useEffect(() => {
+    if (isEditMode && assignment.day && selectedDay.length === 0) {
+      setSelectedDay(assignment.day.split(','));
+    }
+  }, [isEditMode, assignment.day]);
 
   // Filter courses by both year level and semester
   const filteredCourses = (assignment.year_level && assignment.semester)
@@ -318,21 +326,62 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
    console.log('=== END MISLABELING CHECK ===');
   }
 
-  // Reset selected subjects when year level changes
+  // Reset selected subjects only when the user changes year level or semester (not on initial mount)
+  const prevYearLevelRef = useRef<string>(assignment.year_level);
+  const prevSemesterRef = useRef<string>(assignment.semester);
   React.useEffect(() => {
-    if (assignment.year_level || assignment.semester) {
+    const yearLevelChanged = assignment.year_level !== prevYearLevelRef.current;
+    const semesterChanged = assignment.semester !== prevSemesterRef.current;
+    if (yearLevelChanged || semesterChanged) {
       setSelectedSubjects([]);
     }
+    prevYearLevelRef.current = assignment.year_level;
+    prevSemesterRef.current = assignment.semester;
   }, [assignment.year_level, assignment.semester]);
 
-  // Reset section when year level changes
+  // Ensure the preselected subject is checked in edit mode
   React.useEffect(() => {
+    if (isEditMode && assignment.subject_id && selectedSubjects.length === 0) {
+      setSelectedSubjects([assignment.subject_id]);
+    }
+  }, [isEditMode, assignment.subject_id]);
+
+  // Reset section when year level changes (but not on initial mount or right after opening)
+  const sectionResetMountedRef = useRef<boolean>(false);
+  const wasOpenRef = useRef<boolean>(false);
+  const skipNextSectionResetRef = useRef<boolean>(false);
+  React.useEffect(() => {
+    // Detect open transition to skip the immediate reset
+    if (!wasOpenRef.current && isOpen) {
+      skipNextSectionResetRef.current = true;
+    }
+    wasOpenRef.current = isOpen;
+  }, [isOpen]);
+  React.useEffect(() => {
+    if (!sectionResetMountedRef.current) {
+      sectionResetMountedRef.current = true;
+      return;
+    }
+    if (skipNextSectionResetRef.current) {
+      // Skip the first reset right after opening
+      skipNextSectionResetRef.current = false;
+      return;
+    }
     if (assignment.year_level) {
       handleInputChange({
         target: { name: 'section', value: '' }
       } as React.ChangeEvent<HTMLSelectElement>);
     }
   }, [assignment.year_level]);
+
+  // If current assignment.section is not present in filtered section options, include it so the select shows the value
+  const sectionValuesInOptions = new Set(filteredSections.map(s => s.name));
+  const augmentedSections = React.useMemo(() => {
+    if (assignment.section && !sectionValuesInOptions.has(assignment.section)) {
+      return [{ id: 'custom-current', name: assignment.section, year_level: assignment.year_level.match(/(\d+)/)?.[1] || '' } as any, ...filteredSections];
+    }
+    return filteredSections;
+  }, [assignment.section, assignment.year_level, filteredSections]);
 
   // Update assignment.day when selectedDay changes
   React.useEffect(() => {
@@ -469,7 +518,7 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
 
   if (!isOpen) return null;
 
-  return (
+  const modalContent = (
     <div className="fixed inset-0 z-[9999] subject-modal">
       {/* Semi-transparent overlay with enhanced blur */}
       <div 
@@ -638,7 +687,7 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
                   required
                 >
                   <option value="">Select Section</option>
-                  {filteredSections.map((section) => (
+                  {augmentedSections.map((section) => (
                     <option key={section.id} value={section.name}>
                       Section {section.name}
                     </option>
@@ -1130,6 +1179,10 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
       )}
     </div>
   );
+
+  // Use portal so the modal is centered relative to the viewport, not within nested containers
+  const portalTarget = typeof document !== 'undefined' ? document.body : null;
+  return portalTarget ? createPortal(modalContent, portalTarget) : modalContent;
 };
 
 export default SubjectAssignmentModal;
