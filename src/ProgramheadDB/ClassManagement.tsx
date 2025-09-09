@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { Search, RefreshCw, ChevronDown, ChevronRight, Edit, Trash2 } from 'lucide-react';
+import { Search, RefreshCw, ChevronDown, ChevronRight, Edit, Trash2, Download } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 type StudentRow = {
   id: string;
@@ -12,6 +14,7 @@ type StudentRow = {
   year_level?: number | string | null;
   section?: string | null;
   is_active?: boolean;
+  gender?: string | null;
 };
 
 type SectionRow = {
@@ -207,7 +210,7 @@ const ClassManagement: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('user_profiles')
-        .select('id, email, first_name, last_name, middle_name, student_id, year_level, section, is_active, role')
+        .select('id, email, first_name, last_name, middle_name, student_id, year_level, section, is_active, role, gender')
         .eq('role', 'student')
         .order('year_level', { ascending: true })
         .order('last_name', { ascending: true });
@@ -224,6 +227,7 @@ const ClassManagement: React.FC = () => {
         year_level: row.year_level ?? null,
         section: row.section ?? null,
         is_active: row.is_active,
+        gender: row.gender ?? null,
       })) as StudentRow[];
 
       setStudents(sanitized);
@@ -394,7 +398,7 @@ const ClassManagement: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('user_profiles')
-        .select('id, email, first_name, last_name, middle_name, student_id, year_level, section, is_active, role')
+        .select('id, email, first_name, last_name, middle_name, student_id, year_level, section, is_active, role, gender')
         .eq('role', 'student')
         .eq('section', sectionId)
         .order('last_name', { ascending: true });
@@ -532,6 +536,141 @@ const ClassManagement: React.FC = () => {
     } finally {
       setSingleTransferLoading(false);
     }
+  }
+
+  // PDF Generation function
+  function generateClassListPDF() {
+    if (!viewingSection || sectionStudents.length === 0) {
+      alert('No students to export');
+      return;
+    }
+
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    
+    // School Header (compact version)
+    doc.setFontSize(11);
+    doc.setTextColor(30, 64, 175); // #1e40af
+    doc.setFont('helvetica', 'bold');
+    doc.text('St. Mary\'s College of Bansalan, Inc.', pageWidth / 2, 15, { align: 'center' });
+    
+    doc.setFontSize(6);
+    doc.setTextColor(107, 114, 128); // #6b7280
+    doc.setFont('helvetica', 'normal');
+    doc.text('(Formerly: Holy Cross of Bansalan College, Inc.)', pageWidth / 2, 20, { align: 'center' });
+    
+    doc.setTextColor(55, 65, 81); // #374151
+    doc.text('Dahlia Street, Poblacion Uno, Bansalan, Davao del Sur, 8005 Philippines', pageWidth / 2, 24, { align: 'center' });
+    
+    doc.setFontSize(7);
+    doc.setTextColor(30, 64, 175); // #1e40af
+    doc.setFont('helvetica', 'bold');
+    
+    doc.setFontSize(6);
+    doc.setTextColor(55, 65, 81); // #374151
+    doc.setFont('helvetica', 'normal');
+    
+    // Title
+    doc.setFontSize(9);
+    doc.setTextColor(30, 64, 175); // #1e40af
+    doc.setFont('helvetica', 'bold');
+    doc.text('CLASS LIST', pageWidth / 2, 40, { align: 'center' });
+    
+    // Section Information
+    doc.setFontSize(8);
+    doc.setTextColor(31, 41, 55); // #1f2937
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Section: ${viewingSection.name}`, 20, 48);
+    doc.text(`Year Level: ${viewingSection.year_level}`, 20, 53);
+    if (viewingSection.academic_year) {
+      doc.text(`Academic Year: ${viewingSection.academic_year}`, 20, 58);
+    }
+    
+    // Generate date
+    const currentDate = new Date().toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    doc.text(`Generated on: ${currentDate}`, pageWidth - 20, 48, { align: 'right' });
+    
+    // Separate students by gender
+    const maleStudents = sectionStudents.filter(s => s.gender === 'Male');
+    const femaleStudents = sectionStudents.filter(s => s.gender === 'Female');
+    const otherStudents = sectionStudents.filter(s => s.gender && s.gender !== 'Male' && s.gender !== 'Female');
+    
+    let currentY = 65;
+    
+    // Helper function to generate table for a gender group
+    const generateGenderTable = (students: StudentRow[], genderLabel: string, color: [number, number, number], startY: number) => {
+      if (students.length === 0) return startY;
+      
+      // Gender section header
+      doc.setFontSize(10);
+      doc.setTextColor(color[0], color[1], color[2]);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${genderLabel} Students (${students.length})`, 20, startY);
+      currentY = startY + 6;
+      
+      // Prepare table data
+      const tableData = students.map((student, index) => [
+        index + 1,
+        student.student_id || 'N/A',
+        `${student.last_name}, ${student.first_name}${student.middle_name ? ` ${student.middle_name}` : ''}`
+      ]);
+      
+      // Table headers
+      const headers = ['No.', 'Student ID', 'Name'];
+      
+      // Generate table
+      autoTable(doc, {
+        head: [headers],
+        body: tableData,
+        startY: currentY,
+        styles: {
+          fontSize: 8,
+          cellPadding: 2,
+          lineWidth: 0.1,
+        },
+        headStyles: {
+          fillColor: color,
+          textColor: 255,
+          fontStyle: 'bold',
+          fontSize: 8,
+        },
+        alternateRowStyles: {
+          fillColor: [248, 250, 252], // Light gray
+        },
+        columnStyles: {
+          0: { cellWidth: 15 }, // No. column
+          1: { cellWidth: 35 }, // Student ID column
+          2: { cellWidth: 120 }, // Name column
+        },
+        margin: { left: 20, right: 20 },
+        tableLineWidth: 0.1,
+        tableLineColor: [200, 200, 200],
+      });
+      
+      // Get the final Y position after the table
+      const finalY = (doc as any).lastAutoTable?.finalY || currentY + 20;
+      return finalY + 10; // Add some spacing
+    };
+    
+    // Generate tables for each gender
+    currentY = generateGenderTable(maleStudents, 'Male', [59, 130, 246], currentY); // Blue
+    currentY = generateGenderTable(femaleStudents, 'Female', [236, 72, 153], currentY); // Pink
+    currentY = generateGenderTable(otherStudents, 'Other', [107, 114, 128], currentY); // Gray
+    
+    // Footer
+    doc.setFontSize(8);
+    doc.setTextColor(0, 0, 0); // Black color
+    doc.setFont('helvetica', 'italic');
+    doc.text(`Total Students: ${sectionStudents.length}`, pageWidth / 2, currentY + 10, { align: 'center' });
+    
+    // Save the PDF
+    const fileName = `ClassList_${viewingSection.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+    doc.save(fileName);
   }
 
   async function handleTransferStudents() {
@@ -909,6 +1048,13 @@ const ClassManagement: React.FC = () => {
                   </div>
                   <div className="flex items-center gap-2">
                     <button
+                      onClick={generateClassListPDF}
+                      className="inline-flex items-center gap-2 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
+                    >
+                      <Download className="h-4 w-4" />
+                      Download PDF
+                    </button>
+                    <button
                       onClick={openTransferModal}
                       className="rounded-md bg-orange-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-orange-700"
                     >
@@ -925,48 +1071,166 @@ const ClassManagement: React.FC = () => {
                 {sectionStudentsLoading ? (
                   <div className="rounded border border-gray-200 bg-white p-6 text-gray-600">Loading…</div>
                 ) : (
-                  <div className="overflow-x-auto rounded-lg border border-gray-200">
-                    <table className="min-w-full table-fixed divide-y divide-gray-200">
-                      <colgroup>
-                        <col className="w-40" />
-                        <col className="w-[22rem]" />
-                        <col className="w-[26rem]" />
-                        <col className="w-24" />
-                        <col className="w-24" />
-                      </colgroup>
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">Student No.</th>
-                          <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">Name</th>
-                          <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">Email</th>
-                          <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">Year</th>
-                          <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">Action</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {sectionStudents.length === 0 && (
-                          <tr>
-                            <td colSpan={5} className="px-4 py-4 text-center text-sm text-gray-600">No students assigned yet.</td>
-                          </tr>
-                        )}
-                        {sectionStudents.map((s, idx) => (
-                          <tr key={s.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                            <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900">{s.student_id || '—'}</td>
-                            <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900 truncate">{s.last_name}, {s.first_name}{s.middle_name ? ` ${s.middle_name}` : ''}</td>
-                            <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700 truncate">{s.email}</td>
-                            <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700">{s.year_level ?? '—'}</td>
-                            <td className="px-4 py-2">
-                              <button
-                                onClick={() => openSingleTransferModal(s)}
-                                className="rounded-md bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700"
-                              >
-                                Transfer
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  <div className="space-y-6">
+                    {/* Male Students Table */}
+                      {(() => {
+                        const maleStudents = sectionStudents.filter(s => s.gender === 'Male');
+                        return maleStudents.length > 0 && (
+                          <div className="mb-6">
+                            <div className="mb-3 flex items-center gap-2">
+                              <h4 className="text-sm font-semibold text-blue-700">Male Students ({maleStudents.length})</h4>
+                              <div className="h-px flex-1 bg-blue-200"></div>
+                            </div>
+                            <div className="overflow-x-auto rounded-lg border border-blue-200 bg-blue-50/30">
+                              <table className="min-w-full table-fixed divide-y divide-blue-200">
+                                <colgroup>
+                                  <col className="w-40" />
+                                  <col className="w-[22rem]" />
+                                  <col className="w-[26rem]" />
+                                  <col className="w-24" />
+                                  <col className="w-24" />
+                                </colgroup>
+                                <thead className="bg-blue-100">
+                                  <tr>
+                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-blue-800">Student No.</th>
+                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-blue-800">Name</th>
+                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-blue-800">Email</th>
+                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-blue-800">Year</th>
+                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-blue-800">Action</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-blue-200 bg-white">
+                                  {maleStudents.map((s, idx) => (
+                                    <tr key={s.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-blue-50/50'}>
+                                      <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900">{s.student_id || '—'}</td>
+                                      <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900 truncate">{s.last_name}, {s.first_name}{s.middle_name ? ` ${s.middle_name}` : ''}</td>
+                                      <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700 truncate">{s.email}</td>
+                                      <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700">{s.year_level ?? '—'}</td>
+                                      <td className="px-4 py-2">
+                                        <button
+                                          onClick={() => openSingleTransferModal(s)}
+                                          className="rounded-md bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700"
+                                        >
+                                          Transfer
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      {/* Female Students Table */}
+                      {(() => {
+                        const femaleStudents = sectionStudents.filter(s => s.gender === 'Female');
+                        return femaleStudents.length > 0 && (
+                          <div className="mb-6">
+                            <div className="mb-3 flex items-center gap-2">
+                              <h4 className="text-sm font-semibold text-pink-700">Female Students ({femaleStudents.length})</h4>
+                              <div className="h-px flex-1 bg-pink-200"></div>
+                            </div>
+                            <div className="overflow-x-auto rounded-lg border border-pink-200 bg-pink-50/30">
+                              <table className="min-w-full table-fixed divide-y divide-pink-200">
+                                <colgroup>
+                                  <col className="w-40" />
+                                  <col className="w-[22rem]" />
+                                  <col className="w-[26rem]" />
+                                  <col className="w-24" />
+                                  <col className="w-24" />
+                                </colgroup>
+                                <thead className="bg-pink-100">
+                                  <tr>
+                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-pink-800">Student No.</th>
+                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-pink-800">Name</th>
+                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-pink-800">Email</th>
+                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-pink-800">Year</th>
+                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-pink-800">Action</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-pink-200 bg-white">
+                                  {femaleStudents.map((s, idx) => (
+                                    <tr key={s.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-pink-50/50'}>
+                                      <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900">{s.student_id || '—'}</td>
+                                      <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900 truncate">{s.last_name}, {s.first_name}{s.middle_name ? ` ${s.middle_name}` : ''}</td>
+                                      <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700 truncate">{s.email}</td>
+                                      <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700">{s.year_level ?? '—'}</td>
+                                      <td className="px-4 py-2">
+                                        <button
+                                          onClick={() => openSingleTransferModal(s)}
+                                          className="rounded-md bg-pink-600 px-2 py-1 text-xs font-medium text-white hover:bg-pink-700"
+                                        >
+                                          Transfer
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      {/* Other/Unknown Gender Students Table */}
+                      {(() => {
+                        const otherStudents = sectionStudents.filter(s => s.gender && s.gender !== 'Male' && s.gender !== 'Female');
+                        return otherStudents.length > 0 && (
+                          <div className="mb-6">
+                            <div className="mb-3 flex items-center gap-2">
+                              <h4 className="text-sm font-semibold text-gray-700">Other ({otherStudents.length})</h4>
+                              <div className="h-px flex-1 bg-gray-200"></div>
+                            </div>
+                            <div className="overflow-x-auto rounded-lg border border-gray-200 bg-gray-50/30">
+                              <table className="min-w-full table-fixed divide-y divide-gray-200">
+                                <colgroup>
+                                  <col className="w-40" />
+                                  <col className="w-[22rem]" />
+                                  <col className="w-[26rem]" />
+                                  <col className="w-24" />
+                                  <col className="w-24" />
+                                </colgroup>
+                                <thead className="bg-gray-100">
+                                  <tr>
+                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-800">Student No.</th>
+                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-800">Name</th>
+                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-800">Email</th>
+                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-800">Year</th>
+                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-800">Action</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-200 bg-white">
+                                  {otherStudents.map((s, idx) => (
+                                    <tr key={s.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
+                                      <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900">{s.student_id || '—'}</td>
+                                      <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900 truncate">{s.last_name}, {s.first_name}{s.middle_name ? ` ${s.middle_name}` : ''}</td>
+                                      <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700 truncate">{s.email}</td>
+                                      <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700">{s.year_level ?? '—'}</td>
+                                      <td className="px-4 py-2">
+                                        <button
+                                          onClick={() => openSingleTransferModal(s)}
+                                          className="rounded-md bg-gray-600 px-2 py-1 text-xs font-medium text-white hover:bg-gray-700"
+                                        >
+                                          Transfer
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                    {/* No Students Message */}
+                    {sectionStudents.length === 0 && (
+                      <div className="rounded border border-gray-200 bg-white p-6 text-center text-gray-600">
+                        No students assigned yet.
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1123,60 +1387,220 @@ const ClassManagement: React.FC = () => {
               </div>
             </div>
 
-            <div className="overflow-x-auto rounded-lg border border-gray-200">
-              <table className="min-w-full table-fixed divide-y divide-gray-200">
-                <colgroup>
-                  <col className="w-10" />
-                  <col className="w-40" />
-                  <col className="w-[22rem]" />
-                  <col className="w-[26rem]" />
-                  <col className="w-24" />
-                </colgroup>
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-2">
-                      <input
-                        type="checkbox"
-                        checked={sectionStudents.length > 0 && sectionStudents.every(student => selectedStudentsForTransfer[student.id])}
-                        onChange={handleSelectAllStudents}
-                        className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-                      />
-                    </th>
-                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">Student No.</th>
-                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">Name</th>
-                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">Email</th>
-                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">Year</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {sectionStudents.length === 0 && (
-                    <tr>
-                      <td colSpan={5} className="px-4 py-4 text-center text-sm text-gray-600">No students in this section.</td>
-                    </tr>
-                  )}
-                  {sectionStudents.map((student, idx) => (
-                    <tr key={student.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                      <td className="px-4 py-2">
-                        <input
-                          type="checkbox"
-                          checked={!!selectedStudentsForTransfer[student.id]}
-                          onChange={e => setSelectedStudentsForTransfer(prev => ({ 
-                            ...prev, 
-                            [student.id]: e.target.checked 
-                          }))}
-                          className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-                        />
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900">{student.student_id || '—'}</td>
-                      <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900 truncate">
-                        {student.last_name}, {student.first_name}{student.middle_name ? ` ${student.middle_name}` : ''}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700 truncate">{student.email}</td>
-                      <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700">{student.year_level ?? '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="space-y-6">
+              {/* Male Students Table */}
+              {(() => {
+                const maleStudents = sectionStudents.filter(s => s.gender === 'Male');
+                return maleStudents.length > 0 && (
+                  <div>
+                    <div className="mb-3 flex items-center gap-2">
+                      <h4 className="text-sm font-semibold text-blue-700">Male Students ({maleStudents.length})</h4>
+                      <div className="h-px flex-1 bg-blue-200"></div>
+                    </div>
+                    <div className="overflow-x-auto rounded-lg border border-blue-200 bg-blue-50/30">
+                      <table className="min-w-full table-fixed divide-y divide-blue-200">
+                        <colgroup>
+                          <col className="w-10" />
+                          <col className="w-40" />
+                          <col className="w-[22rem]" />
+                          <col className="w-[26rem]" />
+                          <col className="w-24" />
+                        </colgroup>
+                        <thead className="bg-blue-100">
+                          <tr>
+                            <th className="px-4 py-2">
+                              <input
+                                type="checkbox"
+                                checked={maleStudents.length > 0 && maleStudents.every(student => selectedStudentsForTransfer[student.id])}
+                                onChange={(e) => {
+                                  const newSelection = { ...selectedStudentsForTransfer };
+                                  maleStudents.forEach(student => {
+                                    newSelection[student.id] = e.target.checked;
+                                  });
+                                  setSelectedStudentsForTransfer(newSelection);
+                                }}
+                                className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                              />
+                            </th>
+                            <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-blue-800">Student No.</th>
+                            <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-blue-800">Name</th>
+                            <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-blue-800">Email</th>
+                            <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-blue-800">Year</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-blue-200 bg-white">
+                          {maleStudents.map((student, idx) => (
+                            <tr key={student.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-blue-50/50'}>
+                              <td className="px-4 py-2">
+                                <input
+                                  type="checkbox"
+                                  checked={!!selectedStudentsForTransfer[student.id]}
+                                  onChange={e => setSelectedStudentsForTransfer(prev => ({ 
+                                    ...prev, 
+                                    [student.id]: e.target.checked 
+                                  }))}
+                                  className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                                />
+                              </td>
+                              <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900">{student.student_id || '—'}</td>
+                              <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900 truncate">
+                                {student.last_name}, {student.first_name}{student.middle_name ? ` ${student.middle_name}` : ''}
+                              </td>
+                              <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700 truncate">{student.email}</td>
+                              <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700">{student.year_level ?? '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Female Students Table */}
+              {(() => {
+                const femaleStudents = sectionStudents.filter(s => s.gender === 'Female');
+                return femaleStudents.length > 0 && (
+                  <div>
+                    <div className="mb-3 flex items-center gap-2">
+                      <h4 className="text-sm font-semibold text-pink-700">Female Students ({femaleStudents.length})</h4>
+                      <div className="h-px flex-1 bg-pink-200"></div>
+                    </div>
+                    <div className="overflow-x-auto rounded-lg border border-pink-200 bg-pink-50/30">
+                      <table className="min-w-full table-fixed divide-y divide-pink-200">
+                        <colgroup>
+                          <col className="w-10" />
+                          <col className="w-40" />
+                          <col className="w-[22rem]" />
+                          <col className="w-[26rem]" />
+                          <col className="w-24" />
+                        </colgroup>
+                        <thead className="bg-pink-100">
+                          <tr>
+                            <th className="px-4 py-2">
+                              <input
+                                type="checkbox"
+                                checked={femaleStudents.length > 0 && femaleStudents.every(student => selectedStudentsForTransfer[student.id])}
+                                onChange={(e) => {
+                                  const newSelection = { ...selectedStudentsForTransfer };
+                                  femaleStudents.forEach(student => {
+                                    newSelection[student.id] = e.target.checked;
+                                  });
+                                  setSelectedStudentsForTransfer(newSelection);
+                                }}
+                                className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                              />
+                            </th>
+                            <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-pink-800">Student No.</th>
+                            <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-pink-800">Name</th>
+                            <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-pink-800">Email</th>
+                            <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-pink-800">Year</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-pink-200 bg-white">
+                          {femaleStudents.map((student, idx) => (
+                            <tr key={student.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-pink-50/50'}>
+                              <td className="px-4 py-2">
+                                <input
+                                  type="checkbox"
+                                  checked={!!selectedStudentsForTransfer[student.id]}
+                                  onChange={e => setSelectedStudentsForTransfer(prev => ({ 
+                                    ...prev, 
+                                    [student.id]: e.target.checked 
+                                  }))}
+                                  className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                                />
+                              </td>
+                              <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900">{student.student_id || '—'}</td>
+                              <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900 truncate">
+                                {student.last_name}, {student.first_name}{student.middle_name ? ` ${student.middle_name}` : ''}
+                              </td>
+                              <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700 truncate">{student.email}</td>
+                              <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700">{student.year_level ?? '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Other/Unknown Gender Students Table */}
+              {(() => {
+                const otherStudents = sectionStudents.filter(s => s.gender && s.gender !== 'Male' && s.gender !== 'Female');
+                return otherStudents.length > 0 && (
+                  <div>
+                    <div className="mb-3 flex items-center gap-2">
+                      <h4 className="text-sm font-semibold text-gray-700">Other ({otherStudents.length})</h4>
+                      <div className="h-px flex-1 bg-gray-200"></div>
+                    </div>
+                    <div className="overflow-x-auto rounded-lg border border-gray-200 bg-gray-50/30">
+                      <table className="min-w-full table-fixed divide-y divide-gray-200">
+                        <colgroup>
+                          <col className="w-10" />
+                          <col className="w-40" />
+                          <col className="w-[22rem]" />
+                          <col className="w-[26rem]" />
+                          <col className="w-24" />
+                        </colgroup>
+                        <thead className="bg-gray-100">
+                          <tr>
+                            <th className="px-4 py-2">
+                              <input
+                                type="checkbox"
+                                checked={otherStudents.length > 0 && otherStudents.every(student => selectedStudentsForTransfer[student.id])}
+                                onChange={(e) => {
+                                  const newSelection = { ...selectedStudentsForTransfer };
+                                  otherStudents.forEach(student => {
+                                    newSelection[student.id] = e.target.checked;
+                                  });
+                                  setSelectedStudentsForTransfer(newSelection);
+                                }}
+                                className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                              />
+                            </th>
+                            <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-800">Student No.</th>
+                            <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-800">Name</th>
+                            <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-800">Email</th>
+                            <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-800">Year</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200 bg-white">
+                          {otherStudents.map((student, idx) => (
+                            <tr key={student.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
+                              <td className="px-4 py-2">
+                                <input
+                                  type="checkbox"
+                                  checked={!!selectedStudentsForTransfer[student.id]}
+                                  onChange={e => setSelectedStudentsForTransfer(prev => ({ 
+                                    ...prev, 
+                                    [student.id]: e.target.checked 
+                                  }))}
+                                  className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                                />
+                              </td>
+                              <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900">{student.student_id || '—'}</td>
+                              <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900 truncate">
+                                {student.last_name}, {student.first_name}{student.middle_name ? ` ${student.middle_name}` : ''}
+                              </td>
+                              <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700 truncate">{student.email}</td>
+                              <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700">{student.year_level ?? '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* No Students Message */}
+              {sectionStudents.length === 0 && (
+                <div className="rounded border border-gray-200 bg-white p-6 text-center text-gray-600">
+                  No students in this section.
+                </div>
+              )}
             </div>
           </div>
         </div>
