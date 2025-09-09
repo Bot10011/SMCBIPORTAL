@@ -4567,7 +4567,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                           label="Section"
                           onChange={e => setCreateForm(f => ({ ...f, section: e.target.value }))}
                           required
-                          disabled={sectionsLoading || selectedExistingStudent !== null}
+                          disabled={sectionsLoading}
                           sx={{
                             '& .MuiOutlinedInput-root': {
                               '& fieldset': {
@@ -4585,11 +4585,6 @@ const ProgramHeadEnrollment: React.FC = () => {
                               </MenuItem>
                             ))}
                         </Select>
-                        {selectedExistingStudent !== null && (
-                          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                            Changing section is avaialable at Class Manangement.
-                          </Typography>
-                        )}
                       </FormControl>
                     </Grid>
                   </Grid>
