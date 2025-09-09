@@ -37,7 +37,6 @@ import {
   Edit, 
   Trash2, 
   Search, 
-  Filter,
   GraduationCap,
   BookOpen,
   Users,
@@ -121,9 +120,7 @@ const InstructorManagement: React.FC = () => {
   const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterRole, setFilterRole] = useState('');
-  const [filterDepartment, setFilterDepartment] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
+  // Removed role/department/status filters from UI
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createForm, setCreateForm] = useState({
@@ -159,11 +156,13 @@ const InstructorManagement: React.FC = () => {
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [instructorToView, setInstructorToView] = useState<Instructor | null>(null);
 
-  // Subject Assignment Modal State
+  // Subject Assignment Modal State (supports create and edit)
   const [subjectAssignmentModal, setSubjectAssignmentModal] = useState({
     isOpen: false,
     selectedTeacherId: '',
-    selectedTeacherName: ''
+    selectedTeacherName: '',
+    isEditMode: false,
+    editingAssignmentId: '' as string | ''
   });
   const [courses, setCourses] = useState<Course[]>([]);
   const [sections, setSections] = useState<Array<{
@@ -200,7 +199,7 @@ const InstructorManagement: React.FC = () => {
     assignment: null
   });
 
-  // Edit Assignment Modal State
+  // Deprecated standalone Edit Assignment Modal State (replaced by unified modal)
   const [editAssignmentModal, setEditAssignmentModal] = useState<{
     isOpen: boolean;
     assignment: TeacherSubject | null;
@@ -685,14 +684,8 @@ const InstructorManagement: React.FC = () => {
       instructor.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       instructor.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       instructor.email.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesRole = !filterRole || instructor.role === filterRole;
-    const matchesDepartment = !filterDepartment || instructor.department === filterDepartment;
-    const matchesStatus = !filterStatus || 
-      (filterStatus === 'active' && instructor.is_active) ||
-      (filterStatus === 'inactive' && !instructor.is_active);
 
-    return matchesSearch && matchesRole && matchesDepartment && matchesStatus;
+    return matchesSearch;
   });
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
@@ -704,7 +697,9 @@ const InstructorManagement: React.FC = () => {
     setSubjectAssignmentModal({
       isOpen: true,
       selectedTeacherId: instructor.id,
-      selectedTeacherName: `${instructor.first_name} ${instructor.middle_name ? instructor.middle_name + ' ' : ''}${instructor.last_name}`
+      selectedTeacherName: `${instructor.first_name} ${instructor.middle_name ? instructor.middle_name + ' ' : ''}${instructor.last_name}`,
+      isEditMode: false,
+      editingAssignmentId: ''
     });
     
     // Pre-fill the assignment form with the selected teacher
@@ -713,7 +708,7 @@ const InstructorManagement: React.FC = () => {
       subject_id: '',
       section: '',
       academic_year: getDefaultSchoolYear(),
-      semester: '1st Semester',
+      semester: 'First Semester',
       year_level: '',
       is_active: true,
       day: '',
@@ -740,17 +735,46 @@ const InstructorManagement: React.FC = () => {
     try {
       setFormSubmitting(true);
       
-      // Insert the assignment into the database
-      const { error } = await supabase
-        .from('teacher_subjects')
-        .insert(assignments);
+      if (subjectAssignmentModal.isEditMode) {
+        // Update existing assignment (use only the first payload)
+        const payload = assignments[0];
+        if (!subjectAssignmentModal.editingAssignmentId) {
+          throw new Error('Missing assignment ID for edit');
+        }
+        const { error } = await supabase
+          .from('teacher_subjects')
+          .update({
+            teacher_id: payload.teacher_id,
+            subject_id: payload.subject_id,
+            section: payload.section,
+            academic_year: payload.academic_year,
+            semester: payload.semester,
+            year_level: payload.year_level,
+            day: payload.day,
+            time: payload.time,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', subjectAssignmentModal.editingAssignmentId);
 
-      if (error) throw error;
+        if (error) throw error;
 
-      toast.success('Subject assigned successfully!');
-      setSubjectAssignmentModal({ isOpen: false, selectedTeacherId: '', selectedTeacherName: '' });
-      
-      return { success: true, message: 'Subject assigned successfully!' };
+        toast.success('Assignment updated successfully!');
+        setSubjectAssignmentModal({ isOpen: false, selectedTeacherId: '', selectedTeacherName: '', isEditMode: false, editingAssignmentId: '' });
+        fetchAssignments();
+        return { success: true, message: 'Assignment updated successfully!' };
+      } else {
+        // Insert new assignments
+        const { error } = await supabase
+          .from('teacher_subjects')
+          .insert(assignments);
+
+        if (error) throw error;
+
+        toast.success('Subject assigned successfully!');
+        setSubjectAssignmentModal({ isOpen: false, selectedTeacherId: '', selectedTeacherName: '', isEditMode: false, editingAssignmentId: '' });
+        fetchAssignments();
+        return { success: true, message: 'Subject assigned successfully!' };
+      }
     } catch (error) {
       console.error('Error assigning subject:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to assign subject';
@@ -762,7 +786,7 @@ const InstructorManagement: React.FC = () => {
   };
 
   const handleCloseSubjectAssignmentModal = () => {
-    setSubjectAssignmentModal({ isOpen: false, selectedTeacherId: '', selectedTeacherName: '' });
+    setSubjectAssignmentModal({ isOpen: false, selectedTeacherId: '', selectedTeacherName: '', isEditMode: false, editingAssignmentId: '' });
     setNewAssignment({
       teacher_id: '',
       subject_id: '',
@@ -798,7 +822,7 @@ const InstructorManagement: React.FC = () => {
       day: '',
       time: ''
     });
-    setSubjectAssignmentModal({ isOpen: true, selectedTeacherId: '', selectedTeacherName: '' });
+    setSubjectAssignmentModal({ isOpen: true, selectedTeacherId: '', selectedTeacherName: '', isEditMode: false, editingAssignmentId: '' });
   };
 
   const openAssignmentDetail = (assignment: TeacherSubject) => {
@@ -816,10 +840,27 @@ const InstructorManagement: React.FC = () => {
   };
 
   const openEditAssignment = (assignment: TeacherSubject) => {
-    setEditAssignmentModal({
+    // Open the unified SubjectAssignmentModal in edit mode with prefilled data
+    setSubjectAssignmentModal({
       isOpen: true,
-      assignment,
-      loading: false
+      selectedTeacherId: assignment.teacher_id,
+      selectedTeacherName: assignment.teacher_name || '',
+      isEditMode: true,
+      editingAssignmentId: assignment.id || ''
+    });
+
+    // Prefer course-derived year_level/semester to guarantee subject appears in filtered list
+    const courseForAssignment = courses.find(c => c.id === assignment.subject_id);
+    setNewAssignment({
+      teacher_id: assignment.teacher_id,
+      subject_id: assignment.subject_id,
+      section: assignment.section,
+      academic_year: assignment.academic_year,
+      semester: normalizeSemester(courseForAssignment?.semester || assignment.semester),
+      year_level: normalizeYearLevel((courseForAssignment?.year_level as string) || assignment.year_level),
+      is_active: assignment.is_active,
+      day: expandDayAbbreviations(assignment.day) || '',
+      time: assignment.time || ''
     });
   };
 
@@ -874,6 +915,63 @@ const InstructorManagement: React.FC = () => {
     'Friday': 'F',
     'Saturday': 'S',
     'Sunday': 'Su',
+  };
+
+  // Helper: map abbreviations back to full day names for edit prefill
+  const abbrToFullDay: Record<string, string> = Object.keys(dayAbbr).reduce((acc: Record<string, string>, full) => {
+    const abbr = dayAbbr[full];
+    acc[abbr] = full;
+    return acc;
+  }, {});
+
+  const expandDayAbbreviations = (dayStr?: string): string => {
+    if (!dayStr) return '';
+    return dayStr
+      .split(',')
+      .map(d => d.trim())
+      .map(d => abbrToFullDay[d] || d)
+      .join(',');
+  };
+
+  const normalizeYearLevel = (yl?: string): string => {
+    if (!yl) return '';
+    const s = String(yl).toLowerCase().trim();
+    if (s === '1' || s === '1st' || s.includes('1st')) return '1st Year';
+    if (s === '2' || s === '2nd' || s.includes('2nd')) return '2nd Year';
+    if (s === '3' || s === '3rd' || s.includes('3rd')) return '3rd Year';
+    if (s === '4' || s === '4th' || s.includes('4th')) return '4th Year';
+    // fallback: try to extract number
+    const num = s.match(/\d+/)?.[0];
+    if (num === '1') return '1st Year';
+    if (num === '2') return '2nd Year';
+    if (num === '3') return '3rd Year';
+    if (num === '4') return '4th Year';
+    return yl;
+  };
+
+  const normalizeSemester = (sem?: string): string => {
+    if (!sem) return '';
+    const s = String(sem).toLowerCase().trim();
+    const map: Record<string, string> = {
+      'first semester': 'First Semester',
+      '1st semester': 'First Semester',
+      '1st sem': 'First Semester',
+      'first sem': 'First Semester',
+      'first': 'First Semester',
+      'second semester': 'Second Semester',
+      '2nd semester': 'Second Semester',
+      '2nd sem': 'Second Semester',
+      'second sem': 'Second Semester',
+      'second': 'Second Semester',
+      'summer': 'Summer',
+      'summer semester': 'Summer',
+      'summer sem': 'Summer',
+      'su': 'Summer',
+      'sm': 'Summer',
+      'sum': 'Summer'
+    };
+    if (map[s]) return map[s];
+    return sem;
   };
 
   return (
@@ -977,7 +1075,7 @@ const InstructorManagement: React.FC = () => {
           {/* Filters */}
           <Card sx={{ mb: 3, p: 2, background: 'rgba(255, 255, 255, 0.8)' }}>
             <Grid container spacing={2} alignItems="center">
-              <Grid item xs={12} sm={3}>
+              <Grid item xs={12} sm={4} md={3}>
                 <TextField
                   fullWidth
                   placeholder="Search instructors..."
@@ -988,49 +1086,6 @@ const InstructorManagement: React.FC = () => {
                   }}
                   size="small"
                 />
-              </Grid>
-              <Grid item xs={12} sm={2}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Role</InputLabel>
-                  <Select
-                    value={filterRole}
-                    label="Role"
-                    onChange={(e) => setFilterRole(e.target.value)}
-                  >
-                    <MenuItem value="">All Roles</MenuItem>
-                    <MenuItem value="teacher">Teacher</MenuItem>
-                    <MenuItem value="instructor">Instructor</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12} sm={3}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Department</InputLabel>
-                  <Select
-                    value={filterDepartment}
-                    label="Department"
-                    onChange={(e) => setFilterDepartment(e.target.value)}
-                  >
-                    <MenuItem value="">All Departments</MenuItem>
-                    <MenuItem value="BSIT">BSIT</MenuItem>
-                    <MenuItem value="BSBA">BSBA</MenuItem>
-                    <MenuItem value="BSA">BSA</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12} sm={2}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Status</InputLabel>
-                  <Select
-                    value={filterStatus}
-                    label="Status"
-                    onChange={(e) => setFilterStatus(e.target.value)}
-                  >
-                    <MenuItem value="">All Status</MenuItem>
-                    <MenuItem value="active">Active</MenuItem>
-                    <MenuItem value="inactive">Inactive</MenuItem>
-                  </Select>
-                </FormControl>
               </Grid>
             </Grid>
           </Card>
@@ -1871,234 +1926,7 @@ const InstructorManagement: React.FC = () => {
         )}
       </Dialog>
 
-      {/* Edit Assignment Modal */}
-      <Dialog
-        open={editAssignmentModal.isOpen}
-        onClose={closeEditAssignment}
-        maxWidth="sm"
-        fullWidth
-        PaperProps={{
-          sx: {
-            borderRadius: 2,
-            boxShadow: '0 10px 40px rgba(0, 0, 0, 0.15)'
-          }
-        }}
-      >
-        {editAssignmentModal.assignment && (
-          <form onSubmit={handleEditAssignment}>
-            <DialogTitle 
-              sx={{
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                color: 'white',
-                py: 2,
-                px: 3,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between'
-              }}
-            >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                <Edit className="w-5 h-5" />
-                <Typography variant="h6" sx={{ fontWeight: '600', fontSize: '1.1rem' }}>
-                  Edit Assignment
-                </Typography>
-              </Box>
-              <IconButton
-                onClick={closeEditAssignment}
-                sx={{ color: 'white', p: 0.5 }}
-                size="small"
-              >
-                <X className="w-4 h-4" />
-              </IconButton>
-            </DialogTitle>
-            
-            <DialogContent sx={{ p: 3 }}>
-              <Grid container spacing={2}>
-                {/* Instructor Selection */}
-                <Grid item xs={12}>
-                  <FormControl fullWidth>
-                    <InputLabel>Instructor</InputLabel>
-                    <Select
-                      value={editAssignmentModal.assignment.teacher_id}
-                      onChange={(e) => setEditAssignmentModal(prev => ({
-                        ...prev,
-                        assignment: prev.assignment ? {
-                          ...prev.assignment,
-                          teacher_id: e.target.value
-                        } : null
-                      }))}
-                      label="Instructor"
-                    >
-                      {instructors.map((instructor) => (
-                        <MenuItem key={instructor.id} value={instructor.id}>
-                          {instructor.first_name} {instructor.middle_name ? instructor.middle_name + ' ' : ''}{instructor.last_name}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-
-                {/* Subject Selection */}
-                <Grid item xs={12}>
-                  <FormControl fullWidth>
-                    <InputLabel>Subject</InputLabel>
-                    <Select
-                      value={editAssignmentModal.assignment.subject_id}
-                      onChange={(e) => setEditAssignmentModal(prev => ({
-                        ...prev,
-                        assignment: prev.assignment ? {
-                          ...prev.assignment,
-                          subject_id: e.target.value
-                        } : null
-                      }))}
-                      label="Subject"
-                    >
-                      {courses.map((course) => (
-                        <MenuItem key={course.id} value={course.id}>
-                          {course.code} - {course.name}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-
-                {/* Section */}
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    label="Section"
-                    value={editAssignmentModal.assignment.section}
-                    onChange={(e) => setEditAssignmentModal(prev => ({
-                      ...prev,
-                      assignment: prev.assignment ? {
-                        ...prev.assignment,
-                        section: e.target.value
-                      } : null
-                    }))}
-                  />
-                </Grid>
-
-                {/* Semester */}
-                <Grid item xs={12} sm={6}>
-                  <FormControl fullWidth>
-                    <InputLabel>Semester</InputLabel>
-                    <Select
-                      value={editAssignmentModal.assignment.semester}
-                      onChange={(e) => setEditAssignmentModal(prev => ({
-                        ...prev,
-                        assignment: prev.assignment ? {
-                          ...prev.assignment,
-                          semester: e.target.value
-                        } : null
-                      }))}
-                      label="Semester"
-                    >
-                      <MenuItem value="First Semester">First Semester</MenuItem>
-                      <MenuItem value="Second Semester">Second Semester</MenuItem>
-                      <MenuItem value="Summer">Summer</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
-
-                {/* Academic Year */}
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    label="Academic Year"
-                    value={editAssignmentModal.assignment.academic_year}
-                    onChange={(e) => setEditAssignmentModal(prev => ({
-                      ...prev,
-                      assignment: prev.assignment ? {
-                        ...prev.assignment,
-                        academic_year: e.target.value
-                      } : null
-                    }))}
-                  />
-                </Grid>
-
-                {/* Year Level */}
-                <Grid item xs={12} sm={6}>
-                  <FormControl fullWidth>
-                    <InputLabel>Year Level</InputLabel>
-                    <Select
-                      value={editAssignmentModal.assignment.year_level}
-                      onChange={(e) => setEditAssignmentModal(prev => ({
-                        ...prev,
-                        assignment: prev.assignment ? {
-                          ...prev.assignment,
-                          year_level: e.target.value
-                        } : null
-                      }))}
-                      label="Year Level"
-                    >
-                      <MenuItem value="1st Year">1st Year</MenuItem>
-                      <MenuItem value="2nd Year">2nd Year</MenuItem>
-                      <MenuItem value="3rd Year">3rd Year</MenuItem>
-                      <MenuItem value="4th Year">4th Year</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
-
-                {/* Schedule */}
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    label="Days (e.g., Monday, Tuesday)"
-                    value={editAssignmentModal.assignment.day || ''}
-                    onChange={(e) => setEditAssignmentModal(prev => ({
-                      ...prev,
-                      assignment: prev.assignment ? {
-                        ...prev.assignment,
-                        day: e.target.value
-                      } : null
-                    }))}
-                    placeholder="Monday, Tuesday, Wednesday"
-                  />
-                </Grid>
-
-                {/* Time */}
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    label="Time"
-                    value={editAssignmentModal.assignment.time || ''}
-                    onChange={(e) => setEditAssignmentModal(prev => ({
-                      ...prev,
-                      assignment: prev.assignment ? {
-                        ...prev.assignment,
-                        time: e.target.value
-                      } : null
-                    }))}
-                    placeholder="9:00 AM - 10:30 AM"
-                  />
-                </Grid>
-              </Grid>
-            </DialogContent>
-            
-            <DialogActions sx={{ p: 3, background: '#f8fafc' }}>
-              <Button 
-                onClick={closeEditAssignment}
-                disabled={editAssignmentModal.loading}
-              >
-                Cancel
-              </Button>
-              <Button 
-                type="submit" 
-                variant="contained"
-                disabled={editAssignmentModal.loading}
-                sx={{
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                  '&:hover': {
-                    background: 'linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%)',
-                  }
-                }}
-              >
-                {editAssignmentModal.loading ? 'Updating...' : 'Update Assignment'}
-              </Button>
-            </DialogActions>
-          </form>
-        )}
-      </Dialog>
+      {/* Edit Assignment Modal is replaced by SubjectAssignmentModal in edit mode */}
 
       {/* Edit Instructor Dialog */}
       <Dialog 
@@ -2617,7 +2445,7 @@ const InstructorManagement: React.FC = () => {
         assignment={newAssignment}
         handleInputChange={handleInputChange}
         formSubmitting={formSubmitting}
-        isEditMode={false}
+        isEditMode={subjectAssignmentModal.isEditMode}
         teachers={instructors.map(instructor => ({
           id: instructor.id,
           first_name: instructor.first_name,
