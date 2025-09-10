@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   Box,
   Card,
-  CardContent,
   Typography,
   Tabs,
   Tab,
@@ -22,7 +21,6 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Paper,
   Chip,
   IconButton,
   Alert,
@@ -44,7 +42,7 @@ import {
   X,
   Eye
 } from 'lucide-react';
-import SubjectAssignmentModal, { SubjectAssignmentModalProps } from './SubjectAssignmentModal';
+import SubjectAssignmentModal from './SubjectAssignmentModal';
 
 interface Instructor {
   id: string;
@@ -120,6 +118,7 @@ const InstructorManagement: React.FC = () => {
   const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [currentDepartment, setCurrentDepartment] = useState<string | null>(null);
   // Removed role/department/status filters from UI
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -129,7 +128,7 @@ const InstructorManagement: React.FC = () => {
     lastName: '',
     email: '',
     role: 'instructor' as 'teacher' | 'instructor', // default to instructor
-    department: 'BSIT', // default to BSIT
+    department: '',
     password: 'TempPass@123',
   });
 
@@ -165,9 +164,11 @@ const InstructorManagement: React.FC = () => {
     editingAssignmentId: '' as string | ''
   });
   const [courses, setCourses] = useState<Course[]>([]);
-  const [sections, setSections] = useState<Array<{
+  // Removed sections state; not used by the modal anymore
+  const [programs, setPrograms] = useState<Array<{
     id: string;
     name: string;
+    description?: string;
     year_level: string;
   }>>([]);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
@@ -200,42 +201,30 @@ const InstructorManagement: React.FC = () => {
   });
 
   // Deprecated standalone Edit Assignment Modal State (replaced by unified modal)
-  const [editAssignmentModal, setEditAssignmentModal] = useState<{
-    isOpen: boolean;
-    assignment: TeacherSubject | null;
-    loading: boolean;
-  }>({
-    isOpen: false,
-    assignment: null,
-    loading: false
-  });
+  // Deprecated standalone Edit Assignment modal state removed (using unified modal)
 
-  const fetchSections = async () => {
+  // Removed fetchSections; sections not used
+
+  const fetchPrograms = async () => {
     try {
-      console.log('Fetching sections...');
+      interface ProgramRow { id: string; name: string | null; description?: string | null }
       const { data, error } = await supabase
-        .from('sections')
-        .select('id, name, year_level')
+        .from('programs')
+        .select('id, name, description')
         .order('name', { ascending: true });
- 
+
       if (error) throw error;
-      
-      console.log('Fetched sections:', data);
-      
-      // Validate that sections have proper year_level data
-      const validSections = (data || []).filter(section => 
-        section.year_level !== null && 
-        section.year_level !== undefined && 
-        section.name && 
-        section.name.trim() !== ''
-      );
-      
-      console.log('Valid sections:', validSections);
-      setSections(validSections);
+      const typed = (data as ProgramRow[] | null) || [];
+      setPrograms(typed.map((p) => ({
+        id: p.id,
+        name: p.name ?? 'Unnamed Program',
+        description: p.description ?? undefined,
+        year_level: ''
+      })));
     } catch (error) {
-      console.error('Error fetching sections:', error);
-      toast.error('Failed to load sections');
-      setSections([]);
+      console.error('Error fetching programs:', error);
+      toast.error('Failed to load programs');
+      setPrograms([]);
     }
   };
 
@@ -296,9 +285,22 @@ const InstructorManagement: React.FC = () => {
       }
       
       // Transform the data to ensure display_name is available
-      const transformedCourses = (data || []).map((course: any) => ({
-        ...course,
-        display_name: course.display_name || course.name || course.code,
+      interface CourseRow {
+        id: string;
+        code?: string;
+        name?: string;
+        units?: number;
+        year_level?: string;
+        display_name?: string;
+        semester?: string;
+        summer?: boolean;
+      }
+      const transformedCourses: Course[] = ((data as CourseRow[] | null) || []).map((course) => ({
+        id: course.id,
+        code: String(course.code ?? ''),
+        name: String(course.name ?? ''),
+        units: Number(course.units ?? 0),
+        display_name: String(course.display_name ?? course.name ?? course.code ?? ''),
         // Assign default year level if missing
         year_level: course.year_level || (() => {
           // Try to extract year from course code or name
@@ -322,7 +324,7 @@ const InstructorManagement: React.FC = () => {
           
           // If semester is already set, use it
           if (course.semester) {
-            return course.semester;
+            return String(course.semester);
           }
           
           // Try to extract semester from course code or name
@@ -405,7 +407,38 @@ const InstructorManagement: React.FC = () => {
       if (error) throw error;
 
       // Transform the data to match our interface
-      const transformedAssignments = (data || []).map((assignment: any) => ({
+      interface AssignmentRow {
+        id: string;
+        teacher_id: string;
+        subject_id: string;
+        section: string;
+        academic_year: string;
+        semester: string;
+        year_level: string;
+        is_active: boolean;
+        day?: string;
+        time?: string;
+        created_at?: string;
+        teacher?: {
+          id: string;
+          first_name: string;
+          last_name: string;
+          middle_name?: string | null;
+          email: string;
+          role: string;
+          department?: string | null;
+          profile_picture_url?: string | null;
+        } | null;
+        subject?: {
+          id: string;
+          code?: string;
+          name?: string;
+          units?: number;
+          year_level?: string;
+          semester?: string;
+        } | null;
+      }
+      const transformedAssignments: TeacherSubject[] = ((data as AssignmentRow[] | null) || []).map((assignment) => ({
         id: assignment.id,
         teacher_id: assignment.teacher_id,
         subject_id: assignment.subject_id,
@@ -421,7 +454,7 @@ const InstructorManagement: React.FC = () => {
           ? `${assignment.teacher.first_name} ${assignment.teacher.middle_name ? assignment.teacher.middle_name + ' ' : ''}${assignment.teacher.last_name}`
           : 'Unknown Teacher',
         teacher_role: assignment.teacher?.role || 'Unknown',
-        teacher_profile_picture: assignment.teacher?.profile_picture_url || null,
+        teacher_profile_picture: assignment.teacher?.profile_picture_url || undefined,
         subject_code: assignment.subject?.code || 'Unknown',
         subject_name: assignment.subject?.name || 'Unknown',
         subject_units: assignment.subject?.units || 0
@@ -439,11 +472,17 @@ const InstructorManagement: React.FC = () => {
   const fetchInstructors = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      let query = supabase
         .from('user_profiles')
         .select('*')
         .in('role', ['teacher', 'instructor'])
         .order('created_at', { ascending: false });
+
+      if (currentDepartment) {
+        query = query.eq('department', currentDepartment);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       setInstructors(data || []);
@@ -581,10 +620,33 @@ const InstructorManagement: React.FC = () => {
 
   // Fetch instructors on component mount
   useEffect(() => {
-    fetchInstructors();
+    const loadCurrentDepartment = async () => {
+      try {
+        const { data: auth } = await supabase.auth.getUser();
+        const userId = auth?.user?.id;
+        if (!userId) return;
+        const { data } = await supabase
+          .from('user_profiles')
+          .select('department')
+          .eq('id', userId)
+          .single();
+        if (data?.department) {
+          setCurrentDepartment(data.department as string);
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    loadCurrentDepartment();
     fetchCourses();
-    fetchSections();
+    fetchPrograms();
   }, []);
+
+  // Refetch instructors whenever department scope changes
+  useEffect(() => {
+    fetchInstructors();
+  }, [currentDepartment]);
 
   // Fetch assignments when tab changes to Year Level Assigned Subjects
   useEffect(() => {
@@ -663,7 +725,7 @@ const InstructorManagement: React.FC = () => {
       lastName: '',
       email: '',
       role: 'instructor', // default to instructor
-      department: 'BSIT', // default to BSIT
+      department: currentDepartment || '',
       password: 'TempPass@123',
     });
   };
@@ -678,6 +740,13 @@ const InstructorManagement: React.FC = () => {
     }
   }, [createForm.firstName, createForm.lastName]);
 
+  // Default department to Program Head's department when opening create dialog
+  useEffect(() => {
+    if (createDialogOpen && currentDepartment && !createForm.department) {
+      setCreateForm(f => ({ ...f, department: currentDepartment }));
+    }
+  }, [createDialogOpen, currentDepartment]);
+
   // Filter instructors based on search and filters
   const filteredInstructors = instructors.filter(instructor => {
     const matchesSearch = !searchTerm || 
@@ -685,7 +754,9 @@ const InstructorManagement: React.FC = () => {
       instructor.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       instructor.email.toLowerCase().includes(searchTerm.toLowerCase());
 
-    return matchesSearch;
+    const matchesDepartment = !currentDepartment || instructor.department === currentDepartment;
+
+    return matchesSearch && matchesDepartment;
   });
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
@@ -864,48 +935,9 @@ const InstructorManagement: React.FC = () => {
     });
   };
 
-  const closeEditAssignment = () => {
-    setEditAssignmentModal({
-      isOpen: false,
-      assignment: null,
-      loading: false
-    });
-  };
+  // deprecated closeEditAssignment removed
 
-  const handleEditAssignment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editAssignmentModal.assignment) return;
-
-    setEditAssignmentModal(prev => ({ ...prev, loading: true }));
-
-    try {
-      const { error } = await supabase
-        .from('teacher_subjects')
-        .update({
-          teacher_id: editAssignmentModal.assignment.teacher_id,
-          subject_id: editAssignmentModal.assignment.subject_id,
-          section: editAssignmentModal.assignment.section,
-          academic_year: editAssignmentModal.assignment.academic_year,
-          semester: editAssignmentModal.assignment.semester,
-          year_level: editAssignmentModal.assignment.year_level,
-          day: editAssignmentModal.assignment.day,
-          time: editAssignmentModal.assignment.time,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', editAssignmentModal.assignment.id);
-
-      if (error) throw error;
-
-      toast.success('Assignment updated successfully');
-      closeEditAssignment();
-      fetchAssignments(); // Refresh the assignments list
-    } catch (error) {
-      console.error('Error updating assignment:', error);
-      toast.error('Failed to update assignment');
-    } finally {
-      setEditAssignmentModal(prev => ({ ...prev, loading: false }));
-    }
-  };
+  // deprecated standalone edit handler removed; unified modal handles editing
 
   const dayAbbr: Record<string, string> = {
     'Monday': 'M',
@@ -978,7 +1010,7 @@ const InstructorManagement: React.FC = () => {
     <Box sx={{ 
       minHeight: '100vh',
       p: { xs: 2, sm: 4 },
-      background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)'
+    
     }}>
       {/* Header */}
       <Box sx={{ 
@@ -1091,7 +1123,7 @@ const InstructorManagement: React.FC = () => {
           </Card>
 
           {/* Instructors Table */}
-          <Card sx={{ borderRadius: 3, overflow: 'hidden' }}>
+          <Card sx={{ borderRadius: 3, overflow: 'hidden', backgroundColor: '#fff' }}>
             <TableContainer>
               <Table>
                 <TableHead sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
@@ -1642,24 +1674,32 @@ const InstructorManagement: React.FC = () => {
               <input type="hidden" name="role" value="instructor" />
               {/* Remove Department Dropdown, use read-only text field instead */}
               <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Department"
-                  value={createForm.department}
-                  InputProps={{ readOnly: true }}
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      backgroundColor: '#f9fafb'
-                    }
-                  }}
-                  helperText="Department is set to BSIT by default."
-                />
+                <FormControl fullWidth>
+                  <InputLabel>Department</InputLabel>
+                  <Select
+                    value={createForm.department}
+                    label="Department"
+                    onChange={(e) => setCreateForm(f => ({ ...f, department: e.target.value as string }))}
+                    required
+                  >
+                    <MenuItem value="" disabled>
+                      Select Department
+                    </MenuItem>
+                    {programs
+                      .filter(p => !currentDepartment || p.name === currentDepartment)
+                      .map((program) => (
+                      <MenuItem key={program.id} value={program.name}>
+                        {(program.description || program.name)} — {program.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
               </Grid>
               <Grid item xs={12}>
                 <TextField
                   fullWidth
                   label="Password"
-                  type="text"
+                  type="text" 
                   value={createForm.password}
                   InputProps={{ readOnly: true }}
                   sx={{
@@ -2446,7 +2486,9 @@ const InstructorManagement: React.FC = () => {
         handleInputChange={handleInputChange}
         formSubmitting={formSubmitting}
         isEditMode={subjectAssignmentModal.isEditMode}
-        teachers={instructors.map(instructor => ({
+        teachers={instructors
+          .filter(instructor => !currentDepartment || instructor.department === currentDepartment)
+          .map(instructor => ({
           id: instructor.id,
           first_name: instructor.first_name,
           last_name: instructor.last_name,
@@ -2457,7 +2499,6 @@ const InstructorManagement: React.FC = () => {
           full_name: `${instructor.first_name} ${instructor.middle_name ? instructor.middle_name + ' ' : ''}${instructor.last_name}`
         }))}
         courses={courses}
-        sections={sections} // Sections for filtering by year level
       />
     </Box>
   );
