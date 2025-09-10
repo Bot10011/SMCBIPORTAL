@@ -1,8 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { Search, RefreshCw, ChevronDown, ChevronRight, Edit, Trash2, Download } from 'lucide-react';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import { Search, RefreshCw, ChevronDown, ChevronRight, Edit, Trash2 } from 'lucide-react';
 
 type StudentRow = {
   id: string;
@@ -14,20 +12,24 @@ type StudentRow = {
   year_level?: number | string | null;
   section?: string | null;
   is_active?: boolean;
-  gender?: string | null;
 };
-
+ 
 type SectionRow = {
-  id: string;
+  id: string; 
   name: string;
   year_level: number | null;
   academic_year?: string | null;
+  department?: string | null;
 };
 
 const ClassManagement: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [students, setStudents] = useState<StudentRow[]>([]);
+  const [currentDepartment, setCurrentDepartment] = useState<string | null>(null);
+  const [sectionsSupportsDepartment, setSectionsSupportsDepartment] = useState<boolean>(false);
+  const [sectionsDeptChecked, setSectionsDeptChecked] = useState<boolean>(false);
+  const [deptLoading, setDeptLoading] = useState<boolean>(true);
   const [query, setQuery] = useState('');
   const [studentYearFilter, setStudentYearFilter] = useState<'all' | number>('all');
   const [assignmentFilter, setAssignmentFilter] = useState<'all' | 'assigned' | 'unassigned'>('all');
@@ -55,20 +57,7 @@ const ClassManagement: React.FC = () => {
   const [autoAssignLoading, setAutoAssignLoading] = useState(false);
   const [autoAssignError, setAutoAssignError] = useState<string | null>(null);
   const [sectionStudentCounts, setSectionStudentCounts] = useState<Record<string, number>>({});
-  
-  // Transfer functionality state
-  const [showTransferModal, setShowTransferModal] = useState(false);
-  const [transferLoading, setTransferLoading] = useState(false);
-  const [transferError, setTransferError] = useState<string | null>(null);
-  const [selectedStudentsForTransfer, setSelectedStudentsForTransfer] = useState<Record<string, boolean>>({});
-  const [targetSectionId, setTargetSectionId] = useState<string>('');
-  
-  // Single transfer functionality state
-  const [showSingleTransferModal, setShowSingleTransferModal] = useState(false);
-  const [singleTransferLoading, setSingleTransferLoading] = useState(false);
-  const [singleTransferError, setSingleTransferError] = useState<string | null>(null);
-  const [studentToTransfer, setStudentToTransfer] = useState<StudentRow | null>(null);
-  const [singleTargetSectionId, setSingleTargetSectionId] = useState<string>('');
+  const [allowedSectionIds, setAllowedSectionIds] = useState<Record<string, boolean>>({});
 
   function getNextSectionName(baseName: string | null | undefined): string {
     const name = (baseName || '').trim();
@@ -153,11 +142,24 @@ const ClassManagement: React.FC = () => {
           const base = yearSections.length > 0 ? yearSections[yearSections.length - 1] : null;
           const newName = `IT ${year}${getNextSectionName(base?.name || 'A')}`;
           const academicYear = base?.academic_year || getDefaultAcademicYear();
-          const { data: created, error: createErr } = await supabase
-            .from('sections')
-            .insert([{ name: newName, year_level: year, academic_year: academicYear }])
-            .select('id, name, year_level, academic_year')
-            .single();
+          // Attempt insert with department; fallback if column missing
+          let created: any = null; let createErr: any = null;
+          try {
+            const res = await supabase
+              .from('sections')
+              .insert([{ name: newName, year_level: year, academic_year: academicYear, department: currentDepartment || null }])
+              .select('id, name, year_level, academic_year, department')
+              .single();
+            created = res.data; createErr = res.error;
+          } catch (e: any) { createErr = e; }
+          if (createErr && String(createErr.status || createErr.code || '').startsWith('4')) {
+            const res = await supabase
+              .from('sections')
+              .insert([{ name: newName, year_level: year, academic_year: academicYear }])
+              .select('id, name, year_level, academic_year')
+              .single();
+            created = res.data; createErr = res.error;
+          }
           if (createErr) throw createErr;
           const createdSection = created as SectionRow;
           // Push to local structures
@@ -200,20 +202,49 @@ const ClassManagement: React.FC = () => {
   }
 
   useEffect(() => {
+    const loadCurrentDepartment = async () => {
+      try {
+        setDeptLoading(true);
+        const { data: auth } = await supabase.auth.getUser();
+        const userId = auth?.user?.id;
+        if (!userId) return;
+        const { data } = await supabase
+          .from('user_profiles')
+          .select('department')
+          .eq('id', userId)
+          .single();
+        if (data?.department) setCurrentDepartment(data.department as string);
+      } catch {
+        // ignore
+      } finally {
+        // reset students to avoid showing cross-department data during transition
+        setStudents([]);
+        setDeptLoading(false);
+      }
+    };
+    void loadCurrentDepartment();
+  }, []);
+
+  useEffect(() => {
+    if (deptLoading || !currentDepartment) return;
     void fetchStudents();
     void fetchSections();
-  }, []);
+  }, [currentDepartment, deptLoading]);
 
   async function fetchStudents() {
     setLoading(true);
     setError(null);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('user_profiles')
-        .select('id, email, first_name, last_name, middle_name, student_id, year_level, section, is_active, role, gender')
+        .select('id, email, first_name, last_name, middle_name, student_id, year_level, section, is_active, role, department')
         .eq('role', 'student')
         .order('year_level', { ascending: true })
         .order('last_name', { ascending: true });
+      if (currentDepartment) {
+        query = query.eq('department', currentDepartment);
+      }
+      const { data, error } = await query;
 
       if (error) throw error;
 
@@ -227,7 +258,6 @@ const ClassManagement: React.FC = () => {
         year_level: row.year_level ?? null,
         section: row.section ?? null,
         is_active: row.is_active,
-        gender: row.gender ?? null,
       })) as StudentRow[];
 
       setStudents(sanitized);
@@ -243,11 +273,33 @@ const ClassManagement: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const { data, error } = await supabase
-        .from('sections')
-        .select('id, name, year_level, academic_year')
-        .order('year_level', { ascending: true })
-        .order('name', { ascending: true });
+      // Try department-scoped fetch if column exists; fallback if 400
+      let data: any = null;
+      let error: any = null;
+      try {
+        let query = supabase
+          .from('sections')
+          .select(sectionsSupportsDepartment ? 'id, name, year_level, academic_year, department' : 'id, name, year_level, academic_year')
+          .order('year_level', { ascending: true })
+          .order('name', { ascending: true });
+        if (currentDepartment && sectionsSupportsDepartment) {
+          query = query.eq('department', currentDepartment);
+        }
+        const res = await query;
+        data = res.data; error = res.error;
+      } catch (e: any) {
+        error = e;
+      }
+      if (error && String(error.status || error.code || '').startsWith('4')) {
+        // Fallback: column may not exist; refetch without department
+        setSectionsSupportsDepartment(false);
+        const res = await supabase
+          .from('sections')
+          .select('id, name, year_level, academic_year')
+          .order('year_level', { ascending: true })
+          .order('name', { ascending: true });
+        data = res.data; error = res.error;
+      }
       if (error) throw error;
       setSections((data || []) as SectionRow[]);
       // Fetch student counts for each section
@@ -261,20 +313,28 @@ const ClassManagement: React.FC = () => {
 
   async function fetchSectionStudentCounts() {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('user_profiles')
-        .select('section')
+        .select('section, department')
         .eq('role', 'student')
         .not('section', 'is', null);
+      if (currentDepartment) {
+        query = query.eq('department', currentDepartment);
+      }
+      const { data, error } = await query;
       if (error) throw error;
       
       const counts: Record<string, number> = {};
-      (data || []).forEach(student => {
-        if (student.section) {
-          counts[student.section] = (counts[student.section] || 0) + 1;
+      const allow: Record<string, boolean> = {};
+      (data || []).forEach((student: any) => {
+        const sec = student.section as string | null;
+        if (sec) {
+          counts[sec] = (counts[sec] || 0) + 1;
+          allow[sec] = true;
         }
       });
       setSectionStudentCounts(counts);
+      setAllowedSectionIds(allow);
     } catch (err) {
       console.error('Failed to fetch section student counts:', err);
     }
@@ -288,11 +348,28 @@ const ClassManagement: React.FC = () => {
     setCreateLoading(true);
     setCreateError(null);
     try {
-      const { data, error } = await supabase
-        .from('sections')
-        .insert([{ name: newSection.name.trim(), year_level: newSection.year_level, academic_year: newSection.academic_year || null }])
-        .select('id, name, year_level, academic_year')
-        .single();
+      // Attempt insert with department; fallback if column missing
+      let createData: any = null;
+      let createError: any = null;
+      try {
+        const res = await supabase
+          .from('sections')
+          .insert([{ name: newSection.name.trim(), year_level: newSection.year_level, academic_year: newSection.academic_year || null, department: currentDepartment || null }])
+          .select('id, name, year_level, academic_year, department')
+          .single();
+        createData = res.data; createError = res.error;
+      } catch (e: any) {
+        createError = e;
+      }
+      if (createError && String(createError.status || createError.code || '').startsWith('4')) {
+        const res = await supabase
+          .from('sections')
+          .insert([{ name: newSection.name.trim(), year_level: newSection.year_level, academic_year: newSection.academic_year || null }])
+          .select('id, name, year_level, academic_year')
+          .single();
+        createData = res.data; createError = res.error;
+      }
+      const data = createData; const error = createError;
       if (error) throw error;
       setSections(prev => [...prev, data as SectionRow].sort((a, b) => (Number(a.year_level) - Number(b.year_level)) || a.name.localeCompare(b.name)));
       setNewSection({ name: '', year_level: newSection.year_level, academic_year: newSection.academic_year });
@@ -398,7 +475,7 @@ const ClassManagement: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('user_profiles')
-        .select('id, email, first_name, last_name, middle_name, student_id, year_level, section, is_active, role, gender')
+        .select('id, email, first_name, last_name, middle_name, student_id, year_level, section, is_active, role')
         .eq('role', 'student')
         .eq('section', sectionId)
         .order('last_name', { ascending: true });
@@ -466,258 +543,6 @@ const ClassManagement: React.FC = () => {
     if (!sectionId) return 'Unassigned';
     const s = sections.find(sec => sec.id === sectionId);
     return s ? s.name : 'Unassigned';
-  }
-
-  // Transfer functionality
-  function openTransferModal() {
-    setSelectedStudentsForTransfer({});
-    setTargetSectionId('');
-    setTransferError(null);
-    setShowTransferModal(true);
-  }
-
-  function handleSelectAllStudents() {
-    const allSelected = sectionStudents.every(student => selectedStudentsForTransfer[student.id]);
-    
-    if (allSelected) {
-      // Deselect all
-      setSelectedStudentsForTransfer({});
-    } else {
-      // Select all
-      const newSelection: Record<string, boolean> = {};
-      sectionStudents.forEach(student => {
-        newSelection[student.id] = true;
-      });
-      setSelectedStudentsForTransfer(newSelection);
-    }
-  }
-
-  // Single transfer functionality
-  function openSingleTransferModal(student: StudentRow) {
-    setStudentToTransfer(student);
-    setSingleTargetSectionId('');
-    setSingleTransferError(null);
-    setShowSingleTransferModal(true);
-  }
-
-  async function handleSingleTransfer() {
-    if (!studentToTransfer || !singleTargetSectionId) {
-      setSingleTransferError('Please select a target section');
-      return;
-    }
-    
-    setSingleTransferLoading(true);
-    setSingleTransferError(null);
-    
-    try {
-      const { error } = await supabase
-        .from('user_profiles')
-        .update({ section: singleTargetSectionId })
-        .eq('id', studentToTransfer.id);
-      
-      if (error) throw error;
-      
-      // Refresh data
-      await fetchStudents();
-      await fetchSectionStudentCounts();
-      if (viewingSection) {
-        await fetchStudentsBySection(viewingSection.id);
-      }
-      
-      // Close modal and reset state
-      setShowSingleTransferModal(false);
-      setStudentToTransfer(null);
-      setSingleTargetSectionId('');
-      
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Failed to transfer student';
-      setSingleTransferError(msg);
-      console.error('Single transfer error:', e);
-    } finally {
-      setSingleTransferLoading(false);
-    }
-  }
-
-  // PDF Generation function
-  function generateClassListPDF() {
-    if (!viewingSection || sectionStudents.length === 0) {
-      alert('No students to export');
-      return;
-    }
-
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    
-    // School Header (compact version)
-    doc.setFontSize(11);
-    doc.setTextColor(30, 64, 175); // #1e40af
-    doc.setFont('helvetica', 'bold');
-    doc.text('St. Mary\'s College of Bansalan, Inc.', pageWidth / 2, 15, { align: 'center' });
-    
-    doc.setFontSize(6);
-    doc.setTextColor(107, 114, 128); // #6b7280
-    doc.setFont('helvetica', 'normal');
-    doc.text('(Formerly: Holy Cross of Bansalan College, Inc.)', pageWidth / 2, 20, { align: 'center' });
-    
-    doc.setTextColor(55, 65, 81); // #374151
-    doc.text('Dahlia Street, Poblacion Uno, Bansalan, Davao del Sur, 8005 Philippines', pageWidth / 2, 24, { align: 'center' });
-    
-    doc.setFontSize(7);
-    doc.setTextColor(30, 64, 175); // #1e40af
-    doc.setFont('helvetica', 'bold');
-    
-    doc.setFontSize(6);
-    doc.setTextColor(55, 65, 81); // #374151
-    doc.setFont('helvetica', 'normal');
-    
-    // Title
-    doc.setFontSize(9);
-    doc.setTextColor(30, 64, 175); // #1e40af
-    doc.setFont('helvetica', 'bold');
-    doc.text('CLASS LIST', pageWidth / 2, 40, { align: 'center' });
-    
-    // Section Information
-    doc.setFontSize(8);
-    doc.setTextColor(31, 41, 55); // #1f2937
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Section: ${viewingSection.name}`, 20, 48);
-    doc.text(`Year Level: ${viewingSection.year_level}`, 20, 53);
-    if (viewingSection.academic_year) {
-      doc.text(`Academic Year: ${viewingSection.academic_year}`, 20, 58);
-    }
-    
-    // Generate date
-    const currentDate = new Date().toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-    doc.text(`Generated on: ${currentDate}`, pageWidth - 20, 48, { align: 'right' });
-    
-    // Separate students by gender
-    const maleStudents = sectionStudents.filter(s => s.gender === 'Male');
-    const femaleStudents = sectionStudents.filter(s => s.gender === 'Female');
-    const otherStudents = sectionStudents.filter(s => s.gender && s.gender !== 'Male' && s.gender !== 'Female');
-    
-    let currentY = 65;
-    
-    // Helper function to generate table for a gender group
-    const generateGenderTable = (students: StudentRow[], genderLabel: string, color: [number, number, number], startY: number) => {
-      if (students.length === 0) return startY;
-      
-      // Gender section header
-      doc.setFontSize(10);
-      doc.setTextColor(color[0], color[1], color[2]);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`${genderLabel} Students (${students.length})`, 20, startY);
-      currentY = startY + 6;
-      
-      // Prepare table data
-      const tableData = students.map((student, index) => [
-        index + 1,
-        student.student_id || 'N/A',
-        `${student.last_name}, ${student.first_name}${student.middle_name ? ` ${student.middle_name}` : ''}`
-      ]);
-      
-      // Table headers
-      const headers = ['No.', 'Student ID', 'Name'];
-      
-      // Generate table
-      autoTable(doc, {
-        head: [headers],
-        body: tableData,
-        startY: currentY,
-        styles: {
-          fontSize: 8,
-          cellPadding: 2,
-          lineWidth: 0.1,
-        },
-        headStyles: {
-          fillColor: color,
-          textColor: 255,
-          fontStyle: 'bold',
-          fontSize: 8,
-        },
-        alternateRowStyles: {
-          fillColor: [248, 250, 252], // Light gray
-        },
-        columnStyles: {
-          0: { cellWidth: 15 }, // No. column
-          1: { cellWidth: 35 }, // Student ID column
-          2: { cellWidth: 120 }, // Name column
-        },
-        margin: { left: 20, right: 20 },
-        tableLineWidth: 0.1,
-        tableLineColor: [200, 200, 200],
-      });
-      
-      // Get the final Y position after the table
-      const finalY = (doc as any).lastAutoTable?.finalY || currentY + 20;
-      return finalY + 10; // Add some spacing
-    };
-    
-    // Generate tables for each gender
-    currentY = generateGenderTable(maleStudents, 'Male', [59, 130, 246], currentY); // Blue
-    currentY = generateGenderTable(femaleStudents, 'Female', [236, 72, 153], currentY); // Pink
-    currentY = generateGenderTable(otherStudents, 'Other', [107, 114, 128], currentY); // Gray
-    
-    // Footer
-    doc.setFontSize(8);
-    doc.setTextColor(0, 0, 0); // Black color
-    doc.setFont('helvetica', 'italic');
-    doc.text(`Total Students: ${sectionStudents.length}`, pageWidth / 2, currentY + 10, { align: 'center' });
-    
-    // Save the PDF
-    const fileName = `ClassList_${viewingSection.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
-    doc.save(fileName);
-  }
-
-  async function handleTransferStudents() {
-    const studentIds = Object.entries(selectedStudentsForTransfer)
-      .filter(([, selected]) => selected)
-      .map(([studentId]) => studentId);
-    
-    if (studentIds.length === 0) {
-      setTransferError('Please select at least one student to transfer');
-      return;
-    }
-    
-    if (!targetSectionId) {
-      setTransferError('Please select a target section');
-      return;
-    }
-    
-    setTransferLoading(true);
-    setTransferError(null);
-    
-    try {
-      const { error } = await supabase
-        .from('user_profiles')
-        .update({ section: targetSectionId })
-        .in('id', studentIds);
-      
-      if (error) throw error;
-      
-      // Refresh data
-      await fetchStudents();
-      await fetchSectionStudentCounts();
-      if (viewingSection) {
-        await fetchStudentsBySection(viewingSection.id);
-      }
-      
-      // Close modal and reset state
-      setShowTransferModal(false);
-      setSelectedStudentsForTransfer({});
-      setTargetSectionId('');
-      
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Failed to transfer students';
-      setTransferError(msg);
-      console.error('Transfer error:', e);
-    } finally {
-      setTransferLoading(false);
-    }
   }
 
   return (
@@ -907,11 +732,11 @@ const ClassManagement: React.FC = () => {
               <div className="mb-3 rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">{autoAssignError}</div>
             )}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {sections.filter(s => Number(s.year_level) === Number(sectionYear)).length === 0 && (
+              {sections.filter(s => Number(s.year_level) === Number(sectionYear) && (!currentDepartment || sectionsSupportsDepartment || allowedSectionIds[s.id])).length === 0 && (
                 <div className="col-span-full text-sm text-gray-600">No sections for Year {sectionYear}. Create one above.</div>
               )}
-              {sections.filter(s => Number(s.year_level) === Number(sectionYear)).map(sec => (
-                <button
+              {sections.filter(s => Number(s.year_level) === Number(sectionYear) && (!currentDepartment || sectionsSupportsDepartment || allowedSectionIds[s.id])).map(sec => (
+                <div
                   key={sec.id}
                   onClick={() => {
                     setViewingSection(sec);
@@ -919,6 +744,8 @@ const ClassManagement: React.FC = () => {
                     setShowViewModal(true);
                   }}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setViewingSection(sec); void fetchStudentsBySection(sec.id); setShowViewModal(true); } }}
+                  role="button"
+                  tabIndex={0}
                   className="flex flex-col items-start gap-2 rounded-lg border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-4 shadow-sm transition hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-400"
                 >
                   <div className="flex w-full items-start justify-between">
@@ -959,7 +786,7 @@ const ClassManagement: React.FC = () => {
                   {sec.academic_year && (
                     <div className="text-xs text-gray-600 text-left mt-1">AY: {sec.academic_year}</div>
                   )}
-                </button>
+                </div>
               ))}
             </div>
           </div>
@@ -981,7 +808,7 @@ const ClassManagement: React.FC = () => {
                   onChange={e => setSelectedSectionId(e.target.value)}
                 >
                   <option value="">Select Section</option>
-                  {sections.filter(s => Number(s.year_level) === Number(sectionYear)).map(s => (
+                  {sections.filter(s => Number(s.year_level) === Number(sectionYear) && (!currentDepartment || sectionsSupportsDepartment || allowedSectionIds[s.id])).map(s => (
                     <option key={s.id} value={s.id}>{s.name}{s.academic_year ? ` (${s.academic_year})` : ''}</option>
                   ))}
                 </select>
@@ -1046,191 +873,48 @@ const ClassManagement: React.FC = () => {
                       <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">AY {viewingSection.academic_year}</span>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={generateClassListPDF}
-                      className="inline-flex items-center gap-2 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
-                    >
-                      <Download className="h-4 w-4" />
-                      Download PDF
-                    </button>
-                    <button
-                      onClick={openTransferModal}
-                      className="rounded-md bg-orange-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-orange-700"
-                    >
-                      Transfer Multiple
-                    </button>
-                    <button
-                      onClick={() => setShowViewModal(false)}
-                      className="rounded-md bg-gray-100 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-200"
-                    >
-                      Close
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => setShowViewModal(false)}
+                    className="rounded-md bg-gray-100 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-200"
+                  >
+                    Close
+                  </button>
                 </div>
                 {sectionStudentsLoading ? (
                   <div className="rounded border border-gray-200 bg-white p-6 text-gray-600">Loading…</div>
                 ) : (
-                  <div className="space-y-6">
-                    {/* Male Students Table */}
-                      {(() => {
-                        const maleStudents = sectionStudents.filter(s => s.gender === 'Male');
-                        return maleStudents.length > 0 && (
-                          <div className="mb-6">
-                            <div className="mb-3 flex items-center gap-2">
-                              <h4 className="text-sm font-semibold text-blue-700">Male Students ({maleStudents.length})</h4>
-                              <div className="h-px flex-1 bg-blue-200"></div>
-                            </div>
-                            <div className="overflow-x-auto rounded-lg border border-blue-200 bg-blue-50/30">
-                              <table className="min-w-full table-fixed divide-y divide-blue-200">
-                                <colgroup>
-                                  <col className="w-40" />
-                                  <col className="w-[22rem]" />
-                                  <col className="w-[26rem]" />
-                                  <col className="w-24" />
-                                  <col className="w-24" />
-                                </colgroup>
-                                <thead className="bg-blue-100">
-                                  <tr>
-                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-blue-800">Student No.</th>
-                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-blue-800">Name</th>
-                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-blue-800">Email</th>
-                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-blue-800">Year</th>
-                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-blue-800">Action</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-blue-200 bg-white">
-                                  {maleStudents.map((s, idx) => (
-                                    <tr key={s.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-blue-50/50'}>
-                                      <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900">{s.student_id || '—'}</td>
-                                      <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900 truncate">{s.last_name}, {s.first_name}{s.middle_name ? ` ${s.middle_name}` : ''}</td>
-                                      <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700 truncate">{s.email}</td>
-                                      <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700">{s.year_level ?? '—'}</td>
-                                      <td className="px-4 py-2">
-                                        <button
-                                          onClick={() => openSingleTransferModal(s)}
-                                          className="rounded-md bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700"
-                                        >
-                                          Transfer
-                                        </button>
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          </div>
-                        );
-                      })()}
-
-                      {/* Female Students Table */}
-                      {(() => {
-                        const femaleStudents = sectionStudents.filter(s => s.gender === 'Female');
-                        return femaleStudents.length > 0 && (
-                          <div className="mb-6">
-                            <div className="mb-3 flex items-center gap-2">
-                              <h4 className="text-sm font-semibold text-pink-700">Female Students ({femaleStudents.length})</h4>
-                              <div className="h-px flex-1 bg-pink-200"></div>
-                            </div>
-                            <div className="overflow-x-auto rounded-lg border border-pink-200 bg-pink-50/30">
-                              <table className="min-w-full table-fixed divide-y divide-pink-200">
-                                <colgroup>
-                                  <col className="w-40" />
-                                  <col className="w-[22rem]" />
-                                  <col className="w-[26rem]" />
-                                  <col className="w-24" />
-                                  <col className="w-24" />
-                                </colgroup>
-                                <thead className="bg-pink-100">
-                                  <tr>
-                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-pink-800">Student No.</th>
-                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-pink-800">Name</th>
-                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-pink-800">Email</th>
-                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-pink-800">Year</th>
-                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-pink-800">Action</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-pink-200 bg-white">
-                                  {femaleStudents.map((s, idx) => (
-                                    <tr key={s.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-pink-50/50'}>
-                                      <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900">{s.student_id || '—'}</td>
-                                      <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900 truncate">{s.last_name}, {s.first_name}{s.middle_name ? ` ${s.middle_name}` : ''}</td>
-                                      <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700 truncate">{s.email}</td>
-                                      <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700">{s.year_level ?? '—'}</td>
-                                      <td className="px-4 py-2">
-                                        <button
-                                          onClick={() => openSingleTransferModal(s)}
-                                          className="rounded-md bg-pink-600 px-2 py-1 text-xs font-medium text-white hover:bg-pink-700"
-                                        >
-                                          Transfer
-                                        </button>
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          </div>
-                        );
-                      })()}
-
-                      {/* Other/Unknown Gender Students Table */}
-                      {(() => {
-                        const otherStudents = sectionStudents.filter(s => s.gender && s.gender !== 'Male' && s.gender !== 'Female');
-                        return otherStudents.length > 0 && (
-                          <div className="mb-6">
-                            <div className="mb-3 flex items-center gap-2">
-                              <h4 className="text-sm font-semibold text-gray-700">Other ({otherStudents.length})</h4>
-                              <div className="h-px flex-1 bg-gray-200"></div>
-                            </div>
-                            <div className="overflow-x-auto rounded-lg border border-gray-200 bg-gray-50/30">
-                              <table className="min-w-full table-fixed divide-y divide-gray-200">
-                                <colgroup>
-                                  <col className="w-40" />
-                                  <col className="w-[22rem]" />
-                                  <col className="w-[26rem]" />
-                                  <col className="w-24" />
-                                  <col className="w-24" />
-                                </colgroup>
-                                <thead className="bg-gray-100">
-                                  <tr>
-                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-800">Student No.</th>
-                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-800">Name</th>
-                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-800">Email</th>
-                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-800">Year</th>
-                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-800">Action</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-200 bg-white">
-                                  {otherStudents.map((s, idx) => (
-                                    <tr key={s.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
-                                      <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900">{s.student_id || '—'}</td>
-                                      <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900 truncate">{s.last_name}, {s.first_name}{s.middle_name ? ` ${s.middle_name}` : ''}</td>
-                                      <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700 truncate">{s.email}</td>
-                                      <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700">{s.year_level ?? '—'}</td>
-                                      <td className="px-4 py-2">
-                                        <button
-                                          onClick={() => openSingleTransferModal(s)}
-                                          className="rounded-md bg-gray-600 px-2 py-1 text-xs font-medium text-white hover:bg-gray-700"
-                                        >
-                                          Transfer
-                                        </button>
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          </div>
-                        );
-                      })()}
-
-                    {/* No Students Message */}
-                    {sectionStudents.length === 0 && (
-                      <div className="rounded border border-gray-200 bg-white p-6 text-center text-gray-600">
-                        No students assigned yet.
-                      </div>
-                    )}
+                  <div className="overflow-x-auto rounded-lg border border-gray-200">
+                    <table className="min-w-full table-fixed divide-y divide-gray-200">
+                      <colgroup>
+                        <col className="w-40" />
+                        <col className="w-[22rem]" />
+                        <col className="w-[26rem]" />
+                        <col className="w-24" />
+                      </colgroup>
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">Student No.</th>
+                          <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">Name</th>
+                          <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">Email</th>
+                          <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">Year</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {sectionStudents.length === 0 && (
+                          <tr>
+                            <td colSpan={4} className="px-4 py-4 text-center text-sm text-gray-600">No students assigned yet.</td>
+                          </tr>
+                        )}
+                        {sectionStudents.map((s, idx) => (
+                          <tr key={s.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                            <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900">{s.student_id || '—'}</td>
+                            <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900 truncate">{s.last_name}, {s.first_name}{s.middle_name ? ` ${s.middle_name}` : ''}</td>
+                            <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700 truncate">{s.email}</td>
+                            <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700">{s.year_level ?? '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </div>
@@ -1332,343 +1016,10 @@ const ClassManagement: React.FC = () => {
           </div>
         </div>
       )}
-
-      {/* Transfer Students Modal */}
-      {showTransferModal && viewingSection && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setShowTransferModal(false)} />
-          <div className="relative z-10 w-full max-w-4xl rounded-xl bg-white p-5 shadow-2xl">
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-800">Transfer Students</h3>
-                <p className="text-sm text-gray-600">Transfer students from {viewingSection.name} to another section</p>
-              </div>
-              <button
-                onClick={() => setShowTransferModal(false)}
-                className="rounded-md bg-gray-100 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-200"
-              >
-                Close
-              </button>
-            </div>
-            
-            {transferError && (
-              <div className="mb-4 rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">{transferError}</div>
-            )}
-
-            <div className="mb-4 flex items-center gap-4">
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Target Section</label>
-                <select
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                  value={targetSectionId}
-                  onChange={e => setTargetSectionId(e.target.value)}
-                >
-                  <option value="">Select target section</option>
-                  {sections
-                    .filter(s => Number(s.year_level) === Number(viewingSection.year_level) && s.id !== viewingSection.id)
-                    .map(section => (
-                      <option key={section.id} value={section.id}>
-                        {section.name}{section.academic_year ? ` (${section.academic_year})` : ''}
-                      </option>
-                    ))}
-                </select>
-              </div>
-              <div className="flex items-end gap-3">
-                <div className="text-sm text-gray-600">
-                  {Object.values(selectedStudentsForTransfer).filter(Boolean).length} of {sectionStudents.length} selected
-                </div>
-                <button
-                  onClick={handleTransferStudents}
-                  disabled={transferLoading || !targetSectionId || Object.values(selectedStudentsForTransfer).every(v => !v)}
-                  className="rounded-md bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700 disabled:opacity-50"
-                >
-                  {transferLoading ? 'Transferring...' : 'Transfer Selected'}
-                </button>
-              </div>
-            </div>
-
-            <div className="space-y-6">
-              {/* Male Students Table */}
-              {(() => {
-                const maleStudents = sectionStudents.filter(s => s.gender === 'Male');
-                return maleStudents.length > 0 && (
-                  <div>
-                    <div className="mb-3 flex items-center gap-2">
-                      <h4 className="text-sm font-semibold text-blue-700">Male Students ({maleStudents.length})</h4>
-                      <div className="h-px flex-1 bg-blue-200"></div>
-                    </div>
-                    <div className="overflow-x-auto rounded-lg border border-blue-200 bg-blue-50/30">
-                      <table className="min-w-full table-fixed divide-y divide-blue-200">
-                        <colgroup>
-                          <col className="w-10" />
-                          <col className="w-40" />
-                          <col className="w-[22rem]" />
-                          <col className="w-[26rem]" />
-                          <col className="w-24" />
-                        </colgroup>
-                        <thead className="bg-blue-100">
-                          <tr>
-                            <th className="px-4 py-2">
-                              <input
-                                type="checkbox"
-                                checked={maleStudents.length > 0 && maleStudents.every(student => selectedStudentsForTransfer[student.id])}
-                                onChange={(e) => {
-                                  const newSelection = { ...selectedStudentsForTransfer };
-                                  maleStudents.forEach(student => {
-                                    newSelection[student.id] = e.target.checked;
-                                  });
-                                  setSelectedStudentsForTransfer(newSelection);
-                                }}
-                                className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-                              />
-                            </th>
-                            <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-blue-800">Student No.</th>
-                            <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-blue-800">Name</th>
-                            <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-blue-800">Email</th>
-                            <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-blue-800">Year</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-blue-200 bg-white">
-                          {maleStudents.map((student, idx) => (
-                            <tr key={student.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-blue-50/50'}>
-                              <td className="px-4 py-2">
-                                <input
-                                  type="checkbox"
-                                  checked={!!selectedStudentsForTransfer[student.id]}
-                                  onChange={e => setSelectedStudentsForTransfer(prev => ({ 
-                                    ...prev, 
-                                    [student.id]: e.target.checked 
-                                  }))}
-                                  className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-                                />
-                              </td>
-                              <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900">{student.student_id || '—'}</td>
-                              <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900 truncate">
-                                {student.last_name}, {student.first_name}{student.middle_name ? ` ${student.middle_name}` : ''}
-                              </td>
-                              <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700 truncate">{student.email}</td>
-                              <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700">{student.year_level ?? '—'}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* Female Students Table */}
-              {(() => {
-                const femaleStudents = sectionStudents.filter(s => s.gender === 'Female');
-                return femaleStudents.length > 0 && (
-                  <div>
-                    <div className="mb-3 flex items-center gap-2">
-                      <h4 className="text-sm font-semibold text-pink-700">Female Students ({femaleStudents.length})</h4>
-                      <div className="h-px flex-1 bg-pink-200"></div>
-                    </div>
-                    <div className="overflow-x-auto rounded-lg border border-pink-200 bg-pink-50/30">
-                      <table className="min-w-full table-fixed divide-y divide-pink-200">
-                        <colgroup>
-                          <col className="w-10" />
-                          <col className="w-40" />
-                          <col className="w-[22rem]" />
-                          <col className="w-[26rem]" />
-                          <col className="w-24" />
-                        </colgroup>
-                        <thead className="bg-pink-100">
-                          <tr>
-                            <th className="px-4 py-2">
-                              <input
-                                type="checkbox"
-                                checked={femaleStudents.length > 0 && femaleStudents.every(student => selectedStudentsForTransfer[student.id])}
-                                onChange={(e) => {
-                                  const newSelection = { ...selectedStudentsForTransfer };
-                                  femaleStudents.forEach(student => {
-                                    newSelection[student.id] = e.target.checked;
-                                  });
-                                  setSelectedStudentsForTransfer(newSelection);
-                                }}
-                                className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-                              />
-                            </th>
-                            <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-pink-800">Student No.</th>
-                            <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-pink-800">Name</th>
-                            <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-pink-800">Email</th>
-                            <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-pink-800">Year</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-pink-200 bg-white">
-                          {femaleStudents.map((student, idx) => (
-                            <tr key={student.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-pink-50/50'}>
-                              <td className="px-4 py-2">
-                                <input
-                                  type="checkbox"
-                                  checked={!!selectedStudentsForTransfer[student.id]}
-                                  onChange={e => setSelectedStudentsForTransfer(prev => ({ 
-                                    ...prev, 
-                                    [student.id]: e.target.checked 
-                                  }))}
-                                  className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-                                />
-                              </td>
-                              <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900">{student.student_id || '—'}</td>
-                              <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900 truncate">
-                                {student.last_name}, {student.first_name}{student.middle_name ? ` ${student.middle_name}` : ''}
-                              </td>
-                              <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700 truncate">{student.email}</td>
-                              <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700">{student.year_level ?? '—'}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* Other/Unknown Gender Students Table */}
-              {(() => {
-                const otherStudents = sectionStudents.filter(s => s.gender && s.gender !== 'Male' && s.gender !== 'Female');
-                return otherStudents.length > 0 && (
-                  <div>
-                    <div className="mb-3 flex items-center gap-2">
-                      <h4 className="text-sm font-semibold text-gray-700">Other ({otherStudents.length})</h4>
-                      <div className="h-px flex-1 bg-gray-200"></div>
-                    </div>
-                    <div className="overflow-x-auto rounded-lg border border-gray-200 bg-gray-50/30">
-                      <table className="min-w-full table-fixed divide-y divide-gray-200">
-                        <colgroup>
-                          <col className="w-10" />
-                          <col className="w-40" />
-                          <col className="w-[22rem]" />
-                          <col className="w-[26rem]" />
-                          <col className="w-24" />
-                        </colgroup>
-                        <thead className="bg-gray-100">
-                          <tr>
-                            <th className="px-4 py-2">
-                              <input
-                                type="checkbox"
-                                checked={otherStudents.length > 0 && otherStudents.every(student => selectedStudentsForTransfer[student.id])}
-                                onChange={(e) => {
-                                  const newSelection = { ...selectedStudentsForTransfer };
-                                  otherStudents.forEach(student => {
-                                    newSelection[student.id] = e.target.checked;
-                                  });
-                                  setSelectedStudentsForTransfer(newSelection);
-                                }}
-                                className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-                              />
-                            </th>
-                            <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-800">Student No.</th>
-                            <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-800">Name</th>
-                            <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-800">Email</th>
-                            <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-800">Year</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-200 bg-white">
-                          {otherStudents.map((student, idx) => (
-                            <tr key={student.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
-                              <td className="px-4 py-2">
-                                <input
-                                  type="checkbox"
-                                  checked={!!selectedStudentsForTransfer[student.id]}
-                                  onChange={e => setSelectedStudentsForTransfer(prev => ({ 
-                                    ...prev, 
-                                    [student.id]: e.target.checked 
-                                  }))}
-                                  className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-                                />
-                              </td>
-                              <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900">{student.student_id || '—'}</td>
-                              <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900 truncate">
-                                {student.last_name}, {student.first_name}{student.middle_name ? ` ${student.middle_name}` : ''}
-                              </td>
-                              <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700 truncate">{student.email}</td>
-                              <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700">{student.year_level ?? '—'}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* No Students Message */}
-              {sectionStudents.length === 0 && (
-                <div className="rounded border border-gray-200 bg-white p-6 text-center text-gray-600">
-                  No students in this section.
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Single Transfer Modal */}
-      {showSingleTransferModal && studentToTransfer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setShowSingleTransferModal(false)} />
-          <div className="relative z-10 w-full max-w-lg rounded-xl bg-white p-5 shadow-2xl">
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-800">Transfer Student</h3>
-                <p className="text-sm text-gray-600">
-                  Transfer <span className="font-medium">{studentToTransfer.last_name}, {studentToTransfer.first_name}</span> to another section
-                </p>
-              </div>
-              <button
-                onClick={() => setShowSingleTransferModal(false)}
-                className="rounded-md bg-gray-100 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-200"
-              >
-                Close
-              </button>
-            </div>
-            
-            {singleTransferError && (
-              <div className="mb-4 rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">{singleTransferError}</div>
-            )}
-
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Target Section</label>
-              <select
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                value={singleTargetSectionId}
-                onChange={e => setSingleTargetSectionId(e.target.value)}
-              >
-                <option value="">Select target section</option>
-                {sections
-                  .filter(s => Number(s.year_level) === Number(studentToTransfer.year_level) && s.id !== viewingSection?.id)
-                  .map(section => (
-                    <option key={section.id} value={section.id}>
-                      {section.name}{section.academic_year ? ` (${section.academic_year})` : ''}
-                    </option>
-                  ))}
-              </select>
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setShowSingleTransferModal(false)}
-                className="rounded-md px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSingleTransfer}
-                disabled={singleTransferLoading || !singleTargetSectionId}
-                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-              >
-                {singleTransferLoading ? 'Transferring...' : 'Transfer Student'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
 
 export default ClassManagement;
+
 
