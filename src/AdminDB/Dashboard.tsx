@@ -8,7 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
 import InstructorManagement from './InstructorManagement';
 import ClassManagement from './ClassManagement';
-import ProgramHeadEnrollment from '../AdminDB/ProgramHeadEnrollment';
+import ProgramHeadEnrollment from '../ProgramheadDB/ProgramHeadEnrollment';
 
 // Google Identity Services TypeScript declarations
 declare global {
