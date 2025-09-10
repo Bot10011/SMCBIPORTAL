@@ -2,14 +2,12 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import DashboardLayout from '../components/Sidebar';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, Bell, Activity, Database, BookOpen, GraduationCap, LogIn, LogOut, Cloud } from 'lucide-react';
+import { Users, Bell, Activity, Database, BookOpen, GraduationCap, LogIn, LogOut, Cloud, Lock, Unlock } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
 import InstructorManagement from './InstructorManagement';
 import ClassManagement from './ClassManagement';
-import ProgramHeadEnrollment from '../ProgramheadDB/ProgramHeadEnrollment';
-
 // Google Identity Services TypeScript declarations
 declare global {
   interface Window {
@@ -103,6 +101,12 @@ const SystemSettings = () => {
   const [gdriveConnected, setGdriveConnected] = useState(false);
   const [gdriveAuthLoading, setGdriveAuthLoading] = useState(false);
   const [, setAutoBackupInterval] = useState<NodeJS.Timeout | null>(null);
+  const [isBackupLocked, setIsBackupLocked] = useState(true);
+  const [showUnlockModal, setShowUnlockModal] = useState(false);
+  const [unlockPassword, setUnlockPassword] = useState('');
+  const [unlocking, setUnlocking] = useState(false);
+  const [nameInput, setNameInput] = useState('');
+  const [nameSaving, setNameSaving] = useState(false);
 
   // Check for existing Google Drive connection on component mount
   useEffect(() => {
@@ -146,12 +150,22 @@ const SystemSettings = () => {
     checkGoogleDriveConnection();
   }, []);
 
+  // Always reset Backup & System lock when user changes (ensures lock across logout/login and devices)
+  useEffect(() => {
+    setIsBackupLocked(true);
+  }, [user?.id]);
+
   const handlePasswordInputChange = (field: PasswordField, value: string) => {
     setPasswordForm(prev => ({ ...prev, [field]: value }));
   };
 
   // Backup functionality
   const handleDownloadBackup = async () => {
+    if (isBackupLocked) {
+      toast.error('Unlock Backup & System first');
+      setShowUnlockModal(true);
+      return;
+    }
     try {
       setDownloadingBackup(true);
       toast.loading('Creating database backup...', { id: 'backup' });
@@ -365,6 +379,11 @@ const SystemSettings = () => {
   }, []);
 
   const handleUploadToDrive = useCallback(async () => {
+    if (isBackupLocked) {
+      toast.error('Unlock Backup & System first');
+      setShowUnlockModal(true);
+      return;
+    }
     if (!gdriveConnected) {
       toast.error('Please connect to Google Drive first');
       return;
@@ -454,7 +473,7 @@ const SystemSettings = () => {
     } finally {
       setUploadingToDrive(false);
     }
-  }, [gdriveConnected, uploadToGoogleDrive]);
+  }, [isBackupLocked, gdriveConnected, uploadToGoogleDrive]);
 
   // Clean up old backups based on data retention
   const cleanupOldBackups = useCallback(async () => {
@@ -508,7 +527,7 @@ const SystemSettings = () => {
   }, []);
 
   const startAutoBackup = useCallback(() => {
-    if (!settings.autoBackup || !gdriveConnected) {
+    if (isBackupLocked || !settings.autoBackup || !gdriveConnected) {
       return;
     }
 
@@ -587,11 +606,11 @@ const SystemSettings = () => {
 
     setAutoBackupInterval(interval);
     console.log(`Auto backup started with ${settings.backupFrequency} frequency`);
-  }, [settings.autoBackup, settings.backupFrequency, settings.dataRetention, gdriveConnected, cleanupOldBackups, handleUploadToDrive]);
+  }, [isBackupLocked, settings.autoBackup, settings.backupFrequency, settings.dataRetention, gdriveConnected, cleanupOldBackups, handleUploadToDrive]);
 
   // Start/stop auto backup when settings change
   useEffect(() => {
-    if (settings.autoBackup && gdriveConnected) {
+    if (settings.autoBackup && gdriveConnected && !isBackupLocked) {
       startAutoBackup();
     } else {
       stopAutoBackup();
@@ -601,7 +620,7 @@ const SystemSettings = () => {
       stopAutoBackup();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settings.autoBackup, settings.backupFrequency, gdriveConnected]);
+  }, [settings.autoBackup, settings.backupFrequency, gdriveConnected, isBackupLocked]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -675,12 +694,49 @@ const SystemSettings = () => {
           .single();
         if (error) return;
         setAccountProfile(data);
+        const initialFullName = `${data?.first_name ?? ''} ${data?.middle_name ?? ''} ${data?.last_name ?? ''}`.replace(/\s+/g, ' ').trim();
+        setNameInput(initialFullName);
       } catch {
         // silent fail
       }
     };
     fetchAccountProfile();
   }, [user?.id]);
+
+  const handleUpdateName = async () => {
+    try {
+      if (!user?.id) {
+        toast.error('No user found');
+        return;
+      }
+      const trimmed = (nameInput || '').trim();
+      if (!trimmed) {
+        toast.error('Please enter a name');
+        return;
+      }
+      // Split name into first, middle, last (simple heuristic)
+      const parts = trimmed.split(/\s+/);
+      const first_name = parts[0] || '';
+      const last_name = parts.length > 1 ? parts[parts.length - 1] : '';
+      const middle_name = parts.length > 2 ? parts.slice(1, -1).join(' ') : '';
+
+      setNameSaving(true);
+      const { error } = await supabase
+        .from('user_profiles')
+        .update({ first_name, middle_name, last_name })
+        .eq('id', user.id);
+      if (error) {
+        throw error;
+      }
+      setAccountProfile({ first_name, middle_name, last_name });
+      toast.success('Profile name updated');
+    } catch (e) {
+      console.error('Error updating name:', e);
+      toast.error('Failed to update name');
+    } finally {
+      setNameSaving(false);
+    }
+  };
 
   // Fetch settings from DB on mount
   useEffect(() => {
@@ -735,6 +791,11 @@ const SystemSettings = () => {
 
   // Update setting in DB
   const handleSettingChange = async (key: string, value: unknown) => {
+    if (isBackupLocked && ['autoBackup','backupFrequency','dataRetention'].includes(key)) {
+      toast.error('Unlock Backup & System first');
+      setShowUnlockModal(true);
+      return;
+    }
     try {
       setSaving(true);
       
@@ -883,20 +944,17 @@ const SystemSettings = () => {
                   <label className="block text-sm font-medium text-gray-300 mb-2">Full Name</label>
                   <input
                     type="text"
-                    value={`${accountProfile?.first_name ?? ''} ${accountProfile?.middle_name ?? ''} ${accountProfile?.last_name ?? ''}`.trim()}
-                    onChange={(e) => {
-                      // Handle name change logic here
-                      console.log('Name changed:', e.target.value);
-                    }}
+                    value={nameInput}
+                    onChange={(e) => setNameInput(e.target.value)}
                     className="w-full px-4 py-3 border border-gray-600 rounded-lg bg-[#1c1c1d] text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Enter full name"
                   />
           </div>
-                <button className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors duration-200 flex items-center gap-2">
+                <button onClick={handleUpdateName} disabled={nameSaving} className={`px-6 py-3 text-white text-sm font-medium rounded-lg transition-colors duration-200 flex items-center gap-2 ${nameSaving ? 'bg-blue-600 opacity-70 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  Update Name
+                  {nameSaving ? 'Saving...' : 'Update Name'}
                 </button>
           </div>
         </div>
@@ -931,12 +989,43 @@ const SystemSettings = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="neumorphic-dark p-6"
+          className="neumorphic-dark p-6 relative"
           style={{ backgroundColor: '#2f3133' }}
         >
+          {isBackupLocked && (
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/50 rounded-lg">
+              <div className="flex items-center gap-2 text-white mb-3">
+                <Lock className="w-4 h-4" />
+                <span className="text-sm font-medium">Backup & System is locked</span>
+              </div>
+              <button
+                onClick={() => setShowUnlockModal(true)}
+                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium rounded-lg"
+              >
+                Unlock to proceed
+              </button>
+            </div>
+          )}
           <div className="flex items-center gap-3 mb-4">
             <Database className="w-6 h-6 text-purple-400" />
             <h3 className="text-lg font-semibold text-white">Backup & System</h3>
+            <div className="ml-auto flex items-center gap-2">
+              {isBackupLocked ? (
+                <button
+                  onClick={() => setShowUnlockModal(true)}
+                  className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-xs font-medium rounded-lg flex items-center gap-1"
+                >
+                  <Lock className="w-3 h-3" /> Unlock
+                </button>
+              ) : (
+                <button
+                  onClick={() => setIsBackupLocked(true)}
+                  className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-medium rounded-lg flex items-center gap-1"
+                >
+                  <Unlock className="w-3 h-3" /> Lock
+                </button>
+              )}
+            </div>
           </div>
           <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -953,10 +1042,10 @@ const SystemSettings = () => {
               </div>
               <button
                 onClick={() => handleSettingChange('autoBackup', !settings.autoBackup)}
-                disabled={saving}
+                disabled={saving || isBackupLocked}
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
                   settings.autoBackup ? 'bg-purple-600' : 'bg-gray-600'
-                } ${saving ? 'opacity-50 cursor-not-allowed' : ''}`}
+                } ${(saving || isBackupLocked) ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
                   settings.autoBackup ? 'translate-x-6' : 'translate-x-1'
@@ -968,7 +1057,7 @@ const SystemSettings = () => {
               <select
                 value={settings.backupFrequency}
                 onChange={(e) => handleSettingChange('backupFrequency', e.target.value)}
-                disabled={saving || !settings.autoBackup}
+                disabled={saving || !settings.autoBackup || isBackupLocked}
                 className="w-full px-3 py-2 border border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-[#2f3133] text-white disabled:opacity-50"
               >
                 <option value="hourly">Hourly</option>
@@ -988,7 +1077,7 @@ const SystemSettings = () => {
                     handleSettingChange('dataRetention', value);
                   }
                 }}
-                disabled={saving || !settings.autoBackup}
+                disabled={saving || !settings.autoBackup || isBackupLocked}
                 className="w-full px-3 py-2 border border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-[#2f3133] text-white disabled:opacity-50"
                 min="30"
                 max="1095"
@@ -1011,7 +1100,7 @@ const SystemSettings = () => {
             </div>
               <button
                     onClick={handleDownloadBackup}
-                    disabled={saving || downloadingBackup}
+                    disabled={saving || downloadingBackup || isBackupLocked}
                     className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-lg transition-colors duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {downloadingBackup ? (
@@ -1075,7 +1164,7 @@ const SystemSettings = () => {
               </div>
               <button
                     onClick={handleUploadToDrive}
-                    disabled={saving || uploadingToDrive || !gdriveConnected}
+                    disabled={saving || uploadingToDrive || !gdriveConnected || isBackupLocked}
                     className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {uploadingToDrive ? (
@@ -1235,6 +1324,142 @@ const SystemSettings = () => {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                       </svg>
                       Update Password
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </>,
+        document.body
+      )}
+
+      {/* Backup Unlock Modal */}
+      {showUnlockModal && createPortal(
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 z-[999998]"
+            onClick={() => setShowUnlockModal(false)}
+            style={{
+              zIndex: 999998,
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.5)'
+            }}
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: -10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: -10 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 flex items-center justify-center z-[999999] p-4"
+            style={{
+              zIndex: 999999,
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '1rem'
+            }}
+          >
+            <div className="bg-[#252728] rounded-xl shadow-2xl border border-gray-700 w-full max-w-md overflow-hidden">
+              <div className="flex items-center justify-between p-6 border-b border-gray-700 bg-[#2f3133]">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-indigo-600/20">
+                    <Lock className="w-5 h-5 text-indigo-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">Unlock Backup & System</h3>
+                    <p className="text-sm text-gray-400">Enter your password to continue</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowUnlockModal(false)}
+                  className="p-2 text-gray-400 hover:text-white hover:bg-gray-600 rounded-lg transition-colors duration-200"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-300">Password</label>
+                  <input
+                    type="password"
+                    value={unlockPassword}
+                    onChange={(e) => setUnlockPassword(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-[#1c1c1d] text-white placeholder-gray-400 text-sm"
+                    disabled={unlocking}
+                    placeholder="Enter your password"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 p-6 border-t border-gray-700 bg-[#2f3133]">
+                <button
+                  onClick={() => {
+                    setShowUnlockModal(false);
+                    setUnlockPassword('');
+                  }}
+                  className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white text-sm font-medium rounded-lg transition-colors duration-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    // verify via re-auth
+                    try {
+                      if (!user?.email) {
+                        toast.error('No user email found');
+                        return;
+                      }
+                      if (!unlockPassword) {
+                        toast.error('Please enter your password');
+                        return;
+                      }
+                      setUnlocking(true);
+                      const { error } = await supabase.auth.signInWithPassword({
+                        email: user.email,
+                        password: unlockPassword
+                      });
+                      if (error) {
+                        toast.error('Incorrect password');
+                        return;
+                      }
+                      setIsBackupLocked(false);
+                      setShowUnlockModal(false);
+                      setUnlockPassword('');
+                      toast.success('Backup & System unlocked');
+                    } catch {
+                      toast.error('Failed to unlock');
+                    } finally {
+                      setUnlocking(false);
+                    }
+                  }}
+                  disabled={unlocking}
+                  className={`px-6 py-2 rounded-lg text-white font-medium flex items-center gap-2 ${
+                    unlocking ? 'bg-gray-600 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'
+                  }`}
+                >
+                  {unlocking ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Unlocking...
+                    </>
+                  ) : (
+                    <>
+                      <Unlock className="w-4 h-4" />
+                      Unlock
                     </>
                   )}
                 </button>
