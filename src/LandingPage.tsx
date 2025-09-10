@@ -37,6 +37,7 @@ const LandingPage = () => {
   const [verificationStep, setVerificationStep] = useState('email'); // 'email', 'code', or 'reset-password'
   const [verificationCode, setVerificationCode] = useState('');
   const [verifyingCode, setVerifyingCode] = useState(false);
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
 
 
   // Add motion values for 3D effect with performance optimization
@@ -147,13 +148,19 @@ const LandingPage = () => {
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.matchMedia('(max-width: 640px)').matches);
+    const updateWindowWidth = () => setWindowWidth(window.innerWidth);
+    
     checkMobile();
+    updateWindowWidth();
     
     // Throttled resize handler for better performance
     let resizeTimer: NodeJS.Timeout;
     const handleResize = () => {
       clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(checkMobile, 100);
+      resizeTimer = setTimeout(() => {
+        checkMobile();
+        updateWindowWidth();
+      }, 100);
     };
     
     window.addEventListener('resize', handleResize);
@@ -826,28 +833,29 @@ const LandingPage = () => {
         <button
           onClick={() => setShowFeedback(true)}
           disabled={showLogin}
-          className={`fixed z-40 bg-gradient-to-b from-green-400 to-green-500 text-white px-4 py-2 shadow-lg font-semibold text-sm transition-all duration-300 flex items-center gap-2 rounded-full hover:scale-105
+          className={`fixed z-40 bg-gradient-to-b from-green-400 to-green-500 text-white px-6 py-3 shadow-lg font-semibold text-sm transition-all duration-300 flex items-center gap-3 rounded-full hover:scale-105
             ${showLogin ? 'opacity-50 cursor-not-allowed' : ''}
-            sm:top-[40%] top-[15%] md:top-[40%] lg:top-[40%]
+            ${windowWidth <= 640 ? 'top-[20%]' : 'top-[40%]'}
           `}
           style={{
-            right: showFeedback ? 'min(415px, calc(100% - 20px))' : '20px',
+            right: showFeedback ? (windowWidth <= 640 ? 'calc(100vw - 60px)' : '420px') : '20px',
             transform: 'translateY(-50%) rotate(-90deg)',
             transformOrigin: 'right center',
             width: 'fit-content',
             whiteSpace: 'nowrap',
-            boxShadow: '0 4px 16px 0 rgba(34,197,94,0.15)',
-            borderTopLeftRadius: '15px',
-            borderBottomLeftRadius: '1px',
-            borderTopRightRadius: '15px',
+            boxShadow: '0 4px 16px 0 rgba(34,197,94,0.25)',
+            borderTopLeftRadius: '20px',
+            borderBottomLeftRadius: '5px',
+            borderTopRightRadius: '20px',
             borderBottomRightRadius: '5px',
+            minHeight: '50px',
           }}
           aria-label="Give Feedback"
         >
           <svg 
             xmlns="http://www.w3.org/2000/svg" 
-            width="18" 
-            height="18" 
+            width="20" 
+            height="20" 
             viewBox="0 0 24 24" 
             fill="none" 
             stroke="currentColor" 
@@ -867,11 +875,12 @@ const LandingPage = () => {
             showFeedback ? 'opacity-100' : 'opacity-0'
           }`} 
           style={{
-            width: '400px',
-            height: '530px',
-            top: '50%',
+            width: windowWidth <= 640 ? 'calc(100vw - 80px)' : '400px',
+            height: windowWidth <= 640 ? 'auto' : '530px',
+            maxHeight: windowWidth <= 640 ? '80vh' : '530px',
+            top: windowWidth <= 640 ? '40%' : '50%',
             transform: 'translateY(-50%)',
-            right: showFeedback ? '0px' : '-400px',
+            right: showFeedback ? '0px' : (windowWidth <= 640 ? '-100vw' : '-400px'),
             borderRadius: '1.5rem 0 1.5rem 1.5rem',
             borderTopLeftRadius: '1.5rem',
             borderBottomLeftRadius: '1.5rem',
