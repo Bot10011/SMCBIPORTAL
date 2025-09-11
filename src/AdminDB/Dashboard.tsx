@@ -2787,7 +2787,7 @@ const AdminDashboard: React.FC = () => {
             <Route path="/program-management" element={<ProgramManagement />} />
             <Route path="/enrollment-approvals" element={<RegistrarEnrollment />} />
             <Route path="/student-grades" element={<StudentGrades />} />
-            <Route path="/enroll-student" element={<RegistrarEnrollment />} />
+            
             <Route path="/instructor-management" element={<InstructorManagement />} />
              <Route path="/enroll-student" element={<ProgramHeadEnrollment />} />
             <Route path="/class-management" element={<ClassManagement />} />
