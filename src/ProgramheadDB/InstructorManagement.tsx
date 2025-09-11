@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Box,
   Card,
+  CardContent,
   Typography,
   Tabs,
   Tab,
@@ -21,6 +22,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  Paper,
   Chip,
   IconButton,
   Alert,
@@ -42,7 +44,7 @@ import {
   X,
   Eye
 } from 'lucide-react';
-import SubjectAssignmentModal from './SubjectAssignmentModal';
+import SubjectAssignmentModal, { SubjectAssignmentModalProps } from './SubjectAssignmentModal';
 
 interface Instructor {
   id: string;
@@ -118,7 +120,6 @@ const InstructorManagement: React.FC = () => {
   const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [currentDepartment, setCurrentDepartment] = useState<string | null>(null);
   // Removed role/department/status filters from UI
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -128,7 +129,7 @@ const InstructorManagement: React.FC = () => {
     lastName: '',
     email: '',
     role: 'instructor' as 'teacher' | 'instructor', // default to instructor
-    department: '',
+    department: 'BSIT', // default to BSIT
     password: 'TempPass@123',
   });
 
@@ -164,11 +165,9 @@ const InstructorManagement: React.FC = () => {
     editingAssignmentId: '' as string | ''
   });
   const [courses, setCourses] = useState<Course[]>([]);
-  // Removed sections state; not used by the modal anymore
-  const [programs, setPrograms] = useState<Array<{
+  const [sections, setSections] = useState<Array<{
     id: string;
     name: string;
-    description?: string;
     year_level: string;
   }>>([]);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
@@ -190,6 +189,7 @@ const InstructorManagement: React.FC = () => {
   const [assignmentsLoading, setAssignmentsLoading] = useState(true);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [selectedYearLevel, setSelectedYearLevel] = useState<string>('all');
+  const [selectedSections, setSelectedSections] = useState<Record<string, string>>({});
   
   // Assignment Detail Modal State
   const [assignmentDetailModal, setAssignmentDetailModal] = useState<{
@@ -201,30 +201,39 @@ const InstructorManagement: React.FC = () => {
   });
 
   // Deprecated standalone Edit Assignment Modal State (replaced by unified modal)
-  // Deprecated standalone Edit Assignment modal state removed (using unified modal)
+  const [editAssignmentModal, setEditAssignmentModal] = useState<{
+    isOpen: boolean;
+    assignment: TeacherSubject | null;
+    loading: boolean;
+  }>({
+    isOpen: false,
+    assignment: null,
+    loading: false
+  });
 
-  // Removed fetchSections; sections not used
-
-  const fetchPrograms = async () => {
+  const fetchSections = async () => {
     try {
-      interface ProgramRow { id: string; name: string | null; description?: string | null }
       const { data, error } = await supabase
-        .from('programs')
-        .select('id, name, description')
+        .from('sections')
+        .select('id, name, year_level, academic_year')
+        .order('year_level', { ascending: true })
         .order('name', { ascending: true });
-
+ 
       if (error) throw error;
-      const typed = (data as ProgramRow[] | null) || [];
-      setPrograms(typed.map((p) => ({
-        id: p.id,
-        name: p.name ?? 'Unnamed Program',
-        description: p.description ?? undefined,
-        year_level: ''
-      })));
+      
+      // Validate that sections have proper year_level data
+      const validSections = (data || []).filter(section => 
+        section.year_level !== null && 
+        section.year_level !== undefined && 
+        section.name && 
+        section.name.trim() !== ''
+      );
+      
+      setSections(validSections);
     } catch (error) {
-      console.error('Error fetching programs:', error);
-      toast.error('Failed to load programs');
-      setPrograms([]);
+      console.error('Error fetching sections:', error);
+      toast.error('Failed to load sections');
+      setSections([]);
     }
   };
 
@@ -285,22 +294,9 @@ const InstructorManagement: React.FC = () => {
       }
       
       // Transform the data to ensure display_name is available
-      interface CourseRow {
-        id: string;
-        code?: string;
-        name?: string;
-        units?: number;
-        year_level?: string;
-        display_name?: string;
-        semester?: string;
-        summer?: boolean;
-      }
-      const transformedCourses: Course[] = ((data as CourseRow[] | null) || []).map((course) => ({
-        id: course.id,
-        code: String(course.code ?? ''),
-        name: String(course.name ?? ''),
-        units: Number(course.units ?? 0),
-        display_name: String(course.display_name ?? course.name ?? course.code ?? ''),
+      const transformedCourses = (data || []).map((course: any) => ({
+        ...course,
+        display_name: course.display_name || course.name || course.code,
         // Assign default year level if missing
         year_level: course.year_level || (() => {
           // Try to extract year from course code or name
@@ -324,7 +320,7 @@ const InstructorManagement: React.FC = () => {
           
           // If semester is already set, use it
           if (course.semester) {
-            return String(course.semester);
+            return course.semester;
           }
           
           // Try to extract semester from course code or name
@@ -407,38 +403,7 @@ const InstructorManagement: React.FC = () => {
       if (error) throw error;
 
       // Transform the data to match our interface
-      interface AssignmentRow {
-        id: string;
-        teacher_id: string;
-        subject_id: string;
-        section: string;
-        academic_year: string;
-        semester: string;
-        year_level: string;
-        is_active: boolean;
-        day?: string;
-        time?: string;
-        created_at?: string;
-        teacher?: {
-          id: string;
-          first_name: string;
-          last_name: string;
-          middle_name?: string | null;
-          email: string;
-          role: string;
-          department?: string | null;
-          profile_picture_url?: string | null;
-        } | null;
-        subject?: {
-          id: string;
-          code?: string;
-          name?: string;
-          units?: number;
-          year_level?: string;
-          semester?: string;
-        } | null;
-      }
-      const transformedAssignments: TeacherSubject[] = ((data as AssignmentRow[] | null) || []).map((assignment) => ({
+      const transformedAssignments = (data || []).map((assignment: any) => ({
         id: assignment.id,
         teacher_id: assignment.teacher_id,
         subject_id: assignment.subject_id,
@@ -454,7 +419,7 @@ const InstructorManagement: React.FC = () => {
           ? `${assignment.teacher.first_name} ${assignment.teacher.middle_name ? assignment.teacher.middle_name + ' ' : ''}${assignment.teacher.last_name}`
           : 'Unknown Teacher',
         teacher_role: assignment.teacher?.role || 'Unknown',
-        teacher_profile_picture: assignment.teacher?.profile_picture_url || undefined,
+        teacher_profile_picture: assignment.teacher?.profile_picture_url || null,
         subject_code: assignment.subject?.code || 'Unknown',
         subject_name: assignment.subject?.name || 'Unknown',
         subject_units: assignment.subject?.units || 0
@@ -472,17 +437,11 @@ const InstructorManagement: React.FC = () => {
   const fetchInstructors = async () => {
     try {
       setLoading(true);
-      let query = supabase
+      const { data, error } = await supabase
         .from('user_profiles')
         .select('*')
         .in('role', ['teacher', 'instructor'])
         .order('created_at', { ascending: false });
-
-      if (currentDepartment) {
-        query = query.eq('department', currentDepartment);
-      }
-
-      const { data, error } = await query;
 
       if (error) throw error;
       setInstructors(data || []);
@@ -620,33 +579,10 @@ const InstructorManagement: React.FC = () => {
 
   // Fetch instructors on component mount
   useEffect(() => {
-    const loadCurrentDepartment = async () => {
-      try {
-        const { data: auth } = await supabase.auth.getUser();
-        const userId = auth?.user?.id;
-        if (!userId) return;
-        const { data } = await supabase
-          .from('user_profiles')
-          .select('department')
-          .eq('id', userId)
-          .single();
-        if (data?.department) {
-          setCurrentDepartment(data.department as string);
-        }
-      } catch {
-        // ignore
-      }
-    };
-
-    loadCurrentDepartment();
-    fetchCourses();
-    fetchPrograms();
-  }, []);
-
-  // Refetch instructors whenever department scope changes
-  useEffect(() => {
     fetchInstructors();
-  }, [currentDepartment]);
+    fetchCourses();
+    fetchSections();
+  }, []);
 
   // Fetch assignments when tab changes to Year Level Assigned Subjects
   useEffect(() => {
@@ -654,6 +590,9 @@ const InstructorManagement: React.FC = () => {
       fetchAssignments();
     }
   }, [tabValue]);
+
+
+
 
   const handleCreateInstructor = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -725,7 +664,7 @@ const InstructorManagement: React.FC = () => {
       lastName: '',
       email: '',
       role: 'instructor', // default to instructor
-      department: currentDepartment || '',
+      department: 'BSIT', // default to BSIT
       password: 'TempPass@123',
     });
   };
@@ -740,13 +679,6 @@ const InstructorManagement: React.FC = () => {
     }
   }, [createForm.firstName, createForm.lastName]);
 
-  // Default department to Program Head's department when opening create dialog
-  useEffect(() => {
-    if (createDialogOpen && currentDepartment && !createForm.department) {
-      setCreateForm(f => ({ ...f, department: currentDepartment }));
-    }
-  }, [createDialogOpen, currentDepartment]);
-
   // Filter instructors based on search and filters
   const filteredInstructors = instructors.filter(instructor => {
     const matchesSearch = !searchTerm || 
@@ -754,9 +686,7 @@ const InstructorManagement: React.FC = () => {
       instructor.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       instructor.email.toLowerCase().includes(searchTerm.toLowerCase());
 
-    const matchesDepartment = !currentDepartment || instructor.department === currentDepartment;
-
-    return matchesSearch && matchesDepartment;
+    return matchesSearch;
   });
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
@@ -935,9 +865,48 @@ const InstructorManagement: React.FC = () => {
     });
   };
 
-  // deprecated closeEditAssignment removed
+  const closeEditAssignment = () => {
+    setEditAssignmentModal({
+      isOpen: false,
+      assignment: null,
+      loading: false
+    });
+  };
 
-  // deprecated standalone edit handler removed; unified modal handles editing
+  const handleEditAssignment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editAssignmentModal.assignment) return;
+
+    setEditAssignmentModal(prev => ({ ...prev, loading: true }));
+
+    try {
+      const { error } = await supabase
+        .from('teacher_subjects')
+        .update({
+          teacher_id: editAssignmentModal.assignment.teacher_id,
+          subject_id: editAssignmentModal.assignment.subject_id,
+          section: editAssignmentModal.assignment.section,
+          academic_year: editAssignmentModal.assignment.academic_year,
+          semester: editAssignmentModal.assignment.semester,
+          year_level: editAssignmentModal.assignment.year_level,
+          day: editAssignmentModal.assignment.day,
+          time: editAssignmentModal.assignment.time,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', editAssignmentModal.assignment.id);
+
+      if (error) throw error;
+
+      toast.success('Assignment updated successfully');
+      closeEditAssignment();
+      fetchAssignments(); // Refresh the assignments list
+    } catch (error) {
+      console.error('Error updating assignment:', error);
+      toast.error('Failed to update assignment');
+    } finally {
+      setEditAssignmentModal(prev => ({ ...prev, loading: false }));
+    }
+  };
 
   const dayAbbr: Record<string, string> = {
     'Monday': 'M',
@@ -1006,11 +975,34 @@ const InstructorManagement: React.FC = () => {
     return sem;
   };
 
+  // Helper function to filter assignments by section
+  const filterAssignmentsBySection = (assignments: TeacherSubject[], yearLevel: string): TeacherSubject[] => {
+    const cardSectionFilter = selectedSections[yearLevel] || 'all';
+    if (cardSectionFilter === 'all') return assignments;
+    
+    // Get the section name from the section ID
+    const selectedSection = sections.find(s => s.id === cardSectionFilter);
+    const filtered = selectedSection ? assignments.filter(assignment => assignment.section === selectedSection.name) : [];
+    
+    // Debug logging
+    console.log('Section filtering debug:', {
+      yearLevel,
+      cardSectionFilter,
+      selectedSection,
+      totalAssignments: assignments.length,
+      filteredCount: filtered.length,
+      assignmentSections: assignments.map(a => a.section),
+      availableSections: sections.map(s => ({ id: s.id, name: s.name }))
+    });
+    
+    return filtered;
+  };
+
   return (
     <Box sx={{ 
       minHeight: '100vh',
       p: { xs: 2, sm: 4 },
-    
+      background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)'
     }}>
       {/* Header */}
       <Box sx={{ 
@@ -1123,7 +1115,7 @@ const InstructorManagement: React.FC = () => {
           </Card>
 
           {/* Instructors Table */}
-          <Card sx={{ borderRadius: 3, overflow: 'hidden', backgroundColor: '#fff' }}>
+          <Card sx={{ borderRadius: 3, overflow: 'hidden' }}>
             <TableContainer>
               <Table>
                 <TableHead sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
@@ -1340,7 +1332,7 @@ const InstructorManagement: React.FC = () => {
                             {yearLevel}
                           </Typography>
                           <Chip 
-                            label={`${groupedAssignments[yearLevel].length} ${groupedAssignments[yearLevel].length === 1 ? 'Assignment' : 'Assignments'}`}
+                            label={`${filterAssignmentsBySection(groupedAssignments[yearLevel], yearLevel).length} ${filterAssignmentsBySection(groupedAssignments[yearLevel], yearLevel).length === 1 ? 'Assignment' : 'Assignments'}`}
                             size="small"
                             sx={{ 
                               bg: 'rgba(255, 255, 255, 0.2)', 
@@ -1350,6 +1342,88 @@ const InstructorManagement: React.FC = () => {
                           />
                         </Box>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Box 
+                            onClick={(e) => e.stopPropagation()}
+                            onMouseDown={(e) => e.stopPropagation()}
+                          >
+                            <FormControl size="small" sx={{ minWidth: 120 }}>
+                              <Select
+                              value={selectedSections[yearLevel] || 'all'}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                setSelectedSections(prev => ({
+                                  ...prev,
+                                  [yearLevel]: e.target.value
+                                }));
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                              }}
+                              onMouseDown={(e) => {
+                                e.stopPropagation();
+                              }}
+                              sx={{ 
+                                color: 'white',
+                                '& .MuiOutlinedInput-notchedOutline': {
+                                  borderColor: 'rgba(255,255,255,0.6)',
+                                },
+                                '&:hover .MuiOutlinedInput-notchedOutline': {
+                                  borderColor: 'white',
+                                },
+                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                                  borderColor: 'white',
+                                },
+                                '& .MuiSelect-icon': {
+                                  color: 'white',
+                                }
+                              }}
+                              MenuProps={{
+                                PaperProps: {
+                                  sx: {
+                                    bgcolor: 'white',
+                                    color: 'black',
+                                  }
+                                },
+                                onClick: (e) => {
+                                  e.stopPropagation();
+                                }
+                              }}
+                            >
+                              <MenuItem 
+                                value="all"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                All Sections
+                              </MenuItem>
+                              {sections
+                                .filter(section => {
+                                  // Convert year level string to number for comparison (same as ClassManagement)
+                                  let yearLevelNumber;
+                                  if (yearLevel === '1st Year') yearLevelNumber = 1;
+                                  else if (yearLevel === '2nd Year') yearLevelNumber = 2;
+                                  else if (yearLevel === '3rd Year') yearLevelNumber = 3;
+                                  else if (yearLevel === '4th Year') yearLevelNumber = 4;
+                                  else yearLevelNumber = parseInt(yearLevel.replace(' Year', '').replace('st', '').replace('nd', '').replace('rd', '').replace('th', ''));
+                                  
+                                  return Number(section.year_level) === yearLevelNumber;
+                                })
+                                .map(section => (
+                                  <MenuItem 
+                                    key={section.id} 
+                                    value={section.id}
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    {section.name}
+                                  </MenuItem>
+                                ))}
+                              {sections.length === 0 && (
+                                <MenuItem disabled>
+                                  No sections loaded
+                                </MenuItem>
+                              )}
+                            </Select>
+                            </FormControl>
+                          </Box>
                           <Button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -1384,7 +1458,8 @@ const InstructorManagement: React.FC = () => {
                       {expandedSections[yearLevel] && (
                         <Box sx={{ p: 3 }}>
                           <Grid container spacing={2}>
-                            {groupedAssignments[yearLevel].map((assignment) => (
+                            {filterAssignmentsBySection(groupedAssignments[yearLevel], yearLevel)
+                              .map((assignment) => (
                               <Grid item xs={12} md={6} lg={4} key={assignment.id}>
                                 <Card 
                                   onClick={() => openAssignmentDetail(assignment)}
@@ -1674,32 +1749,24 @@ const InstructorManagement: React.FC = () => {
               <input type="hidden" name="role" value="instructor" />
               {/* Remove Department Dropdown, use read-only text field instead */}
               <Grid item xs={12} sm={6}>
-                <FormControl fullWidth>
-                  <InputLabel>Department</InputLabel>
-                  <Select
-                    value={createForm.department}
-                    label="Department"
-                    onChange={(e) => setCreateForm(f => ({ ...f, department: e.target.value as string }))}
-                    required
-                  >
-                    <MenuItem value="" disabled>
-                      Select Department
-                    </MenuItem>
-                    {programs
-                      .filter(p => !currentDepartment || p.name === currentDepartment)
-                      .map((program) => (
-                      <MenuItem key={program.id} value={program.name}>
-                        {(program.description || program.name)} — {program.name}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
+                <TextField
+                  fullWidth
+                  label="Department"
+                  value={createForm.department}
+                  InputProps={{ readOnly: true }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      backgroundColor: '#f9fafb'
+                    }
+                  }}
+                  helperText="Department is set to BSIT by default."
+                />
               </Grid>
               <Grid item xs={12}>
                 <TextField
                   fullWidth
                   label="Password"
-                  type="text" 
+                  type="text"
                   value={createForm.password}
                   InputProps={{ readOnly: true }}
                   sx={{
@@ -2040,17 +2107,18 @@ const InstructorManagement: React.FC = () => {
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
-                <FormControl fullWidth>
-                  <InputLabel>Role</InputLabel>
-                  <Select
-                    value={editForm.role}
-                    label="Role"
-                    onChange={(e) => setEditForm(f => ({ ...f, role: e.target.value as 'teacher' | 'instructor' }))}
-                  >
-                    <MenuItem value="teacher">Teacher</MenuItem>
-                    <MenuItem value="instructor">Instructor</MenuItem>
-                  </Select>
-                </FormControl>
+                <TextField
+                  fullWidth
+                  label="Role"
+                  value={editForm.role.charAt(0).toUpperCase() + editForm.role.slice(1)}
+                  InputProps={{ readOnly: true }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      backgroundColor: '#f3f4f6'
+                    }
+                  }}
+                  helperText="Role cannot be changed"
+                />
               </Grid>
               <Grid item xs={12} sm={6}>
                 <FormControl fullWidth>
@@ -2486,9 +2554,7 @@ const InstructorManagement: React.FC = () => {
         handleInputChange={handleInputChange}
         formSubmitting={formSubmitting}
         isEditMode={subjectAssignmentModal.isEditMode}
-        teachers={instructors
-          .filter(instructor => !currentDepartment || instructor.department === currentDepartment)
-          .map(instructor => ({
+        teachers={instructors.map(instructor => ({
           id: instructor.id,
           first_name: instructor.first_name,
           last_name: instructor.last_name,
@@ -2499,6 +2565,7 @@ const InstructorManagement: React.FC = () => {
           full_name: `${instructor.first_name} ${instructor.middle_name ? instructor.middle_name + ' ' : ''}${instructor.last_name}`
         }))}
         courses={courses}
+        sections={sections} // Sections for filtering by year level
       />
     </Box>
   );
