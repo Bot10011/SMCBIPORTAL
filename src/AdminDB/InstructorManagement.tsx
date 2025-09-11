@@ -42,7 +42,9 @@ import {
   Users,
   Plus,
   X,
-  Eye
+  Eye,
+  FileText,
+  Download
 } from 'lucide-react';
 import SubjectAssignmentModal, { SubjectAssignmentModalProps } from './SubjectAssignmentModal';
 
@@ -87,6 +89,24 @@ interface Course {
   year_level: string;
   display_name: string;
   semester: string;
+}
+
+interface SubjectTraceRecord {
+  id: string;
+  instructor_id: string;
+  instructor_name: string;
+  instructor_email: string;
+  instructor_department: string;
+  subject_code: string;
+  subject_name: string;
+  subject_units: number;
+  section: string;
+  semester: string;
+  academic_year: string;
+  year_level: string;
+  status: 'Completed' | 'Confirmed by Program Head';
+  confirmed_at: string;
+  created_at: string;
 }
 
 interface TabPanelProps {
@@ -189,6 +209,7 @@ const InstructorManagement: React.FC = () => {
   const [assignmentsLoading, setAssignmentsLoading] = useState(true);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [selectedYearLevel, setSelectedYearLevel] = useState<string>('all');
+  const [selectedSections, setSelectedSections] = useState<Record<string, string>>({});
   
   // Assignment Detail Modal State
   const [assignmentDetailModal, setAssignmentDetailModal] = useState<{
@@ -210,17 +231,29 @@ const InstructorManagement: React.FC = () => {
     loading: false
   });
 
+  // Subject Trace State
+  const [subjectTraceRecords, setSubjectTraceRecords] = useState<SubjectTraceRecord[]>([]);
+  const [subjectTraceLoading, setSubjectTraceLoading] = useState(true);
+  const [subjectTraceSearchTerm, setSubjectTraceSearchTerm] = useState('');
+  const [subjectTraceModal, setSubjectTraceModal] = useState<{
+    isOpen: boolean;
+    instructor: Instructor | null;
+    records: SubjectTraceRecord[];
+  }>({
+    isOpen: false,
+    instructor: null,
+    records: []
+  });
+
   const fetchSections = async () => {
     try {
-      console.log('Fetching sections...');
       const { data, error } = await supabase
         .from('sections')
-        .select('id, name, year_level')
+        .select('id, name, year_level, academic_year')
+        .order('year_level', { ascending: true })
         .order('name', { ascending: true });
  
       if (error) throw error;
-      
-      console.log('Fetched sections:', data);
       
       // Validate that sections have proper year_level data
       const validSections = (data || []).filter(section => 
@@ -230,7 +263,6 @@ const InstructorManagement: React.FC = () => {
         section.name.trim() !== ''
       );
       
-      console.log('Valid sections:', validSections);
       setSections(validSections);
     } catch (error) {
       console.error('Error fetching sections:', error);
@@ -592,6 +624,16 @@ const InstructorManagement: React.FC = () => {
       fetchAssignments();
     }
   }, [tabValue]);
+
+  // Fetch subject trace records when tab changes to Subject Trace
+  useEffect(() => {
+    if (tabValue === 2) {
+      fetchSubjectTraceRecords();
+    }
+  }, [tabValue]);
+
+
+
 
   const handleCreateInstructor = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -974,6 +1016,115 @@ const InstructorManagement: React.FC = () => {
     return sem;
   };
 
+  // Helper function to filter assignments by section
+  const filterAssignmentsBySection = (assignments: TeacherSubject[], yearLevel: string): TeacherSubject[] => {
+    const cardSectionFilter = selectedSections[yearLevel] || 'all';
+    if (cardSectionFilter === 'all') return assignments;
+    
+    // Get the section name from the section ID
+    const selectedSection = sections.find(s => s.id === cardSectionFilter);
+    const filtered = selectedSection ? assignments.filter(assignment => assignment.section === selectedSection.name) : [];
+    
+    // Debug logging
+    console.log('Section filtering debug:', {
+      yearLevel,
+      cardSectionFilter,
+      selectedSection,
+      totalAssignments: assignments.length,
+      filteredCount: filtered.length,
+      assignmentSections: assignments.map(a => a.section),
+      availableSections: sections.map(s => ({ id: s.id, name: s.name }))
+    });
+    
+    return filtered;
+  };
+
+  // Subject Trace Functions
+  const fetchSubjectTraceRecords = async () => {
+    try {
+      setSubjectTraceLoading(true);
+      const { data, error } = await supabase
+        .from('subject_trace_records')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setSubjectTraceRecords(data || []);
+    } catch (error) {
+      console.error('Error fetching subject trace records:', error);
+      toast.error('Failed to load subject trace records');
+    } finally {
+      setSubjectTraceLoading(false);
+    }
+  };
+
+  const handleViewSubjectTrace = (instructor: Instructor) => {
+    const instructorRecords = subjectTraceRecords.filter(record => record.instructor_id === instructor.id);
+    setSubjectTraceModal({
+      isOpen: true,
+      instructor,
+      records: instructorRecords
+    });
+  };
+
+  const closeSubjectTraceModal = () => {
+    setSubjectTraceModal({
+      isOpen: false,
+      instructor: null,
+      records: []
+    });
+  };
+
+  const generateSubjectTracePDF = async (instructor: Instructor, records: SubjectTraceRecord[]) => {
+    try {
+      // Dynamically import jsPDF and autoTable
+      const { default: jsPDF } = await import('jspdf');
+      const autoTable = (await import('jspdf-autotable')).default;
+      const doc = new jsPDF();
+
+      // Set up the document
+      doc.setFontSize(20);
+      doc.text('Subject Trace Report', 20, 30);
+      
+      // Instructor details
+      doc.setFontSize(14);
+      doc.text(`Instructor: ${instructor.first_name} ${instructor.middle_name ? instructor.middle_name + ' ' : ''}${instructor.last_name}`, 20, 50);
+      doc.text(`Email: ${instructor.email}`, 20, 60);
+      doc.text(`Department: ${instructor.department || 'N/A'}`, 20, 70);
+      doc.text(`Role: ${instructor.role.charAt(0).toUpperCase() + instructor.role.slice(1)}`, 20, 80);
+
+      // Table headers
+      const tableHeaders = ['Semester', 'Subject Code', 'Subject Name', 'Units', 'Section', 'Status', 'Confirmed At'];
+      const tableData = records.map(record => [
+        `${record.semester} ${record.academic_year}`,
+        record.subject_code,
+        record.subject_name,
+        record.subject_units.toString(),
+        record.section,
+        record.status,
+        new Date(record.confirmed_at).toLocaleDateString()
+      ]);
+
+      // Add table
+      autoTable(doc, {
+        head: [tableHeaders],
+        body: tableData,
+        startY: 90,
+        styles: { fontSize: 10 },
+        headStyles: { fillColor: [102, 126, 234] }
+      });
+
+      // Save the PDF
+      const fileName = `Subject_Trace_${instructor.first_name}_${instructor.last_name}_${new Date().toISOString().split('T')[0]}.pdf`;
+      doc.save(fileName);
+      
+      toast.success('PDF generated successfully!');
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast.error('Failed to generate PDF. Please try again.');
+    }
+  };
+
   return (
     <Box sx={{ 
       minHeight: '100vh',
@@ -1045,6 +1196,14 @@ const InstructorManagement: React.FC = () => {
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <BookOpen className="w-5 h-5" />
                   Year Level Assigned Subjects
+                </Box>
+              } 
+            />
+            <Tab 
+              label={
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <FileText className="w-5 h-5" />
+                  Subject Trace
                 </Box>
               } 
             />
@@ -1308,7 +1467,7 @@ const InstructorManagement: React.FC = () => {
                             {yearLevel}
                           </Typography>
                           <Chip 
-                            label={`${groupedAssignments[yearLevel].length} ${groupedAssignments[yearLevel].length === 1 ? 'Assignment' : 'Assignments'}`}
+                            label={`${filterAssignmentsBySection(groupedAssignments[yearLevel], yearLevel).length} ${filterAssignmentsBySection(groupedAssignments[yearLevel], yearLevel).length === 1 ? 'Assignment' : 'Assignments'}`}
                             size="small"
                             sx={{ 
                               bg: 'rgba(255, 255, 255, 0.2)', 
@@ -1318,6 +1477,88 @@ const InstructorManagement: React.FC = () => {
                           />
                         </Box>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Box 
+                            onClick={(e) => e.stopPropagation()}
+                            onMouseDown={(e) => e.stopPropagation()}
+                          >
+                            <FormControl size="small" sx={{ minWidth: 120 }}>
+                              <Select
+                              value={selectedSections[yearLevel] || 'all'}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                setSelectedSections(prev => ({
+                                  ...prev,
+                                  [yearLevel]: e.target.value
+                                }));
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                              }}
+                              onMouseDown={(e) => {
+                                e.stopPropagation();
+                              }}
+                              sx={{ 
+                                color: 'white',
+                                '& .MuiOutlinedInput-notchedOutline': {
+                                  borderColor: 'rgba(255,255,255,0.6)',
+                                },
+                                '&:hover .MuiOutlinedInput-notchedOutline': {
+                                  borderColor: 'white',
+                                },
+                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                                  borderColor: 'white',
+                                },
+                                '& .MuiSelect-icon': {
+                                  color: 'white',
+                                }
+                              }}
+                              MenuProps={{
+                                PaperProps: {
+                                  sx: {
+                                    bgcolor: 'white',
+                                    color: 'black',
+                                  }
+                                },
+                                onClick: (e) => {
+                                  e.stopPropagation();
+                                }
+                              }}
+                            >
+                              <MenuItem 
+                                value="all"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                All Sections
+                              </MenuItem>
+                              {sections
+                                .filter(section => {
+                                  // Convert year level string to number for comparison (same as ClassManagement)
+                                  let yearLevelNumber;
+                                  if (yearLevel === '1st Year') yearLevelNumber = 1;
+                                  else if (yearLevel === '2nd Year') yearLevelNumber = 2;
+                                  else if (yearLevel === '3rd Year') yearLevelNumber = 3;
+                                  else if (yearLevel === '4th Year') yearLevelNumber = 4;
+                                  else yearLevelNumber = parseInt(yearLevel.replace(' Year', '').replace('st', '').replace('nd', '').replace('rd', '').replace('th', ''));
+                                  
+                                  return Number(section.year_level) === yearLevelNumber;
+                                })
+                                .map(section => (
+                                  <MenuItem 
+                                    key={section.id} 
+                                    value={section.id}
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    {section.name}
+                                  </MenuItem>
+                                ))}
+                              {sections.length === 0 && (
+                                <MenuItem disabled>
+                                  No sections loaded
+                                </MenuItem>
+                              )}
+                            </Select>
+                            </FormControl>
+                          </Box>
                           <Button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -1352,7 +1593,8 @@ const InstructorManagement: React.FC = () => {
                       {expandedSections[yearLevel] && (
                         <Box sx={{ p: 3 }}>
                           <Grid container spacing={2}>
-                            {groupedAssignments[yearLevel].map((assignment) => (
+                            {filterAssignmentsBySection(groupedAssignments[yearLevel], yearLevel)
+                              .map((assignment) => (
                               <Grid item xs={12} md={6} lg={4} key={assignment.id}>
                                 <Card 
                                   onClick={() => openAssignmentDetail(assignment)}
@@ -1560,6 +1802,101 @@ const InstructorManagement: React.FC = () => {
                   ))}
               </Box>
             )}
+          </Box>
+        </TabPanel>
+
+        {/* Subject Trace Tab */}
+        <TabPanel value={tabValue} index={2}>
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="h6" sx={{ fontWeight: 600, color: '#374151', mb: 2 }}>
+              Subject Trace Records
+            </Typography>
+            
+            {/* Search Filter */}
+            <Card sx={{ mb: 3, p: 2, background: 'rgba(255, 255, 255, 0.8)' }}>
+              <Grid container spacing={2} alignItems="center">
+                <Grid item xs={12} sm={4} md={3}>
+                  <TextField
+                    fullWidth
+                    placeholder="Search instructors..."
+                    value={subjectTraceSearchTerm}
+                    onChange={(e) => setSubjectTraceSearchTerm(e.target.value)}
+                    InputProps={{
+                      startAdornment: <Search className="w-4 h-4 text-gray-400 mr-2" />
+                    }}
+                    size="small"
+                  />
+                </Grid>
+              </Grid>
+            </Card>
+
+            {/* Instructors Table */}
+            <Card sx={{ borderRadius: 3, overflow: 'hidden' }}>
+              <TableContainer>
+                <Table>
+                  <TableHead sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+                    <TableRow>
+                      <TableCell sx={{ color: 'white', fontWeight: 600 }}>Name</TableCell>
+                      <TableCell sx={{ color: 'white', fontWeight: 600 }}>Email</TableCell>
+                      <TableCell sx={{ color: 'white', fontWeight: 600 }}>Department</TableCell>
+                      <TableCell sx={{ color: 'white', fontWeight: 600 }}>Role</TableCell>
+                      <TableCell sx={{ color: 'white', fontWeight: 600 }}>Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {subjectTraceLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={5} sx={{ textAlign: 'center', py: 4 }}>
+                          <CircularProgress />
+                          <Typography sx={{ mt: 1 }}>Loading instructors...</Typography>
+                        </TableCell>
+                      </TableRow>
+                    ) : filteredInstructors.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} sx={{ textAlign: 'center', py: 4 }}>
+                          <Typography color="textSecondary">No instructors found</Typography>
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredInstructors.map((instructor) => (
+                        <TableRow key={instructor.id} hover>
+                          <TableCell>
+                            <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                              {instructor.first_name} {instructor.middle_name ? instructor.middle_name + ' ' : ''}{instructor.last_name}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>{instructor.email}</TableCell>
+                          <TableCell>{instructor.department || '-'}</TableCell>
+                          <TableCell>
+                            <Chip 
+                              label={instructor.role.charAt(0).toUpperCase() + instructor.role.slice(1)} 
+                              size="small"
+                              color={instructor.role === 'teacher' ? 'primary' : 'secondary'}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="contained"
+                              size="small"
+                              startIcon={<Eye className="w-4 h-4" />}
+                              onClick={() => handleViewSubjectTrace(instructor)}
+                              sx={{
+                                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                '&:hover': {
+                                  background: 'linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%)',
+                                }
+                              }}
+                            >
+                              View
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Card>
           </Box>
         </TabPanel>
       </Card>
@@ -2000,17 +2337,18 @@ const InstructorManagement: React.FC = () => {
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
-                <FormControl fullWidth>
-                  <InputLabel>Role</InputLabel>
-                  <Select
-                    value={editForm.role}
-                    label="Role"
-                    onChange={(e) => setEditForm(f => ({ ...f, role: e.target.value as 'teacher' | 'instructor' }))}
-                  >
-                    <MenuItem value="teacher">Teacher</MenuItem>
-                    <MenuItem value="instructor">Instructor</MenuItem>
-                  </Select>
-                </FormControl>
+                <TextField
+                  fullWidth
+                  label="Role"
+                  value={editForm.role.charAt(0).toUpperCase() + editForm.role.slice(1)}
+                  InputProps={{ readOnly: true }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      backgroundColor: '#f3f4f6'
+                    }
+                  }}
+                  helperText="Role cannot be changed"
+                />
               </Grid>
               <Grid item xs={12} sm={6}>
                 <FormControl fullWidth>
@@ -2459,6 +2797,242 @@ const InstructorManagement: React.FC = () => {
         courses={courses}
         sections={sections} // Sections for filtering by year level
       />
+
+      {/* Subject Trace Modal */}
+      <Dialog
+        open={subjectTraceModal.isOpen}
+        onClose={closeSubjectTraceModal}
+        maxWidth="lg"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)',
+            maxHeight: '90vh'
+          }
+        }}
+      >
+        {subjectTraceModal.instructor && (
+          <>
+            <DialogTitle 
+              sx={{
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                color: 'white',
+                py: 3,
+                px: 4,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <FileText className="w-6 h-6" />
+                <Typography variant="h6" sx={{ fontWeight: '600', fontSize: '1.1rem' }}>
+                  Subject Trace - {subjectTraceModal.instructor.first_name} {subjectTraceModal.instructor.middle_name ? subjectTraceModal.instructor.middle_name + ' ' : ''}{subjectTraceModal.instructor.last_name}
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Button
+                  variant="contained"
+                  startIcon={<Download className="w-4 h-4" />}
+                  onClick={async () => await generateSubjectTracePDF(subjectTraceModal.instructor!, subjectTraceModal.records)}
+                  sx={{
+                    background: 'rgba(255, 255, 255, 0.2)',
+                    color: 'white',
+                    border: '1px solid rgba(255, 255, 255, 0.3)',
+                    '&:hover': {
+                      background: 'rgba(255, 255, 255, 0.3)',
+                    }
+                  }}
+                >
+                  Generate PDF
+                </Button>
+                <IconButton
+                  onClick={closeSubjectTraceModal}
+                  sx={{ color: 'white', p: 1 }}
+                  size="medium"
+                >
+                  <X className="w-5 h-5" />
+                </IconButton>
+              </Box>
+            </DialogTitle>
+            
+            <DialogContent sx={{ p: 4 }}>
+              <Grid container spacing={3}>
+                {/* Instructor Information */}
+                <Grid item xs={12}>
+                  <Card sx={{ p: 3, bg: '#f8fafc', border: '1px solid #e2e8f0', mb: 3 }}>
+                    <Typography variant="h6" sx={{ fontWeight: '600', color: '#374151', mb: 2 }}>
+                      Instructor Information
+                    </Typography>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} sm={6}>
+                        <Box sx={{ 
+                          bg: 'white', 
+                          p: 2, 
+                          borderRadius: 1, 
+                          border: '1px solid #e5e7eb',
+                          textAlign: 'center'
+                        }}>
+                          <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: '600', textTransform: 'uppercase' }}>
+                            Full Name
+                          </Typography>
+                          <Typography variant="body1" sx={{ fontWeight: '600', color: '#111827', mt: 0.5 }}>
+                            {subjectTraceModal.instructor.first_name} {subjectTraceModal.instructor.middle_name ? subjectTraceModal.instructor.middle_name + ' ' : ''}{subjectTraceModal.instructor.last_name}
+                          </Typography>
+                        </Box>
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <Box sx={{ 
+                          bg: 'white', 
+                          p: 2, 
+                          borderRadius: 1, 
+                          border: '1px solid #e5e7eb',
+                          textAlign: 'center'
+                        }}>
+                          <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: '600', textTransform: 'uppercase' }}>
+                            Email
+                          </Typography>
+                          <Typography variant="body1" sx={{ fontWeight: '600', color: '#111827', mt: 0.5 }}>
+                            {subjectTraceModal.instructor.email}
+                          </Typography>
+                        </Box>
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <Box sx={{ 
+                          bg: 'white', 
+                          p: 2, 
+                          borderRadius: 1, 
+                          border: '1px solid #e5e7eb',
+                          textAlign: 'center'
+                        }}>
+                          <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: '600', textTransform: 'uppercase' }}>
+                            Department
+                          </Typography>
+                          <Typography variant="body1" sx={{ fontWeight: '600', color: '#111827', mt: 0.5 }}>
+                            {subjectTraceModal.instructor.department || 'N/A'}
+                          </Typography>
+                        </Box>
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <Box sx={{ 
+                          bg: 'white', 
+                          p: 2, 
+                          borderRadius: 1, 
+                          border: '1px solid #e5e7eb',
+                          textAlign: 'center'
+                        }}>
+                          <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: '600', textTransform: 'uppercase' }}>
+                            Role
+                          </Typography>
+                          <Chip 
+                            label={subjectTraceModal.instructor.role.charAt(0).toUpperCase() + subjectTraceModal.instructor.role.slice(1)}
+                            size="small"
+                            sx={{ 
+                              bgcolor: subjectTraceModal.instructor.role === 'instructor' ? '#fef3c7' : '#dbeafe',
+                              color: subjectTraceModal.instructor.role === 'instructor' ? '#92400e' : '#1e40af',
+                              fontSize: '0.75rem',
+                              fontWeight: '600',
+                              mt: 0.5
+                            }}
+                          />
+                        </Box>
+                      </Grid>
+                    </Grid>
+                  </Card>
+                </Grid>
+
+                {/* Subject Assignments Table */}
+                <Grid item xs={12}>
+                  <Card sx={{ p: 3, bg: '#f0f9ff', border: '1px solid #bae6fd' }}>
+                    <Typography variant="h6" sx={{ fontWeight: '600', color: '#0c4a6e', mb: 2 }}>
+                      Subject Assignments History ({subjectTraceModal.records.length} records)
+                    </Typography>
+                    
+                    {subjectTraceModal.records.length === 0 ? (
+                      <Box sx={{ textAlign: 'center', py: 4 }}>
+                        <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                        <Typography variant="h6" color="textSecondary" sx={{ mb: 2 }}>
+                          No Subject Assignments Found
+                        </Typography>
+                        <Typography variant="body2" color="textSecondary">
+                          This instructor has no subject assignment records yet.
+                        </Typography>
+                      </Box>
+                    ) : (
+                      <TableContainer sx={{ maxHeight: 400 }}>
+                        <Table stickyHeader>
+                          <TableHead>
+                            <TableRow>
+                              <TableCell sx={{ fontWeight: 600, bgcolor: '#e0f2fe' }}>Semester</TableCell>
+                              <TableCell sx={{ fontWeight: 600, bgcolor: '#e0f2fe' }}>Subject Code</TableCell>
+                              <TableCell sx={{ fontWeight: 600, bgcolor: '#e0f2fe' }}>Subject Name</TableCell>
+                              <TableCell sx={{ fontWeight: 600, bgcolor: '#e0f2fe' }}>Units</TableCell>
+                              <TableCell sx={{ fontWeight: 600, bgcolor: '#e0f2fe' }}>Section</TableCell>
+                              <TableCell sx={{ fontWeight: 600, bgcolor: '#e0f2fe' }}>Status</TableCell>
+                              <TableCell sx={{ fontWeight: 600, bgcolor: '#e0f2fe' }}>Confirmed At</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {subjectTraceModal.records.map((record) => (
+                              <TableRow key={record.id} hover>
+                                <TableCell>
+                                  <Typography variant="body2" sx={{ fontWeight: '500' }}>
+                                    {record.semester} {record.academic_year}
+                                  </Typography>
+                                </TableCell>
+                                <TableCell>
+                                  <Typography variant="body2" sx={{ fontWeight: '600', color: '#1e40af' }}>
+                                    {record.subject_code}
+                                  </Typography>
+                                </TableCell>
+                                <TableCell>
+                                  <Typography variant="body2">
+                                    {record.subject_name}
+                                  </Typography>
+                                </TableCell>
+                                <TableCell>
+                                  <Chip 
+                                    label={`${record.subject_units} ${record.subject_units === 1 ? 'Unit' : 'Units'}`}
+                                    size="small"
+                                    sx={{ 
+                                      bgcolor: '#dbeafe',
+                                      color: '#1e40af',
+                                      fontWeight: '500'
+                                    }}
+                                  />
+                                </TableCell>
+                                <TableCell>
+                                  <Typography variant="body2">
+                                    Section {record.section}
+                                  </Typography>
+                                </TableCell>
+                                <TableCell>
+                                  <Chip 
+                                    label={record.status}
+                                    size="small"
+                                    color={record.status === 'Confirmed by Program Head' ? 'success' : 'default'}
+                                    sx={{ fontWeight: '500' }}
+                                  />
+                                </TableCell>
+                                <TableCell>
+                                  <Typography variant="body2" sx={{ color: '#6b7280' }}>
+                                    {new Date(record.confirmed_at).toLocaleDateString()}
+                                  </Typography>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    )}
+                  </Card>
+                </Grid>
+              </Grid>
+            </DialogContent>
+          </>
+        )}
+      </Dialog>
     </Box>
   );
 };
