@@ -105,7 +105,7 @@ const sidebarItems: SidebarItem[] = [
   },
   {
     label: 'Enrollment',
-    path: '/dashboard/program-head-enrollment',
+    path: '/dashboard//enroll-student',
     icon: <UserPlus className="w-5 h-5" />,
     roles: ['admin'],
   },
