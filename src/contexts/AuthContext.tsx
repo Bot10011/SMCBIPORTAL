@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, UserRole, ROLE_PERMISSIONS } from '../types/auth';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
+import { clearGoogleClassroomConnection } from '../lib/services/googleClassroomService';
 
 type PermissionKey = Exclude<keyof typeof ROLE_PERMISSIONS[UserRole], 'canCreateUsers'>;
 
@@ -185,6 +186,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     try {
+      // Clear Google Classroom/Drive tokens for this user explicitly on logout
+      if (user?.id) {
+        try { clearGoogleClassroomConnection(user.id); } catch { /* noop */ }
+      }
       await supabase.auth.signOut();
       setUser(null);
       localStorage.removeItem('user');
