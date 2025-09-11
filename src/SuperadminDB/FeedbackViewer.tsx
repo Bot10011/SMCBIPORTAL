@@ -70,80 +70,77 @@ export const FeedbackViewer: React.FC = () => {
   const archivedCount = feedbacks.filter(f => f.status === 'archived').length;
 
   return (
-    <div className="max-w-[1400px] mx-auto space-y-8">
+    <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6">
       {/* Header */}
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative"
+        className="rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-5 text-white shadow-lg"
       >
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-50/50 via-transparent to-purple-50/50 rounded-2xl -z-10"></div>
-        <div className="p-6">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-blue-100/80 shadow-inner">
-                <MessageSquare className="w-6 h-6 text-blue-600" />
-              </div>
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">Student Feedback</h2>
-                <p className="text-gray-600">Review and manage student feedback submissions</p>
-              </div>
+        <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+          <div className="flex items-center gap-3">
+            <div className="rounded-xl bg-white/20 p-2">
+              <MessageSquare className="h-6 w-6" />
             </div>
-            <div className="flex gap-2">
+            <div>
+              <h2 className="text-xl font-bold tracking-tight sm:text-2xl">Student Feedback</h2>
+              <p className="text-sm opacity-90">Review and manage student feedback submissions</p>
+            </div>
+          </div>
+          <div className="flex gap-2">
               <button
                 onClick={() => setFilter('all')}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
                   filter === 'all' 
-                    ? 'bg-blue-100 text-blue-700' 
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    ? 'bg-white/90 text-blue-700' 
+                    : 'bg-white/15 text-white hover:bg-white/25'
                 }`}
               >
                 All
-                <span className="ml-2 text-xs font-semibold text-gray-500">{feedbacks.length}</span>
+                <span className="ml-2 text-xs font-semibold opacity-80">{feedbacks.length}</span>
               </button>
               <button
                 onClick={() => setFilter('pending')}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
                   filter === 'pending' 
-                    ? 'bg-yellow-100 text-yellow-700' 
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    ? 'bg-white/90 text-yellow-700' 
+                    : 'bg-white/15 text-white hover:bg-white/25'
                 }`}
               >
                 Pending
-                <span className="ml-2 text-xs font-semibold text-yellow-700">{pendingCount}</span>
+                <span className="ml-2 text-xs font-semibold opacity-80">{pendingCount}</span>
               </button>
               <button
                 onClick={() => setFilter('reviewed')}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
                   filter === 'reviewed' 
-                    ? 'bg-green-100 text-green-700' 
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    ? 'bg-white/90 text-green-700' 
+                    : 'bg-white/15 text-white hover:bg-white/25'
                 }`}
               >
                 Reviewed
-                <span className="ml-2 text-xs font-semibold text-green-700">{reviewedCount}</span>
+                <span className="ml-2 text-xs font-semibold opacity-80">{reviewedCount}</span>
               </button>
               <button
                 onClick={() => setFilter('archived')}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
                   filter === 'archived' 
-                    ? 'bg-gray-200 text-gray-700' 
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    ? 'bg-white/90 text-gray-700' 
+                    : 'bg-white/15 text-white hover:bg-white/25'
                 }`}
               >
                 Archived
-                <span className="ml-2 text-xs font-semibold text-gray-700">{archivedCount}</span>
+                <span className="ml-2 text-xs font-semibold opacity-80">{archivedCount}</span>
               </button>
-            </div>
           </div>
         </div>
       </motion.div>
 
       {/* Feedback List */}
       {loading ? (
-        <div className="grid gap-4">
-          {[1,2,3].map(i => (
-            <div key={i} className="animate-pulse h-48 bg-gray-200 rounded-xl" />
+        <div className="grid gap-3">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-32 animate-pulse rounded-2xl bg-gray-200" />
           ))}
         </div>
       ) : (
@@ -152,18 +149,18 @@ export const FeedbackViewer: React.FC = () => {
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="text-center py-12 bg-white rounded-xl shadow-sm border border-gray-100"
+              className="rounded-2xl border border-gray-200 bg-white py-12 text-center shadow-sm"
             >
               <p className="text-gray-500">No feedback submissions found.</p>
             </motion.div>
           ) : (
-            <div className="grid gap-4">
+            <div className="grid gap-3">
               {filteredFeedbacks.map((feedback) => (
                 <motion.div
                   key={feedback.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="bg-white rounded-xl shadow-sm border border-gray-100 p-6"
+                  className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm"
                 >
                   <div className="flex items-start justify-between">
                     <div>
@@ -201,13 +198,13 @@ export const FeedbackViewer: React.FC = () => {
                         <>
                           <button
                             onClick={() => updateFeedbackStatus(feedback.id, 'reviewed')}
-                            className="px-3 py-1 text-sm font-medium text-green-700 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
+                            className="rounded-lg bg-green-50 px-3 py-1 text-sm font-medium text-green-700 transition-colors hover:bg-green-100"
                           >
                             Mark as Reviewed
                           </button>
                           <button
                             onClick={() => updateFeedbackStatus(feedback.id, 'archived')}
-                            className="px-3 py-1 text-sm font-medium text-gray-700 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                            className="rounded-lg bg-gray-50 px-3 py-1 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
                           >
                             Archive
                           </button>
@@ -216,7 +213,7 @@ export const FeedbackViewer: React.FC = () => {
                       {feedback.status === 'reviewed' && (
                         <button
                           onClick={() => updateFeedbackStatus(feedback.id, 'archived')}
-                          className="px-3 py-1 text-sm font-medium text-gray-700 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                          className="rounded-lg bg-gray-50 px-3 py-1 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
                         >
                           Archive
                         </button>
@@ -224,7 +221,7 @@ export const FeedbackViewer: React.FC = () => {
                       {feedback.status === 'archived' && (
                         <button
                           onClick={() => updateFeedbackStatus(feedback.id, 'reviewed')}
-                          className="px-3 py-1 text-sm font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+                          className="rounded-lg bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100"
                         >
                           Restore
                         </button>
@@ -250,5 +247,3 @@ export const FeedbackViewer: React.FC = () => {
     </div>
   );
 }; 
-
-
