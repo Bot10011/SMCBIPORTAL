@@ -1862,19 +1862,24 @@ const ProgramHeadEnrollment: React.FC = () => {
         '3': '3rd Year',
         '4': '4th Year',
       };
-      const yearLabel = yearMap[String(createForm.yearLevel)] || '1st Year';
       
       // Convert section ID to section name for comparison
       const selectedSectionName = getSectionName(createForm.section);
       
-      // Get course IDs that have instructors assigned to the selected section and year level
+      // Get course IDs that have instructors assigned to the selected section
       const currentAcademicYear = createForm.schoolYear || getDefaultSchoolYear();
       const currentSemester = createForm.semester || '1st Semester';
+      
+      // If allowMixedCourses is enabled, get all year levels (1st-4th year)
+      // Otherwise, only get the student's current year level
+      const yearLevelsToCheck = allowMixedCourses 
+        ? ['1st Year', '2nd Year', '3rd Year', '4th Year']
+        : [yearMap[String(createForm.yearLevel)] || '1st Year'];
       
       const availableCourseIds = instructorAssignments
         .filter(assignment => 
           assignment.section === selectedSectionName &&
-          assignment.year_level === yearLabel &&
+          yearLevelsToCheck.includes(assignment.year_level) &&
           assignment.academic_year === currentAcademicYear &&
           assignment.semester === currentSemester &&
           assignment.is_active
