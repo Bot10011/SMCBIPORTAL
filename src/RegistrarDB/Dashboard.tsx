@@ -13,7 +13,8 @@ import {
   BarChart4, 
   Clock,
   Users,
-  Clock4
+  Clock4,
+  ShieldAlert,
 } from 'lucide-react';
 import { RegistrarGradeViewer } from './Allcourse';
 import { supabase } from '../lib/supabase';
@@ -81,6 +82,20 @@ const DashboardOverview: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [showCapacityModal, setShowCapacityModal] = useState(false);
+  const [instructorRequests, setInstructorRequests] = useState<Array<{
+    id: string;
+    student_id: string;
+    student_name?: string | null;
+    instructor_id?: string | null;
+    instructor_name?: string | null;
+    subject_id?: string | null;
+    section?: string | null;
+    academic_year?: string | null;
+    edit_reason?: string | null;
+    edit_status?: string | null;
+    created_at?: string | null;
+  }>>([]);
+  const [requestsLoading, setRequestsLoading] = useState(false);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -154,6 +169,96 @@ const DashboardOverview: React.FC = () => {
     };
     fetchDashboardData();
   }, []);
+
+  // Fetch instructor grade-edit requests (from grades table)
+  useEffect(() => {
+    const fetchInstructorRequests = async () => {
+      try {
+        setRequestsLoading(true);
+        const { data, error } = await supabase
+          .from('grades')
+          .select('id, student_id, subject_id, section, academic_year, edit_reason, edit_status, edit_requested_by, edit_requested_by_name, edit_student_name, created_at')
+          .eq('edit_requested', true)
+          .eq('edit_status', 'pending')
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        const mapped = (data || []).map((g: any) => ({
+          id: g.id,
+          student_id: g.student_id,
+          student_name: g.edit_student_name,
+          instructor_id: g.edit_requested_by,
+          instructor_name: g.edit_requested_by_name,
+          subject_id: g.subject_id,
+          section: g.section,
+          academic_year: g.academic_year,
+          edit_reason: g.edit_reason,
+          edit_status: g.edit_status,
+          created_at: g.created_at
+        }));
+        setInstructorRequests(mapped);
+      } catch (e) {
+        console.error('Failed to load instructor requests:', e);
+        setInstructorRequests([]);
+      } finally {
+        setRequestsLoading(false);
+      }
+    };
+    fetchInstructorRequests();
+  }, []);
+
+  const refreshInstructorRequests = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('grades')
+        .select('id, student_id, subject_id, section, academic_year, edit_reason, edit_status, edit_requested_by, edit_requested_by_name, edit_student_name, created_at')
+        .eq('edit_requested', true)
+        .eq('edit_status', 'pending')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      const mapped = (data || []).map((g: any) => ({
+        id: g.id,
+        student_id: g.student_id,
+        student_name: g.edit_student_name,
+        instructor_id: g.edit_requested_by,
+        instructor_name: g.edit_requested_by_name,
+        subject_id: g.subject_id,
+        section: g.section,
+        academic_year: g.academic_year,
+        edit_reason: g.edit_reason,
+        edit_status: g.edit_status,
+        created_at: g.created_at
+      }));
+      setInstructorRequests(mapped);
+    } catch (e) {
+      console.error('Failed to refresh requests:', e);
+    }
+  };
+
+  const approveRequest = async (gradeId: string) => {
+    try {
+      const { error } = await supabase
+        .from('grades')
+        .update({ edit_status: 'granted', edit_requested: false, approved_at: new Date().toISOString() })
+        .eq('id', gradeId);
+      if (error) throw error;
+      await refreshInstructorRequests();
+    } catch (e) {
+      console.error('Approve failed:', e);
+    }
+  };
+
+  const denyRequest = async (gradeId: string) => {
+    try {
+      const { error } = await supabase
+        .from('grades')
+        .update({ edit_status: 'denied', edit_requested: false })
+        .eq('id', gradeId);
+      if (error) throw error;
+      await refreshInstructorRequests();
+    } catch (e) {
+      console.error('Deny failed:', e);
+    }
+  };
 
 
   const fetchRecentActivities = async (): Promise<ActivityLog[]> => {
@@ -619,6 +724,7 @@ const DashboardOverview: React.FC = () => {
               Capacity Tracking
             </h2>
           </div>
+          <div className="border-t border-gray-200 my-2"></div>
           <div className="space-y-3 max-h-80 overflow-y-auto">
             {capacityData.length === 0 ? (
               <div className="text-gray-500 text-center py-8">
@@ -648,17 +754,20 @@ const DashboardOverview: React.FC = () => {
             </svg>
           </button>
         </motion.div>
+        
+        {/* Grade Change Request moved next to Enrollment Summary below */}
       </div>
 
-      {/* Clean Enrollment Summary */}
+      {/* Enrollment Summary and Grade Change Request side-by-side */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.4 }}
-        className="bg-white/90 rounded-xl shadow-sm border border-gray-200 p-6"
+        className="bg-white/90 rounded-xl shadow-sm border border-gray-200 p-6 lg:col-span-2"
       >
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
               <BarChart4 className="w-5 h-5 text-blue-600" />
@@ -675,6 +784,7 @@ const DashboardOverview: React.FC = () => {
             View All →
           </button>
         </div>
+        <div className="border-t border-gray-200 mb-4"></div>
 
         {/* Professional Bar Chart with Proper Alignment */}
         <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-6 border border-gray-200">
@@ -714,18 +824,14 @@ const DashboardOverview: React.FC = () => {
                     </div>
                     
                     {/* Dynamic bars with responsive spacing */}
-                    <div className={`relative flex items-end h-full px-2 ${enrollmentData.length <= 3 ? 'gap-6' : enrollmentData.length <= 6 ? 'gap-4' : 'gap-2'} -translate-x-1 sm:-translate-x-2`}>
+                    <div className={`relative flex items-end h-full px-2 ${enrollmentData.length <= 3 ? 'gap-6' : enrollmentData.length <= 6 ? 'gap-4' : 'gap-2'}`}>
                       {enrollmentData.map((item) => {
-                        // Use fixed 100-1000 scale for consistent Y-axis indicators
-                        const minScale = 100;
+                        // Fixed scale 0–1000 to align with Y-axis indicators 100–1000
+                        const minScale = 0;
                         const maxScale = 1000;
-                        const scaleRange = maxScale - minScale;
-                        
-                        // Ensure the value is within the scale range
                         const clampedValue = Math.max(minScale, Math.min(maxScale, item.count));
-                        
-                        // Calculate height percentage that aligns with grid lines
-                        const heightPercentage = ((clampedValue - minScale) / scaleRange) * 100;
+                        // Subtract a slightly larger margin so values just below a grid line don't touch it visually
+                        const heightPercentage = Math.max((clampedValue / maxScale) * 100 - 1.5, 0);
                         
                         // Dynamic bar width based on number of years
                         const barWidth = enrollmentData.length <= 3 ? 'w-16 sm:w-20 md:w-24' : 
@@ -743,7 +849,7 @@ const DashboardOverview: React.FC = () => {
                             <div 
                               className={`${barWidth} bg-gradient-to-t from-blue-600 to-blue-400 rounded-t-lg shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer relative group`}
                               style={{ 
-                                height: `${Math.max(heightPercentage, 1)}%` // Minimum 1% for visibility
+                                height: `${Math.max(heightPercentage, 5)}%` // Minimum 5% for visibility
                               }}
                             >
                               {/* Hover effect */}
@@ -766,7 +872,7 @@ const DashboardOverview: React.FC = () => {
                     
                     return (
                       <div key={item.year} className={`text-center ${labelWidth}`}>
-                        <div className="w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white py-1.5 rounded-lg text-xs sm:text-sm font-semibold shadow-md hover:shadow-lg transition-shadow duration-300 whitespace-nowrap translate-x-3 sm:translate-x-7">
+                        <div className="w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white py-1.5 rounded-lg text-xs sm:text-sm font-semibold shadow-md hover:shadow-lg transition-shadow duration-300 whitespace-nowrap translate-x-1 sm:translate-x-9">
                           {item.year}
                         </div>
                       </div>
@@ -786,6 +892,55 @@ const DashboardOverview: React.FC = () => {
           )}
         </div>
       </motion.div>
+         {/* Instructor Grade Edit Requests */}
+         <motion.div 
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.5, delay: 0.25 }}
+          className="bg-white/90 rounded-2xl shadow-lg p-6 hover:shadow-xl transition-shadow duration-300"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-gray-800 flex items-center">
+              <ShieldAlert className="w-5 h-5 mr-2 text-amber-600" />
+           Grade Change Request
+            </h2>
+            <span className="text-sm text-gray-500">{instructorRequests.length} request(s)</span>
+          </div>
+          <div className="space-y-3 max-h-80 overflow-y-auto">
+            {requestsLoading ? (
+              <div className="text-gray-500 text-center py-8">Loading requests…</div>
+            ) : instructorRequests.length === 0 ? (
+              <div className="text-gray-500 text-center py-8">No pending requests.</div>
+            ) : (
+              instructorRequests.map(req => {
+                const status = (req.edit_status || '').toLowerCase();
+                const requestedAt = req.created_at ? new Date(req.created_at).toLocaleString() : 'Unknown';
+                return (
+                  <div key={req.id} className="p-3 rounded-xl border bg-white/80">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-gray-900 truncate">Instructor: {req.instructor_name || 'Unknown Instructor'}</div>
+                        <div className="text-xs text-gray-900 truncate">Student: {req.student_name || req.student_id}</div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <span className={`inline-flex items-center px-2 py-0.5 text-xs rounded-full ${status === 'pending' ? 'bg-amber-100 text-amber-700' : status === 'granted' ? 'bg-emerald-100 text-emerald-700' : status === 'denied' ? 'bg-rose-100 text-rose-700' : 'bg-gray-100 text-gray-700'}`}>{status || 'pending'}</span>
+                        <button onClick={() => approveRequest(req.id)} className="px-2 py-1 text-xs rounded-md bg-emerald-600 text-white">Approve</button>
+                        <button onClick={() => denyRequest(req.id)} className="px-2 py-1 text-xs rounded-md bg-rose-600 text-white">Deny</button>
+                      </div>
+                    </div>
+                    <div className="mt-2 text-xs text-gray-600 truncate">Section: {req.section || 'N/A'} • AY: {req.academic_year || 'N/A'} • Requested: {requestedAt}</div>
+                    {req.edit_reason && (
+                      <div className="mt-1 text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 whitespace-pre-wrap break-words">
+                        {req.edit_reason}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </motion.div>
+      </div>
     </div>
   );
 };
@@ -874,6 +1029,7 @@ const CapacityItem: React.FC<{
         </div>
       </div>
     </motion.div>
+    
   );
 };
 
