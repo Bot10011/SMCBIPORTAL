@@ -32,6 +32,7 @@ const ClassManagement: React.FC = () => {
   const [studentYearFilter, setStudentYearFilter] = useState<'all' | number>('all');
   const [assignmentFilter, setAssignmentFilter] = useState<'all' | 'assigned' | 'unassigned'>('all');
   const [expandedYears, setExpandedYears] = useState<Record<string, boolean>>({});
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [activeTab, setActiveTab] = useState<'unassigned' | 'sections'>('unassigned');
 
   // Sections tab state
@@ -458,8 +459,31 @@ const ClassManagement: React.FC = () => {
     return groups;
   }, [filtered]);
 
+  const groupedByYearAndSection = useMemo(() => {
+    const yearGroups = new Map<string, Map<string, StudentRow[]>>();
+    filtered.forEach(s => {
+      const yearKey = s.year_level === null || s.year_level === undefined || s.year_level === '' ? 'Unknown' : String(s.year_level);
+      const sectionKey = s.section ? getSectionName(s.section) : 'Unassigned';
+      
+      if (!yearGroups.has(yearKey)) {
+        yearGroups.set(yearKey, new Map());
+      }
+      const yearGroup = yearGroups.get(yearKey)!;
+      
+      if (!yearGroup.has(sectionKey)) {
+        yearGroup.set(sectionKey, []);
+      }
+      yearGroup.get(sectionKey)!.push(s);
+    });
+    return yearGroups;
+  }, [filtered, sections]);
+
   function toggleYear(key: string) {
     setExpandedYears(prev => ({ ...prev, [key]: !prev[key] }));
+  }
+
+  function toggleSection(sectionKey: string) {
+    setExpandedSections(prev => ({ ...prev, [sectionKey]: !prev[sectionKey] }));
   }
 
   function getSectionName(sectionId: string | null | undefined): string {
@@ -776,15 +800,9 @@ const ClassManagement: React.FC = () => {
         <div className="rounded border border-gray-200 bg-white p-6 text-gray-600">Loading…</div>
       )}
 
-      {activeTab === 'unassigned' && !loading && filtered.length === 0 && !error && (
-        <div className="rounded border border-green-200 bg-green-50 p-6 text-green-700">
-          {query ? 'No matching students found.' : 'No students match the selected filters.'}
-        </div>
-      )}
-
-      {activeTab === 'unassigned' && !loading && filtered.length > 0 && (
+      {activeTab === 'unassigned' && !loading && (
         <div className="space-y-8">
-          {/* Filters for student list */}
+          {/* Filters for student list - always visible */}
           <div className="mb-2 flex items-center gap-3">
             <div className="flex items-center gap-2">
               <span className="text-xs text-gray-600">Year</span>
@@ -810,57 +828,92 @@ const ClassManagement: React.FC = () => {
               </select>
             </div>
           </div>
-          {yearLevels.map((yl) => {
-            const key = String(yl);
-            const list = groupedByYear.get(key) || [];
-            if (list.length === 0) return null;
+
+          {/* No results message - shown below filters */}
+          {filtered.length === 0 && !error && (
+            <div className="rounded border border-green-200 bg-green-50 p-6 text-green-700">
+              {query ? 'No matching students found.' : 'No students match the selected filters.'}
+            </div>
+          )}
+          {filtered.length > 0 && yearLevels.map((yl) => {
+            const yearKey = String(yl);
+            const yearData = groupedByYearAndSection.get(yearKey);
+            if (!yearData || yearData.size === 0) return null;
+            
+            const totalStudents = Array.from(yearData.values()).reduce((sum, students) => sum + students.length, 0);
+            
             return (
-              <div key={key}>
+              <div key={yearKey} className="mb-6">
                 <button
-                  onClick={() => toggleYear(key)}
+                  onClick={() => toggleYear(yearKey)}
                   className="mb-3 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-left shadow-sm hover:bg-gray-50"
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      {expandedYears[key] ? <ChevronDown className="h-4 w-4 text-gray-600" /> : <ChevronRight className="h-4 w-4 text-gray-600" />}
-                      <h3 className="text-base font-semibold text-gray-800">Year Level: {key}</h3>
+                      {expandedYears[yearKey] ? <ChevronDown className="h-4 w-4 text-gray-600" /> : <ChevronRight className="h-4 w-4 text-gray-600" />}
+                      <h3 className="text-base font-semibold text-gray-800">Year Level: {yearKey}</h3>
                     </div>
-                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">{list.length} student{list.length > 1 ? 's' : ''}</span>
+                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">{totalStudents} student{totalStudents > 1 ? 's' : ''}</span>
                   </div>
                 </button>
-                {expandedYears[key] !== false && (
-                  <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
-                    <table className="min-w-full table-fixed divide-y divide-gray-200">
-                      <colgroup>
-                        <col className="w-40" />
-                        <col className="w-[22rem]" />
-                        <col className="w-[26rem]" />
-                        <col className="w-24" />
-                        <col className="w-28" />
-                      </colgroup>
-                      <thead className="bg-gray-50 sticky top-0 z-10">
-                      <tr>
-                        <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">Student No.</th>
-                        <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">Name</th>
-                        <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">Email</th>
-                        <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">Year Level</th>
-                        <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">Section</th>
-                      </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {list.map((s, idx) => (
-                          <tr key={s.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                            <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900">{s.student_id || '—'}</td>
-                            <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900 truncate">
-                              {s.last_name}, {s.first_name}{s.middle_name ? ` ${s.middle_name}` : ''}
-                            </td>
-                            <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700 truncate">{s.email}</td>
-                            <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700">{s.year_level ?? '—'}</td>
-                            <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700">{getSectionName(s.section as any)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                
+                {expandedYears[yearKey] === true && (
+                  <div className="ml-4 space-y-4">
+                    {Array.from(yearData.entries()).map(([sectionName, students]) => {
+                      const sectionKey = `${yearKey}-${sectionName}`;
+                      return (
+                        <div key={sectionKey} className="border border-gray-200 rounded-lg bg-gray-50">
+                          <button
+                            onClick={() => toggleSection(sectionKey)}
+                            className="w-full px-4 py-2 text-left hover:bg-gray-100 rounded-t-lg"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                {expandedSections[sectionKey] ? <ChevronDown className="h-3 w-3 text-gray-500" /> : <ChevronRight className="h-3 w-3 text-gray-500" />}
+                                <h4 className="text-sm font-medium text-gray-700">{sectionName}</h4>
+                              </div>
+                              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">{students.length} student{students.length > 1 ? 's' : ''}</span>
+                            </div>
+                          </button>
+                          
+                          {expandedSections[sectionKey] === true && (
+                            <div className="overflow-x-auto border-t border-gray-200 bg-white rounded-b-lg">
+                              <table className="min-w-full table-fixed divide-y divide-gray-200">
+                                <colgroup>
+                                  <col className="w-40" />
+                                  <col className="w-[22rem]" />
+                                  <col className="w-[26rem]" />
+                                  <col className="w-24" />
+                                  <col className="w-28" />
+                                </colgroup>
+                                <thead className="bg-gray-50">
+                                  <tr>
+                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">Student No.</th>
+                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">Name</th>
+                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">Email</th>
+                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">Year Level</th>
+                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">Section</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                  {students.map((s, idx) => (
+                                    <tr key={s.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                                      <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900">{s.student_id || '—'}</td>
+                                      <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900 truncate">
+                                        {s.last_name}, {s.first_name}{s.middle_name ? ` ${s.middle_name}` : ''}
+                                      </td>
+                                      <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700 truncate">{s.email}</td>
+                                      <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700">{s.year_level ?? '—'}</td>
+                                      <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700">{getSectionName(s.section as any)}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -894,13 +947,14 @@ const ClassManagement: React.FC = () => {
                 >
                   {[1,2,3,4].map(y => (<option key={y} value={y}>{y}</option>))}
                 </select>
-                <button
+                {/* Temporarily hidden auto-assign button */}
+                {/* <button
                   onClick={autoAssignSections}
                   disabled={autoAssignLoading}
                   className="ml-2 rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
                 >
                   {autoAssignLoading ? 'Assigning…' : 'Auto-Assign Sections'}
-                </button>
+                </button> */}
               </div>
             </div>
             {autoAssignError && (
@@ -1035,43 +1089,47 @@ const ClassManagement: React.FC = () => {
 
           {/* View Assigned Students Modal */}
           {showViewModal && viewingSection && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
               <div className="absolute inset-0 bg-black/40" onClick={() => setShowViewModal(false)} />
-              <div className="relative z-10 w-full max-w-4xl rounded-xl bg-white p-5 shadow-2xl">
-                <div className="mb-3 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-base font-semibold text-gray-800">Section: {viewingSection.name}</h3>
-                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">Year {viewingSection.year_level ?? '—'}</span>
-                    {viewingSection.academic_year && (
-                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">AY {viewingSection.academic_year}</span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={generateClassListPDF}
-                      className="inline-flex items-center gap-2 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
-                    >
-                      <Download className="h-4 w-4" />
-                      Download PDF
-                    </button>
-                    <button
-                      onClick={openTransferModal}
-                      className="rounded-md bg-orange-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-orange-700"
-                    >
-                      Transfer Multiple
-                    </button>
-                    <button
-                      onClick={() => setShowViewModal(false)}
-                      className="rounded-md bg-gray-100 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-200"
-                    >
-                      Close
-                    </button>
+              <div className="relative z-10 w-full max-w-6xl h-[90vh] rounded-xl bg-white shadow-2xl flex flex-col">
+                <div className="flex-shrink-0 p-5 border-b border-gray-200">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-lg font-semibold text-gray-800">Section: {viewingSection.name}</h3>
+                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">Year {viewingSection.year_level ?? '—'}</span>
+                      {viewingSection.academic_year && (
+                        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">AY {viewingSection.academic_year}</span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        onClick={generateClassListPDF}
+                        className="inline-flex items-center gap-2 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
+                      >
+                        <Download className="h-4 w-4" />
+                        Download PDF
+                      </button>
+                      <button
+                        onClick={openTransferModal}
+                        className="rounded-md bg-orange-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-orange-700"
+                      >
+                        Transfer Multiple
+                      </button>
+                      <button
+                        onClick={() => setShowViewModal(false)}
+                        className="rounded-md bg-gray-100 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-200"
+                      >
+                        Close
+                      </button>
+                    </div>
                   </div>
                 </div>
-                {sectionStudentsLoading ? (
-                  <div className="rounded border border-gray-200 bg-white p-6 text-gray-600">Loading…</div>
-                ) : (
-                  <div className="space-y-6">
+                <div className="flex-1 min-h-0">
+                  {sectionStudentsLoading ? (
+                    <div className="flex items-center justify-center h-full p-6 text-gray-600">Loading…</div>
+                  ) : (
+                    <div className="h-full overflow-y-auto p-5">
+                      <div className="space-y-6">
                     {/* Male Students Table */}
                       {(() => {
                         const maleStudents = sectionStudents.filter(s => s.gender === 'Male');
@@ -1082,13 +1140,13 @@ const ClassManagement: React.FC = () => {
                               <div className="h-px flex-1 bg-blue-200"></div>
                             </div>
                             <div className="overflow-x-auto rounded-lg border border-blue-200 bg-blue-50/30">
-                              <table className="min-w-full table-fixed divide-y divide-blue-200">
+                              <table className="min-w-full divide-y divide-blue-200">
                                 <colgroup>
-                                  <col className="w-40" />
-                                  <col className="w-[22rem]" />
-                                  <col className="w-[26rem]" />
-                                  <col className="w-24" />
-                                  <col className="w-24" />
+                                  <col className="w-32 min-w-[120px]" />
+                                  <col className="w-48 min-w-[200px]" />
+                                  <col className="w-64 min-w-[250px]" />
+                                  <col className="w-20 min-w-[80px]" />
+                                  <col className="w-24 min-w-[100px]" />
                                 </colgroup>
                                 <thead className="bg-blue-100">
                                   <tr>
@@ -1133,13 +1191,13 @@ const ClassManagement: React.FC = () => {
                               <div className="h-px flex-1 bg-pink-200"></div>
                             </div>
                             <div className="overflow-x-auto rounded-lg border border-pink-200 bg-pink-50/30">
-                              <table className="min-w-full table-fixed divide-y divide-pink-200">
+                              <table className="min-w-full divide-y divide-pink-200">
                                 <colgroup>
-                                  <col className="w-40" />
-                                  <col className="w-[22rem]" />
-                                  <col className="w-[26rem]" />
-                                  <col className="w-24" />
-                                  <col className="w-24" />
+                                  <col className="w-32 min-w-[120px]" />
+                                  <col className="w-48 min-w-[200px]" />
+                                  <col className="w-64 min-w-[250px]" />
+                                  <col className="w-20 min-w-[80px]" />
+                                  <col className="w-24 min-w-[100px]" />
                                 </colgroup>
                                 <thead className="bg-pink-100">
                                   <tr>
@@ -1184,13 +1242,13 @@ const ClassManagement: React.FC = () => {
                               <div className="h-px flex-1 bg-gray-200"></div>
                             </div>
                             <div className="overflow-x-auto rounded-lg border border-gray-200 bg-gray-50/30">
-                              <table className="min-w-full table-fixed divide-y divide-gray-200">
+                              <table className="min-w-full divide-y divide-gray-200">
                                 <colgroup>
-                                  <col className="w-40" />
-                                  <col className="w-[22rem]" />
-                                  <col className="w-[26rem]" />
-                                  <col className="w-24" />
-                                  <col className="w-24" />
+                                  <col className="w-32 min-w-[120px]" />
+                                  <col className="w-48 min-w-[200px]" />
+                                  <col className="w-64 min-w-[250px]" />
+                                  <col className="w-20 min-w-[80px]" />
+                                  <col className="w-24 min-w-[100px]" />
                                 </colgroup>
                                 <thead className="bg-gray-100">
                                   <tr>
@@ -1225,14 +1283,16 @@ const ClassManagement: React.FC = () => {
                         );
                       })()}
 
-                    {/* No Students Message */}
-                    {sectionStudents.length === 0 && (
-                      <div className="rounded border border-gray-200 bg-white p-6 text-center text-gray-600">
-                        No students assigned yet.
+                        {/* No Students Message */}
+                        {sectionStudents.length === 0 && (
+                          <div className="rounded border border-gray-200 bg-white p-6 text-center text-gray-600">
+                            No students assigned yet.
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                )}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}
