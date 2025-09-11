@@ -3,7 +3,7 @@ import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import DashboardLayout from '../components/Sidebar';
 import ClassManagement from './ClassManagement';
 import TeacherSettings from './Settings';
-import { BookOpen, Search, Bell, Download, Trash2, FileText, StickyNote, Calendar, ExternalLink } from 'lucide-react';
+import { BookOpen, Search, Bell, Download, Trash2, FileText, StickyNote, Calendar, ExternalLink, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
@@ -48,7 +48,6 @@ interface Enrollment {
 
 interface StudentProfile {
   id: string;
-  display_name?: string;
   first_name: string;
   last_name: string;
   email: string;
@@ -87,7 +86,60 @@ const TeacherDashboardOverview: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState(new Date().getDate());
   const [googleClassroomStatus, setGoogleClassroomStatus] = useState<'connected' | 'disconnected' | 'checking'>('checking');
   const [activePanel, setActivePanel] = useState<'notifications' | 'notes' | 'documents' | 'calendar'>('calendar');
+  const [gradeEditStatus, setGradeEditStatus] = useState<'granted' | 'pending' | 'denied' | 'unknown'>('unknown');
   
+  // Notification form state
+  const [showNotificationForm, setShowNotificationForm] = useState(false);
+  const [creatingNotification, setCreatingNotification] = useState(false);
+  type NotificationSeverity = 'announcement' | 'reminder' | 'deadline' | 'exam' | 'meeting' | 'advisory' | 'info' | 'success' | 'warning' | 'error';
+  
+  const [notificationForm, setNotificationForm] = useState({
+    title: '',
+    message: '',
+    severity: 'announcement' as NotificationSeverity,
+    audience: 'student' as const
+  });
+  
+  // Handle notification creation
+  const handleCreateNotification = async () => {
+    try {
+      if (!user?.id) {
+        console.error('No user found');
+        return;
+      }
+      if (!notificationForm.title || !notificationForm.message) {
+        console.error('Please fill out all notification fields');
+        return;
+      }
+
+      setCreatingNotification(true);
+
+      const { error } = await supabase
+        .from('notifications')
+        .insert([{
+          title: notificationForm.title,
+          message: notificationForm.message,
+          severity: notificationForm.severity,
+          audience: notificationForm.audience,
+          created_by: user.id,
+          is_active: true
+        }]);
+
+      if (error) {
+        throw error;
+      }
+
+      console.log('Notification sent successfully to your students!');
+      setNotificationForm({ title: '', message: '', severity: 'announcement', audience: 'student' });
+      setShowNotificationForm(false);
+      
+    } catch (err) {
+      console.error('Error creating notification:', err);
+    } finally {
+      setCreatingNotification(false);
+    }
+  };
+
   // Loading states for better UX
   const [isLoading, setIsLoading] = useState(true);
   const [classesLoading, setClassesLoading] = useState(true);
@@ -166,46 +218,31 @@ const TeacherDashboardOverview: React.FC = () => {
         
         if (error) throw error;
         
-        // Priority 1: Use avatar_url from database profile
-        let pictureUrl: string | null = data?.avatar_url || null;
-        
-        // Priority 2: Fallback to profile_picture_url from storage bucket
-        if (!pictureUrl && data?.profile_picture_url) {
-          const { data: signedUrlData, error: signedUrlError } = await supabase
-            .storage
-            .from('avatar')
-            .createSignedUrl(data.profile_picture_url, 60 * 60);
-          if (!signedUrlError && signedUrlData?.signedUrl) {
-            pictureUrl = signedUrlData.signedUrl;
-          }
-        }
-        
-        // Priority 3: Fallback to Google metadata if database fields are empty
-        if (!pictureUrl) {
-          try {
-            const { data: authUserData } = await supabase.auth.getUser();
-            const authUserUnknown = authUserData?.user;
-            const authUserObj = authUserUnknown && typeof authUserUnknown === 'object'
-              ? (authUserUnknown as {
-                  user_metadata?: Record<string, unknown> | null;
-                  identities?: Array<{ provider?: string; identity_data?: Record<string, unknown> | null }> | null;
-                })
-              : undefined;
+        // 1) Try Google avatar from Supabase auth metadata/identities
+        let pictureUrl: string | null = null;
+        try {
+          const { data: authUserData } = await supabase.auth.getUser();
+          const authUserUnknown = authUserData?.user;
+          const authUserObj = authUserUnknown && typeof authUserUnknown === 'object'
+            ? (authUserUnknown as {
+                user_metadata?: Record<string, unknown> | null;
+                identities?: Array<{ provider?: string; identity_data?: Record<string, unknown> | null }> | null;
+              })
+            : undefined;
 
-            const identities = Array.isArray(authUserObj?.identities) ? authUserObj?.identities : [];
-            const googleIdentity = identities.find(i => i?.provider === 'google');
-            const identityData = googleIdentity?.identity_data || undefined;
-            const metadata = authUserObj?.user_metadata || undefined;
+          const identities = Array.isArray(authUserObj?.identities) ? authUserObj?.identities : [];
+          const googleIdentity = identities.find(i => i?.provider === 'google');
+          const identityData = googleIdentity?.identity_data || undefined;
+          const metadata = authUserObj?.user_metadata || undefined;
 
-            const avatarFromIdentity = (identityData?.['avatar_url'] as string | undefined) || (identityData?.['picture'] as string | undefined);
-            const avatarFromMetadata = (metadata?.['avatar_url'] as string | undefined) || (metadata?.['picture'] as string | undefined) || (metadata?.['profile_picture'] as string | undefined);
-            pictureUrl = avatarFromMetadata || avatarFromIdentity || null;
-          } catch {
-            // ignore
-          }
+          const avatarFromIdentity = (identityData?.['avatar_url'] as string | undefined) || (identityData?.['picture'] as string | undefined);
+          const avatarFromMetadata = (metadata?.['avatar_url'] as string | undefined) || (metadata?.['picture'] as string | undefined) || (metadata?.['profile_picture'] as string | undefined);
+          pictureUrl = avatarFromMetadata || avatarFromIdentity || null;
+        } catch {
+          // ignore
         }
-        
-        // Priority 4: Final fallback to Google API if still no avatar
+
+        // 2) If still missing, call Google userinfo with provider_token
         if (!pictureUrl) {
           try {
             const { data: sessionData } = await supabase.auth.getSession();
@@ -223,13 +260,51 @@ const TeacherDashboardOverview: React.FC = () => {
             // ignore network errors
           }
         }
+
+        // 3) Fallback to stored profile picture in storage bucket
+        if (!pictureUrl && data?.profile_picture_url) {
+          const { data: signedUrlData, error: signedUrlError } = await supabase
+            .storage
+            .from('avatar')
+            .createSignedUrl(data.profile_picture_url, 60 * 60);
+          if (!signedUrlError && signedUrlData?.signedUrl) {
+            pictureUrl = signedUrlData.signedUrl;
+          }
+        }
         
+        // Normalize empty/invalid URLs to null so UI falls back to placeholder
+        if (!pictureUrl || (typeof pictureUrl === 'string' && pictureUrl.trim() === '')) {
+          pictureUrl = null;
+        }
         setProfilePictureUrl(pictureUrl);
         setProfileCache({ pictureUrl, timestamp: Date.now() });
+
+        // Determine grade edit status from common profile fields
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const profile: any = data || {};
+          const allowed = Boolean(
+            profile?.can_edit_grades ??
+            profile?.grade_edit_allowed ??
+            (typeof profile?.grade_edit_status === 'string' && profile?.grade_edit_status.toLowerCase() === 'granted')
+          );
+          const denied = typeof profile?.grade_edit_status === 'string' && profile?.grade_edit_status.toLowerCase() === 'denied';
+          const pending = Boolean(
+            profile?.grade_edit_requested ??
+            (typeof profile?.grade_edit_status === 'string' && profile?.grade_edit_status.toLowerCase() === 'pending')
+          );
+          if (allowed) setGradeEditStatus('granted');
+          else if (denied) setGradeEditStatus('denied');
+          else if (pending) setGradeEditStatus('pending');
+          else setGradeEditStatus('unknown');
+        } catch {
+          setGradeEditStatus('unknown');
+        }
       } catch (error) {
         console.error('Error fetching profile:', error);
         setProfilePictureUrl(null);
         setProfileCache({ pictureUrl: null, timestamp: Date.now() });
+        setGradeEditStatus('unknown');
       } finally {
         setProfileLoading(false);
       }
@@ -266,6 +341,7 @@ const TeacherDashboardOverview: React.FC = () => {
           .from('notifications')
           .select('id, title, message, severity, created_at')
           .eq('is_active', true)
+          .or('audience.eq.instructor,audience.eq.all')
           .order('created_at', { ascending: false })
           .limit(20);
         if (error) throw error;
@@ -386,7 +462,7 @@ const TeacherDashboardOverview: React.FC = () => {
           
           const { data: studentProfiles, error: studentError } = await supabase
             .from('user_profiles')
-            .select('id, display_name, first_name, last_name, email')
+            .select('id, first_name, last_name, email')
             .in('id', studentIds);
           
           if (studentError) {
@@ -413,19 +489,9 @@ const TeacherDashboardOverview: React.FC = () => {
             const student = studentMap.get(enrollment.student_id);
             const subject = subjectMap.get(enrollment.subject_id);
             
-            // Priority: display_name > constructed name > fallback
-            let studentName = 'Unknown Student';
-            if (student) {
-              if (student.display_name && student.display_name.trim()) {
-                studentName = student.display_name;
-              } else if (student.first_name || student.last_name) {
-                studentName = `${student.first_name || ''} ${student.last_name || ''}`.trim();
-              }
-            }
-            
             return {
               id: enrollment.student_id,
-              name: studentName,
+              name: `${student?.first_name || 'Unknown'} ${student?.last_name || 'Student'}`,
               email: student?.email || 'No email',
               class_name: `${subject?.code || 'Unknown'} - ${subject?.name || 'Unknown Course'}`,
               status: enrollment.status
@@ -749,68 +815,143 @@ const TeacherDashboardOverview: React.FC = () => {
 
  
 
-  // Memoized current day and time calculation - optimized with useMemo
-  const getCurrentDayAndTime = useMemo(() => {
-    const now = new Date();
-    const currentDay = now.toLocaleDateString('en-US', { weekday: 'long' });
-    const currentTime = now.toLocaleTimeString('en-US', { 
-      hour: '2-digit', 
-      minute: '2-digit',
-      hour12: false 
-    });
-    return { currentDay, currentTime };
+  // Live clock state to keep statuses accurate; updates every minute
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const intervalId = setInterval(() => setNow(new Date()), 60 * 1000);
+    return () => clearInterval(intervalId);
   }, []);
 
-  // Memoized class status calculation - optimized with useMemo
-  const getClassStatus = useMemo(() => (classDay: string, classTime: string) => {
-    const { currentDay, currentTime } = getCurrentDayAndTime;
-    
-    const normalizeDay = (day: string) => {
-      const dayMap: { [key: string]: string } = {
-        'M': 'Monday', 'T': 'Tuesday', 'W': 'Wednesday', 'Th': 'Thursday', 
-        'F': 'Friday', 'S': 'Saturday', 'Su': 'Sunday',
-        'MON': 'Monday', 'TUE': 'Tuesday', 'WED': 'Wednesday', 'THU': 'Thursday',
-        'FRI': 'Friday', 'SAT': 'Saturday', 'SUN': 'Sunday'
+  // Memoized class status calculation - robust parsing of days and times
+  const getClassStatus = useMemo(() => (rawClassDay: string, rawClassTime: string) => {
+    const daysOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+    const normalizeSingleDay = (token: string) => {
+      const t = (token || '').trim();
+      const key = t.toUpperCase();
+      const map: Record<string, string> = {
+        'M': 'Monday', 'MON': 'Monday', 'MONDAY': 'Monday',
+        'T': 'Tuesday', 'TU': 'Tuesday', 'TUE': 'Tuesday', 'TUESDAY': 'Tuesday',
+        'W': 'Wednesday', 'WED': 'Wednesday', 'WEDNESDAY': 'Wednesday',
+        'TH': 'Thursday', 'THU': 'Thursday', 'THUR': 'Thursday', 'THURSDAY': 'Thursday',
+        'F': 'Friday', 'FRI': 'Friday', 'FRIDAY': 'Friday',
+        'S': 'Saturday', 'SAT': 'Saturday', 'SATURDAY': 'Saturday',
+        'SU': 'Sunday', 'SUN': 'Sunday', 'SUNDAY': 'Sunday'
       };
-      return dayMap[day] || day;
+      return map[key] || t;
     };
 
-    const normalizedClassDay = normalizeDay(classDay);
-    const normalizedCurrentDay = normalizeDay(currentDay);
-
-    if (normalizedClassDay !== normalizedCurrentDay) {
-      const daysOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-      const classDayIndex = daysOrder.indexOf(normalizedClassDay);
-      const currentDayIndex = daysOrder.indexOf(normalizedCurrentDay);
-      
-      if (classDayIndex > currentDayIndex) {
-        return 'upcoming';
-      } else {
-        return 'past';
+    const expandCombinedDays = (value: string): string[] => {
+      if (!value) return [];
+      const v = value.replace(/\s+/g, '');
+      const upper = v.toUpperCase();
+      // Common combos
+      if (upper === 'MWF') return ['M', 'W', 'F'].map(normalizeSingleDay);
+      if (upper === 'TTH' || upper === 'TUTH') return ['T', 'Th'].map(normalizeSingleDay);
+      if (upper.includes(',')) return upper.split(',').map(normalizeSingleDay);
+      if (upper.includes('/')) return upper.split('/').map(normalizeSingleDay);
+      // Hyphenated ranges like MON-FRI -> expand to weekdays
+      if (upper.includes('-')) {
+        const [start, end] = upper.split('-');
+        const startFull = normalizeSingleDay(start);
+        const endFull = normalizeSingleDay(end);
+        const si = daysOrder.indexOf(startFull);
+        const ei = daysOrder.indexOf(endFull);
+        if (si !== -1 && ei !== -1) {
+          const result: string[] = [];
+          for (let i = si; i !== ei; i = (i + 1) % 7) {
+            result.push(daysOrder[i]);
+            if (i === (ei + 6) % 7) break; // safety
+          }
+          result.push(daysOrder[ei]);
+          return result;
+        }
       }
-    }
-
-    if (!classTime) return 'today';
-    
-    const parseTime = (timeStr: string) => {
-      const time = timeStr.replace(/\s*(AM|PM)/i, '').trim();
-      const [hours, minutes] = time.split(':').map(Number);
-      return hours * 60 + minutes;
+      // Space separated words like "Mon Wed"
+      if (/\s/.test(value.trim())) return value.trim().split(/\s+/).map(normalizeSingleDay);
+      return [normalizeSingleDay(value)];
     };
 
-    const classMinutes = parseTime(classTime);
-    const currentMinutes = parseTime(currentTime);
-    
-    const timeDiff = Math.abs(classMinutes - currentMinutes);
-    
-    if (timeDiff <= 30) {
-      return 'current';
-    } else if (classMinutes > currentMinutes) {
-      return 'upcoming';
-    } else {
-      return 'past';
+    const classDays = new Set(expandCombinedDays(rawClassDay));
+    const currentDayFull = now.toLocaleDateString('en-US', { weekday: 'long' });
+
+    // If no day provided, fallback to time-only logic as 'today' if time present
+    if (classDays.size === 0) {
+      if (!rawClassTime) return 'today';
     }
-  }, [getCurrentDayAndTime]);
+
+    if (!classDays.has(currentDayFull)) {
+      // Determine if the next occurrence is ahead or passed this week
+      const todayIndex = daysOrder.indexOf(currentDayFull);
+      const nextIndex = Math.min(
+        ...[...classDays].map(d => daysOrder.indexOf(d)).filter(i => i >= 0).map(i => (i - todayIndex + 7) % 7)
+      );
+      return nextIndex > 0 ? 'upcoming' : 'past';
+    }
+
+    if (!rawClassTime) return 'today';
+
+    const toMinutes = (date: Date) => date.getHours() * 60 + date.getMinutes();
+    const currentMinutes = toMinutes(now);
+
+    const parseSingleTimeToMinutes = (value: string | number): number | null => {
+      if (value == null) return null;
+      if (typeof value === 'number') {
+        const str = value.toString().padStart(4, '0'); // e.g., 900 -> 0900
+        const hours = parseInt(str.slice(0, 2));
+        const minutes = parseInt(str.slice(2, 4));
+        if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+      return hours * 60 + minutes;
+      }
+      const raw = value.trim();
+      // Handle 1330 or 0900
+      if (/^\d{3,4}$/.test(raw)) {
+        const str = raw.padStart(4, '0');
+        const hours = parseInt(str.slice(0, 2));
+        const minutes = parseInt(str.slice(2, 4));
+        if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+        return hours * 60 + minutes;
+      }
+      // Handle HH:MM with optional AM/PM
+      const match = raw.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+      if (match) {
+        let hours = parseInt(match[1], 10);
+        const minutes = parseInt(match[2], 10);
+        const meridiem = match[3]?.toUpperCase();
+        if (meridiem === 'AM' && hours === 12) hours = 0;
+        if (meridiem === 'PM' && hours < 12) hours += 12;
+        return hours * 60 + minutes;
+      }
+      return null;
+    };
+
+    const parseTimeRange = (value: string | number): { start: number; end: number } | null => {
+      if (typeof value === 'number') {
+        const start = parseSingleTimeToMinutes(value);
+        if (start == null) return null;
+        return { start, end: start + 60 }; // assume 1 hour
+      }
+      const raw = value.trim();
+      // Range formats: "HH:MM-HH:MM", "1300-1430"
+      const parts = raw.split(/\s*-\s*/);
+      if (parts.length === 2) {
+        const start = parseSingleTimeToMinutes(parts[0]);
+        const end = parseSingleTimeToMinutes(parts[1]);
+        if (start != null && end != null) return { start, end };
+      }
+      const single = parseSingleTimeToMinutes(raw);
+      if (single != null) return { start: single, end: single + 60 };
+      return null;
+    };
+
+    const range = parseTimeRange(rawClassTime as unknown as string | number);
+    if (!range) return 'today';
+
+    const { start, end } = range;
+    if (currentMinutes >= start && currentMinutes <= end) return 'current';
+    if (currentMinutes < start) return 'upcoming';
+      return 'past';
+  }, [now]);
 
   // Memoized calendar dates generation - optimized with useMemo
   const calendarDates = useMemo(() => {
@@ -1265,12 +1406,8 @@ const TeacherDashboardOverview: React.FC = () => {
                   <div className="flex-1">
                   
                                           <div className="mb-4">
-                        <div className="flex items-start gap-3">
-                          <div className="flex-shrink-0">
-                            <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                              <span className="text-white text-lg">📖</span>
-                            </div>
-                          </div>
+                        <div className="flex items-start ">
+                          {/* Removed left-icon/gif placeholder as requested */}
                           <div className="flex-1">
                             <p className="text-sm text-white/90 italic mb-1 leading-relaxed">
                               "{getDailyBibleVerse().verse}"
@@ -1311,6 +1448,11 @@ const TeacherDashboardOverview: React.FC = () => {
                           src={profilePictureUrl || userAvatar}
                           alt="Teacher Profile"
                           className="w-28 h-28 object-cover shadow-lg rounded-full"
+                          onError={(e) => {
+                            const target = e.currentTarget as HTMLImageElement;
+                            target.onerror = null; // prevent infinite loop
+                            target.src = userAvatar;
+                          }}
                         />
                       )}
                     </div>
@@ -1344,7 +1486,8 @@ const TeacherDashboardOverview: React.FC = () => {
                     </div>
                   </div>
                 </div>
-                
+                {/* Scrollable list with fixed height to prevent container resizing */}
+                <div className="h-[520px] overflow-y-auto pr-1">
                 {classesLoading ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 lg:gap-4">
                     {[1, 2, 3].map(i => (
@@ -1353,19 +1496,18 @@ const TeacherDashboardOverview: React.FC = () => {
                       </div>
                     ))}
                   </div>
-                                ) : (
+                  ) : classes.length > 0 ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 lg:gap-4">
                     {sortedClasses}
                   </div>
-                )}
-                
-                {!classesLoading && classes.length === 0 && (
-                  <div className="text-center py-8">
+                  ) : (
+                    <div className="h-full flex flex-col items-center justify-center text-center py-8">
                     <div className="text-gray-400 text-6xl mb-4">📚</div>
                     <h4 className="text-gray-600 font-medium mb-2">No Classes Yet</h4>
                     <p className="text-gray-500 text-sm">Your assigned classes will appear here</p>
                   </div>
                 )}
+                </div>
               </div>
             </div>
 
@@ -1468,168 +1610,284 @@ const TeacherDashboardOverview: React.FC = () => {
 
 
               {/* Unified panel container controlled by activePanel */}
-              <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 shadow-xl border border-white/20 relative glassmorphism transform-gpu will-change-transform transition-all duration-300 ease-out mt-8">
+              <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 shadow-xl border border-white/20 relative glassmorphism transform-gpu will-change-transform transition-all duration-300 ease-out mt-8 h-[300px] overflow-y-auto">
                 {activePanel === 'notifications' && (
-                  <div>
-                    <h3 className="font-bold text-gray-700 flex items-center mb-2"><Bell className="w-4 h-4 mr-2 text-blue-500" /> Notifications</h3>
-                    <div className="space-y-3">
-                      {instructorNotifications.length === 0 ? (
-                        <div className="text-sm text-gray-500">No notifications</div>
-                      ) : (
-                        instructorNotifications.map((n) => {
-                          // Define severity colors and labels for better understanding
-                          const getSeverityInfo = (severity: string) => {
-                            switch (severity) {
-                              case 'announcement':
-                                return { 
-                                  color: 'bg-blue-500', 
-                                  label: 'Announcement', 
-                                  icon: '📢',
-                                  bgColor: 'bg-gradient-to-r from-blue-50 to-blue-100/50', 
-                                  borderColor: 'border-blue-200/60',
-                                  textColor: 'text-blue-700'
-                                };
-                              case 'reminder':
-                                return { 
-                                  color: 'bg-amber-500', 
-                                  label: 'Reminder', 
-                                  icon: '⏰',
-                                  bgColor: 'bg-gradient-to-r from-amber-50 to-amber-100/50', 
-                                  borderColor: 'border-amber-200/60',
-                                  textColor: 'text-amber-700'
-                                };
-                              case 'deadline':
-                                return { 
-                                  color: 'bg-red-500', 
-                                  label: 'Deadline', 
-                                  icon: '⏳',
-                                  bgColor: 'bg-gradient-to-r from-red-50 to-red-100/50', 
-                                  borderColor: 'border-red-200/60',
-                                  textColor: 'text-red-700'
-                                };
-                              case 'exam':
-                                return { 
-                                  color: 'bg-purple-500', 
-                                  label: 'Exam', 
-                                  icon: '📝',
-                                  bgColor: 'bg-gradient-to-r from-purple-50 to-purple-100/50', 
-                                  borderColor: 'border-purple-200/60',
-                                  textColor: 'text-purple-700'
-                                };
-                              case 'meeting':
-                                return { 
-                                  color: 'bg-indigo-500', 
-                                  label: 'Meeting', 
-                                  icon: '🤝',
-                                  bgColor: 'bg-gradient-to-r from-indigo-50 to-indigo-100/50', 
-                                  borderColor: 'border-indigo-200/60',
-                                  textColor: 'text-indigo-700'
-                                };
-                              case 'advisory':
-                                return { 
-                                  color: 'bg-teal-500', 
-                                  label: 'Advisory', 
-                                  icon: '💡',
-                                  bgColor: 'bg-gradient-to-r from-teal-50 to-teal-100/50', 
-                                  borderColor: 'border-teal-200/60',
-                                  textColor: 'text-teal-700'
-                                };
-                              case 'success':
-                                return { 
-                                  color: 'bg-emerald-500', 
-                                  label: 'Success', 
-                                  icon: '✅',
-                                  bgColor: 'bg-gradient-to-r from-emerald-50 to-emerald-100/50', 
-                                  borderColor: 'border-emerald-200/60',
-                                  textColor: 'text-emerald-700'
-                                };
-                              case 'warning':
-                                return { 
-                                  color: 'bg-orange-500', 
-                                  label: 'Warning', 
-                                  icon: '⚠️',
-                                  bgColor: 'bg-gradient-to-r from-orange-50 to-orange-100/50', 
-                                  borderColor: 'border-orange-200/60',
-                                  textColor: 'text-orange-700'
-                                };
-                              case 'error':
-                                return { 
-                                  color: 'bg-red-500', 
-                                  label: 'Error', 
-                                  icon: '❌',
-                                  bgColor: 'bg-gradient-to-r from-red-50 to-red-100/50', 
-                                  borderColor: 'border-red-200/60',
-                                  textColor: 'text-red-700'
-                                };
-                              case 'info':
-                              default:
-                                return { 
-                                  color: 'bg-sky-500', 
-                                  label: 'Information', 
-                                  icon: 'ℹ️',
-                                  bgColor: 'bg-gradient-to-r from-sky-50 to-sky-100/50', 
-                                  borderColor: 'border-sky-200/60',
-                                  textColor: 'text-sky-700'
-                                };
-                            }
-                          };
+                  <div className="h-full overflow-y-auto">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-bold text-gray-700 flex items-center">
+                        <Bell className="w-4 h-4 mr-2 text-blue-500" /> 
+                        Notifications
+                      </h3>
+                      <button
+                        onClick={() => setShowNotificationForm(!showNotificationForm)}
+                        className={`p-2 rounded-lg transition-colors duration-200 ${
+                          showNotificationForm 
+                            ? 'bg-gray-600 hover:bg-gray-700 text-white' 
+                            : 'bg-blue-600 hover:bg-blue-700 text-white'
+                        }`}
+                      >
+                        {showNotificationForm ? (
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        ) : (
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
 
-                          const severityInfo = getSeverityInfo(n.severity);
-                          
-                          return (
-                            <div key={n.id} className={`group relative overflow-hidden rounded-xl border ${severityInfo.bgColor} ${severityInfo.borderColor} hover:shadow-lg hover:scale-[1.02] transition-all duration-300 ease-out backdrop-blur-sm`}>
-                              {/* Subtle gradient overlay */}
-                              <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                              
-                              <div className="relative p-4">
-                                <div className="flex items-start gap-4">
-                                  {/* Icon and status indicator */}
-                                  <div className="flex-shrink-0">
-                                    <div className="flex items-center justify-center w-10 h-10 rounded-full bg-white/80 shadow-sm border border-white/60">
-                                      <span className="text-lg">{severityInfo.icon}</span>
-                                    </div>
-                                  </div>
-                                  
-                                  {/* Content */}
-                                  <div className="flex-1 min-w-0">
-                                    {/* Status badge */}
-                                    <div className="inline-flex items-center gap-2 mb-2">
-                                      <div className={`w-2 h-2 rounded-full ${severityInfo.color} shadow-sm`}></div>
-                                      <span className={`text-xs font-semibold uppercase tracking-wide ${severityInfo.textColor}`}>
-                                        {severityInfo.label}
-                                      </span>
+                    {!showNotificationForm ? (
+                      <div className="space-y-1.5">
+                        {instructorNotifications.length === 0 ? (
+                          <div className="text-sm text-gray-500">No notifications</div>
+                        ) : (
+                          instructorNotifications.map((n) => {
+                            // Define severity colors and labels for better understanding
+                            const getSeverityInfo = (severity: string) => {
+                              switch (severity) {
+                                case 'announcement':
+                                  return { 
+                                    color: 'bg-blue-500', 
+                                    label: 'Announcement', 
+                                    icon: '📢',
+                                    bgColor: 'bg-gradient-to-r from-blue-50 to-blue-100/50', 
+                                    borderColor: 'border-blue-200/60',
+                                    textColor: 'text-blue-700'
+                                  };
+                                case 'reminder':
+                                  return { 
+                                    color: 'bg-amber-500', 
+                                    label: 'Reminder', 
+                                    icon: '⏰',
+                                    bgColor: 'bg-gradient-to-r from-amber-50 to-amber-100/50', 
+                                    borderColor: 'border-amber-200/60',
+                                    textColor: 'text-amber-700'
+                                  };
+                                case 'deadline':
+                                  return { 
+                                    color: 'bg-red-500', 
+                                    label: 'Deadline', 
+                                    icon: '⏳',
+                                    bgColor: 'bg-gradient-to-r from-red-50 to-red-100/50', 
+                                    borderColor: 'border-red-200/60',
+                                    textColor: 'text-red-700'
+                                  };
+                                case 'exam':
+                                  return { 
+                                    color: 'bg-purple-500', 
+                                    label: 'Exam', 
+                                    icon: '📝',
+                                    bgColor: 'bg-gradient-to-r from-purple-50 to-purple-100/50', 
+                                    borderColor: 'border-purple-200/60',
+                                    textColor: 'text-purple-700'
+                                  };
+                                case 'meeting':
+                                  return { 
+                                    color: 'bg-indigo-500', 
+                                    label: 'Meeting', 
+                                    icon: '🤝',
+                                    bgColor: 'bg-gradient-to-r from-indigo-50 to-indigo-100/50', 
+                                    borderColor: 'border-indigo-200/60',
+                                    textColor: 'text-indigo-700'
+                                  };
+                                case 'advisory':
+                                  return { 
+                                    color: 'bg-teal-500', 
+                                    label: 'Advisory', 
+                                    icon: '💡',
+                                    bgColor: 'bg-gradient-to-r from-teal-50 to-teal-100/50', 
+                                    borderColor: 'border-teal-200/60',
+                                    textColor: 'text-teal-700'
+                                  };
+                                case 'success':
+                                  return { 
+                                    color: 'bg-emerald-500', 
+                                    label: 'Success', 
+                                    icon: '✅',
+                                    bgColor: 'bg-gradient-to-r from-emerald-50 to-emerald-100/50', 
+                                    borderColor: 'border-emerald-200/60',
+                                    textColor: 'text-emerald-700'
+                                  };
+                                case 'warning':
+                                  return { 
+                                    color: 'bg-orange-500', 
+                                    label: 'Warning', 
+                                    icon: '⚠️',
+                                    bgColor: 'bg-gradient-to-r from-orange-50 to-orange-100/50', 
+                                    borderColor: 'border-orange-200/60',
+                                    textColor: 'text-orange-700'
+                                  };
+                                case 'error':
+                                  return { 
+                                    color: 'bg-red-500', 
+                                    label: 'Error', 
+                                    icon: '❌',
+                                    bgColor: 'bg-gradient-to-r from-red-50 to-red-100/50', 
+                                    borderColor: 'border-red-200/60',
+                                    textColor: 'text-red-700'
+                                  };
+                                case 'info':
+                                default:
+                                  return { 
+                                    color: 'bg-sky-500', 
+                                    label: 'Information', 
+                                    icon: 'ℹ️',
+                                    bgColor: 'bg-gradient-to-r from-sky-50 to-sky-100/50', 
+                                    borderColor: 'border-sky-200/60',
+                                    textColor: 'text-sky-700'
+                                  };
+                              }
+                            };
+
+                            const severityInfo = getSeverityInfo(n.severity);
+                            
+                            return (
+                              <div key={n.id} className={`group relative overflow-hidden rounded-lg border ${severityInfo.bgColor} ${severityInfo.borderColor} hover:shadow-md hover:scale-[1.01] transition-all duration-200 ease-out backdrop-blur-sm`}>
+                                {/* Subtle gradient overlay */}
+                                <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
+                                
+                                <div className="relative p-2">
+                                  <div className="flex items-start gap-2">
+                                    {/* Icon and status indicator */}
+                                    <div className="flex-shrink-0">
+                                      <div className="flex items-center justify-center w-6 h-6 rounded-full bg-white/80 shadow-sm border border-white/60">
+                                        <span className="text-xs">{severityInfo.icon}</span>
+                                      </div>
                                     </div>
                                     
-                                    {/* Title */}
-                                    <h4 className="font-semibold text-gray-800 text-sm mb-2 leading-tight">
-                                      {n.title}
-                                    </h4>
+                                    {/* Content */}
+                                    <div className="flex-1 min-w-0">
+                                      {/* Status badge */}
+                                      <div className="inline-flex items-center gap-1 mb-0.5">
+                                        <div className={`w-1 h-1 rounded-full ${severityInfo.color} shadow-sm`}></div>
+                                        <span className={`text-xs font-semibold uppercase tracking-wide ${severityInfo.textColor}`}>
+                                          {severityInfo.label}
+                                        </span>
+                                      </div>
+                                      
+                                      {/* Title */}
+                                      <h4 className="font-semibold text-gray-800 text-xs mb-0.5 leading-tight">
+                                        {n.title}
+                                      </h4>
+                                      
+                                      {/* Message */}
+                                      <p className="text-gray-600 text-xs leading-relaxed line-clamp-2">
+                                        {n.message}
+                                      </p>
+                                    </div>
                                     
-                                    {/* Message */}
-                                    <p className="text-gray-600 text-sm leading-relaxed">
-                                      {n.message}
-                                    </p>
-                                  </div>
-                                  
-                                  {/* Timestamp */}
-                                  <div className="flex-shrink-0 text-right">
-                                    <div className="text-xs text-gray-400 font-medium">
-                                      {new Date(n.created_at).toLocaleDateString('en-US', { 
-                                        month: 'short', 
-                                        day: 'numeric',
-                                        hour: '2-digit',
-                                        minute: '2-digit',
-                                        hour12: true
-                                      })}
+                                    {/* Timestamp */}
+                                    <div className="flex-shrink-0 text-right">
+                                      <div className="text-xs text-gray-400 font-medium">
+                                        {new Date(n.created_at).toLocaleDateString('en-US', { 
+                                          month: 'short', 
+                                          day: 'numeric',
+                                          hour: '2-digit',
+                                          minute: '2-digit',
+                                          hour12: true
+                                        })}
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
                               </div>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    ) : (
+                      <div className="space-y-2.5">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1.5">Title *</label>
+                          <input
+                            type="text"
+                            value={notificationForm.title}
+                            onChange={(e) => setNotificationForm(prev => ({ ...prev, title: e.target.value }))}
+                            className="w-full px-2.5 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900 placeholder-gray-400 text-sm"
+                            placeholder="Enter notification title"
+                            required
+                          />
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1.5">Severity *</label>
+                            <select
+                              value={notificationForm.severity}
+                              onChange={(e) => setNotificationForm(prev => ({ ...prev, severity: e.target.value as 'announcement' | 'reminder' | 'deadline' | 'exam' | 'meeting' | 'advisory' | 'info' | 'success' | 'warning' | 'error' }))}
+                              className="w-full px-2.5 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900 text-sm"
+                              required
+                            >
+                              <option value="announcement">Announcement</option>
+                              <option value="reminder">Reminder</option>
+                              <option value="deadline">Deadline</option>
+                              <option value="exam">Exam</option>
+                              <option value="meeting">Meeting</option>
+                              <option value="advisory">Advisory</option>
+                              <option value="info">Info</option>
+                              <option value="success">Success</option>
+                              <option value="warning">Warning</option>
+                              <option value="error">Error</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1.5">Audience *</label>
+                            <select
+                              value={notificationForm.audience}
+                              className="w-full px-2.5 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900 text-sm"
+                              required
+                            >
+                              <option value="student">Students Only</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1.5">Message *</label>
+                          <textarea
+                            value={notificationForm.message}
+                            onChange={(e) => setNotificationForm(prev => ({ ...prev, message: e.target.value }))}
+                            rows={2}
+                            className="w-full px-2.5 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900 placeholder-gray-400 text-sm resize-none"
+                            placeholder="Enter notification message..."
+                            required
+                          />
+                        </div>
+
+                        <div className="flex gap-3 pt-2">
+                          <button
+                            onClick={() => setShowNotificationForm(false)}
+                            className="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white text-sm font-medium rounded-lg transition-colors duration-200"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={handleCreateNotification}
+                            disabled={creatingNotification}
+                            className={`flex-1 px-4 py-2 rounded-lg text-white font-medium flex items-center justify-center gap-2 transition-colors duration-200 ${
+                              creatingNotification 
+                                ? 'bg-blue-600 cursor-not-allowed' 
+                                : 'bg-blue-600 hover:bg-blue-700'
+                            }`}
+                          >
+                            {creatingNotification ? (
+                              <>
+                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                <span className="text-sm">Sending...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Bell className="w-4 h-4" />
+                                <span className="text-sm">Send</span>
+                              </>
+                              )}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
                 {activePanel === 'notes' && (
@@ -1749,17 +2007,17 @@ const TeacherDashboardOverview: React.FC = () => {
                   </div>
                 )}
                 {activePanel === 'documents' && (
-                  <div>
+                  <div className="flex flex-col h-full">
 
 
-                    <h3 className="font-bold text-gray-700 flex items-center mb-2">
+                    <h3 className="font-bold text-gray-700 flex items-center mb-2 shrink-0">
                       <IoDocuments className="w-4 h-4 mr-2 text-red-500" /> 
                       School Documents
                     </h3>
                    
                     
                     {/* Search and Filter Bar - Horizontal Layout */}
-                    <div className="mb-3 flex gap-3">
+                    <div className="mb-3 flex gap-3 shrink-0">
                       {/* Search Bar */}
                       <div className="relative flex-1">
                         <input
@@ -1789,12 +2047,12 @@ const TeacherDashboardOverview: React.FC = () => {
                     </div>
                     
                     {/* Add Document Button */}
-                    <div className="mb-3">
+                    <div className="mb-2 shrink-0">
                       <button
                         onClick={() => setShowAddDocument(true)}
-                        className="w-full px-3 py-2 bg-red-500 hover:bg-red-600 text-white text-sm rounded-lg transition-colors flex items-center justify-center gap-2"
+                        className="w-full px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-xs rounded-lg transition-colors flex items-center justify-center gap-1.5"
                       >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                         </svg>
                         Add New Document
@@ -1804,22 +2062,22 @@ const TeacherDashboardOverview: React.FC = () => {
                     {/* Add Document Modal */}
                     {showAddDocument && (
                       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                        <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
-                          <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-lg font-semibold text-gray-800">Add New Document</h3>
+                        <div className="bg-white rounded-xl p-4 w-full max-w-sm mx-3">
+                          <div className="flex items-center justify-between mb-3">
+                            <h3 className="text-base font-semibold text-gray-800">Add New Document</h3>
                             <button
                               onClick={() => setShowAddDocument(false)}
                               className="text-gray-400 hover:text-gray-600 transition-colors"
                             >
-                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                               </svg>
                             </button>
                           </div>
                           
-                          <div className="space-y-4">
+                          <div className="space-y-3">
                             <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                              <label className="block text-sm font-medium text-gray-700 mb-1.5">
                                 Upload File
                               </label>
                               <input
@@ -1838,66 +2096,85 @@ const TeacherDashboardOverview: React.FC = () => {
                               />
                               <label 
                                 htmlFor="file-upload"
-                                className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-red-400 transition-colors cursor-pointer block"
+                                className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-red-400 transition-colors cursor-pointer block min-h-[140px] flex flex-col items-center justify-center"
                               >
-                                <svg className="w-8 h-8 text-gray-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg className="w-7 h-7 text-gray-400 mx-auto mb-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                                 </svg>
-                                <p className="text-sm text-gray-600">
+                                <p className="text-xs text-gray-600">
                                   <span className="font-medium text-red-500">Click to upload</span> or drag and drop
                                 </p>
-                                <p className="text-xs text-gray-500 mt-1">PDF, DOC, PPT, XLS up to 10MB</p>
+                                <p className="text-[11px] text-gray-500 mt-1">PDF, DOC, PPT, XLS up to 10MB</p>
                                 {selectedFile && (
-                                  <div className="mt-3 p-2 bg-green-50 border border-green-200 rounded">
-                                    <p className="text-sm text-green-700 font-medium">Selected: {selectedFile.name}</p>
-                                    <p className="text-xs text-green-600">Size: {(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                                  <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded">
+                                    <p className="text-xs text-green-700 font-medium">Selected: {selectedFile.name}</p>
+                                    <p className="text-[11px] text-green-600">Size: {(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
                                   </div>
                                 )}
                               </label>
                             </div>
                           </div>
                           
-                          <div className="flex gap-3 mt-6">
+                          <div className="flex gap-2.5 mt-4">
                             <button
                               onClick={() => {
                                 setShowAddDocument(false);
                                 setSelectedFile(null);
                               }}
-                              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                              className="flex-1 px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm"
                             >
                               Cancel
                             </button>
                             <button
                               onClick={async (event) => {
                                 if (selectedFile) {
+                                  if (!user?.id) {
+                                    alert('You must be signed in to upload documents.');
+                                    return;
+                                  }
                                   try {
                                     // Show loading state
                                     const button = event.currentTarget as HTMLButtonElement;
                                     button.textContent = 'Uploading...';
                                     button.disabled = true;
                                     
-                                    // TODO: Implement actual file upload to Google Drive
-                                    console.log('Uploading document:', selectedFile.name);
-                                    
-                                    // Simulate upload delay
-                                    await new Promise(resolve => setTimeout(resolve, 1500));
-                                    
-                                    // Add the uploaded file to the documents list
-                                    const newDocument: DriveItem = {
-                                      id: `temp-${Date.now()}`,
-                                      name: selectedFile.name,
-                                      mimeType: selectedFile.type || 'application/octet-stream',
-                                      parents: [],
-                                      createdTime: new Date().toISOString(),
-                                      modifiedTime: new Date().toISOString(),
-                                      size: selectedFile.size.toString(),
-                                      webViewLink: '#',
-                                      isFolder: false
-                                    };
-                                    
-                                    setDocuments(prev => [newDocument, ...prev]);
-                                    
-                                    alert(`Document "${selectedFile.name}" uploaded successfully!`);
+                                    // Real upload to Google Drive
+                                    const uploaded = await googleDriveService.uploadFile(user.id, {
+                                      file: selectedFile,
+                                    });
+
+                                    // Refresh list from Drive to ensure metadata/links are correct
+                                    const driveFiles = await googleDriveService.getFiles(user.id);
+                                    const schoolFiles = driveFiles
+                                      .filter(file => {
+                                        if (file.isFolder) return false;
+                                        const mimeType = file.mimeType?.toLowerCase() || '';
+                                        const fileName = file.name?.toLowerCase() || '';
+                                        const isSchoolDocument = 
+                                          mimeType.includes('pdf') ||
+                                          mimeType.includes('presentation') ||
+                                          mimeType.includes('document') ||
+                                          mimeType.includes('spreadsheet') ||
+                                          mimeType.includes('image') ||
+                                          mimeType.includes('text/plain') ||
+                                          mimeType.includes('application/vnd.openxmlformats-officedocument') ||
+                                          mimeType.includes('application/vnd.ms-') ||
+                                          fileName.includes('.ppt') || fileName.includes('.pptx') ||
+                                          fileName.includes('.doc') || fileName.includes('.docx') ||
+                                          fileName.includes('.xls') || fileName.includes('.xlsx') ||
+                                          fileName.includes('.pdf') ||
+                                          fileName.includes('.txt') ||
+                                          fileName.includes('class') || fileName.includes('lesson') || fileName.includes('lecture') ||
+                                          fileName.includes('assignment') || fileName.includes('homework') || fileName.includes('quiz') ||
+                                          fileName.includes('syllabus') || fileName.includes('curriculum') || fileName.includes('notes');
+                                        return isSchoolDocument;
+                                      })
+                                      .sort((a, b) => new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime())
+                                      .slice(0, 15);
+
+                                    setDocuments(schoolFiles);
+
+                                    alert(`Document "${uploaded.name}" uploaded successfully!`);
                                     setShowAddDocument(false);
                                     setSelectedFile(null);
                                   } catch (error) {
@@ -1909,7 +2186,7 @@ const TeacherDashboardOverview: React.FC = () => {
                                 }
                               }}
                               disabled={!selectedFile}
-                              className={`flex-1 px-4 py-2 rounded-lg transition-colors ${
+                              className={`flex-1 px-3 py-2 rounded-lg transition-colors text-sm ${
                                 selectedFile 
                                   ? 'bg-red-500 hover:bg-red-600 text-white' 
                                   : 'bg-gray-300 text-gray-500 cursor-not-allowed'
@@ -1923,7 +2200,7 @@ const TeacherDashboardOverview: React.FC = () => {
                     )}
                     
                     {/* Documents List */}
-                    <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
+                    <div className="space-y-3 pr-2 flex-1 overflow-y-auto">
                       {documentsLoading ? (
                         <div className="text-center py-6">
                           <div className="text-gray-400 mb-2">
@@ -1963,20 +2240,21 @@ const TeacherDashboardOverview: React.FC = () => {
                           </div>
                         </div>
                       ) : documents.length === 0 ? (
-                        <div className="text-center py-6">
-                          <div className="text-gray-400 mb-2">
-                            <IoDocuments className="w-12 h-12 mx-auto" />
+                        <div className="py-3">
+                          <div className="flex items-center gap-2 text-gray-500 mb-1">
+                            <IoDocuments className="w-6 h-6" />
+                            <p className="text-sm">
+                              {googleClassroomStatus === 'connected' 
+                                ? 'No documents found in Google Drive' 
+                                : 'Connect to Google Drive to view documents'}
+                            </p>
                           </div>
-                          <p className="text-gray-500 text-sm">
-                            {googleClassroomStatus === 'connected' 
-                              ? 'No documents found in Google Drive' 
-                              : 'Connect to Google Drive to view documents'}
-                          </p>
                           {googleClassroomStatus !== 'connected' && (
                             <button 
                               onClick={() => navigate('/dashboard/google-classroom')}
-                              className="mt-3 px-4 py-2 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 transition-colors"
+                              className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 transition-colors"
                             >
+                              <ExternalLink className="w-3.5 h-3.5" />
                               Connect to Google Classroom
                             </button>
                           )}
@@ -2127,6 +2405,56 @@ const TeacherDashboardOverview: React.FC = () => {
                       ))}
                       {memoizedCalendarDates}
                     </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Registrar Grade Edit Confirmation Card - placed under the unified panel */}
+              <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-4 shadow-xl border border-white/20 relative glassmorphism transform-gpu will-change-transform transition-all duration-300 ease-out mt-3 h-[310px] overflow-y-auto">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-bold text-gray-700 text-sm">Registrar Approval</h3>
+                  {gradeEditStatus === 'granted' && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-700">
+                      <CheckCircle className="w-3.5 h-3.5" /> Allowed
+                    </span>
+                  )}
+                  {gradeEditStatus === 'pending' && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-700">
+                      <Clock className="w-3.5 h-3.5" /> Pending
+                    </span>
+                  )}
+                  {gradeEditStatus === 'denied' && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-rose-100 text-rose-700">
+                      <XCircle className="w-3.5 h-3.5" /> Denied
+                    </span>
+                  )}
+                  {gradeEditStatus === 'unknown' && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-700">
+                      <Clock className="w-3.5 h-3.5" /> Unknown
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-600 mb-3">
+                  Registrar confirmation determines whether you can edit student grades in your classes.
+                </p>
+                {gradeEditStatus === 'granted' && (
+                  <div className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                    You are authorized to edit grades. Proceed to your class to update grades.
+                  </div>
+                )}
+                {gradeEditStatus === 'pending' && (
+                  <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                    Your request to edit grades is pending registrar approval.
+                  </div>
+                )}
+                {gradeEditStatus === 'denied' && (
+                  <div className="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg p-3">
+                    Editing grades is currently not allowed. Contact the registrar for assistance.
+                  </div>
+                )}
+                {gradeEditStatus === 'unknown' && (
+                  <div className="text-xs text-gray-700 bg-gray-50 border border-gray-200 rounded-lg p-3">
+                    Status is not configured. Please contact the registrar if you need access.
                   </div>
                 )}
               </div>
