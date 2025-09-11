@@ -1862,19 +1862,24 @@ const ProgramHeadEnrollment: React.FC = () => {
         '3': '3rd Year',
         '4': '4th Year',
       };
-      const yearLabel = yearMap[String(createForm.yearLevel)] || '1st Year';
       
       // Convert section ID to section name for comparison
       const selectedSectionName = getSectionName(createForm.section);
       
-      // Get course IDs that have instructors assigned to the selected section and year level
+      // Get course IDs that have instructors assigned to the selected section
       const currentAcademicYear = createForm.schoolYear || getDefaultSchoolYear();
       const currentSemester = createForm.semester || '1st Semester';
+      
+      // If allowMixedCourses is enabled, get all year levels (1st-4th year)
+      // Otherwise, only get the student's current year level
+      const yearLevelsToCheck = allowMixedCourses 
+        ? ['1st Year', '2nd Year', '3rd Year', '4th Year']
+        : [yearMap[String(createForm.yearLevel)] || '1st Year'];
       
       const availableCourseIds = instructorAssignments
         .filter(assignment => 
           assignment.section === selectedSectionName &&
-          assignment.year_level === yearLabel &&
+          yearLevelsToCheck.includes(assignment.year_level) &&
           assignment.academic_year === currentAcademicYear &&
           assignment.semester === currentSemester &&
           assignment.is_active
@@ -2054,9 +2059,14 @@ const ProgramHeadEnrollment: React.FC = () => {
   const handleEndSemester = async () => {
     setEndSemesterLoading(true);
     try {
+      // First, create subject trace records from current teacher assignments
+      await createSubjectTraceRecords();
+      
+      // Then update enrollment status
       const { error } = await supabase.from('user_profiles').update({ enrollment_status: 'active' }).eq('enrollment_status', 'enrolled');
       if (error) throw error;
-      toast.success('All enrolled students are now active!');
+      
+      toast.success('Semester ended successfully! Subject trace records have been created for all instructor assignments.');
       setEndSemesterOpen(false);
       setEndSemesterConfirmation('');
       setEndSemesterConfirmationError(false);
@@ -2066,6 +2076,105 @@ const ProgramHeadEnrollment: React.FC = () => {
       toast.error(errorMessage);
     } finally {
       setEndSemesterLoading(false);
+    }
+  };
+
+  // Function to create subject trace records from current teacher assignments
+  const createSubjectTraceRecords = async () => {
+    try {
+      // Get current academic year and semester
+      const currentAcademicYear = getDefaultSchoolYear();
+      
+      // Determine current semester based on date
+      const now = new Date();
+      const month = now.getMonth() + 1; // 1-12
+      let currentSemester = 'First Semester';
+      
+      if (month >= 6 && month <= 8) {
+        currentSemester = 'Summer';
+      } else if (month >= 9 || month <= 2) {
+        currentSemester = 'First Semester';
+      } else if (month >= 3 && month <= 5) {
+        currentSemester = 'Second Semester';
+      }
+      
+      // Fetch all current teacher assignments
+      const { data: assignments, error: assignmentsError } = await supabase
+        .from('teacher_subjects')
+        .select(`
+          *,
+          teacher:user_profiles!teacher_subjects_teacher_id_fkey(
+            id,
+            first_name,
+            last_name,
+            middle_name,
+            email,
+            role,
+            department
+          ),
+          subject:courses!teacher_subjects_subject_id_fkey(
+            id,
+            code,
+            name,
+            units
+          )
+        `)
+        .eq('academic_year', currentAcademicYear)
+        .eq('is_active', true);
+
+      if (assignmentsError) throw assignmentsError;
+
+      if (!assignments || assignments.length === 0) {
+        console.log('No active teacher assignments found to create trace records');
+        return;
+      }
+
+      // Check if subject trace records already exist for this semester and academic year
+      const { data: existingRecords, error: checkError } = await supabase
+        .from('subject_trace_records')
+        .select('id')
+        .eq('academic_year', currentAcademicYear)
+        .eq('semester', currentSemester)
+        .limit(1);
+
+      if (checkError) throw checkError;
+
+      if (existingRecords && existingRecords.length > 0) {
+        console.log(`Subject trace records already exist for ${currentSemester} ${currentAcademicYear}`);
+        return;
+      }
+
+      // Transform assignments to subject trace records
+      const subjectTraceRecords = assignments.map((assignment: any) => ({
+        instructor_id: assignment.teacher_id,
+        instructor_name: assignment.teacher 
+          ? `${assignment.teacher.first_name} ${assignment.teacher.middle_name ? assignment.teacher.middle_name + ' ' : ''}${assignment.teacher.last_name}`
+          : 'Unknown Instructor',
+        instructor_email: assignment.teacher?.email || 'unknown@smcbi.edu.ph',
+        instructor_department: assignment.teacher?.department || 'Unknown',
+        subject_code: assignment.subject?.code || 'Unknown',
+        subject_name: assignment.subject?.name || 'Unknown',
+        subject_units: assignment.subject?.units || 0,
+        section: assignment.section,
+        semester: currentSemester, // Use the detected current semester
+        academic_year: assignment.academic_year,
+        year_level: assignment.year_level,
+        status: 'Confirmed by Program Head',
+        confirmed_at: new Date().toISOString()
+      }));
+
+      // Insert subject trace records
+      const { error: insertError } = await supabase
+        .from('subject_trace_records')
+        .insert(subjectTraceRecords);
+
+      if (insertError) throw insertError;
+
+      console.log(`Created ${subjectTraceRecords.length} subject trace records for ${currentSemester} ${currentAcademicYear}`);
+      console.log('Sample trace record:', subjectTraceRecords[0]);
+    } catch (error) {
+      console.error('Error creating subject trace records:', error);
+      throw error;
     }
   };
 
