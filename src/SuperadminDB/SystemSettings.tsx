@@ -82,14 +82,48 @@ const SuperAdminSettings: React.FC = () => {
   }
 
   return (
-    <div className="container mx-auto p-6">
-      <h1 className="text-3xl font-bold mb-6 text-gray-800">System Settings</h1>
-      
-      <div className="bg-white rounded-lg shadow-md overflow-hidden">
-        <div className="p-6 border-b border-gray-200">
+    <div className="mx-auto max-w-5xl p-4 sm:p-6">
+      {/* Header */}
+      <div className="mb-6 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-5 shadow-lg text-white">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">System Settings</h1>
+            <p className="text-sm opacity-80">Configure security, maintenance, and defaults</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="inline-flex items-center gap-2 rounded-lg bg-white/15 px-3 py-2 text-sm font-medium text-white hover:bg-white/25 focus:outline-none focus:ring-2 focus:ring-white/50"
+              onClick={() => window.location.reload()}
+            >
+              <RefreshCw className="h-4 w-4" /> Reset
+            </button>
+            <button
+              type="button"
+              className="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-300 disabled:opacity-60"
+              onClick={saveSettings}
+              disabled={loading}
+            >
+              {loading ? (
+                <>
+                  <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-t-2 border-white" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4" /> Save Settings
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+        <div className="border-b border-gray-200 p-6">
           <h2 className="text-xl font-semibold text-gray-800 mb-4">General Settings</h2>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             <div>
               <label htmlFor="sessionTimeoutMinutes" className="block text-sm font-medium text-gray-700 mb-1">
                 Session Timeout (minutes)
@@ -102,7 +136,7 @@ const SuperAdminSettings: React.FC = () => {
                 onChange={handleChange}
                 min={5}
                 max={180}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
               />
               <p className="mt-1 text-sm text-gray-500">
                 Time before an inactive user is automatically logged out.
@@ -118,7 +152,7 @@ const SuperAdminSettings: React.FC = () => {
                 name="defaultTheme"
                 value={settings.defaultTheme}
                 onChange={handleChange}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
               >
                 <option value="light">Light</option>
                 <option value="dark">Dark</option>
@@ -131,7 +165,7 @@ const SuperAdminSettings: React.FC = () => {
           </div>
         </div>
         
-        <div className="p-6 border-b border-gray-200">
+        <div className="border-b border-gray-200 p-6">
           <h2 className="text-xl font-semibold text-gray-800 mb-4">Maintenance Settings</h2>
           
           <div className="mb-4">
@@ -142,7 +176,7 @@ const SuperAdminSettings: React.FC = () => {
                 name="maintenanceMode"
                 checked={settings.maintenanceMode}
                 onChange={handleChange}
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
               <label htmlFor="maintenanceMode" className="ml-2 block text-sm font-medium text-gray-700">
                 Enable Maintenance Mode
@@ -163,7 +197,7 @@ const SuperAdminSettings: React.FC = () => {
               rows={3}
               value={settings.maintenanceMessage}
               onChange={handleChange}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
             />
             <p className="mt-1 text-sm text-gray-500">
               Message displayed to users during maintenance mode.
@@ -171,10 +205,10 @@ const SuperAdminSettings: React.FC = () => {
           </div>
         </div>
         
-        <div className="p-6 border-b border-gray-200">
+        <div className="border-b border-gray-200 p-6">
           <h2 className="text-xl font-semibold text-gray-800 mb-4">Security Settings</h2>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             <div>
               <div className="flex items-center mb-2">
                 <input
@@ -183,7 +217,7 @@ const SuperAdminSettings: React.FC = () => {
                   name="userAutoLockout"
                   checked={settings.userAutoLockout}
                   onChange={handleChange}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
                 <label htmlFor="userAutoLockout" className="ml-2 block text-sm font-medium text-gray-700">
                   Auto-lockout after failed login attempts
@@ -203,7 +237,7 @@ const SuperAdminSettings: React.FC = () => {
                   min={3}
                   max={10}
                   disabled={!settings.userAutoLockout}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
+                  className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
                 />
               </div>
             </div>
@@ -220,7 +254,7 @@ const SuperAdminSettings: React.FC = () => {
                 onChange={handleChange}
                 min={0}
                 max={365}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
               />
               <p className="mt-1 text-sm text-gray-500">
                 Days before users are required to change their password (0 = never expire).
@@ -229,7 +263,7 @@ const SuperAdminSettings: React.FC = () => {
           </div>
         </div>
         
-        <div className="p-6 border-b border-gray-200">
+        <div className="border-b border-gray-200 p-6">
           <h2 className="text-xl font-semibold text-gray-800 mb-4">Notification Settings</h2>
           
           <div className="flex items-center mb-4">
@@ -239,7 +273,7 @@ const SuperAdminSettings: React.FC = () => {
               name="enableNotifications"
               checked={settings.enableNotifications}
               onChange={handleChange}
-              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
             />
             <label htmlFor="enableNotifications" className="ml-2 block text-sm font-medium text-gray-700">
               Enable System Notifications
@@ -258,7 +292,7 @@ const SuperAdminSettings: React.FC = () => {
           </div>
         </div>
         
-        <div className="p-6 border-b border-gray-200">
+        <div className="border-b border-gray-200 p-6">
           <h2 className="text-xl font-semibold text-gray-800 mb-4">Data Management</h2>
           
           <div>
@@ -273,42 +307,14 @@ const SuperAdminSettings: React.FC = () => {
               onChange={handleChange}
               min={30}
               max={3650}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
             />
             <p className="mt-1 text-sm text-gray-500">
               Days to keep audit logs and usage data before automatic deletion.
             </p>
           </div>
         </div>
-        
-        <div className="p-6 flex justify-end space-x-4">
-          <button
-            type="button"
-            className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            onClick={() => window.location.reload()}
-          >
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Reset
-          </button>
-          <button
-            type="button"
-            className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            onClick={saveSettings}
-            disabled={loading}
-          >
-            {loading ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
-                Saving...
-              </>
-            ) : (
-              <>
-                <Save className="h-4 w-4 mr-2" />
-                Save Settings
-              </>
-            )}
-          </button>
-        </div>
+        {/* Footer actions moved to header for consistency */}
       </div>
     </div>
   );
