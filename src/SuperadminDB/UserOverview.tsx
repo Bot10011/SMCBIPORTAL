@@ -7,7 +7,7 @@ import { User, Search, RefreshCw, Eye, EyeOff } from 'lucide-react';
 
 interface UserData {
   id: string;
-  email: string | null;
+  email: string | null; 
   role: UserRole;
   created_at: string;
   last_login?: string | null;
