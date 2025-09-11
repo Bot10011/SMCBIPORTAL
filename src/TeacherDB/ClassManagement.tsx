@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { Loader2, BookOpen, Users, ChevronDown, ChevronRight, Search, Download, Printer, CheckCircle2, TrendingUp } from 'lucide-react';
+import { Loader2, BookOpen, Users, ChevronDown, ChevronRight, Search, Download, Printer, CheckCircle2, TrendingUp, ShieldAlert, Pencil, Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -46,6 +46,7 @@ interface Student {
   student_id?: string; // Actual student ID from user_profiles table
   display_name?: string; // Display name from Google account
   avatar_url?: string; // Avatar URL from Google account
+  can_edit_grades?: boolean; // per-grade approval
 }
 
 interface DatabaseTeacherClass {
@@ -99,9 +100,14 @@ interface EnrollmentRow {
 interface GradeRow {
   id: string;
   student_id: string;
+  subject_id: string;
+  academic_year?: string | null;
+  section?: string | null;
   prelim_grade?: number;
   midterm_grade?: number;
   final_grade?: number;
+  edit_status?: 'pending' | 'granted' | 'denied' | null;
+  edit_requested?: boolean;
 }
 
 
@@ -115,6 +121,11 @@ const ClassManagement: React.FC = () => {
   const [selectedClass, setSelectedClass] = useState<TeacherClass | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(false);
+  const [gradeEditStatus, setGradeEditStatus] = useState<'granted' | 'pending' | 'denied' | 'unknown'>('unknown');
+  const [showAddSubject, setShowAddSubject] = useState(false);
+  const [addingSubject, setAddingSubject] = useState(false);
+  const [newSubjectForm, setNewSubjectForm] = useState<{ subject_id: string; section: string; academic_year: string; semester: string }>({ subject_id: '', section: '', academic_year: '', semester: '' });
+  const [availableCourses, setAvailableCourses] = useState<Array<{ id: string; code: string; name: string; units?: number; year_level?: string }>>([]);
   
   // New state for improved organization
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
@@ -127,6 +138,58 @@ const ClassManagement: React.FC = () => {
       void fetchClasses();
     }
   }, [user?.id]);
+
+  // Fetch registrar approval status similar to Teacher Dashboard
+  useEffect(() => {
+    const fetchGradeEditStatus = async () => {
+      if (!user?.id) return;
+      try {
+        const { data, error } = await supabase
+          .from('user_profiles')
+          .select('can_edit_grades, grade_edit_allowed, grade_edit_status, grade_edit_requested')
+          .eq('id', user.id)
+          .maybeSingle();
+        if (error) throw error;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const profile: any = data || {};
+        const allowed = Boolean(
+          profile?.can_edit_grades ??
+          profile?.grade_edit_allowed ??
+          (typeof profile?.grade_edit_status === 'string' && profile?.grade_edit_status.toLowerCase() === 'granted')
+        );
+        const denied = typeof profile?.grade_edit_status === 'string' && profile?.grade_edit_status.toLowerCase() === 'denied';
+        const pending = Boolean(
+          profile?.grade_edit_requested ??
+          (typeof profile?.grade_edit_status === 'string' && profile?.grade_edit_status.toLowerCase() === 'pending')
+        );
+        if (allowed) setGradeEditStatus('granted');
+        else if (denied) setGradeEditStatus('denied');
+        else if (pending) setGradeEditStatus('pending');
+        else setGradeEditStatus('unknown');
+      } catch {
+        setGradeEditStatus('unknown');
+      }
+    };
+    void fetchGradeEditStatus();
+  }, [user?.id]);
+
+  // Fetch available subjects/courses for Add Subject form
+  useEffect(() => {
+    const fetchCourses = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('courses')
+          .select('id, code, name, units, year_level')
+          .order('code', { ascending: true });
+        if (error) throw error;
+        setAvailableCourses((data as Array<{ id: string; code: string; name: string; units?: number; year_level?: string }>) || []);
+      } catch (e) {
+        console.error('Failed to load courses:', e);
+        setAvailableCourses([]);
+      }
+    };
+    void fetchCourses();
+  }, []);
 
   async function fetchClasses() {
     if (!user?.id) return;
@@ -299,8 +362,11 @@ const ClassManagement: React.FC = () => {
 
       const { data: grades, error: gradesError } = await supabase
         .from('grades')
-        .select('id, student_id, prelim_grade, midterm_grade, final_grade')
-        .in('student_id', studentIds);
+        .select('id, student_id, subject_id, academic_year, section, prelim_grade, midterm_grade, final_grade, edit_status, edit_requested')
+        .in('student_id', studentIds)
+        .eq('subject_id', subjectId)
+        .eq('academic_year', selectedClass?.academic_year || null)
+        .eq('section', selectedClass?.section || null);
 
       if (gradesError) {
         console.error('❌ Grades Error:', gradesError);
@@ -391,12 +457,20 @@ const ClassManagement: React.FC = () => {
         });
         
         // Find the grade for this student
-        const gradeRow = grades?.find((g: GradeRow) => g.student_id === student.id) || null;
+        const gradeRow = grades?.find((g: GradeRow) => (
+          g.student_id === student.id &&
+          g.subject_id === row.subject_id &&
+          (g.academic_year ?? null) === (selectedClass?.academic_year ?? null) &&
+          (g.section ?? null) === (selectedClass?.section ?? null)
+        )) || null;
+        const canEditThisStudent = (gradeRow?.edit_status || 'denied') === 'granted';
         console.log(`📊 Grade data for ${student.id}:`, {
           hasGrade: !!gradeRow,
           prelim: gradeRow?.prelim_grade,
           midterm: gradeRow?.midterm_grade,
-          final: gradeRow?.final_grade
+          final: gradeRow?.final_grade,
+          edit_status: gradeRow?.edit_status,
+          can_edit: canEditThisStudent
         });
         
         console.log('Processing student:', student.id, student.email);
@@ -615,6 +689,7 @@ const ClassManagement: React.FC = () => {
           student_id: student.student_id,
           display_name: displayName,
           avatar_url: avatarUrl,
+          can_edit_grades: canEditThisStudent,
         });
       }
       
@@ -727,10 +802,19 @@ const ClassManagement: React.FC = () => {
   // State for inline editing
   const [editingGrades, setEditingGrades] = useState<{ [key: string]: { prelim?: string; midterm?: string; final?: string } }>({});
   const [savingGrades, setSavingGrades] = useState<{ [key: string]: boolean }>({});
+  const [editingMode, setEditingMode] = useState<{ [key: string]: 'add' | 'edit' }>({});
 
   // Function to start editing grades for a student
-  const startEditingGrades = (studentId: string) => {
+  const startEditingGrades = (studentId: string, mode: 'add' | 'edit') => {
+    // noop lookup reserved for future logic
     const student = students.find(s => s.id === studentId);
+    const perRowGranted = student?.can_edit_grades === true;
+    if (mode === 'edit' && !perRowGranted) {
+      toast.error(
+        'Editing locked for this student: Registrar approval required.'
+      );
+      return;
+    }
     if (student) {
       setEditingGrades(prev => ({
         ...prev,
@@ -740,11 +824,41 @@ const ClassManagement: React.FC = () => {
           final: student.final_grade?.toString() || ''
         }
       }));
+      setEditingMode(prev => ({ ...prev, [studentId]: mode }));
     }
   };
 
   // Function to handle grade input changes during editing
   const handleGradeChange = (studentId: string, gradeType: 'prelim' | 'midterm' | 'final', value: string) => {
+    const student = students.find(s => s.id === studentId);
+    const mode = editingMode[studentId] || 'add';
+    if (mode === 'edit' && !student?.can_edit_grades) {
+      return; // editing existing requires per-grade approval granted
+    }
+    // In add mode, prevent changing already existing period values
+    if (mode === 'add') {
+      const existingValue = gradeType === 'prelim' ? student?.prelim_grade
+        : gradeType === 'midterm' ? student?.midterm_grade
+        : student?.final_grade;
+      if (existingValue != null) {
+        toast.error('Cannot modify existing grade without Registrar approval.');
+        return;
+      }
+    }
+    // Enforce sequencing: must have prelim before midterm, and prelim+midterm before final
+    const currentEdit = editingGrades[studentId] || {};
+    const hasPrelim = (currentEdit.prelim && currentEdit.prelim !== '') || (student?.prelim_grade !== null && student?.prelim_grade !== undefined);
+    const hasMidterm = (currentEdit.midterm && currentEdit.midterm !== '') || (student?.midterm_grade !== null && student?.midterm_grade !== undefined);
+
+    if (gradeType === 'midterm' && !hasPrelim) {
+      toast.error('Enter Prelim grade first before Midterm.');
+      return;
+    }
+    if (gradeType === 'final' && (!hasPrelim || !hasMidterm)) {
+      toast.error('Enter Prelim and Midterm grades before Final.');
+      return;
+    }
+
     setEditingGrades(prev => ({
       ...prev,
       [studentId]: {
@@ -756,6 +870,13 @@ const ClassManagement: React.FC = () => {
 
   // Function to save grades for a student
   const saveGrades = async (studentId: string) => {
+    // existing student reference kept for sequencing checks below
+    const mode = editingMode[studentId] || 'add';
+    const student = students.find(s => s.id === studentId);
+    if (mode === 'edit' && !student?.can_edit_grades) {
+      toast.error('Cannot edit: Registrar approval for this student is required.');
+      return;
+    }
     const editingData = editingGrades[studentId];
     if (!editingData) return;
 
@@ -778,6 +899,33 @@ const ClassManagement: React.FC = () => {
       if (finalGrade !== null && (finalGrade < 0 || finalGrade > 100)) {
         toast.error('Final grade must be between 0 and 100');
         return;
+      }
+
+      // Enforce sequencing on save as well
+      if (midtermGrade !== null && prelimGrade === null && students.find(s => s.id === studentId)?.prelim_grade == null) {
+        toast.error('You must set Prelim before Midterm.');
+        return;
+      }
+      if (finalGrade !== null) {
+        const studentExisting = students.find(s => s.id === studentId);
+        const prelimExists = prelimGrade !== null || (studentExisting?.prelim_grade != null);
+        const midtermExists = midtermGrade !== null || (studentExisting?.midterm_grade != null);
+        if (!prelimExists || !midtermExists) {
+          toast.error('You must set Prelim and Midterm before Final.');
+          return;
+        }
+      }
+      // In add mode, block changes to already existing period values
+      if (mode === 'add') {
+        const studentExisting = students.find(s => s.id === studentId);
+        if (
+          (studentExisting?.prelim_grade != null && prelimGrade !== studentExisting.prelim_grade) ||
+          (studentExisting?.midterm_grade != null && midtermGrade !== studentExisting.midterm_grade) ||
+          (studentExisting?.final_grade != null && finalGrade !== studentExisting.final_grade)
+        ) {
+          toast.error('Cannot modify existing grades without Registrar approval.');
+          return;
+        }
       }
 
       // Find the student
@@ -853,6 +1001,30 @@ const ClassManagement: React.FC = () => {
             ? { ...s, prelim_grade: prelimGrade || undefined, midterm_grade: midtermGrade || undefined, final_grade: finalGrade || undefined }
             : s
         ));
+        // If this was an edit with granted approval, immediately revert approval to denied (one-time use)
+        if (mode === 'edit') {
+          try {
+            const { data: gradeAfterSave } = await supabase
+              .from('grades')
+              .select('id')
+              .eq('student_id', key.student_id)
+              .eq('subject_id', key.subject_id)
+              .eq('academic_year', key.academic_year)
+              .eq('section', key.section)
+              .maybeSingle();
+            const gradeIdToLock = gradeAfterSave?.id as string | undefined;
+            if (gradeIdToLock) {
+              await supabase
+                .from('grades')
+                .update({ edit_status: 'denied', edit_requested: false, edit_window_expires_at: null })
+                .eq('id', gradeIdToLock);
+              // Reflect lock in UI
+              setStudents(prev => prev.map(s => s.id === studentId ? { ...s, can_edit_grades: false } : s));
+            }
+          } catch (lockErr) {
+            console.warn('Warning: could not revert edit approval state:', lockErr);
+          }
+        }
         // Stop editing
         setEditingGrades(prev => {
           const newState = { ...prev };
@@ -893,6 +1065,15 @@ const ClassManagement: React.FC = () => {
     acc[key].classes.push(cls);
     return acc;
   }, {} as Record<string, { yearLevel: string; section: string; classes: TeacherClass[] }>);
+
+  // Resolve instructor name from current user metadata/email
+  const instructorName = (
+    (user as unknown as { user_metadata?: Record<string, unknown>; email?: string })?.user_metadata?.full_name as string
+  ) || (
+    (user as unknown as { user_metadata?: Record<string, unknown> })?.user_metadata?.name as string
+  ) || (
+    (user as unknown as { user_metadata?: Record<string, unknown> })?.user_metadata?.display_name as string
+  ) || user?.email || 'Instructor';
 
   // Filter classes based on search and filters
   const filteredGroupedClasses = Object.entries(groupedClasses).reduce((acc, [key, group]) => {
@@ -941,19 +1122,160 @@ const ClassManagement: React.FC = () => {
     setExpandedSections({});
   };
 
+  // Handle adding a new subject assignment for the instructor
+  const handleAddSubject = async () => {
+    if (!user?.id) return;
+    const { subject_id, section, academic_year, semester } = newSubjectForm;
+    if (!subject_id || !section || !academic_year || !semester) {
+      toast.error('Please fill in all fields');
+      return;
+    }
+    setAddingSubject(true);
+    try {
+      const { error } = await supabase
+        .from('teacher_subjects')
+        .insert({
+          teacher_id: user.id,
+          subject_id,
+          section,
+          academic_year,
+          semester,
+          is_active: true
+        });
+      if (error) throw error;
+      toast.success('Subject added');
+      setShowAddSubject(false);
+      setNewSubjectForm({ subject_id: '', section: '', academic_year: '', semester: '' });
+      await fetchClasses();
+    } catch (e) {
+      console.error('Add subject failed:', e);
+      toast.error('Failed to add subject');
+    } finally {
+      setAddingSubject(false);
+    }
+  };
+
+  // Request registrar approval to edit grades for a specific student
+  const requestRegistrarApprovalForStudent = async (student: Student) => {
+    if (!user?.id || !selectedClass) return;
+    try {
+      const reason = window.prompt('Please enter a reason for editing this student\'s grades:');
+      if (reason === null) return; // user cancelled
+      const trimmed = reason?.trim();
+      if (!trimmed) {
+        toast.error('Reason is required');
+        return;
+      }
+
+      // Ensure a grade row exists for this student + class context
+      const key = {
+        student_id: student.id,
+        subject_id: selectedClass.subject_id,
+        academic_year: selectedClass.academic_year || null,
+        section: selectedClass.section || null,
+      };
+
+      const { data: existing, error: findErr } = await supabase
+        .from('grades')
+        .select('id')
+        .eq('student_id', key.student_id)
+        .eq('subject_id', key.subject_id)
+        .eq('academic_year', key.academic_year)
+        .eq('section', key.section)
+        .maybeSingle();
+      if (findErr && findErr.code !== 'PGRST116') throw findErr;
+
+      let gradeId = existing?.id as string | undefined;
+      if (!gradeId) {
+        const { data: inserted, error: insertErr } = await supabase
+          .from('grades')
+          .insert({
+            ...key,
+            graded_by: null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .select('id')
+          .maybeSingle();
+        if (insertErr) throw insertErr;
+        gradeId = inserted?.id as string;
+      }
+
+      // Resolve instructor full name similar to Settings.tsx logic (no email fallback)
+      let instructorDisplayName = '';
+      try {
+        const { data: instructorProfile } = await supabase
+          .from('user_profiles')
+          .select('display_name, first_name, middle_name, last_name, username, email')
+          .eq('id', user.id)
+          .maybeSingle();
+        const dbDisplay = (instructorProfile?.display_name || '').trim();
+        if (dbDisplay) {
+          instructorDisplayName = dbDisplay;
+        } else {
+          const parts = [
+            (instructorProfile?.first_name || '').trim(),
+            (instructorProfile?.middle_name || '').trim(),
+            (instructorProfile?.last_name || '').trim()
+          ].filter(Boolean);
+          const joined = parts.join(' ').trim();
+          instructorDisplayName = joined || (instructorProfile?.username || '');
+        }
+        // Fallback to auth metadata if still empty
+        if (!instructorDisplayName) {
+          const { data: authUserData } = await supabase.auth.getUser();
+          const authUser = authUserData?.user as unknown as { user_metadata?: Record<string, unknown>; identities?: Array<{ provider?: string; identity_data?: Record<string, unknown> }>; email?: string } | undefined;
+          const metadata = authUser?.user_metadata || {};
+          const identities = Array.isArray(authUser?.identities) ? authUser?.identities : [];
+          const googleIdentity = identities.find(i => i?.provider === 'google');
+          const identityData = (googleIdentity?.identity_data || {}) as Record<string, unknown>;
+          const metaName = (metadata['full_name'] as string | undefined) || (metadata['name'] as string | undefined) || (metadata['given_name'] as string | undefined) || (metadata['preferred_username'] as string | undefined);
+          const idName = (identityData['name'] as string | undefined) || (identityData['full_name'] as string | undefined) || (identityData['given_name'] as string | undefined);
+          instructorDisplayName = (metaName || idName || '').trim();
+          // Do not fall back to email; leave empty if not found
+        }
+      } catch {
+        instructorDisplayName = instructorName;
+      }
+      // If still empty, last resort to a neutral label (no email)
+      if (!instructorDisplayName) instructorDisplayName = 'Unknown Instructor';
+      const studentDisplayName = student.display_name || `${student.first_name} ${student.last_name}`;
+
+      // Update the grade row with request metadata
+      const { error: updateErr } = await supabase
+        .from('grades')
+        .update({
+          edit_requested: true,
+          edit_status: 'pending',
+          edit_reason: trimmed,
+          edit_requested_by: user.id,
+          edit_requested_by_name: instructorDisplayName,
+          edit_student_id: student.id,
+          edit_student_name: studentDisplayName,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', gradeId);
+      if (updateErr) throw updateErr;
+
+      toast.success('Request sent to Registrar for this student. Status: Pending');
+      setGradeEditStatus(prev => (prev === 'granted' ? prev : 'pending'));
+    } catch (e) {
+      console.error('Failed to request approval:', e);
+      toast.error('Failed to request approval');
+    }
+  };
+
   // Download grades as CSV for the currently selected class
   const handleDownloadGrades = () => {
     if (!selectedClass || students.length === 0) {
       toast('No grades to download', { icon: 'ℹ️' });
       return;
     }
-    const header = ['Student ID', 'Name', 'Email', 'Academic Year', 'Semester', 'Prelim', 'Midterm', 'Final', 'GA'];
+    const header = ['Student ID', 'Name', 'Email', 'Prelim', 'Midterm', 'Final', 'GA'];
     const rows = students.map(s => [
       s.student_id || s.id,
       s.display_name || `${s.first_name} ${s.last_name}`,
       s.email,
-      selectedClass.academic_year || '',
-      selectedClass.semester || '',
       s.prelim_grade ?? '',
       s.midterm_grade ?? '',
       s.final_grade ?? '',
@@ -962,14 +1284,39 @@ const ClassManagement: React.FC = () => {
         return avg ?? '';
       })()
     ]);
-    const csv = [header, ...rows]
-      .map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
-      .join('\n');
+
+    // Clean metadata header for context
+    const metaTitle = `${selectedClass.course?.code || ''} ${selectedClass.course?.name || ''}`.trim();
+    const metaInfo = [
+      `Year & Section: ${selectedClass.section || ''}`,
+      `Year Level: ${selectedClass.year_level || 'N/A'}`,
+      `Academic Year: ${selectedClass.academic_year || ''}`,
+      `Semester: ${selectedClass.semester || ''}`
+    ].join(' | ');
+
+    const serialize = (r: Array<string | number>) => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
+    const lines: string[] = [];
+    lines.push(`"${metaTitle.replace(/"/g, '""')}"`);
+    lines.push(`"Instructor: ${instructorName.replace(/"/g, '""')}"`);
+    lines.push(`"${metaInfo.replace(/"/g, '""')}"`);
+    lines.push('');
+    lines.push(serialize(header));
+    rows.forEach(r => lines.push(serialize(r)));
+    const csv = lines.join('\n');
+
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${selectedClass.course?.code || 'class'}-grades.csv`;
+    const safeCode = selectedClass.course?.code || 'class';
+    const fileName = [
+      safeCode,
+      selectedClass.section ? `Sec-${selectedClass.section}` : '',
+      selectedClass.academic_year || '',
+      selectedClass.semester ? `Sem-${selectedClass.semester}` : '',
+      'grades.csv'
+    ].filter(Boolean).join('_').replace(/[^\w\-.]+/g, '_');
+    link.download = fileName;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -984,15 +1331,20 @@ const ClassManagement: React.FC = () => {
     }
     const win = window.open('', 'PRINT', 'height=650,width=900,top=100,left=150');
     if (!win) return;
-    const title = `${selectedClass.course?.code || ''} ${selectedClass.course?.name || ''} — Section ${selectedClass.section || ''}`;
+    const title = `${selectedClass.course?.code || ''} ${selectedClass.course?.name || ''}`;
+    const instructorName = (
+      (user as unknown as { user_metadata?: Record<string, unknown>; email?: string })?.user_metadata?.full_name as string
+    ) || (
+      (user as unknown as { user_metadata?: Record<string, unknown> })?.user_metadata?.name as string
+    ) || (
+      (user as unknown as { user_metadata?: Record<string, unknown> })?.user_metadata?.display_name as string
+    ) || user?.email || 'Instructor';
     const rowsHtml = students
       .map(s => `
         <tr>
           <td style="padding:8px;border:1px solid #ddd;">${s.student_id || s.id}</td>
           <td style="padding:8px;border:1px solid #ddd;">${s.display_name || `${s.first_name} ${s.last_name}`}</td>
           <td style="padding:8px;border:1px solid #ddd;">${s.email}</td>
-          <td style="padding:8px;border:1px solid #ddd;">${selectedClass.academic_year || ''}</td>
-          <td style="padding:8px;border:1px solid #ddd;">${selectedClass.semester || ''}</td>
           <td style="padding:8px;border:1px solid #ddd; text-align:center;">${s.prelim_grade ?? ''}</td>
           <td style="padding:8px;border:1px solid #ddd; text-align:center;">${s.midterm_grade ?? ''}</td>
           <td style="padding:8px;border:1px solid #ddd; text-align:center;">${s.final_grade ?? ''}</td>
@@ -1013,15 +1365,14 @@ const ClassManagement: React.FC = () => {
         </head>
         <body>
           <h1>${title}</h1>
-          <div style="margin-bottom:10px;color:#374151;">Section: ${selectedClass.section || ''} | Year Level: ${selectedClass.year_level || ''} | AY: ${selectedClass.academic_year || ''} | Semester: ${selectedClass.semester || ''}</div>
+          <div style="margin:0 0 6px 0;color:#374151;font-weight:600;">Instructor: ${instructorName}</div>
+          <div style="margin-bottom:10px;color:#374151;">Year & Section: ${selectedClass.section || ''} | Year Level: ${selectedClass.year_level || ''} | AY: ${selectedClass.academic_year || ''} | Semester: ${selectedClass.semester || ''}</div>
           <table>
             <thead>
               <tr>
                 <th>Student ID</th>
                 <th>Name</th>
                 <th>Email</th>
-                <th>Academic Year</th>
-                <th>Semester</th>
                 <th>Prelim</th>
                 <th>Midterm</th>
                 <th>Final</th>
@@ -1090,6 +1441,61 @@ const ClassManagement: React.FC = () => {
                   <div className="space-y-4">
                     {/* Search and Filter Controls */}
                     <div className="space-y-3">
+                      {/* Add Subject Toggle */}
+                      <div className="flex justify-end">
+                        <button
+                          onClick={() => setShowAddSubject(v => !v)}
+                          className="px-3 py-1.5 text-xs bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+                        >
+                          {showAddSubject ? 'Close' : 'Add Subject'}
+                        </button>
+                      </div>
+                      {showAddSubject && (
+                        <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-lg space-y-2">
+                          <div className="grid grid-cols-1 gap-2">
+                            <select
+                              value={newSubjectForm.subject_id}
+                              onChange={(e) => setNewSubjectForm(f => ({ ...f, subject_id: e.target.value }))}
+                              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                            >
+                              <option value="">Select Subject</option>
+                              {availableCourses.map(c => (
+                                <option key={c.id} value={c.id}>
+                                  {c.code} — {c.name}
+                                </option>
+                              ))}
+                            </select>
+                            <input
+                              value={newSubjectForm.section}
+                              onChange={(e) => setNewSubjectForm(f => ({ ...f, section: e.target.value }))}
+                              placeholder="Section"
+                              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                            />
+                            <input
+                              value={newSubjectForm.academic_year}
+                              onChange={(e) => setNewSubjectForm(f => ({ ...f, academic_year: e.target.value }))}
+                              placeholder="Academic Year (e.g., 2024-2025)"
+                              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                            />
+                            <input
+                              value={newSubjectForm.semester}
+                              onChange={(e) => setNewSubjectForm(f => ({ ...f, semester: e.target.value }))}
+                              placeholder="Semester (e.g., 1st)"
+                              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                            />
+                          </div>
+                          <div className="flex justify-end">
+                            <button
+                              onClick={handleAddSubject}
+                              disabled={addingSubject}
+                              className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
+                            >
+                              {addingSubject ? 'Adding…' : 'Save Subject'}
+                            </button>
+                          </div>
+                          <p className="text-[11px] text-gray-600">You can add subjects anytime. Editing grades stays locked unless Registrar approval is granted.</p>
+                        </div>
+                      )}
                       {/* Search */}
                       <div className="relative">
                         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -1340,33 +1746,32 @@ const ClassManagement: React.FC = () => {
                             <BookOpen className="w-5 h-5 text-white" />
                           </div>
                           <div>
-                            <h2 className="text-xl font-bold text-gray-900">{selectedClass.course?.name}</h2>
-                            <div className="flex items-center gap-2 mt-1">
-                              <span className="px-3 py-1 bg-white/80 text-green-700 text-sm font-medium rounded-full shadow-sm">
+                            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-3">
+                              {selectedClass.course?.name}
+                              <span className="bg-gradient-to-r from-emerald-500 to-green-400 text-white px-3 py-1 rounded-xl text-base font-mono tracking-wide shadow-lg border-2 border-emerald-600">
                                 {selectedClass.course?.code}
                               </span>
+                            </h2>
+                            <div className="flex items-center gap-2 mt-1">
+  
                               <span className="text-sm text-gray-500">•</span>
                               <span className="text-sm text-gray-600">{students.length} students enrolled</span>
                             </div>
                           </div>
-                        </div>
+                        </div>  
                         
                         <div className="flex flex-wrap gap-4 text-sm text-gray-600">
                           <div className="flex items-center gap-2">
-                            <span className="font-medium">Section:</span>
-                            <span className="bg-white/80 px-3 py-1 rounded-lg shadow-sm">{selectedClass.section}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">Year Level:</span>
-                            <span className="bg-white/80 px-3 py-1 rounded-lg shadow-sm">{selectedClass.year_level || 'N/A'}</span>
+                            <span className="font-medium">Year&Section:</span>
+                            <span className="bg-white/80 px-3 py-1 rounded-lg shadow-sm border border-emerald-300">{selectedClass.section}</span>
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="font-medium">Academic Year:</span>
-                            <span className="bg-white/80 px-3 py-1 rounded-lg shadow-sm">{selectedClass.academic_year}</span>
+                            <span className="bg-white/80 px-3 py-1 rounded-lg shadow-sm border border-emerald-300">{selectedClass.academic_year}</span>
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="font-medium">Semester:</span>
-                            <span className="bg-white/80 px-3 py-1 rounded-lg shadow-sm">{selectedClass.semester}</span>
+                            <span className="bg-white/80 px-3 py-1 rounded-lg shadow-sm border border-emerald-300">{selectedClass.semester}</span>
                           </div>
                         </div>
                       </div>
@@ -1501,6 +1906,8 @@ const ClassManagement: React.FC = () => {
                                       value={editingGrades[student.id].midterm || ''}
                                       onChange={(e) => handleGradeChange(student.id, 'midterm', e.target.value)}
                                       className="w-16 px-2 py-1 border border-gray-300 rounded text-sm"
+                                      disabled={!((editingGrades[student.id]?.prelim && editingGrades[student.id]?.prelim !== '') || (student.prelim_grade !== null && student.prelim_grade !== undefined))}
+                                      title={!((editingGrades[student.id]?.prelim && editingGrades[student.id]?.prelim !== '') || (student.prelim_grade !== null && student.prelim_grade !== undefined)) ? 'Enter Prelim first' : ''}
                                     />
                                   ) : (
                                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
@@ -1520,6 +1927,8 @@ const ClassManagement: React.FC = () => {
                                       value={editingGrades[student.id].final || ''}
                                       onChange={(e) => handleGradeChange(student.id, 'final', e.target.value)}
                                       className="w-16 px-2 py-1 border border-gray-300 rounded text-sm"
+                                      disabled={!(((editingGrades[student.id]?.prelim && editingGrades[student.id]?.prelim !== '') || (student.prelim_grade !== null && student.prelim_grade !== undefined)) && ((editingGrades[student.id]?.midterm && editingGrades[student.id]?.midterm !== '') || (student.midterm_grade !== null && student.midterm_grade !== undefined)))}
+                                      title={!(((editingGrades[student.id]?.prelim && editingGrades[student.id]?.prelim !== '') || (student.prelim_grade !== null && student.prelim_grade !== undefined)) && ((editingGrades[student.id]?.midterm && editingGrades[student.id]?.midterm !== '') || (student.midterm_grade !== null && student.midterm_grade !== undefined))) ? 'Enter Prelim and Midterm first' : ''}
                                     />
                                   ) : (
                                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
@@ -1557,12 +1966,46 @@ const ClassManagement: React.FC = () => {
                                       </button>
                                     </div>
                                   ) : (
-                                    <button
-                                      onClick={() => startEditingGrades(student.id)}
-                                      className="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                                    >
-                                      Edit
-                                    </button>
+                                    (() => {
+                                      const allFilled = (
+                                        student.prelim_grade != null &&
+                                        student.midterm_grade != null &&
+                                        student.final_grade != null
+                                      );
+                                      const editDisabled = !student.can_edit_grades;
+                                      return (
+                                        <div className="flex items-center justify-center space-x-2">
+                                          {!allFilled && (
+                                            <button
+                                              onClick={() => startEditingGrades(student.id, 'add')}
+                                              className="inline-flex items-center p-1.5 border border-indigo-600 rounded-md text-indigo-50 bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-600"
+                                              title="Add Grade"
+                                            >
+                                              <Plus className="w-4 h-4" />
+                                            </button>
+                                          )}
+                                          <button
+                                            onClick={() => startEditingGrades(student.id, 'edit')}
+                                            className={`inline-flex items-center p-1.5 border rounded-md text-white focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                                              editDisabled ? 'bg-gray-400 border-gray-500 cursor-not-allowed' : 'bg-purple-600 border-purple-700 hover:bg-purple-700 focus:ring-purple-500'
+                                            }`}
+                                            disabled={editDisabled}
+                                            title={editDisabled ? 'Editing locked until Registrar approval' : 'Edit Grades'}
+                                          >
+                                            <Pencil className="w-4 h-4" />
+                                          </button>
+                                          {gradeEditStatus !== 'granted' && (
+                                            <button
+                                              onClick={() => requestRegistrarApprovalForStudent(student)}
+                                              className="inline-flex items-center p-1.5 border border-yellow-600 rounded-md text-yellow-50 bg-yellow-500 hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-600"
+                                              title="Request Registrar Approval"
+                                            >
+                                              <ShieldAlert className="w-4 h-4" />
+                                            </button>
+                                          )}
+                                        </div>
+                                      );
+                                    })()
                                   )}
                                 </td>
                               </tr>
