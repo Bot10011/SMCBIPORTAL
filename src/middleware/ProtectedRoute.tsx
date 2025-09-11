@@ -80,7 +80,12 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = (props) => {
 
   // Prevent access for deactivated users
   if (isActive === false) {
-    toast.error('Your account has been deactivated. Please contact the administrator.');
+    // Avoid duplicate toasts on rapid redirects
+    const alreadyNotified = sessionStorage.getItem('deactivated_toast_shown') === '1';
+    if (!alreadyNotified) {
+      toast.error('Your account has been deactivated. Please contact the administrator.');
+      sessionStorage.setItem('deactivated_toast_shown', '1');
+    }
     supabase.auth.signOut();
     return <Navigate to="/" replace />;
   }
