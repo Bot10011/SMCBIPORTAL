@@ -7,7 +7,7 @@ import { useAuth } from './contexts/AuthContext';
 import toast from 'react-hot-toast';
 import { AuthError } from '@supabase/supabase-js';
 import PasswordResetForm from './components/PasswordResetForm';
-import ForcePasswordChange from './components/ForcePasswordChange'; 
+import ForcePasswordChange from './components/ForcePasswordChange';
 
 interface LoginProps {
   onClose?: () => void;
@@ -44,7 +44,67 @@ const Login: React.FC<LoginProps> = ({ onClose }) => {
   const location = useLocation();
   const { login } = useAuth();
 
-  // Add cooldown ticker for recovery
+  // Attack detection state
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [lastFailedTime, setLastFailedTime] = useState<number>(0);
+
+  // Attack detection functions
+  const logAttack = async (type: string, details: string) => {
+    try {
+      const userIP = await getUserIP();
+      console.log(`🚨 ATTACK DETECTED: ${type} - ${details} - IP: ${userIP}`);
+      
+      // Try to log to API endpoint
+      const response = await fetch('/api/security-events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          type, 
+          ip: userIP, 
+          details: `${details} - Email: ${formData.username}` 
+        })
+      });
+      
+      if (response.ok) {
+        console.log('✅ Attack logged successfully to security-events API');
+      } else {
+        console.warn('⚠️ Security-events API not available, attack logged to console only');
+      }
+    } catch (error) {
+      console.error('❌ Failed to log attack:', error);
+      console.log('🔍 This is normal if running locally without API server');
+    }
+  };
+
+  const getUserIP = async (): Promise<string> => {
+    try {
+      const response = await fetch('https://api.ipify.org?format=json');
+      const data = await response.json();
+      return data.ip || 'unknown';
+    } catch {
+      return 'unknown';
+    }
+  };
+
+  const detectSuspiciousInput = (input: string): boolean => {
+    const suspiciousPatterns = [
+      /union\s+select/i,
+      /drop\s+table/i,
+      /delete\s+from/i,
+      /insert\s+into/i,
+      /update\s+set/i,
+      /<script[^>]*>.*?<\/script>/i,
+      /javascript:/i,
+      /on\w+\s*=/i,
+      /eval\s*\(/i,
+      /document\.cookie/i,
+      /alert\s*\(/i,
+      /confirm\s*\(/i,
+      /prompt\s*\(/i
+    ];
+    
+    return suspiciousPatterns.some(pattern => pattern.test(input));
+  };
   React.useEffect(() => {
     if (recoveryCooldown <= 0) return;
     const t = setInterval(() => setRecoveryCooldown(v => (v > 0 ? v - 1 : 0)), 1000);
@@ -73,14 +133,31 @@ const Login: React.FC<LoginProps> = ({ onClose }) => {
     console.log('Login attempt started'); // Debug log
 
     try {
+      // Attack detection: Check for suspicious input
+      if (detectSuspiciousInput(formData.username) || detectSuspiciousInput(formData.password)) {
+        await logAttack('XSS/SQL Injection Attempt', `Suspicious input detected in login form`);
+        toast.error('Suspicious input detected. Login blocked.');
+        setIsLoading(false);
+        return;
+      }
+
       // Append @smcbi.edu.ph when submitting
       const fullEmail = `${formData.username}@smcbi.edu.ph`;
       console.log('Attempting login with email:', fullEmail); // Debug log
       
-      // Check if user exists in database before attempting authentication
-      const userExists = await db.users.checkUserExists(fullEmail);
-      if (!userExists) {
+      // Check registration and activation before attempting authentication
+      const { data: profile, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('id, is_active')
+        .eq('email', fullEmail)
+        .single();
+      if (profileError || !profile) {
         toast.error('Account not registered. Please contact your adviser or program head to request access.');
+        setIsLoading(false);
+        return;
+      }
+      if (profile && profile.is_active === false) {
+        toast.error('Your account has been deactivated. Please contact the administrator.');
         setIsLoading(false);
         return;
       }
@@ -181,6 +258,22 @@ const Login: React.FC<LoginProps> = ({ onClose }) => {
     } catch (error) {
       console.error('Login error:', error);
       let errorMessage = 'Failed to login. Please try again.';
+      
+      // Attack detection: Track failed attempts
+      const now = Date.now();
+      const timeSinceLastFail = now - lastFailedTime;
+      
+      if (timeSinceLastFail < 300000) { // 5 minutes
+        setFailedAttempts(prev => prev + 1);
+      } else {
+        setFailedAttempts(1);
+      }
+      setLastFailedTime(now);
+      
+      // Log brute force attack if too many failed attempts
+      if (failedAttempts >= 3) {
+        await logAttack('Brute Force Attack', `Multiple failed login attempts detected (${failedAttempts + 1} attempts)`);
+      }
       
       if (error instanceof AuthError) {
         console.log('Auth error details:', error); // Debug log
