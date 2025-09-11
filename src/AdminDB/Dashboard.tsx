@@ -8,6 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
 import InstructorManagement from './InstructorManagement';
 import ClassManagement from './ClassManagement';
+import ProgramHeadEnrollment from './ProgramHeadEnrollment';
 // Google Identity Services TypeScript declarations
 declare global {
   interface Window {
@@ -2788,6 +2789,7 @@ const AdminDashboard: React.FC = () => {
             <Route path="/student-grades" element={<StudentGrades />} />
             <Route path="/enroll-student" element={<RegistrarEnrollment />} />
             <Route path="/instructor-management" element={<InstructorManagement />} />
+             <Route path="/enroll-student" element={<ProgramHeadEnrollment />} />
             <Route path="/class-management" element={<ClassManagement />} />
             <Route path="/settings" element={<SystemSettings />} />
           </Routes>
