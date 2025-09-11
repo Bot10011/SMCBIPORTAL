@@ -248,17 +248,27 @@ const SystemMonitoring: React.FC = () => {
   };
 
   return (
-    <div className="container mx-auto p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-800">System Monitoring</h1>
-        <button
-          onClick={fetchSystemData}
-          disabled={refreshing}
-          className="flex items-center px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors disabled:opacity-50"
-        >
-          <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-          {refreshing ? 'Refreshing...' : 'Refresh Data'}
-        </button>
+    <div className="mx-auto max-w-7xl p-4 sm:p-6">
+      <div className="mb-6 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-700 px-5 py-5 shadow-lg text-white">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center">
+            <div className="mr-4 rounded-full bg-white/20 p-3">
+              <Activity className="h-6 w-6" />
+            </div>
+            <div>
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight">System Monitoring</h1>
+              <p className="text-sm opacity-90">Live status, recent logins, and storage usage</p>
+            </div>
+          </div>
+          <button
+            onClick={fetchSystemData}
+            disabled={refreshing}
+            className="inline-flex items-center gap-2 rounded-lg bg-white/15 px-3 py-2 text-sm font-medium text-white hover:bg-white/25 focus:outline-none focus:ring-2 focus:ring-white/50 disabled:opacity-60"
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+            {refreshing ? 'Refreshing' : 'Refresh'}
+          </button>
+        </div>
       </div>
       
       {loading ? (
@@ -268,89 +278,65 @@ const SystemMonitoring: React.FC = () => {
       ) : (
         <>
           {/* System Status Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-            <div className="bg-white rounded-lg shadow p-6 flex items-start">
-              <div className="p-3 rounded-full bg-blue-100 mr-4">
-                <Users className="w-6 h-6 text-blue-500" />
-              </div>
+          <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
+            <div className="flex items-start rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-200">
+              <div className="mr-4 rounded-full bg-blue-100 p-3"><Users className="h-6 w-6 text-blue-600" /></div>
               <div>
-                <p className="text-sm font-medium text-gray-500">Recent Users (24h)</p>
-                <p className="text-2xl font-bold text-gray-800">
-                  {databaseHealth?.recentActivity.totalActiveUsers || 0}
-                </p>
-                <p className="text-sm text-green-500">↑ New profiles created</p>
+                <p className="text-xs font-medium text-gray-500">Recent Users (24h)</p>
+                <p className="text-2xl font-bold text-gray-900">{databaseHealth?.recentActivity.totalActiveUsers || 0}</p>
+                <p className="text-xs text-green-600">Active in the last day</p>
               </div>
             </div>
-
-            <div className="bg-white rounded-lg shadow p-6 flex items-start">
-              <div className="p-3 rounded-full bg-green-100 mr-4">
-                <Database className="w-6 h-6 text-green-500" />
-              </div>
+            <div className="flex items-start rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-200">
+              <div className="mr-4 rounded-full bg-green-100 p-3"><Database className="h-6 w-6 text-green-600" /></div>
               <div>
-                <p className="text-sm font-medium text-gray-500">Database Rows</p>
-                <p className="text-2xl font-bold text-gray-800">
-                  {formatNumber(databaseHealth?.totalRows || 0)}
-                </p>
-                <p className="text-sm text-blue-500">Total records</p>
+                <p className="text-xs font-medium text-gray-500">Database Rows</p>
+                <p className="text-2xl font-bold text-gray-900">{formatNumber(databaseHealth?.totalRows || 0)}</p>
+                <p className="text-xs text-green-700">Total records</p>
               </div>
             </div>
-
-            <div className="bg-white rounded-lg shadow p-6 flex items-start">
-              <div className="p-3 rounded-full bg-purple-100 mr-4">
-                <HardDrive className="w-6 h-6 text-purple-500" />
-              </div>
+            <div className="flex items-start rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-200">
+              <div className="mr-4 rounded-full bg-purple-100 p-3"><HardDrive className="h-6 w-6 text-purple-600" /></div>
               <div>
-                <p className="text-sm font-medium text-gray-500">Storage Used</p>
-                <p className="text-2xl font-bold text-gray-800">
-                  {formatBytes(usedBytes)}
-                </p>
-                <p className="text-sm text-purple-500">Files & documents</p>
-                <p className="text-xs text-gray-500 mt-1">
-                  Space Left: <span className="font-semibold">{formatBytes(leftBytes > 0 ? leftBytes : 0)}</span> / {formatBytes(STORAGE_LIMIT_BYTES)}
-                </p>
+                <p className="text-xs font-medium text-gray-500">Storage Used</p>
+                <p className="text-2xl font-bold text-gray-900">{formatBytes(usedBytes)}</p>
+                <p className="text-xs text-gray-500 mt-1">Left: <span className="font-semibold">{formatBytes(leftBytes > 0 ? leftBytes : 0)}</span> / {formatBytes(STORAGE_LIMIT_BYTES)}</p>
               </div>
             </div>
-
-            <div className="bg-white rounded-lg shadow p-6 flex items-start">
-              <div className="p-3 rounded-full bg-orange-100 mr-4">
-                <Activity className="w-6 h-6 text-orange-500" />
-              </div>
+            <div className="flex items-start rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-200">
+              <div className="mr-4 rounded-full bg-orange-100 p-3"><Activity className="h-6 w-6 text-orange-600" /></div>
               <div>
-                <p className="text-sm font-medium text-gray-500">Database Size</p>
-                <p className="text-2xl font-bold text-gray-800">
-                  {formatBytes(databaseHealth?.estimatedDbSize || 0)}
-                </p>
-                <p className="text-sm text-orange-500">Estimated</p>
+                <p className="text-xs font-medium text-gray-500">Database Size</p>
+                <p className="text-2xl font-bold text-gray-900">{formatBytes(databaseHealth?.estimatedDbSize || 0)}</p>
+                <p className="text-xs text-orange-700">Estimated</p>
               </div>
             </div>
           </div>
 
           {/* Login Sessions */}
-          <div className="bg-white p-6 rounded-lg shadow mb-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-gray-800 flex items-center">
-                <Clock className="w-5 h-5 mr-2 text-blue-500" />
+          <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="flex items-center text-xl font-bold text-gray-800">
+                <Clock className="mr-2 h-5 w-5 text-blue-500" />
                 Recent Login Sessions
               </h2>
               {loginStats && (
-                <div className="text-sm text-gray-500">
-                  {loginStats.last24h} logins in last 24h • {loginStats.uniqueUsers} unique users
-                </div>
+                <div className="text-sm text-gray-500">{loginStats.last24h} logins in last 24h • {loginStats.uniqueUsers} unique users</div>
               )}
             </div>
             
             {loginSessions.length > 0 ? (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {loginSessions.slice(0, 10).map((session) => (
                   <div 
                     key={session.id} 
-                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors"
+                    className="flex cursor-pointer items-center justify-between rounded-xl bg-gray-50 p-3 ring-1 ring-gray-200 hover:bg-gray-100"
                     onClick={() => handleSessionClick(session)}
                   >
                     <div className="flex items-center space-x-3">
                       <div className="flex-shrink-0">
-                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                          <Activity className="w-4 h-4 text-blue-600" />
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100">
+                          <Activity className="h-4 w-4 text-blue-600" />
                         </div>
                       </div>
                       <div>
@@ -358,17 +344,34 @@ const SystemMonitoring: React.FC = () => {
                           <span className="font-medium text-gray-900">
                             {session.user_profiles?.first_name} {session.user_profiles?.last_name}
                           </span>
-                          <span className="text-xs bg-gray-200 px-2 py-1 rounded-full text-gray-600">
+                          <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-600">
                             {session.user_profiles?.role}
                           </span>
+                          {session.location_source && (
+                            <span
+                              className={`text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wide ${
+                                session.location_source === 'GPS'
+                                  ? 'bg-green-100 text-green-700'
+                                  : session.location_source === 'IP'
+                                  ? 'bg-blue-100 text-blue-700'
+                                  : 'bg-gray-100 text-gray-600'
+                              }`}
+                              title={session.location_accuracy ? `Accuracy: ~${Math.round(session.location_accuracy)}m` : undefined}
+                            >
+                              {session.location_source}
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center space-x-4 text-xs text-gray-500">
                           <span className="flex items-center">
-                            <MapPin className="w-3 h-3 mr-1" />
+                            <MapPin className="mr-1 h-3 w-3" />
                             {session.city}, {session.country}
                           </span>
                           <span>{session.device_type} • {session.browser}</span>
                           <span>{new Date(session.login_time).toLocaleString()}</span>
+                          {typeof session.location_accuracy === 'number' && session.location_accuracy > 0 && (
+                            <span className="text-[11px] text-gray-500">±{Math.round(session.location_accuracy)}m</span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -380,7 +383,7 @@ const SystemMonitoring: React.FC = () => {
               </div>
             ) : (
               <div className="text-center py-8 text-gray-500">
-                <Clock className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                <Clock className="mx-auto mb-3 h-12 w-12 text-gray-300" />
                 <p>No login sessions found</p>
               </div>
             )}
@@ -402,3 +405,5 @@ const SystemMonitoring: React.FC = () => {
 };
 
 export default SystemMonitoring;
+
+
