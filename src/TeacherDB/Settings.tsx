@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { motion } from 'framer-motion';
-import { Mail, UserCircle, Briefcase } from 'lucide-react';
+import { Mail, UserCircle, Briefcase, Eye, EyeOff } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 
 // Removed cropping/upload utilities; avatar will be fetched from Google account metadata
 
@@ -12,7 +13,7 @@ interface TeacherProfile {
   username: string;
   first_name: string;
   last_name: string;
-  middle_name?: string; 
+  middle_name?: string;
   role: string;
   department?: string;
   is_active: boolean;
@@ -26,8 +27,33 @@ const TeacherSettings: React.FC = () => {
   const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState<string>('');
   
+  // Password change modal states
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
+  
   
   // Edit profile and change password removed for this view
+
+  // Helper function to get student name
+  const getStudentName = (student: {display_name?: string, first_name?: string, last_name?: string, middle_name?: string}) => {
+    if (student?.display_name && student.display_name.trim() !== '') {
+      return student.display_name;
+    }
+    
+    // Fallback to concatenating first_name, last_name, middle_name
+    const firstName = student?.first_name || '';
+    const lastName = student?.last_name || '';
+    const middleName = student?.middle_name || '';
+    
+    const nameParts = [firstName, middleName, lastName].filter(part => part.trim() !== '');
+    return nameParts.length > 0 ? nameParts.join(' ') : 'Unknown Student';
+  };
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -47,7 +73,7 @@ const TeacherSettings: React.FC = () => {
           
           // Priority 2: Fallback to constructed name from first/middle/last names
           if (!resolvedName) {
-            resolvedName = `${data?.first_name || ''} ${data?.middle_name ? data.middle_name + ' ' : ''}${data?.last_name || ''}`.trim();
+            resolvedName = getStudentName(data);
           }
           
           // Priority 3: Fallback to username if no name available
@@ -129,6 +155,77 @@ const TeacherSettings: React.FC = () => {
   // Removed handleEditProfile
 
   // Removed handleChangePassword
+
+  // Password change handlers
+  const handleOpenPasswordModal = () => {
+    setShowPasswordModal(true);
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setShowCurrentPassword(false);
+    setShowNewPassword(false);
+    setShowConfirmPassword(false);
+  };
+
+  const handleClosePasswordModal = () => {
+    setShowPasswordModal(false);
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setChangingPassword(false);
+  };
+
+  const handleChangePassword = async () => {
+    // Validation
+    if (!currentPassword.trim()) {
+      toast.error('Please enter your current password');
+      return;
+    }
+    
+    if (!newPassword.trim()) {
+      toast.error('Please enter a new password');
+      return;
+    }
+    
+    if (newPassword.length < 6) {
+      toast.error('New password must be at least 6 characters long');
+      return;
+    }
+    
+    if (newPassword !== confirmPassword) {
+      toast.error('New passwords do not match');
+      return;
+    }
+    
+    if (currentPassword === newPassword) {
+      toast.error('New password must be different from current password');
+      return;
+    }
+
+    setChangingPassword(true);
+    
+    try {
+      // Update password using Supabase Auth
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+      
+      if (error) {
+        console.error('Password update error:', error);
+        toast.error(error.message || 'Failed to update password');
+        return;
+      }
+      
+      toast.success('Password updated successfully!');
+      handleClosePasswordModal();
+      
+    } catch (error) {
+      console.error('Error changing password:', error);
+      toast.error('Failed to update password. Please try again.');
+    } finally {
+      setChangingPassword(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -237,9 +334,131 @@ const TeacherSettings: React.FC = () => {
                 </div>
               </div>
             )}
+            
+            {/* Change Password Button */}
+            <button
+              onClick={handleOpenPasswordModal}
+              className="px-4 py-2 bg-[#2C3E50] hover:bg-[#34495E] text-white rounded-lg font-medium transition-colors duration-200 shadow-sm hover:shadow-md mt-2"
+            >
+              Change Password
+            </button>
           </div>
         </div>
 
+        {/* Password Change Modal */}
+        {showPasswordModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Change Password</h3>
+                <button
+                  onClick={handleClosePasswordModal}
+                  className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
+                >
+                  ×
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                {/* Current Password */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Current Password
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showCurrentPassword ? 'text' : 'password'}
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Enter current password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+                
+                {/* New Password */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    New Password
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showNewPassword ? 'text' : 'password'}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Enter new password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Confirm New Password */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Confirm New Password
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Confirm new password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={handleClosePasswordModal}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                                 <button
+                   onClick={handleChangePassword}
+                   disabled={changingPassword}
+                   className="flex-1 px-4 py-2 bg-[#2C3E50] text-white rounded-lg hover:bg-[#34495E] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                 >
+                  {changingPassword ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      Updating...
+                    </div>
+                  ) : (
+                    'Update Password'
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
 
         {/* Action Buttons removed */}
       </motion.div>
