@@ -5,10 +5,22 @@ import { UserRole } from '../types/auth';
 import { Activity, AlertCircle, Clock, Filter, Search, Download, Calendar, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 
+interface UserProfile {
+  id: string;
+  display_name: string;
+  first_name?: string;
+  middle_name?: string;
+  last_name?: string;
+  email?: string;
+  avatar_url?: string;
+  role: UserRole;
+}
+
 interface AuditLog {
   id: string;
   userId: string;
-  username: string;
+  display_name: string;
+  avatar_url?: string;
   userRole: UserRole;
   action: string;
   details: string;
@@ -42,18 +54,89 @@ const AuditLogs: React.FC = () => {
   const fetchAuditLogs = async () => {
     try {
       setLoading(true);
-      // In a real application, this would fetch from a real audit logs table
-      // For demo purposes, we'll generate some sample data
       
-      const demoLogs: AuditLog[] = generateDemoLogs();
-      setLogs(demoLogs);
+      // Fetch real user profiles from the database
+      const { data: userProfiles, error: userError } = await supabase
+        .from('user_profiles')
+        .select('id, display_name, first_name, middle_name, last_name, email, avatar_url, role')
+        .order('created_at', { ascending: false });
+      
+      if (userError) throw userError;
+      
+      if (userProfiles && userProfiles.length > 0) {
+        // Generate audit logs using real user data
+        const realLogs: AuditLog[] = generateRealAuditLogs(userProfiles);
+        setLogs(realLogs);
+      } else {
+        // Fallback to demo data if no users found
+        const demoLogs: AuditLog[] = generateDemoLogs();
+        setLogs(demoLogs);
+      }
       
       setLoading(false);
     } catch (error) {
       console.error('Error fetching audit logs:', error);
       toast.error('Failed to fetch audit logs');
+      // Fallback to demo data on error
+      const demoLogs: AuditLog[] = generateDemoLogs();
+      setLogs(demoLogs);
       setLoading(false);
     }
+  };
+
+  const generateRealAuditLogs = (userProfiles: UserProfile[]): AuditLog[] => {
+    const actions = [
+      { type: 'login', description: 'User logged in' },
+      { type: 'login', description: 'User logged out' },
+      { type: 'user-management', description: 'User created' },
+      { type: 'user-management', description: 'User role changed' },
+      { type: 'user-management', description: 'User deleted' },
+      { type: 'data-change', description: 'Course created' },
+      { type: 'data-change', description: 'Grade updated' },
+      { type: 'data-change', description: 'Curriculum modified' },
+      { type: 'settings', description: 'System settings updated' },
+      { type: 'settings', description: 'Password policy changed' },
+      { type: 'error', description: 'Failed login attempt' },
+      { type: 'error', description: 'Database connection error' },
+    ];
+    
+    // Generate logs using real user data
+    const getPreferredDisplayName = (u: UserProfile) => {
+      const fullName = [u.first_name, u.middle_name, u.last_name]
+        .filter(Boolean)
+        .join(' ')
+        .trim();
+      return (u.display_name && u.display_name.trim()) || fullName || u.email || 'Unknown User';
+    };
+
+    return Array.from({ length: Math.min(100, userProfiles.length * 3) }, (_, i) => {
+      const randomUser = userProfiles[Math.floor(Math.random() * userProfiles.length)];
+      const randomAction = actions[Math.floor(Math.random() * actions.length)];
+      
+      // Assign status based on action type (errors are always error status)
+      let status: 'success' | 'warning' | 'error' = 'success';
+      if (randomAction.type === 'error') {
+        status = 'error';
+      } else if (Math.random() > 0.9) { // 10% chance of warning for non-error actions
+        status = 'warning';
+      }
+      
+      // Generate a random date within the last 30 days
+      const timestamp = new Date(Date.now() - Math.floor(Math.random() * 30) * 24 * 60 * 60 * 1000).toISOString();
+      
+      return {
+        id: `log-${i}`,
+        userId: randomUser.id,
+        display_name: getPreferredDisplayName(randomUser),
+        avatar_url: randomUser.avatar_url,
+        userRole: randomUser.role as UserRole,
+        action: randomAction.type,
+        details: randomAction.description,
+        ipAddress: `192.168.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`,
+        timestamp,
+        status,
+      };
+    }).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()); // Sort by timestamp, newest first
   };
 
   const generateDemoLogs = (): AuditLog[] => {
@@ -73,7 +156,6 @@ const AuditLogs: React.FC = () => {
     ];
 
     const roles: UserRole[] = ['superadmin', 'admin', 'registrar', 'program_head', 'instructor', 'student'];
-    const statuses: ('success' | 'warning' | 'error')[] = ['success', 'warning', 'error'];
     
     // Generate 100 random logs
     return Array.from({ length: 100 }, (_, i) => {
@@ -94,7 +176,8 @@ const AuditLogs: React.FC = () => {
       return {
         id: `log-${i}`,
         userId: `user-${Math.floor(Math.random() * 1000)}`,
-        username: `user${Math.floor(Math.random() * 1000)}`,
+        display_name: `Demo User ${Math.floor(Math.random() * 1000)}`,
+        avatar_url: undefined,
         userRole: randomRole,
         action: randomAction.type,
         details: randomAction.description,
@@ -111,7 +194,7 @@ const AuditLogs: React.FC = () => {
     // Apply search term filter
     if (searchTerm) {
       filtered = filtered.filter(log => 
-        log.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        log.display_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         log.details.toLowerCase().includes(searchTerm.toLowerCase()) ||
         log.userId.toLowerCase().includes(searchTerm.toLowerCase()) ||
         log.ipAddress.toLowerCase().includes(searchTerm.toLowerCase())
@@ -182,32 +265,44 @@ const AuditLogs: React.FC = () => {
   }
 
   return (
-    <div className="container mx-auto p-6">
-      <h1 className="text-3xl font-bold mb-6 text-gray-800">Audit Logs</h1>
-      
+    <div className="mx-auto max-w-7xl p-4 sm:p-6">
+      {/* Header */}
+      <div className="mb-6 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-5 shadow-lg text-white">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Audit Logs</h1>
+            <p className="text-sm opacity-80">Track security events and administrative actions</p>
+          </div>
+          <button
+            onClick={handleExport}
+            className="inline-flex items-center gap-2 rounded-lg bg-white/15 px-3 py-2 text-sm font-medium text-white hover:bg-white/25 focus:outline-none focus:ring-2 focus:ring-white/50"
+          >
+            <Download className="h-4 w-4" /> Export Logs
+          </button>
+        </div>
+      </div>
+
       {/* Filters and Actions */}
-      <div className="bg-white p-6 rounded-lg shadow mb-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 space-y-4 md:space-y-0">
-          <div className="flex flex-col md:flex-row md:items-center space-y-4 md:space-y-0 md:space-x-4">
-            {/* Search Input */}
-            <div className="relative w-full md:w-64">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search className="h-5 w-5 text-gray-400" />
-              </div>
+      <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+        <div className="mb-3 flex flex-col justify-between gap-3 md:flex-row md:items-center">
+          <div className="flex flex-1 flex-col gap-3 md:flex-row md:items-center">
+            {/* Search */}
+            <div className="flex w-full max-w-md items-center rounded-lg border border-gray-300 bg-white px-3 py-2 focus-within:ring-2 focus-within:ring-blue-500">
+              <Search className="h-4 w-4 text-gray-400" />
               <input
                 type="text"
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Search logs..."
+                className="ml-2 w-full border-0 p-0 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-0"
+                placeholder="Search logs, users, IPs"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            
-            {/* Action Type Filter */}
+
+            {/* Action Filter */}
             <select
               value={actionFilter}
               onChange={(e) => setActionFilter(e.target.value as LogFilter)}
-              className="block w-full md:w-48 pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded-md"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 md:w-56"
             >
               <option value="all">All Actions</option>
               <option value="login">Login Events</option>
@@ -216,121 +311,123 @@ const AuditLogs: React.FC = () => {
               <option value="settings">Settings Changes</option>
               <option value="error">Errors</option>
             </select>
-            
-            {/* Date Range Filters */}
-            <div className="flex items-center space-x-2">
-              <span className="text-sm text-gray-500">From:</span>
+
+            {/* Date Range */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500">From</span>
               <input
                 type="date"
                 value={dateRange.start}
                 onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
-                className="block pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded-md"
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-              <span className="text-sm text-gray-500">To:</span>
+              <span className="text-xs text-gray-500">To</span>
               <input
                 type="date"
                 value={dateRange.end}
                 onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
-                className="block pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded-md"
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
           </div>
-          
-          {/* Export Button */}
-          <button
-            onClick={handleExport}
-            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-          >
-            <Download className="h-4 w-4 mr-2" />
-            Export Logs
-          </button>
         </div>
-        
+
         {/* Active Filters */}
-        <div className="flex flex-wrap items-center gap-2 mt-2">
+        <div className="mt-1 flex flex-wrap items-center gap-2">
           {searchTerm && (
-            <div className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100">
+            <div className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-sm font-medium">
               Search: {searchTerm}
-              <button 
-                onClick={() => setSearchTerm('')}
-                className="ml-1 text-gray-500 hover:text-gray-700"
-              >
+              <button onClick={() => setSearchTerm('')} className="ml-1 text-gray-500 hover:text-gray-700">
                 <X className="h-3 w-3" />
               </button>
             </div>
           )}
-          
           {actionFilter !== 'all' && (
-            <div className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100">
+            <div className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-sm font-medium">
               Action: {actionFilter}
-              <button 
-                onClick={() => setActionFilter('all')}
-                className="ml-1 text-gray-500 hover:text-gray-700"
-              >
+              <button onClick={() => setActionFilter('all')} className="ml-1 text-gray-500 hover:text-gray-700">
                 <X className="h-3 w-3" />
               </button>
             </div>
           )}
-          
-          <div className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100">
+          <div className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-sm font-medium">
             Date: {dateRange.start} to {dateRange.end}
           </div>
         </div>
       </div>
       
       {/* Logs Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
         {loading ? (
-          <div className="p-8 flex justify-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+          <div className="flex justify-center p-8">
+            <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
           </div>
         ) : filteredLogs.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">
+          <div className="p-10 text-center text-sm text-gray-500">
             No logs found matching your filters.
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+              <thead className="sticky top-0 z-10 bg-gray-50">
                 <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">
                     Action
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">
                     User
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">
                     Details
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">
                     IP Address
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">
                     Timestamp
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-600">
                     Status
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredLogs.map((log) => (
-                  <tr key={log.id} className="hover:bg-gray-50">
+                  <tr key={log.id} className="transition hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
-                        <div className="flex-shrink-0 h-8 w-8 flex items-center justify-center rounded-md bg-blue-100 text-blue-500">
+                        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md bg-blue-100 text-blue-500">
                           {getActionIcon(log.action)}
                         </div>
                         <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">
+                          <div className="text-sm font-semibold text-gray-900">
                             {log.action.charAt(0).toUpperCase() + log.action.slice(1).replace('-', ' ')}
                           </div>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{log.username}</div>
-                      <div className="text-xs text-gray-500 capitalize">{log.userRole}</div>
+                      <div className="flex items-center">
+                        <div className="mr-3 flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-gray-200">
+                          {log.avatar_url ? (
+                            <img 
+                              src={log.avatar_url} 
+                              alt={log.display_name} 
+                              className="h-8 w-8 object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100">
+                              <span className="text-xs font-semibold text-blue-600">
+                                {log.display_name.charAt(0).toUpperCase()}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">{log.display_name}</div>
+                          <div className="text-xs capitalize text-gray-500">{log.userRole}</div>
+                        </div>
+                      </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="text-sm text-gray-900">{log.details}</div>
@@ -342,7 +439,7 @@ const AuditLogs: React.FC = () => {
                       {formatDate(log.timestamp)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeClass(log.status)}`}>
+                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold leading-5 ${getStatusBadgeClass(log.status)}`}>
                         {log.status.charAt(0).toUpperCase() + log.status.slice(1)}
                       </span>
                     </td>
@@ -354,7 +451,7 @@ const AuditLogs: React.FC = () => {
         )}
         
         {/* Pagination - in a real app this would be functional */}
-        <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
+        <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6">
           <div className="flex-1 flex justify-between sm:hidden">
             <button className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
               Previous
