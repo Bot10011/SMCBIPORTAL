@@ -153,6 +153,81 @@ app.get('/api/email-usage', async (req, res) => {
   }
 });
 
+// Security events endpoint
+app.post('/api/security-events', async (req, res) => {
+  try {
+    console.log('🚨 Security event received:', req.body);
+    
+    // Import and call the function directly
+    const handler = await import('./api/security-events.ts');
+    await handler.default(req, res);
+  } catch (error) {
+    console.error('Error in security-events:', error);
+    res.status(500).json({ 
+      error: 'Failed to process request', 
+      details: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+app.get('/api/security-events', async (req, res) => {
+  try {
+    console.log('📊 Security events query received');
+    
+    // Import and call the function directly
+    const handler = await import('./api/security-events.ts');
+    await handler.default(req, res);
+  } catch (error) {
+    console.error('Error in security-events GET:', error);
+    res.status(500).json({ 
+      error: 'Failed to process request', 
+      details: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Rate limiting endpoint
+app.post('/api/rate-limit', async (req, res) => {
+  try {
+    console.log('⏱️ Rate limit check received:', req.body);
+    
+    // Import and call the function directly
+    const handler = await import('./api/rate-limit.ts');
+    await handler.default(req, res);
+  } catch (error) {
+    console.error('Error in rate-limit:', error);
+    res.status(500).json({ 
+      error: 'Failed to process request', 
+      details: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Test attack endpoint
+app.post('/api/test-attack', async (req, res) => {
+  try {
+    console.log('🧪 Test attack received:', req.body);
+    
+    // Import and call the function directly
+    const handler = await import('./api/test-attack.ts');
+    await handler.default(req, res);
+  } catch (error) {
+    console.error('Error in test-attack:', error);
+    res.status(500).json({ 
+      error: 'Failed to process request', 
+      details: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Catch-all for API routes
 app.use('/api/*', (req, res) => {
   res.status(404).json({ error: 'API endpoint not found' });
@@ -167,6 +242,9 @@ app.listen(PORT, () => {
   console.log(`🔑 Password reset endpoint: http://localhost:${PORT}/api/reset-password`);
   console.log(`🔍 Environment check endpoint: http://localhost:${PORT}/api/env-check`);
   console.log(`💚 Health check endpoint: http://localhost:${PORT}/api/health`);
+  console.log(`🚨 Security events endpoint: http://localhost:${PORT}/api/security-events`);
+  console.log(`⏱️ Rate limit endpoint: http://localhost:${PORT}/api/rate-limit`);
+  console.log(`🧪 Test attack endpoint: http://localhost:${PORT}/api/test-attack`);
   console.log('');
   console.log('Make sure to set these environment variables:');
   console.log('- RESEND_API_KEY');
