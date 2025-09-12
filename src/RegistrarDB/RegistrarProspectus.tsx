@@ -640,64 +640,87 @@ const RegistrarProspectus: React.FC = () => {
                 </CardContent>
               </Card>
 
-              {/* All Subjects (since courses don't have year levels yet) */}
-              {courses.length > 0 && (
-                <Card sx={{ mb: 3, borderRadius: 2 }}>
-                  <Box sx={{ 
-                    p: 2.5, 
-                    borderBottom: '1px solid #e5e7eb',
-                    background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)'
-                  }}>
-                    <Typography variant="h6" sx={{ 
-                      fontWeight: 700, 
-                      color: '#1f2937',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 1
-                    }}>
+              {/* Subjects by Year Level */}
+              {courses.length > 0 && (() => {
+                // Group courses by year level
+                const coursesByYear = courses.reduce((acc: any, course: any) => {
+                  const yearLevel = course.year_level || 1; // Default to 1st year if no year level
+                  if (!acc[yearLevel]) {
+                    acc[yearLevel] = [];
+                  }
+                  acc[yearLevel].push(course);
+                  return acc;
+                }, {});
+
+                // Sort year levels
+                const sortedYearLevels = Object.keys(coursesByYear).sort((a, b) => parseInt(a) - parseInt(b));
+
+                return sortedYearLevels.map((yearLevel) => {
+                  const yearCourses = coursesByYear[yearLevel];
+                  const totalUnits = yearCourses.reduce((sum: number, subject: any) => sum + (subject.units || 0), 0);
+                  
+                  return (
+                    <Card key={yearLevel} sx={{ mb: 3, borderRadius: 2 }}>
                       <Box sx={{ 
-                        px: 1.5, 
-                        py: 0.5, 
-                        borderRadius: 1, 
-                        background: '#1e40af',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '0.8rem',
-                        color: 'white',
-                        fontWeight: 600
+                        p: 2.5, 
+                        borderBottom: '1px solid #e5e7eb',
+                        background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)'
                       }}>
-                        All
+                        <Typography variant="h6" sx={{ 
+                          fontWeight: 700, 
+                          color: '#1f2937',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 1
+                        }}>
+                          <Box sx={{ 
+                            px: 1.5, 
+                            py: 0.5, 
+                            borderRadius: 1, 
+                            background: '#1e40af',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '0.8rem',
+                            color: 'white',
+                            fontWeight: 600
+                          }}>
+                            {yearLevel}
+                          </Box>
+                          {getYearLabel(yearLevel)} Subjects
+                          <Box sx={{ 
+                            ml: 1, 
+                            px: 1.5, 
+                            py: 0.3, 
+                            borderRadius: 1, 
+                            background: '#e0e7ef',
+                            fontSize: '0.75rem',
+                            color: '#374151',
+                            fontWeight: 500
+                          }}>
+                            {yearCourses.length} subjects
+                          </Box>
+                          <Box sx={{ 
+                            ml: 1, 
+                            px: 1.5, 
+                            py: 0.3, 
+                            borderRadius: 1, 
+                            background: '#e0e7ef',
+                            fontSize: '0.75rem',
+                            color: '#374151',
+                            fontWeight: 500
+                          }}>
+                            {totalUnits} units
+                          </Box>
+                        </Typography>
                       </Box>
-                      All Subjects
-                      <Box sx={{ 
-                        ml: 1, 
-                        px: 1.5, 
-                        py: 0.3, 
-                        borderRadius: 1, 
-                        background: '#e0e7ef',
-                        fontSize: '0.75rem',
-                        color: '#374151',
-                        fontWeight: 500
-                      }}>
-                        {courses.length} subjects
-                      </Box>
-                      <Box sx={{ 
-                        ml: 1, 
-                        px: 1.5, 
-                        py: 0.3, 
-                        borderRadius: 1, 
-                        background: '#e0e7ef',
-                        fontSize: '0.75rem',
-                        color: '#374151',
-                        fontWeight: 500
-                      }}>
-                        {courses.reduce((sum, subject) => sum + (subject.units || 0), 0)} units
-                      </Box>
-                    </Typography>
-                  </Box>
                   
                   <CardContent sx={{ p: 0 }}>
+                    {/* 1st Semester */}
+                    <Box sx={{ px: 2.5, pt: 2, pb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Box sx={{ width: 8, height: 8, borderRadius: '50%', background: '#059669' }} />
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#1f2937' }}>1st Semester</Typography>
+                    </Box>
                     <TableContainer>
                       <Table size="small" sx={{ tableLayout: 'fixed', width: '100%' }}>
                         <colgroup>
@@ -773,7 +796,7 @@ const RegistrarProspectus: React.FC = () => {
                            </TableRow>
                         </TableHead>
                         <TableBody>
-                          {courses.filter((s:any) => !s.summer && String(s.semester || '').toLowerCase().includes('1')).map((subject, idx) => (
+                          {yearCourses.filter((s:any) => !s.summer && String(s.semester || '').toLowerCase().includes('1')).map((subject: any, idx: number) => (
                             <TableRow 
                               key={subject.id} 
                               sx={{ 
@@ -934,7 +957,7 @@ const RegistrarProspectus: React.FC = () => {
                            </TableRow>
                         </TableHead>
                         <TableBody>
-                          {courses.filter((s:any) => !s.summer && String(s.semester || '').toLowerCase().includes('2')).map((subject, idx) => (
+                          {yearCourses.filter((s:any) => !s.summer && String(s.semester || '').toLowerCase().includes('2')).map((subject: any, idx: number) => (
                             <TableRow key={subject.id} sx={{ background: idx % 2 === 0 ? '#f0f9ff' : '#ffffff' }}>
                               <TableCell sx={{ fontWeight: 600, fontFamily: 'monospace', fontSize: '0.875rem', color: '#0369a1' }}>{subject.code}</TableCell>
                               <TableCell sx={{ fontSize: '0.875rem', color: '#075985', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{subject.name}</TableCell>
@@ -1016,7 +1039,7 @@ const RegistrarProspectus: React.FC = () => {
                            </TableRow>
                         </TableHead>
                         <TableBody>
-                          {courses.filter((s:any) => s.summer).map((subject, idx) => (
+                          {yearCourses.filter((s:any) => s.summer).map((subject: any, idx: number) => (
                             <TableRow key={subject.id} sx={{ background: idx % 2 === 0 ? '#fff7ed' : '#ffffff' }}>
                               <TableCell sx={{ fontWeight: 600, fontFamily: 'monospace', fontSize: '0.875rem', color: '#92400e' }}>{subject.code}</TableCell>
                               <TableCell sx={{ fontSize: '0.875rem', color: '#7c2d12', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{subject.name}</TableCell>
@@ -1054,7 +1077,9 @@ const RegistrarProspectus: React.FC = () => {
                     </TableContainer>
                   </CardContent>
                 </Card>
-              )}
+                  );
+                });
+              })()}
             </Box>
           </Box>
         </DialogContent>
