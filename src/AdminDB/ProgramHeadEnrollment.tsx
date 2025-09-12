@@ -37,6 +37,7 @@ import html2canvas from 'html2canvas';
 interface Student {
   id: string;
   studentId?: string; // The actual student ID (e.g., C-250007)
+  email?: string;
   firstName?: string;
   middleName?: string;
   lastName?: string;
@@ -64,6 +65,48 @@ interface Subject {
 }
 
 const ProgramHeadEnrollment: React.FC = () => {
+  // Helper function to filter out numbers and special characters except "ñ"
+  const filterNameInput = (value: string): string => {
+    return value.replace(/[^a-zA-ZñÑ\s]/g, '');
+  };
+
+  // Function to download student list as CSV
+  const downloadStudentListCSV = () => {
+    const csvData = filteredStudents.map(student => ({
+      'Student ID': student.studentId || 'N/A',
+      'Full Name': student.name,
+      'Email': student.email ? `${student.email}@smcbi.edu.ph` : 'N/A',
+      'Year Level': student.yearLevel,
+      'Section': getSectionName(student.section)
+    }));
+
+    // Convert to CSV format
+    const headers = Object.keys(csvData[0] || {});
+    const csvContent = [
+      headers.join(','),
+      ...csvData.map(row => 
+        headers.map(header => {
+          const value = row[header as keyof typeof row];
+          // Escape commas and quotes in CSV
+          return `"${String(value).replace(/"/g, '""')}"`;
+        }).join(',')
+      )
+    ].join('\n');
+
+    // Create and download file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `student_list_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    toast.success('Student list downloaded successfully!');
+  };
+
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1366,6 +1409,11 @@ const ProgramHeadEnrollment: React.FC = () => {
   useEffect(() => {
     // Auto-generate student ID when school year, first and last name are entered
     const generateStudentId = async () => {
+      // Skip ID generation if we're enrolling an existing student (they already have a student ID)
+      if (createForm.studentId && createForm.studentId.startsWith('C-')) {
+        return;
+      }
+      
       if (createForm.schoolYear && createForm.firstName && createForm.lastName) {
         // Extract last two digits of school year start
         const match = createForm.schoolYear.match(/(\d{4})/);
@@ -1521,6 +1569,15 @@ const ProgramHeadEnrollment: React.FC = () => {
     }
   }, [editForm]);
 
+  // Auto-generate email when first and last name are entered in edit form
+  useEffect(() => {
+    if (editFormFields.firstName && editFormFields.lastName) {
+      const email = (editFormFields.lastName + editFormFields.firstName).replace(/\s+/g, '').toLowerCase();
+      setEditForm((f: Student | null) => f ? { ...f, email } : null);
+    }
+    // eslint-disable-next-line
+  }, [editFormFields.firstName, editFormFields.lastName]);
+
   const loadEnrollments = async () => {
     try {
       setLoading(true);
@@ -1569,6 +1626,7 @@ const ProgramHeadEnrollment: React.FC = () => {
           return {
             id: uniqueId,
             studentId: String(student.student_id || ''),
+            email: String(student.email || '').replace('@smcbi.edu.ph', ''),
             name: fullName,
             firstName,
             middleName,
@@ -1621,6 +1679,7 @@ const ProgramHeadEnrollment: React.FC = () => {
         const studentData = {
           id: uniqueId,
           studentId: String(student.student_id || ''),
+          email: String(student.email || '').replace('@smcbi.edu.ph', ''),
           name: fullName,
           firstName,
           middleName,
@@ -1671,7 +1730,7 @@ const ProgramHeadEnrollment: React.FC = () => {
         const { data: userProfile, error: lookupError } = await supabase
           .from('user_profiles')
           .select('id, student_id')
-          .eq('student_id', selectedExistingStudent.id)
+          .eq('student_id', selectedExistingStudent.studentId || selectedExistingStudent.id)
           .single();
         if (lookupError || !userProfile) throw new Error('Could not find user UUID for this student');
         const userId = userProfile.id;
@@ -1947,18 +2006,20 @@ const ProgramHeadEnrollment: React.FC = () => {
       const capitalizedLastName = editFormFields.lastName.charAt(0).toUpperCase() + editFormFields.lastName.slice(1).toLowerCase();
       const capitalizedMiddleName = editFormFields.middleName ? editFormFields.middleName.charAt(0).toUpperCase() + editFormFields.middleName.slice(1).toLowerCase() : '';
 
+      const fullEmail = (editForm.email || '') + '@smcbi.edu.ph';
       const { error } = await supabase.from('user_profiles').update({
         first_name: capitalizedFirstName,
         middle_name: capitalizedMiddleName,
         last_name: capitalizedLastName,
+        email: fullEmail,
+        gender: editForm.gender || 'Male',
         student_type: editForm.studentType,
         year_level: String(editForm.yearLevel),
         school_year: editForm.schoolYear,
-        student_id: editForm.id,
         department: editForm.department,
         semester: editForm.semester,
         enrollment_status: editForm.status,
-      }).eq('student_id', editForm.id);
+      }).eq('id', editForm.id);
       if (error) throw error;
       toast.success('Student info updated!');
       setEditForm(null);
@@ -2035,7 +2096,7 @@ const ProgramHeadEnrollment: React.FC = () => {
       studentType: student.studentType,
       yearLevel: student.yearLevel,
       schoolYear: student.schoolYear,
-      studentId: student.id, // Always use the original student.id
+      studentId: student.studentId || student.id, // Use the formatted student ID, fallback to database ID
       department: student.department,
       semester: student.semester,
       section: sectionId, // Use determined section ID
@@ -3728,7 +3789,7 @@ const ProgramHeadEnrollment: React.FC = () => {
         </Typography>
         <Box sx={{ 
           display: 'grid', 
-          gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(4, 1fr)' },
+          gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(5, 1fr)' },
           gap: 1,
           mb: 1,
           width: '100%',
@@ -3895,6 +3956,47 @@ const ProgramHeadEnrollment: React.FC = () => {
                 <Box sx={{ fontSize: '0.9rem', mb: 0.1 }}>⚠️</Box>
                 <Typography variant="subtitle2" sx={{ fontWeight: 500, fontSize: '0.8rem' }}>
                   End Semester
+                </Typography>
+              </Button>
+            </CardContent>
+          </Card>
+          {/* Download CSV */}
+          <Card sx={{ 
+            borderRadius: 2,
+            boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
+            background: '#fff',
+            border: '1px solid #e5e7eb',
+            transition: 'all 0.2s',
+            minHeight: 60,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            p: 0,
+          }}>
+            <CardContent sx={{ p: 0.5, textAlign: 'center', width: '100%', pb: '8px!important' }}>
+              <Button 
+                variant="outlined" 
+                color="info" 
+                size="small"
+                onClick={downloadStudentListCSV}
+                sx={{
+                  borderRadius: 1.5,
+                  px: 0.8,
+                  py: 0.4,
+                  fontWeight: 500,
+                  fontSize: '0.8rem',
+                  borderColor: '#3b82f6',
+                  color: '#3b82f6',
+                  minHeight: 28,
+                  width: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 0.2
+                }}
+              >
+                <Box sx={{ fontSize: '0.9rem', mb: 0.1 }}>📊</Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 500, fontSize: '0.8rem' }}>
+                  Download CSV
                 </Typography>
               </Button>
             </CardContent>
@@ -4282,7 +4384,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                         >
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                             <Box sx={{ fontSize: '0.8rem' }}>✏️</Box>
-                            Review
+                            Edit
                           </Box>
                         </Button>
                         <Button
@@ -4330,11 +4432,19 @@ const ProgramHeadEnrollment: React.FC = () => {
         }}
         maxWidth="lg"
         fullWidth
+        fullScreen={false}
         PaperProps={{
           sx: {
-            borderRadius: 3,
-            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)',
-            overflow: 'hidden'
+            borderRadius: { xs: 0, sm: 3 },
+            boxShadow: { xs: 'none', sm: '0 20px 60px rgba(0, 0, 0, 0.15)' },
+            overflow: 'hidden',
+            m: { xs: 0, sm: 2 },
+            maxHeight: { xs: '100vh', sm: '90vh' },
+            width: { xs: '100vw', sm: 'auto' },
+            height: { xs: '100vh', sm: 'auto' },
+            position: { xs: 'fixed', sm: 'relative' },
+            top: { xs: 0, sm: 'auto' },
+            left: { xs: 0, sm: 'auto' }
           }
         }}
       >
@@ -4342,27 +4452,27 @@ const ProgramHeadEnrollment: React.FC = () => {
           sx={{
             background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
             color: 'white',
-            py: 3,
-            px: 4,
+            py: { xs: 2, sm: 3 },
+            px: { xs: 2, sm: 4 },
             display: 'flex',
             alignItems: 'center',
-            gap: 2,
+            gap: { xs: 1, sm: 2 },
             '& .MuiTypography-root': {
-              fontSize: '1.5rem',
+              fontSize: { xs: '1.25rem', sm: '1.5rem' },
               fontWeight: 600
             }
           }}
         >
           <Box
             sx={{
-              width: 40,
-              height: 40,
+              width: { xs: 32, sm: 40 },
+              height: { xs: 32, sm: 40 },
               borderRadius: '50%',
               background: 'rgba(255, 255, 255, 0.2)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: '1.2rem'
+              fontSize: { xs: '1rem', sm: '1.2rem' }
             }}
           >
             {selectedExistingStudent ? '👤' : '➕'}
@@ -4374,6 +4484,8 @@ const ProgramHeadEnrollment: React.FC = () => {
             <DialogContent
               sx={{
                 minWidth: { xs: 0, sm: 700, md: 950 },
+                maxHeight: { xs: 'calc(100vh - 200px)', sm: '70vh' },
+                overflow: 'auto',
                 background: 'linear-gradient(135deg, #f8fafc 0%, #e0e7ef 100%)',
                 borderRadius: 0,
                 p: { xs: 2, sm: 4 },
@@ -4423,8 +4535,8 @@ const ProgramHeadEnrollment: React.FC = () => {
                         label="First Name" 
                         value={createForm.firstName} 
                         onChange={e => {
-                          const value = e.target.value;
-                          const capitalized = value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+                          const filteredValue = filterNameInput(e.target.value);
+                          const capitalized = filteredValue.charAt(0).toUpperCase() + filteredValue.slice(1).toLowerCase();
                           setCreateForm(f => ({ ...f, firstName: capitalized }));
                         }}
                         fullWidth 
@@ -4449,8 +4561,8 @@ const ProgramHeadEnrollment: React.FC = () => {
                         label="Middle Name" 
                         value={createForm.middleName} 
                         onChange={e => {
-                          const value = e.target.value;
-                          const capitalized = value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+                          const filteredValue = filterNameInput(e.target.value);
+                          const capitalized = filteredValue.charAt(0).toUpperCase() + filteredValue.slice(1).toLowerCase();
                           setCreateForm(f => ({ ...f, middleName: capitalized }));
                         }}
                         fullWidth 
@@ -4474,8 +4586,8 @@ const ProgramHeadEnrollment: React.FC = () => {
                         label="Last Name" 
                         value={createForm.lastName} 
                         onChange={e => {
-                          const value = e.target.value;
-                          const capitalized = value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+                          const filteredValue = filterNameInput(e.target.value);
+                          const capitalized = filteredValue.charAt(0).toUpperCase() + filteredValue.slice(1).toLowerCase();
                           setCreateForm(f => ({ ...f, lastName: capitalized }));
                         }}
                         fullWidth 
@@ -4937,10 +5049,14 @@ const ProgramHeadEnrollment: React.FC = () => {
               </Grid>
             </DialogContent>
             <DialogActions sx={{ 
-              p: 3, 
+              p: { xs: 2, sm: 3 }, 
               background: '#f9fafb',
               borderTop: '1px solid #e5e7eb',
-              gap: 2
+              gap: { xs: 2, sm: 2 },
+              flexDirection: { xs: 'column', sm: 'row' },
+              '& .MuiButton-root': {
+                width: { xs: '100%', sm: 'auto' }
+              }
             }}>
               <Button 
                 onClick={handleCloseCreateDialog} 
@@ -5002,6 +5118,8 @@ const ProgramHeadEnrollment: React.FC = () => {
             <DialogContent
               sx={{
                 minWidth: { xs: 0, sm: 700, md: 950 },
+                maxHeight: { xs: 'calc(100vh - 200px)', sm: '70vh' },
+                overflow: 'auto',
                 background: 'linear-gradient(135deg, #f8fafc 0%, #e0e7ef 100%)',
                 borderRadius: 0,
                 p: { xs: 2, sm: 4 },
@@ -5050,8 +5168,8 @@ const ProgramHeadEnrollment: React.FC = () => {
                         label="First Name" 
                         value={createForm.firstName} 
                         onChange={e => {
-                          const value = e.target.value;
-                          const capitalized = value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+                          const filteredValue = filterNameInput(e.target.value);
+                          const capitalized = filteredValue.charAt(0).toUpperCase() + filteredValue.slice(1).toLowerCase();
                           setCreateForm(f => ({ ...f, firstName: capitalized }));
                         }} 
                         fullWidth 
@@ -5076,8 +5194,8 @@ const ProgramHeadEnrollment: React.FC = () => {
                         label="Middle Name" 
                         value={createForm.middleName} 
                         onChange={e => {
-                          const value = e.target.value;
-                          const capitalized = value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+                          const filteredValue = filterNameInput(e.target.value);
+                          const capitalized = filteredValue.charAt(0).toUpperCase() + filteredValue.slice(1).toLowerCase();
                           setCreateForm(f => ({ ...f, middleName: capitalized }));
                         }} 
                         fullWidth 
@@ -5101,8 +5219,8 @@ const ProgramHeadEnrollment: React.FC = () => {
                         label="Last Name" 
                         value={createForm.lastName} 
                         onChange={e => {
-                          const value = e.target.value;
-                          const capitalized = value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+                          const filteredValue = filterNameInput(e.target.value);
+                          const capitalized = filteredValue.charAt(0).toUpperCase() + filteredValue.slice(1).toLowerCase();
                           setCreateForm(f => ({ ...f, lastName: capitalized }));
                         }} 
                         fullWidth 
@@ -5440,7 +5558,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                   />
                   
                   {/* Move Mixed year toggle for Regular students */}
-                  {createForm.studentType === 'Regular' && (
+                  {createForm.studentType === 'Irregular' && (
                     <Box sx={{ mb: 2, p: 2, borderRadius: 2, background: '#f0f9ff', border: '1px solid #0ea5e9' }}>
                       <FormControlLabel
                         control={
@@ -5727,7 +5845,16 @@ const ProgramHeadEnrollment: React.FC = () => {
                 </Grid>
               </Grid>
             </DialogContent>
-            <DialogActions>
+            <DialogActions sx={{ 
+              p: { xs: 2, sm: 3 }, 
+              background: '#f9fafb',
+              borderTop: '1px solid #e5e7eb',
+              gap: { xs: 2, sm: 2 },
+              flexDirection: { xs: 'column', sm: 'row' },
+              '& .MuiButton-root': {
+                width: { xs: '100%', sm: 'auto' }
+              }
+            }}>
               <Button onClick={handleCloseCreateDialog} disabled={creating}>Cancel</Button>
               <Button type="submit" variant="contained" color="primary" disabled={creating}>{creating ? 'Enrolling...' : 'Enroll'}</Button>
             </DialogActions>
@@ -5737,12 +5864,14 @@ const ProgramHeadEnrollment: React.FC = () => {
 
       {/* Edit Student Modal */}
       <Dialog open={!!editForm} onClose={() => { setEditForm(null); }} maxWidth="md" fullWidth scroll="paper"
+        fullScreen={false}
         PaperProps={{
           sx: {
-            borderRadius: 3,
-            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)',
+            borderRadius: { xs: 0, sm: 3 },
+            boxShadow: { xs: 'none', sm: '0 20px 60px rgba(0, 0, 0, 0.15)' },
             overflow: 'hidden',
-            maxHeight: '90vh'
+            maxHeight: { xs: '100vh', sm: '90vh' },
+            m: { xs: 0, sm: 2 }
           }
         }}
       >
@@ -5750,27 +5879,27 @@ const ProgramHeadEnrollment: React.FC = () => {
           sx={{
             background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
             color: 'white',
-            py: 3,
-            px: 4,
+            py: { xs: 2, sm: 3 },
+            px: { xs: 2, sm: 4 },
             display: 'flex',
             alignItems: 'center',
-            gap: 2,
+            gap: { xs: 1, sm: 2 },
             '& .MuiTypography-root': {
-              fontSize: '1.5rem',
+              fontSize: { xs: '1.25rem', sm: '1.5rem' },
               fontWeight: 600
             }
           }}
         >
           <Box
             sx={{
-              width: 40,
-              height: 40,
+              width: { xs: 32, sm: 40 },
+              height: { xs: 32, sm: 40 },
               borderRadius: '50%',
               background: 'rgba(255, 255, 255, 0.2)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: '1.2rem'
+              fontSize: { xs: '1rem', sm: '1.2rem' }
             }}
           >
             ✏️
@@ -5784,7 +5913,7 @@ const ProgramHeadEnrollment: React.FC = () => {
             borderRadius: 0,
             p: { xs: 2, sm: 4 },
             position: 'relative',
-            maxHeight: '70vh',
+            maxHeight: { xs: 'calc(100vh - 200px)', sm: '70vh' },
             overflowY: 'auto',
             '&::before': {
               content: '""',
@@ -5804,8 +5933,8 @@ const ProgramHeadEnrollment: React.FC = () => {
                   label="First Name" 
                   value={editFormFields.firstName} 
                   onChange={e => {
-                    const value = e.target.value;
-                    const capitalized = value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+                    const filteredValue = filterNameInput(e.target.value);
+                    const capitalized = filteredValue.charAt(0).toUpperCase() + filteredValue.slice(1).toLowerCase();
                     setEditFormFields(f => ({ ...f, firstName: capitalized }));
                   }} 
                   size="small"
@@ -5819,8 +5948,8 @@ const ProgramHeadEnrollment: React.FC = () => {
                   label="Middle Name" 
                   value={editFormFields.middleName} 
                   onChange={e => {
-                    const value = e.target.value;
-                    const capitalized = value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+                    const filteredValue = filterNameInput(e.target.value);
+                    const capitalized = filteredValue.charAt(0).toUpperCase() + filteredValue.slice(1).toLowerCase();
                     setEditFormFields(f => ({ ...f, middleName: capitalized }));
                   }} 
                   size="small"
@@ -5833,8 +5962,8 @@ const ProgramHeadEnrollment: React.FC = () => {
                   label="Last Name" 
                   value={editFormFields.lastName} 
                   onChange={e => {
-                    const value = e.target.value;
-                    const capitalized = value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+                    const filteredValue = filterNameInput(e.target.value);
+                    const capitalized = filteredValue.charAt(0).toUpperCase() + filteredValue.slice(1).toLowerCase();
                     setEditFormFields(f => ({ ...f, lastName: capitalized }));
                   }} 
                   size="small"
@@ -5842,6 +5971,50 @@ const ProgramHeadEnrollment: React.FC = () => {
                   fullWidth 
                   required 
                 />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField 
+                  label="Email" 
+                  value={editForm.email || ''} 
+                  size="small"
+                  variant="outlined"
+                  fullWidth 
+                  required 
+                  type="text"
+                  disabled
+                  InputProps={{ 
+                    endAdornment: <span style={{ color: '#6b7280' }}>@smcbi.edu.ph</span>, 
+                    readOnly: true 
+                  }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      '& fieldset': {
+                        borderColor: '#d1d5db'
+                      },
+                      '&:hover fieldset': {
+                        borderColor: '#9ca3af'
+                      },
+                      '&.Mui-focused fieldset': {
+                        borderColor: '#667eea'
+                      }
+                    }
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <FormControl fullWidth>
+                  <InputLabel>Gender</InputLabel>
+                  <Select
+                    value={editForm.gender || 'Male'}
+                    label="Gender"
+                    onChange={e => setEditForm((f: Student | null) => f ? { ...f, gender: e.target.value as Student['gender'] } : null)}
+                    size="small" required
+                  >
+                    <MenuItem value="Male">Male</MenuItem>
+                    <MenuItem value="Female">Female</MenuItem>
+                    <MenuItem value="Other">Other</MenuItem>
+                  </Select>
+                </FormControl>
               </Grid>
               <Grid item xs={12} md={6}>
                 <FormControl fullWidth>
@@ -5894,7 +6067,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                 </FormControl>
                 </Grid>
               <Grid item xs={12} md={6}>
-                <TextField label="Student ID" value={editForm.id} fullWidth size="small" variant="outlined" required disabled />
+                <TextField label="Student ID" value={editForm.studentId || editForm.id} fullWidth size="small" variant="outlined" required disabled />
               </Grid>
               <Grid item xs={12} md={6}>
                 <FormControl fullWidth>
@@ -5913,7 +6086,16 @@ const ProgramHeadEnrollment: React.FC = () => {
             </Grid>
           )}
         </DialogContent>
-        <DialogActions>
+        <DialogActions sx={{ 
+          p: { xs: 2, sm: 3 }, 
+          background: '#f9fafb',
+          borderTop: '1px solid #e5e7eb',
+          gap: { xs: 2, sm: 2 },
+          flexDirection: { xs: 'column', sm: 'row' },
+          '& .MuiButton-root': {
+            width: { xs: '100%', sm: 'auto' }
+          }
+        }}>
           <Button onClick={() => { 
             setEditForm(null); 
             setEditFormFields({ firstName: '', middleName: '', lastName: '' }); 
@@ -5924,11 +6106,19 @@ const ProgramHeadEnrollment: React.FC = () => {
 
       {/* Enroll Existing Student Modal */}
       <Dialog open={isExistingModalOpen} onClose={() => setIsExistingModalOpen(false)} maxWidth="md" fullWidth
+        fullScreen={false}
         PaperProps={{
           sx: {
-            borderRadius: 3,
-            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)',
-            overflow: 'hidden'
+            borderRadius: { xs: 0, sm: 3 },
+            boxShadow: { xs: 'none', sm: '0 20px 60px rgba(0, 0, 0, 0.15)' },
+            overflow: 'hidden',
+            m: { xs: 0, sm: 2 },
+            maxHeight: { xs: '100vh', sm: '90vh' },
+            width: { xs: '100vw', sm: 'auto' },
+            height: { xs: '100vh', sm: 'auto' },
+            position: { xs: 'fixed', sm: 'relative' },
+            top: { xs: 0, sm: 'auto' },
+            left: { xs: 0, sm: 'auto' }
           }
         }}
       >
@@ -5936,27 +6126,27 @@ const ProgramHeadEnrollment: React.FC = () => {
           sx={{
             background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
             color: 'white',
-            py: 3,
-            px: 4,
+            py: { xs: 2, sm: 3 },
+            px: { xs: 2, sm: 4 },
             display: 'flex',
             alignItems: 'center',
-            gap: 2,
+            gap: { xs: 1, sm: 2 },
             '& .MuiTypography-root': {
-              fontSize: '1.5rem',
+              fontSize: { xs: '1.25rem', sm: '1.5rem' },
               fontWeight: 600
             }
           }}
         >
           <Box
             sx={{
-              width: 40,
-              height: 40,
+              width: { xs: 32, sm: 40 },
+              height: { xs: 32, sm: 40 },
               borderRadius: '50%',
               background: 'rgba(255, 255, 255, 0.2)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: '1.2rem'
+              fontSize: { xs: '1rem', sm: '1.2rem' }
             }}
           >
             👥
@@ -5966,6 +6156,8 @@ const ProgramHeadEnrollment: React.FC = () => {
         <DialogContent 
           sx={{ 
             minWidth: { xs: 0, sm: 600, md: 800 }, 
+            maxHeight: { xs: 'calc(100vh - 200px)', sm: '70vh' },
+            overflow: 'auto',
             p: { xs: 2, sm: 4 },
             background: 'linear-gradient(135deg, #f8fafc 0%, #e0e7ef 100%)',
             position: 'relative',
@@ -6103,18 +6295,49 @@ const ProgramHeadEnrollment: React.FC = () => {
               <TableContainer sx={{ 
                 borderRadius: 2,
                 border: '1px solid #e5e7eb',
-                overflow: 'hidden',
-                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+                overflow: 'auto',
+                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+                maxHeight: { xs: '400px', sm: 'none' }
               }}>
-                <Table>
+                <Table sx={{ minWidth: { xs: '600px', sm: 'auto' } }}>
                   <TableHead>
                     <TableRow sx={{ background: '#f9fafb' }}>
-                      <TableCell sx={{ fontWeight: 600, color: '#374151', fontSize: '0.875rem' }}>Student ID</TableCell>
-                      <TableCell sx={{ fontWeight: 600, color: '#374151', fontSize: '0.875rem' }}>Name</TableCell>
-                      <TableCell sx={{ fontWeight: 600, color: '#374151', fontSize: '0.875rem' }}>Type</TableCell>
-                      <TableCell sx={{ fontWeight: 600, color: '#374151', fontSize: '0.875rem' }}>Section</TableCell>
-                      <TableCell sx={{ fontWeight: 600, color: '#374151', fontSize: '0.875rem' }}>Status</TableCell>
-                      <TableCell sx={{ fontWeight: 600, color: '#374151', fontSize: '0.875rem' }}>Action</TableCell>
+                      <TableCell sx={{ 
+                        fontWeight: 600, 
+                        color: '#374151', 
+                        fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                        minWidth: { xs: '120px', sm: 'auto' }
+                      }}>Student ID</TableCell>
+                      <TableCell sx={{ 
+                        fontWeight: 600, 
+                        color: '#374151', 
+                        fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                        minWidth: { xs: '150px', sm: 'auto' }
+                      }}>Name</TableCell>
+                      <TableCell sx={{ 
+                        fontWeight: 600, 
+                        color: '#374151', 
+                        fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                        minWidth: { xs: '100px', sm: 'auto' }
+                      }}>Type</TableCell>
+                      <TableCell sx={{ 
+                        fontWeight: 600, 
+                        color: '#374151', 
+                        fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                        minWidth: { xs: '100px', sm: 'auto' }
+                      }}>Section</TableCell>
+                      <TableCell sx={{ 
+                        fontWeight: 600, 
+                        color: '#374151', 
+                        fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                        minWidth: { xs: '80px', sm: 'auto' }
+                      }}>Status</TableCell>
+                      <TableCell sx={{ 
+                        fontWeight: 600, 
+                        color: '#374151', 
+                        fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                        minWidth: { xs: '100px', sm: 'auto' }
+                      }}>Action</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -6127,15 +6350,22 @@ const ProgramHeadEnrollment: React.FC = () => {
                         },
                         transition: 'all 0.2s ease'
                       }}>
-                        <TableCell sx={{ fontWeight: 500, fontFamily: 'monospace' }}>{student.id}</TableCell>
-                        <TableCell sx={{ fontWeight: 500 }}>{student.name}</TableCell>
+                        <TableCell sx={{ 
+                          fontWeight: 500, 
+                          fontFamily: 'monospace',
+                          fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                        }}>{student.studentId || 'N/A'}</TableCell>
+                        <TableCell sx={{ 
+                          fontWeight: 500,
+                          fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                        }}>{student.name}</TableCell>
                         <TableCell>
                           <Box sx={{ 
                             display: 'inline-block',
-                            px: 1.5,
+                            px: { xs: 1, sm: 1.5 },
                             py: 0.5,
                             borderRadius: 1,
-                            fontSize: '0.75rem',
+                            fontSize: { xs: '0.65rem', sm: '0.75rem' },
                             fontWeight: 500,
                             background: '#e0e7ef',
                             color: '#111827',
@@ -6148,10 +6378,10 @@ const ProgramHeadEnrollment: React.FC = () => {
                         <TableCell>
                           <Box sx={{ 
                             display: 'inline-block',
-                            px: 1.5,
+                            px: { xs: 1, sm: 1.5 },
                             py: 0.5,
                             borderRadius: 1,
-                            fontSize: '0.75rem',
+                            fontSize: { xs: '0.65rem', sm: '0.75rem' },
                             fontWeight: 500,
                             background: '#e0e7ef',
                             color: '#111827',
@@ -6163,10 +6393,10 @@ const ProgramHeadEnrollment: React.FC = () => {
                         <TableCell>
                           <Box sx={{ 
                             display: 'inline-block',
-                            px: 1.5,
+                            px: { xs: 1, sm: 1.5 },
                             py: 0.5,
                             borderRadius: 1,
-                            fontSize: '0.75rem',
+                            fontSize: { xs: '0.65rem', sm: '0.75rem' },
                             fontWeight: 500,
                             background: '#f3f4f6',
                             color: '#111827',
@@ -6182,10 +6412,12 @@ const ProgramHeadEnrollment: React.FC = () => {
                             onClick={() => handleEnrollExisting(student)}
                             sx={{
                               borderRadius: 2,
-                              px: 2,
+                              px: { xs: 1.5, sm: 2 },
                               py: 0.5,
                               fontWeight: 600,
+                              fontSize: { xs: '0.65rem', sm: '0.75rem' },
                               background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                              minWidth: { xs: '60px', sm: 'auto' },
                               '&:hover': {
                                 background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
                                 transform: 'translateY(-1px)',
@@ -6194,9 +6426,9 @@ const ProgramHeadEnrollment: React.FC = () => {
                               transition: 'all 0.2s ease'
                             }}
                           >
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                              <Box sx={{ fontSize: '0.8rem' }}>➕</Box>
-                              Enroll
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.25, sm: 0.5 } }}>
+                              <Box sx={{ fontSize: { xs: '0.7rem', sm: '0.8rem' } }}>➕</Box>
+                              <Box sx={{ display: { xs: 'none', sm: 'block' } }}>Enroll</Box>
                             </Box>
                           </Button>
                         </TableCell>
@@ -6210,10 +6442,14 @@ const ProgramHeadEnrollment: React.FC = () => {
           })}
         </DialogContent>
         <DialogActions sx={{ 
-          p: 3, 
+          p: { xs: 2, sm: 3 }, 
           background: '#f9fafb',
           borderTop: '1px solid #e5e7eb',
-          gap: 2
+          gap: { xs: 2, sm: 2 },
+          flexDirection: { xs: 'column', sm: 'row' },
+          '& .MuiButton-root': {
+            width: { xs: '100%', sm: 'auto' }
+          }
         }}>
           <Button 
             onClick={() => setIsExistingModalOpen(false)}
@@ -6241,11 +6477,19 @@ const ProgramHeadEnrollment: React.FC = () => {
 
       {/* End Semester Confirmation Dialog */}
       <Dialog open={endSemesterOpen} onClose={handleCloseEndSemesterModal}
+        fullScreen={false}
         PaperProps={{
           sx: {
-            borderRadius: 3,
-            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)',
-            overflow: 'hidden'
+            borderRadius: { xs: 0, sm: 3 },
+            boxShadow: { xs: 'none', sm: '0 20px 60px rgba(0, 0, 0, 0.15)' },
+            overflow: 'hidden',
+            m: { xs: 0, sm: 2 },
+            maxHeight: { xs: '100vh', sm: '90vh' },
+            width: { xs: '100vw', sm: 'auto' },
+            height: { xs: '100vh', sm: 'auto' },
+            position: { xs: 'fixed', sm: 'relative' },
+            top: { xs: 0, sm: 'auto' },
+            left: { xs: 0, sm: 'auto' }
           }
         }}
       >
@@ -6253,27 +6497,27 @@ const ProgramHeadEnrollment: React.FC = () => {
           sx={{
             background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
             color: 'white',
-            py: 3,
-            px: 4,
+            py: { xs: 2, sm: 3 },
+            px: { xs: 2, sm: 4 },
             display: 'flex',
             alignItems: 'center',
-            gap: 2,
+            gap: { xs: 1, sm: 2 },
             '& .MuiTypography-root': {
-              fontSize: '1.5rem',
+              fontSize: { xs: '1.25rem', sm: '1.5rem' },
               fontWeight: 600
             }
           }}
         >
           <Box
             sx={{
-              width: 40,
-              height: 40,
+              width: { xs: 32, sm: 40 },
+              height: { xs: 32, sm: 40 },
               borderRadius: '50%',
               background: 'rgba(255, 255, 255, 0.2)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: '1.2rem'
+              fontSize: { xs: '1rem', sm: '1.2rem' }
             }}
           >
             ⚠️
@@ -6282,7 +6526,9 @@ const ProgramHeadEnrollment: React.FC = () => {
         </DialogTitle>
         <DialogContent
           sx={{
-            p: 4,
+            p: { xs: 2, sm: 4 },
+            maxHeight: { xs: 'calc(100vh - 200px)', sm: '70vh' },
+            overflow: 'auto',
             background: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)',
             position: 'relative',
             '&::before': {
@@ -6517,10 +6763,14 @@ const ProgramHeadEnrollment: React.FC = () => {
           </Box>
         </DialogContent>
         <DialogActions sx={{ 
-          p: 3, 
+          p: { xs: 2, sm: 3 }, 
           background: '#fef2f2',
           borderTop: '1px solid #fecaca',
-          gap: 2
+          gap: { xs: 2, sm: 2 },
+          flexDirection: { xs: 'column', sm: 'row' },
+          '& .MuiButton-root': {
+            width: { xs: '100%', sm: 'auto' }
+          }
         }}>
           <Button 
             onClick={handleCloseEndSemesterModal} 
@@ -6609,22 +6859,77 @@ const ProgramHeadEnrollment: React.FC = () => {
         maxWidth="lg"
         fullWidth
         scroll="paper"
+        fullScreen={false}
         PaperProps={{
           sx: {
-            borderRadius: 3,
-            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
+            borderRadius: { xs: 0, sm: 3 },
+            boxShadow: { xs: 'none', sm: '0 20px 60px rgba(0, 0, 0, 0.3)' },
             background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-            border: '1px solid #e5e7eb'
+            border: { xs: 'none', sm: '1px solid #e5e7eb' },
+            m: { xs: 0, sm: 2 },
+            maxHeight: { xs: '100vh', sm: '90vh' }
           }
         }}
       >
         <DialogTitle sx={{ display: 'none' }} />
         
-        <DialogContent sx={{ p: 0 }}>
-          <Box ref={prospectusContentRef}>
+        <DialogContent sx={{ 
+          p: 0,
+          maxHeight: { xs: 'calc(100vh - 100px)', sm: '70vh' },
+          overflow: 'auto'
+        }}>
+          {/* Mobile view - Show download prompt instead of full prospectus */}
+          <Box sx={{ 
+            display: { xs: 'block', sm: 'none' },
+            p: 4,
+            textAlign: 'center',
+            background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)'
+          }}>
+            <Box sx={{ 
+              mb: 3,
+              fontSize: '4rem',
+              color: '#667eea'
+            }}>
+              📱
+            </Box>
+            <Typography variant="h6" sx={{ 
+              fontWeight: 600, 
+              color: '#374151',
+              mb: 2
+            }}>
+              Mobile View Not Optimized
+            </Typography>
+            <Typography variant="body1" sx={{ 
+              color: '#6b7280',
+              mb: 3,
+              lineHeight: 1.6
+            }}>
+              The prospectus contains detailed information that's best viewed on desktop or as a PDF. 
+              Please download the PDF for the best viewing experience on your mobile device.
+            </Typography>
+            <Typography variant="body2" sx={{ 
+              color: '#9ca3af',
+              fontStyle: 'italic'
+            }}>
+              Tap the "Download PDF" button below to get the full prospectus.
+            </Typography>
+          </Box>
+
+          {/* Desktop view - Show full prospectus */}
+          <Box ref={prospectusContentRef} sx={{ display: { xs: 'none', sm: 'block' } }}>
             {/* Header area with proper CSS classes */}
-            <Box className="prospectus-header" sx={{ background: 'white', p: 3, borderBottom: '1px solid #e5e7eb' }}>
-              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, width: '100%' }}>
+            <Box className="prospectus-header" sx={{ 
+              background: 'white', 
+              p: { xs: 2, sm: 3 }, 
+              borderBottom: '1px solid #e5e7eb' 
+            }}>
+              <Box sx={{ 
+                display: 'flex', 
+                alignItems: 'flex-start', 
+                gap: { xs: 1, sm: 2 }, 
+                width: '100%',
+                flexDirection: { xs: 'column', sm: 'row' }
+              }}>
                 <Box sx={{ 
                   width: 50, height: 50, borderRadius: '50%',
                   background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
@@ -6742,24 +7047,29 @@ const ProgramHeadEnrollment: React.FC = () => {
         </DialogContent>
         
         <DialogActions sx={{ 
-          p: 3, 
+          p: { xs: 2, sm: 3 }, 
           background: '#f8fafc',
           borderTop: '1px solid #e5e7eb',
-          gap: 2
+          gap: { xs: 2, sm: 2 },
+          flexDirection: { xs: 'column', sm: 'row' },
+          '& .MuiButton-root': {
+            width: { xs: '100%', sm: 'auto' }
+          }
         }}>
           <Button 
             onClick={handleDownloadPDF}
-            variant="outlined"
+            variant="contained"
             sx={{
               borderRadius: 2,
               px: 3,
               py: 1.5,
               fontWeight: 600,
-              borderColor: '#d1d5db',
-              color: '#374151',
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              color: 'white',
               '&:hover': {
-                borderColor: '#9ca3af',
-                background: '#f9fafb'
+                background: 'linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%)',
+                transform: 'translateY(-1px)',
+                boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)'
               }
             }}
           >
@@ -6778,6 +7088,7 @@ const ProgramHeadEnrollment: React.FC = () => {
               fontWeight: 600,
               borderColor: '#d1d5db',
               color: '#374151',
+              display: { xs: 'none', sm: 'flex' },
               '&:hover': {
                 borderColor: '#9ca3af',
                 background: '#f9fafb'
