@@ -1666,21 +1666,19 @@ const DashboardOverview: React.FC = () => {
         });
       }
 
-      // Get recent course updates
+      // Get some courses (order by code since updated_at may not exist)
       const { data: recentCourses } = await supabase
         .from('courses')
-        .select('updated_at, course_name')
-        .not('updated_at', 'is', null)
-        .order('updated_at', { ascending: false })
+        .select('code, name')
+        .order('code', { ascending: false })
         .limit(2);
 
       if (recentCourses && recentCourses.length > 0) {
         recentCourses.forEach(course => {
-          const timeAgo = getTimeAgo(course.updated_at);
           activities.push({
             type: 'course',
-            message: `Course updated: ${course.course_name}`,
-            time: timeAgo,
+            message: `Course found: ${course.name || course.code}`,
+            time: 'Just now',
             icon: BookOpen
           });
         });
@@ -2787,9 +2785,8 @@ const AdminDashboard: React.FC = () => {
             <Route path="/program-management" element={<ProgramManagement />} />
             <Route path="/enrollment-approvals" element={<RegistrarEnrollment />} />
             <Route path="/student-grades" element={<StudentGrades />} />
-            
+            <Route path="/enroll-student" element={<ProgramHeadEnrollment />} />
             <Route path="/instructor-management" element={<InstructorManagement />} />
-             <Route path="/enroll-student" element={<ProgramHeadEnrollment />} />
             <Route path="/class-management" element={<ClassManagement />} />
             <Route path="/settings" element={<SystemSettings />} />
           </Routes>
