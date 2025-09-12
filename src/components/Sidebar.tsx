@@ -38,7 +38,6 @@ import './sidebar.css';
 
 
 
-
 interface SidebarItem {
   label: string;
   path: string;
