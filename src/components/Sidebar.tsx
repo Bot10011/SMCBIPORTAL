@@ -177,7 +177,7 @@ const sidebarItems: SidebarItem[] = [
     roles: ['program_head'],
   },
   {
-    label: 'List of Subjects',
+    label: 'Subject Management',
     path: '/dashboard/academic-history',
     icon: <ClipboardList className="w-5 h-5" />,
     roles: ['program_head'],
