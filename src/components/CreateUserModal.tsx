@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, UserPlus, Loader2, ChevronLeft, ChevronRight, CheckCircle2, Check, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -18,6 +18,11 @@ interface Department {
   name: string; 
 }
 
+interface Section {
+  id: string;
+  name: string;
+}
+
 interface CreateUserForm {
   email: string;
   role: 'instructor' | 'student' | 'registrar' | 'program_head' | '';
@@ -28,7 +33,7 @@ interface CreateUserForm {
   year_level?: string;
   student_type?: string;
   enrollment_status?: string;
-  section?: string;
+  section?: string; // This will store the section UUID
   school_year?: string;
   semester?: string;
   student_status?: string;
@@ -143,7 +148,9 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
   // Data state
   const [programs, setPrograms] = useState<Program[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [sections, setSections] = useState<Section[]>([]);
   const [isLoadingDepartments, setIsLoadingDepartments] = useState(false);
+  const [isLoadingSections, setIsLoadingSections] = useState(false);
 
   // Constants
   const getSteps = (role: string) => {
@@ -158,7 +165,6 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
   const studentTypes = ['Freshman', 'Regular', 'Irregular', 'Transferee'];
   const enrollmentStatuses = ['pending', 'enrolled', 'active', 'approved', 'returned', 'dropped'];
   const semesters = ['1st Semester', '2nd Semester'];
-  const sectionOptions = ['A', 'B', 'C', 'D'];
 
   // Add state for confirmation dialog
   const [showConfirmation, setShowConfirmation] = useState(false);
@@ -166,7 +172,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
   const { setCreatingUserFlag } = useAuth();
 
   // Reset form function
-  const resetForm = () => {
+  const resetForm = useCallback(() => {
     setForm({
       email: '',
       role: '',
@@ -185,7 +191,8 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
     setStep(0);
     setEmailStatus('idle');
     setShowConfirmation(false);
-  };
+    setCreatingUserFlag(false);
+  }, [currentAcademicYear, setCreatingUserFlag]);
 
   // Manage body scroll when modal is open
   useEffect(() => {
@@ -200,12 +207,13 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
     return () => {
       document.body.classList.remove('modal-open');
     };
-  }, [isOpen]);
+  }, [isOpen, resetForm]);
 
-  // Fetch programs and departments on mount
+  // Fetch programs, departments, and sections on mount
   useEffect(() => {
     fetchPrograms();
     fetchDepartments();
+    fetchSections();
   }, []);
 
   const fetchPrograms = async () => {
@@ -244,6 +252,43 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
     } finally {
       setIsLoadingDepartments(false);
     }
+  };
+
+  const fetchSections = async () => {
+    try {
+      setIsLoadingSections(true);
+      const { data, error } = await supabase
+        .from('sections')
+        .select('id, name')
+        .order('name');
+      
+      if (error) {
+        console.error('Error fetching sections:', error);
+        // If sections table doesn't exist or has permission issues, show a helpful message
+        if (error.code === 'PGRST116' || error.message?.includes('relation "sections" does not exist')) {
+          toast.error('Sections table not found. Please contact administrator to set up sections.');
+        } else {
+          toast.error('Failed to load sections. Please try again.');
+        }
+        setSections([]);
+        return;
+      }
+      
+      setSections(data || []);
+    } catch (error) {
+      console.error('Error fetching sections:', error);
+      toast.error('Failed to load sections');
+      setSections([]);
+    } finally {
+      setIsLoadingSections(false);
+    }
+  };
+
+  // Filter sections based on department and year level
+  const getFilteredSections = () => {
+    // Since we're only fetching names, return all sections
+    // The filtering will be done by the user when they select
+    return sections;
   };
 
   // Email validation
@@ -294,59 +339,103 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
     }
   };
 
-  // Add this useEffect to auto-generate ID when role is student
-  useEffect(() => {
-    if (form.role === 'student' && !form.student_id) {
-      generateStudentId();
-    }
-  }, [form.role]);
-
   // Update the generateStudentId function
-  const generateStudentId = async () => {
+  const generateStudentId = useCallback(async () => {
     setIsGeneratingId(true);
     try {
-      const year = new Date().getFullYear().toString().slice(-2);
-      let attempts = 0;
-      const maxAttempts = 5;
-      let isUnique = false;
-      let newId: string = `C${year}0000`; // Initialize with a default value
-
-      while (!isUnique && attempts < maxAttempts) {
-        // Generate a random 4-digit number
-        const randomNum = Math.floor(1000 + Math.random() * 9000);
-        newId = `C${year}${randomNum}`;
-
-        // Check if ID exists using a count query
-        const { count, error } = await supabase
+      // Extract last two digits of school year start
+      const match = form.school_year?.match(/(\d{4})/);
+      if (!match) {
+        setForm(prev => ({ ...prev, student_id: '' }));
+        return;
+      }
+      const yearPrefix = match[1].slice(-2);
+      
+      // Get all existing student IDs for this year to find the highest number
+      const { data: existingStudents, error } = await supabase
+        .from('user_profiles')
+        .select('student_id')
+        .ilike('student_id', `C-${yearPrefix}%`)
+        .not('student_id', 'is', null);
+      
+      if (error) {
+        console.error('Error fetching existing students:', error);
+        return;
+      }
+      
+      // Extract numbers from existing student IDs and find the highest
+      let maxRegNum = 0;
+      if (existingStudents && existingStudents.length > 0) {
+        existingStudents.forEach(student => {
+          if (student.student_id) {
+            const match = student.student_id.match(/C-\d{2}(\d{4})/);
+            if (match) {
+              const regNum = parseInt(match[1], 10);
+              if (regNum > maxRegNum) {
+                maxRegNum = regNum;
+              }
+            }
+          }
+        });
+      }
+      
+      // Generate the next available student ID
+      let regNum = maxRegNum + 1;
+      let studentId = `C-${yearPrefix}${regNum.toString().padStart(4, '0')}`;
+      
+      // Double-check that this ID doesn't already exist (extra safety)
+      const { data: existingStudent, error: checkError } = await supabase
+        .from('user_profiles')
+        .select('id')
+        .eq('student_id', studentId)
+        .single();
+      
+      if (checkError && checkError.code !== 'PGRST116') { // PGRST116 = no rows returned
+        console.error('Error checking existing student ID:', checkError);
+        return;
+      }
+      
+      // If somehow the ID still exists, keep incrementing until we find a free one
+      while (existingStudent) {
+        regNum += 1;
+        studentId = `C-${yearPrefix}${regNum.toString().padStart(4, '0')}`;
+        
+        const { error: checkErr } = await supabase
           .from('user_profiles')
-          .select('*', { count: 'exact', head: true })
-          .eq('student_id', newId);
-
-        if (error) {
-          console.error('Error checking student ID:', error);
-          throw error;
+          .select('id')
+          .eq('student_id', studentId)
+          .single();
+        
+        if (checkErr && checkErr.code === 'PGRST116') {
+          // No student found with this ID, we can use it
+          break;
+        } else if (checkErr) {
+          console.error('Error checking student ID:', checkErr);
+          return;
         }
-
-        // If count is 0, the ID is unique
-        if (count === 0) {
-          isUnique = true;
+        
+        // If we've tried too many times, something is wrong
+        if (regNum > maxRegNum + 100) {
+          console.error('Could not find available student ID after 100 attempts');
+          return;
         }
-
-        attempts++;
       }
-
-      if (!isUnique) {
-        throw new Error('Failed to generate unique ID after multiple attempts');
-      }
-
-      setForm(prev => ({ ...prev, student_id: newId }));
+      
+      setForm(prev => ({ ...prev, student_id: studentId }));
     } catch (error) {
       console.error('Error generating student ID:', error);
       toast.error('Failed to generate student ID. Please try again.');
     } finally {
       setIsGeneratingId(false);
     }
-  };
+  }, [form.school_year]);
+
+  // Add this useEffect to auto-generate ID when role is student
+  useEffect(() => {
+    if (form.role === 'student' && !form.student_id) {
+      generateStudentId();
+    }
+  }, [form.role, form.student_id, generateStudentId]);
 
   // Update the form submission to include ID uniqueness check
   const handleSubmit = async (e: React.FormEvent) => {
@@ -456,7 +545,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
 
       // Create auth user using isolated client so admin session is not affected
       const { data: authData, error: authError } = await createUserClient.auth.signUp({
-        email: `${form.email}@smcbi.edu.ph`,
+        email: `${form.email.toLowerCase()}@smcbi.edu.ph`,
         password: 'TempPass@123',
         options: {
           emailRedirectTo: `${window.location.origin}/auth/callback`,
@@ -467,28 +556,35 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
       });
 
       if (authError) {
-        toast.error(authError.message || 'Error creating auth user.');
+        console.error('Auth user creation error:', authError);
+        if (authError.message?.includes('already registered') || authError.message?.includes('already exists')) {
+          toast.error('Email already exists. Please choose a different email.');
+        } else {
+          toast.error(authError.message || 'Error creating auth user.');
+        }
         setCreating(false);
         setCreatingUserFlag(false); // Reset flag
-        resetForm();
-        if (onUserCreated) onUserCreated(); else onClose();
+        return; // Don't reset form or close modal on auth error
+      }
+
+      // Ensure we have a valid user ID before proceeding
+      if (!authData.user?.id) {
+        console.error('No user ID returned from auth creation');
+        toast.error('Failed to create user account. Please try again.');
+        setCreating(false);
+        setCreatingUserFlag(false); // Reset flag
         return;
       }
 
-      const newUserId = authData.user?.id || '';
-      if (!newUserId) {
-        toast.error('Failed to get new user ID.');
-        setCreating(false);
-        setCreatingUserFlag(false); // Reset flag
-        resetForm();
-        if (onUserCreated) onUserCreated(); else onClose();
-        return;
-      }
+      const newUserId = authData.user.id;
+
+      // Add a small delay to ensure auth user is fully created
+      await new Promise(resolve => setTimeout(resolve, 100));
 
       // Prepare the user profile object with proper typing
       const userProfile: UserProfile = {
         id: newUserId,
-        email: `${form.email}@smcbi.edu.ph`,
+        email: `${form.email.toLowerCase()}@smcbi.edu.ph`,
         role: form.role,
         is_active: form.is_active,
         department: form.department || null,
@@ -512,18 +608,52 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
         }
       });
 
-      // Insert user profile using admin's session
-      const { error: profileError } = await supabase
-        .from('user_profiles')
-        .insert([userProfile]);
+      // Insert user profile using admin's session with retry mechanism
+      let profileError = null;
+      let retryCount = 0;
+      const maxRetries = 3;
+      
+      while (retryCount < maxRetries) {
+        const { error } = await supabase
+          .from('user_profiles')
+          .insert([userProfile]);
+        
+        profileError = error;
+        
+        if (!error || error.code !== '23503') {
+          // Success or non-foreign key error
+          break;
+        }
+        
+        // Foreign key constraint violation - wait and retry
+        retryCount++;
+        if (retryCount < maxRetries) {
+          console.log(`Retrying profile creation (attempt ${retryCount + 1}/${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, 500 * retryCount));
+        }
+      }
 
       if (profileError) {
-        toast.error(profileError.message || 'Error saving user profile.');
+        console.error('Profile creation error:', profileError);
+        if (profileError.code === '23505') {
+          // Unique constraint violation
+          if (profileError.message.includes('email')) {
+            toast.error('Email already exists. Please choose a different email.');
+          } else if (profileError.message.includes('student_id')) {
+            toast.error('Student ID already exists. Please try again.');
+            await generateStudentId();
+          } else {
+            toast.error('A user with this information already exists.');
+          }
+        } else if (profileError.code === '23503') {
+          // Foreign key constraint violation
+          toast.error(`Failed to create user profile after ${maxRetries} attempts. The user account may not have been created properly. Please try again.`);
+        } else {
+          toast.error(profileError.message || 'Error saving user profile.');
+        }
         setCreating(false);
         setCreatingUserFlag(false); // Reset flag
-        resetForm();
-        if (onUserCreated) onUserCreated(); else onClose();
-        return;
+        return; // Don't reset form or close modal on profile error
       }
 
       toast.success('User created successfully.');
@@ -965,14 +1095,33 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
                           value={form.section}
                           onChange={e => setForm(prev => ({ ...prev, section: e.target.value }))}
                           required
+                          disabled={isLoadingSections}
                         >
-                          <option value="">Select Section</option>
-                          {sectionOptions.map(section => (
-                            <option key={section} value={section}>
-                              Section {section}
+                          <option value="">
+                            {isLoadingSections 
+                              ? 'Loading sections...' 
+                              : 'Select Section'
+                            }
+                          </option>
+                          {getFilteredSections().map(section => (
+                            <option key={section.id} value={section.id}>
+                              {section.name}
                             </option>
                           ))}
                         </select>
+                        {isLoadingSections && (
+                          <p className="mt-1 text-sm text-gray-500 text-center">Loading sections...</p>
+                        )}
+                        {!isLoadingSections && getFilteredSections().length === 0 && (
+                          <p className="mt-1 text-sm text-orange-500 text-center">
+                            No sections available. Please contact administrator to create sections.
+                          </p>
+                        )}
+                        {!isLoadingSections && sections.length === 0 && (
+                          <p className="mt-1 text-sm text-red-500 text-center">
+                            Sections table not available. Please contact administrator to set up the sections table.
+                          </p>
+                        )}
                       </div>
 
                       <div>
