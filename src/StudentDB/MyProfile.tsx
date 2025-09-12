@@ -24,9 +24,10 @@ type UserProfile = Database['public']['Tables']['user_profiles']['Row'] & {
   year_level?: string;
   student_id?: string;
   program_id?: number;
-  section?: string; // ensure section is included
+  section?: string; // section UUID from database
   enrollment_status?: 'enrolled' | 'not_enrolled' | 'pending';
   department?: string; // ensure department is included
+  avatar_url?: string; // avatar URL from database
 };
 
 // Get a display name from Supabase Auth user metadata/identities
@@ -102,6 +103,7 @@ export const MyProfile: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(null);
   const [authDisplayName, setAuthDisplayName] = useState<string>('');
+  const [sectionName, setSectionName] = useState<string>('');
   const [imageDebug, setImageDebug] = useState<
     { status: 'idle' | 'loading' | 'ok' | 'missing_url' | 'download_error' | 'no_file_data' | 'image_failed'; message?: string }
   >({ status: 'idle' });
@@ -172,9 +174,13 @@ export const MyProfile: React.FC = () => {
       try {
         if (user?.id) {
           logProfileDebug('Begin profile fetch', { authUserId: user.id, authEmail: user.email });
+          
+          // Get auth data for fallbacks
+          const { data: authData } = await supabase.auth.getUser();
+          
           const { data: byIdData, error: byIdError } = await supabase
             .from('user_profiles')
-            .select('*')
+            .select('*, avatar_url, display_name')
             .eq('id', user.id)
             .single();
 
@@ -184,7 +190,7 @@ export const MyProfile: React.FC = () => {
             // Fallback: match by email (handles Google logins where profile row not yet keyed by auth id)
             const { data: byEmail, error: emailErr } = await supabase
               .from('user_profiles')
-              .select('*')
+              .select('*, avatar_url, display_name')
               .ilike('email', user.email || '')
               .limit(1)
               .single();
@@ -196,67 +202,90 @@ export const MyProfile: React.FC = () => {
           }
 
           setProfile(data);
-          logProfileDebug('Profile fetched', { profileId: data?.id, email: data?.email });
-          // Always prefer Google avatar from Authentication
-          try {
-            const { data: authData } = await supabase.auth.getUser();
-            const authAvatar = authData?.user ? getAuthAvatarUrl(authData.user) : null;
-            if (authAvatar) {
-              setProfilePictureUrl(authAvatar);
-              logProfileDebug('Using Google avatar', { avatarUrl: authAvatar });
-              setImageDebug({ status: 'ok' });
-            } else {
-              // Try Google Userinfo API using provider access token
-              const { data: sessionData } = await supabase.auth.getSession();
-              const accessToken = sessionData?.session?.provider_token as string | undefined;
-              if (accessToken) {
-                try {
-                  const resp = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-                    headers: { Authorization: `Bearer ${accessToken}` }
-                  });
-                  if (resp.ok) {
-                    const json = await resp.json();
-                    const pic = typeof json?.picture === 'string' ? json.picture : undefined;
-                    if (pic) {
-                      setProfilePictureUrl(pic);
-                      logProfileDebug('Using Google userinfo picture', { avatarUrl: pic });
-                      setImageDebug({ status: 'ok' });
-                      return;
-                    }
-                    logProfileDebug('Google userinfo returned no picture', { jsonSample: JSON.stringify(json).slice(0, 200) });
-                  } else {
-                    logProfileDebug('Google userinfo HTTP error', { status: resp.status });
-                  }
-                } catch (e) {
-                  logProfileDebug('Google userinfo fetch failed', { error: e instanceof Error ? e.message : String(e) });
-                }
-              } else {
-                logProfileDebug('No provider access token available for Google userinfo');
-              }
-
-              // Final fallback: generated initials avatar so the UI always shows something
-              const seed = authDisplayName || user?.email || 'User';
-              const generated = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(seed)}&backgroundType=gradientLinear&fontSize=42`;
-              setProfilePictureUrl(generated);
-              logProfileDebug('No Google avatar found; using generated initials avatar', { seed });
-              setImageDebug({ status: 'ok' });
-            }
-          } catch (err) {
-            setProfilePictureUrl(null);
-            logProfileDebug('Error while getting Google avatar', { error: err instanceof Error ? err.message : String(err) });
-            setImageDebug({ status: 'missing_url', message: 'No Google avatar found' });
+          logProfileDebug('Profile fetched', { profileId: data?.id, email: data?.email, avatar_url: data?.avatar_url, display_name: data?.display_name });
+          
+          // Handle display name with fallback
+          let displayName = '';
+          if (data?.display_name) {
+            displayName = data.display_name;
+            setAuthDisplayName(displayName);
+          } else if (authData?.user) {
+            displayName = getAuthDisplayName(authData.user) || authData.user.email || '';
+            setAuthDisplayName(displayName);
+          } else {
+            displayName = user.email || '';
+            setAuthDisplayName(displayName);
           }
+
+          // Handle avatar with fallback
+          let pictureUrl: string | null = null;
+          
+          // Priority 1: Use avatar_url from database
+          if (data?.avatar_url) {
+            pictureUrl = data.avatar_url;
+            setProfilePictureUrl(pictureUrl);
+            logProfileDebug('Using database avatar_url', { avatarUrl: pictureUrl });
+            setImageDebug({ status: 'ok' });
+            return;
+          } 
+          // Priority 2: Fallback to Google metadata if no avatar_url
+          else if (authData?.user) {
+            pictureUrl = getAuthAvatarUrl(authData.user);
+            if (pictureUrl) {
+              setProfilePictureUrl(pictureUrl);
+              logProfileDebug('Using Google avatar from auth metadata', { avatarUrl: pictureUrl });
+              setImageDebug({ status: 'ok' });
+              return;
+            }
+          }
+
+          // Final fallback: generated initials avatar so the UI always shows something
+          const seed = displayName || user?.email || 'User';
+          const generated = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(seed)}&backgroundType=gradientLinear&fontSize=42`;
+          setProfilePictureUrl(generated);
+          logProfileDebug('No avatar found; using generated initials avatar', { seed });
+          setImageDebug({ status: 'ok' });
         }
       } catch (error) {
         console.error('Error fetching profile:', error);
         logProfileDebug('Profile fetch threw', { error: error instanceof Error ? error.message : String(error) });
+        setProfilePictureUrl(null);
+        setAuthDisplayName(user?.email || '');
       } finally {
         setLoading(false);
       }
     };
 
     fetchProfile();
-  }, [user?.id, user, authDisplayName]);
+  }, [user?.id, user]);
+
+  // Fetch section name when profile is loaded
+  useEffect(() => {
+    const fetchSectionName = async () => {
+      if (profile?.section) {
+        try {
+          const { data, error } = await supabase
+            .from('sections')
+            .select('name')
+            .eq('id', profile.section)
+            .single();
+          
+          if (!error && data) {
+            setSectionName(data.name);
+          } else {
+            setSectionName('N/A');
+          }
+        } catch (error) {
+          console.error('Error fetching section name:', error);
+          setSectionName('N/A');
+        }
+      } else {
+        setSectionName('N/A');
+      }
+    };
+
+    fetchSectionName();
+  }, [profile?.section]);
 
   // Password change functions
   const validatePassword = (password: string): string | null => {
@@ -569,7 +598,7 @@ export const MyProfile: React.FC = () => {
                 <Users className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-600" />
                 Section:
               </span>
-              <span className="text-sm sm:text-base font-bold text-black truncate">{profile?.section ?? 'N/A'}</span>
+              <span className="text-sm sm:text-base font-bold text-black truncate">{sectionName}</span>
             </div>
           </div>
         </motion.div>
