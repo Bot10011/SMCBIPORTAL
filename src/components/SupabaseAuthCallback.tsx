@@ -6,7 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 const SupabaseAuthCallback: React.FC = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
- 
+
   const [handled, setHandled] = useState(false);
 
   useEffect(() => {
@@ -37,7 +37,8 @@ const SupabaseAuthCallback: React.FC = () => {
 
         // Only check registration. Google already restricts the domain.
         const { db } = await import('../lib/supabase');
-        const exists = await db.users.checkUserExists(user.email);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const exists = await (db as any).users.checkUserExists(user.email);
         if (!exists) {
           await supabase.auth.signOut();
           localStorage.setItem('google_error', JSON.stringify({
@@ -50,7 +51,8 @@ const SupabaseAuthCallback: React.FC = () => {
 
         // Registered: continue (minimal work, then route away)
         try {
-          const userData = await db.users.getOrCreateProfile(user.id, user.email);
+          // Pass the user object directly to preserve Google metadata
+          const userData = await db.users.getOrCreateProfile(user.id, user.email, 'student', user);
           if (userData) {
             const userDataToStore = {
               id: user.id,
@@ -62,6 +64,12 @@ const SupabaseAuthCallback: React.FC = () => {
             } as const;
             login(userDataToStore);
             localStorage.setItem('user', JSON.stringify(userDataToStore));
+            
+            // Google users will have their avatars refreshed automatically by AuthContext
+            if (user.app_metadata?.provider === 'google') {
+              console.log('🔄 Google user logged in, avatar refresh will be triggered automatically by AuthContext');
+            }
+            
             navigate('/dashboard', { replace: true });
             return;
           }
