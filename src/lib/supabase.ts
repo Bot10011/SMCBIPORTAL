@@ -143,6 +143,69 @@ export const auth = {
   }
 };
 
+// Helper function to enhance Google avatar URL quality
+export const enhanceGoogleAvatarUrl = (url: string): string => {
+  if (!url || !url.includes('googleusercontent.com')) {
+    return url;
+  }
+  
+  // Remove existing size parameters and add high-quality parameters
+  // Google supports sizes up to 2000x2000 pixels
+  const baseUrl = url.split('=')[0];
+  const enhancedUrl = `${baseUrl}=s512-c-no`; // 512x512 pixels, no crop - high quality
+  
+  console.log('🖼️ Enhanced avatar URL:', { original: url, enhanced: enhancedUrl });
+  return enhancedUrl;
+};
+
+// Helper function to extract Google avatar URL from auth user
+export const getGoogleAvatarUrl = (authUser: { 
+  user_metadata?: { picture?: string }; 
+  identities?: Array<{ 
+    provider?: string; 
+    identity_data?: { picture?: string; avatar_url?: string } 
+  }> 
+} | null): string | null => {
+  if (!authUser) {
+    console.log('❌ getGoogleAvatarUrl: No auth user provided');
+    return null;
+  }
+  
+  console.log('🔍 getGoogleAvatarUrl: Checking avatar sources...');
+  
+  // Priority 1: Check user_metadata.picture
+  if (authUser.user_metadata?.picture && typeof authUser.user_metadata.picture === 'string') {
+    const enhancedUrl = enhanceGoogleAvatarUrl(authUser.user_metadata.picture);
+    console.log('✅ getGoogleAvatarUrl: Found avatar in user_metadata.picture:', enhancedUrl);
+    return enhancedUrl;
+  }
+  
+  // Priority 2: Check identities for Google avatar
+  if (authUser.identities) {
+    console.log('🔍 getGoogleAvatarUrl: Checking identities...');
+    for (const identity of authUser.identities) {
+      console.log('🔍 getGoogleAvatarUrl: Checking identity:', {
+        provider: identity.provider,
+        has_identity_data: !!identity.identity_data,
+        picture: identity.identity_data?.picture,
+        avatar_url: identity.identity_data?.avatar_url
+      });
+      
+      if (identity.provider === 'google' && identity.identity_data) {
+        const avatarFromIdentity = identity.identity_data.picture || identity.identity_data.avatar_url;
+        if (typeof avatarFromIdentity === 'string') {
+          const enhancedUrl = enhanceGoogleAvatarUrl(avatarFromIdentity);
+          console.log('✅ getGoogleAvatarUrl: Found avatar in identity:', enhancedUrl);
+          return enhancedUrl;
+        }
+      }
+    }
+  }
+  
+  console.log('❌ getGoogleAvatarUrl: No avatar found in any source');
+  return null;
+};
+
 // Database operations
 export const db = {
   // User management
@@ -217,7 +280,15 @@ export const db = {
     },
 
     // New function to get or create user profile
-    getOrCreateProfile: async (userId: string, email: string, defaultRole: UserRole = 'student') => {
+    getOrCreateProfile: async (userId: string, email: string, defaultRole: UserRole = 'student', authUser?: { 
+      id?: string;
+      app_metadata?: { provider?: string };
+      user_metadata?: { picture?: string; full_name?: string; name?: string; display_name?: string };
+      identities?: Array<{ 
+        provider?: string; 
+        identity_data?: { picture?: string; avatar_url?: string } 
+      }>;
+    }) => {
       // First try to get the existing profile
       const { data: existingProfile, error: fetchError } = await supabase
         .from('user_profiles')
@@ -230,24 +301,210 @@ export const db = {
         throw fetchError;
       }
 
-      // If profile exists, return it
+      // If profile exists, check for Google avatar updates
       if (existingProfile) {
         console.log('Found existing profile:', existingProfile);
+        
+        // Check if this is a Google user and update metadata if needed
+        try {
+          // Use passed authUser or fetch it
+          const currentAuthUser = authUser || (await supabase.auth.getUser()).data.user;
+          console.log('🔍 Auth user for existing profile:', {
+            id: currentAuthUser?.id,
+            provider: currentAuthUser?.app_metadata?.provider,
+            user_metadata: currentAuthUser?.user_metadata,
+            identities: currentAuthUser?.identities
+          });
+          
+          // Log the complete auth user object for debugging
+          console.log('🔍 Complete auth user object (existing):', JSON.stringify(currentAuthUser, null, 2));
+          
+          if (currentAuthUser && currentAuthUser.app_metadata?.provider === 'google') {
+            console.log('🔍 Detailed Google avatar data for existing profile:', {
+              user_metadata_picture: currentAuthUser.user_metadata?.picture,
+              identities: currentAuthUser.identities?.map((identity: { 
+                provider?: string; 
+                identity_data?: { picture?: string; avatar_url?: string } 
+              }) => ({
+                provider: identity.provider,
+                identity_data: identity.identity_data
+              }))
+            });
+            
+            let newAvatarUrl = getGoogleAvatarUrl(currentAuthUser);
+            console.log('🖼️ Extracted Google avatar URL for existing profile:', newAvatarUrl);
+            
+            // If no avatar URL found, try to get it from Google Userinfo API
+            if (!newAvatarUrl) {
+              console.log('🔄 No avatar URL found in OAuth response, trying Google Userinfo API...');
+              try {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (session?.provider_token) {
+                  const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                    headers: { Authorization: `Bearer ${session.provider_token}` }
+                  });
+                  if (userInfoResponse.ok) {
+                    const userInfo = await userInfoResponse.json();
+                    console.log('🔍 Google Userinfo API response:', userInfo);
+                    if (userInfo.picture && typeof userInfo.picture === 'string') {
+                      newAvatarUrl = enhanceGoogleAvatarUrl(userInfo.picture);
+                      console.log('✅ Got enhanced avatar URL from Google Userinfo API:', newAvatarUrl);
+                    }
+                  }
+                }
+              } catch (error) {
+                console.warn('Failed to get avatar from Google Userinfo API:', error);
+              }
+            }
+            
+            // Extract display name from Google user metadata
+            let newDisplayName: string | null = null;
+            if (currentAuthUser.user_metadata?.full_name) {
+              newDisplayName = currentAuthUser.user_metadata.full_name;
+            } else if (currentAuthUser.user_metadata?.name) {
+              newDisplayName = currentAuthUser.user_metadata.name;
+            } else if (currentAuthUser.user_metadata?.display_name) {
+              newDisplayName = currentAuthUser.user_metadata.display_name;
+            }
+            console.log('👤 Extracted Google display name for existing profile:', newDisplayName);
+            
+            // Prepare update data
+            const updateData: { avatar_url?: string; display_name?: string; auth_provider?: string } = {};
+            
+            // Update avatar_url if we found a new one
+            if (newAvatarUrl && newAvatarUrl !== existingProfile.avatar_url) {
+              updateData.avatar_url = newAvatarUrl;
+              console.log('🔄 Avatar URL needs update:', { old: existingProfile.avatar_url, new: newAvatarUrl });
+            }
+            
+            // Update display_name if we found a new one
+            if (newDisplayName && newDisplayName !== existingProfile.display_name) {
+              updateData.display_name = newDisplayName;
+              console.log('🔄 Display name needs update:', { old: existingProfile.display_name, new: newDisplayName });
+            }
+            
+            // Update auth_provider if not set
+            if (!existingProfile.auth_provider) {
+              updateData.auth_provider = 'google';
+              console.log('🔄 Auth provider needs update: google');
+            }
+            
+            // Perform update if there are changes
+            if (Object.keys(updateData).length > 0) {
+              console.log('📝 Updating existing profile with data:', updateData);
+              const { error: updateError } = await supabase
+                .from('user_profiles')
+                .update(updateData)
+                .eq('id', userId);
+              
+              if (!updateError) {
+                console.log('✅ Updated Google metadata:', { userId, ...updateData });
+                // Update the existing profile object with new values
+                Object.assign(existingProfile, updateData);
+              } else {
+                console.error('❌ Failed to update Google metadata:', updateError);
+              }
+            } else {
+              console.log('ℹ️ No Google metadata updates needed');
+            }
+          } else {
+            console.log('ℹ️ User is not a Google user or auth user not found');
+          }
+        } catch (error) {
+          console.warn('Failed to check Google metadata update:', error);
+        }
+        
         return existingProfile;
       }
 
       console.log('Creating new profile for user:', userId);
+      
+      // Get Google avatar and display name for new profiles if this is a Google user
+      let googleAvatarUrl: string | null = null;
+      let googleDisplayName: string | null = null;
+      try {
+        // Use passed authUser or fetch it
+        const currentAuthUser = authUser || (await supabase.auth.getUser()).data.user;
+        console.log('🔍 Auth user for new profile:', {
+          id: currentAuthUser?.id,
+          provider: currentAuthUser?.app_metadata?.provider,
+          user_metadata: currentAuthUser?.user_metadata,
+          identities: currentAuthUser?.identities
+        });
+        
+        // Log the complete auth user object for debugging
+        console.log('🔍 Complete auth user object:', JSON.stringify(currentAuthUser, null, 2));
+        
+        if (currentAuthUser && currentAuthUser.app_metadata?.provider === 'google') {
+          console.log('🔍 Detailed Google avatar data:', {
+            user_metadata_picture: currentAuthUser.user_metadata?.picture,
+            identities: currentAuthUser.identities?.map((identity: { 
+              provider?: string; 
+              identity_data?: { picture?: string; avatar_url?: string } 
+            }) => ({
+              provider: identity.provider,
+              identity_data: identity.identity_data
+            }))
+          });
+          
+          googleAvatarUrl = getGoogleAvatarUrl(currentAuthUser);
+          console.log('🖼️ Extracted Google avatar URL:', googleAvatarUrl);
+          
+          // If no avatar URL found, try to get it from Google Userinfo API
+          if (!googleAvatarUrl) {
+            console.log('🔄 No avatar URL found in OAuth response, trying Google Userinfo API...');
+            try {
+              const { data: { session } } = await supabase.auth.getSession();
+              if (session?.provider_token) {
+                const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                  headers: { Authorization: `Bearer ${session.provider_token}` }
+                });
+                  if (userInfoResponse.ok) {
+                    const userInfo = await userInfoResponse.json();
+                    console.log('🔍 Google Userinfo API response:', userInfo);
+                    if (userInfo.picture && typeof userInfo.picture === 'string') {
+                      googleAvatarUrl = enhanceGoogleAvatarUrl(userInfo.picture);
+                      console.log('✅ Got enhanced avatar URL from Google Userinfo API:', googleAvatarUrl);
+                    }
+                  }
+              }
+            } catch (error) {
+              console.warn('Failed to get avatar from Google Userinfo API:', error);
+            }
+          }
+          
+          // Extract display name from Google user metadata
+          if (currentAuthUser.user_metadata?.full_name) {
+            googleDisplayName = currentAuthUser.user_metadata.full_name;
+          } else if (currentAuthUser.user_metadata?.name) {
+            googleDisplayName = currentAuthUser.user_metadata.name;
+          } else if (currentAuthUser.user_metadata?.display_name) {
+            googleDisplayName = currentAuthUser.user_metadata.display_name;
+          }
+          console.log('👤 Extracted Google display name:', googleDisplayName);
+        }
+      } catch (error) {
+        console.warn('Failed to get Google metadata for new profile:', error);
+      }
+      
       // If no profile exists, create one
+      const profileData = {
+        id: userId, // Explicitly set the user ID
+        email,
+        role: defaultRole,
+        first_name: email.split('@')[0], // Default to email prefix, should be updated later
+        last_name: '', // Should be updated later
+        is_active: true,
+        display_name: googleDisplayName, // Include Google display name if available
+        avatar_url: googleAvatarUrl, // Include Google avatar if available
+        auth_provider: googleAvatarUrl ? 'google' : undefined
+      };
+      
+      console.log('📝 Creating profile with data:', profileData);
+      
       const { data: createdProfile, error: createError } = await supabase
         .from('user_profiles')
-        .insert({
-          id: userId, // Explicitly set the user ID
-          email,
-          role: defaultRole,
-          first_name: email.split('@')[0], // Default to email prefix, should be updated later
-          last_name: '', // Should be updated later
-          is_active: true
-        })
+        .insert(profileData)
         .select()
         .single();
 
@@ -256,7 +513,13 @@ export const db = {
         throw createError;
       }
 
-      console.log('Created new profile:', createdProfile);
+      console.log('✅ Created new profile:', {
+        id: createdProfile.id,
+        email: createdProfile.email,
+        display_name: createdProfile.display_name,
+        avatar_url: createdProfile.avatar_url,
+        auth_provider: createdProfile.auth_provider
+      });
       return createdProfile;
     }
   },
