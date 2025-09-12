@@ -565,7 +565,7 @@ const ClassList: React.FC = () => {
       {showViewModal && viewingSection && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/40" onClick={() => setShowViewModal(false)} />
-          <div className="relative z-10 w-full max-w-4xl rounded-xl bg-white p-5 shadow-2xl">
+          <div className="relative z-10 w-[95vw] max-w-4xl rounded-xl bg-white p-5 shadow-2xl max-h-[85vh] overflow-y-auto">
             <div className="mb-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <h3 className="text-base font-semibold text-gray-800">Section: {viewingSection.name}</h3>
