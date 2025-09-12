@@ -21,7 +21,6 @@ import { supabase } from '../lib/supabase';
 import StudentGrades from './StudentGrades';
 import SubjectsList from './SubjectsList';
 
-
 // Import registrar-specific components
 const StudentRecords = () => <div>Student Records</div>;
 
