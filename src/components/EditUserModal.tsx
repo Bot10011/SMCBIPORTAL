@@ -45,11 +45,17 @@ interface Program {
   name: string;
 }
 
+interface SectionOption {
+  id: string;
+  name: string;
+}
+
 export default function EditUserModal() {
   const { showEditUserModal, setShowEditUserModal, selectedUserId, onEditUserModalClose } = useModal();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [programs, setPrograms] = useState<Program[]>([]);
+  const [sections, setSections] = useState<SectionOption[]>([]);
   const [user, setUser] = useState<UserProfile | null>(null);
   const [formData, setFormData] = useState<Partial<UserProfile>>({});
   const [showSaveConfirm, setShowSaveConfirm] = useState(false);
@@ -161,6 +167,7 @@ export default function EditUserModal() {
       if (isMounted) {
         fetchUserData();
         fetchPrograms();
+        fetchSections();
       }
     }
     
@@ -272,6 +279,27 @@ export default function EditUserModal() {
     } catch (error) {
       console.error('Error fetching programs:', error);
       toast.error('Failed to load programs');
+    }
+  };
+
+  const fetchSections = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('sections')
+        .select('id, name')
+        .order('name');
+
+      if (error) throw error;
+
+      const options: SectionOption[] = (data || [])
+        .filter((row: { id?: string | null; name?: string | null }) => row && row.id && row.name)
+        .map((row: { id: string; name: string }) => ({ id: row.id, name: row.name }));
+
+      setSections(options);
+    } catch (error) {
+      console.error('Error fetching sections:', error);
+      toast.error('Failed to load sections');
+      setSections([] as SectionOption[]);
     }
   };
 
@@ -619,26 +647,26 @@ export default function EditUserModal() {
         // Check if email might be problematic (common issues)
         const problematicPatterns = [
           /admin@.*\.edu\.ph/i,  // admin@*.edu.ph pattern - commonly rejected
-          /@.*\.edu\.ph/i,       // any .edu.ph domain - seems to have issues
         ];
         
         const isProblematicEmail = problematicPatterns.some(pattern => pattern.test(newEmail));
         
         if (isProblematicEmail) {
-          console.log('Detected .edu.ph domain, skipping auth update to avoid Supabase issues');
-          toast.success('Profile updated successfully! .edu.ph email changes require manual verification.');
+          console.log('Detected admin@*.edu.ph pattern, skipping auth update to avoid Supabase issues');
+          toast.success('Profile updated successfully! Admin email changes require manual verification in Supabase Dashboard.');
         } else {
+          // Always attempt auth update for all other emails
+          console.log('Attempting auth update for email:', newEmail);
+          
           // Get the current user session to access auth
           const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
           
           if (authError) {
             console.error('Error getting auth user:', authError);
-            toast.error('Failed to update authentication email. Profile updated but email may not sync.');
+            toast.error('Profile updated but failed to update authentication. Please update manually in Supabase Dashboard.');
           } else if (authUser) {
             // Update the email in Supabase auth
             console.log('Attempting auth update with email:', newEmail);
-            console.log('Email input state:', emailInput);
-            console.log('User email state:', user?.email);
             const { error: updateAuthError } = await supabase.auth.updateUser({
               email: newEmail
             });
@@ -647,19 +675,44 @@ export default function EditUserModal() {
               console.error('Error updating auth email:', updateAuthError);
               console.error('Attempted email:', newEmail);
               
-              // Handle rate limiting specifically
+              // Enhanced error handling with retry logic
               if (updateAuthError.message.includes('21 seconds') || updateAuthError.message.includes('Too Many Requests')) {
-                toast.success('Profile updated successfully! Email change requires 21-second cooldown. Please try again in a moment.');
+                toast.success('Profile updated! Email change requires 21-second cooldown. Please try again in a moment.');
               } else if (updateAuthError.message.includes('invalid') || updateAuthError.message.includes('Invalid')) {
-                toast.error('Profile updated but email format is invalid. Please check the email address or contact administrator.');
+                toast.error('Profile updated but email format is invalid. Please check the email address.');
               } else if (updateAuthError.message.includes('already registered') || updateAuthError.message.includes('already exists')) {
                 toast.error('Profile updated but email is already in use by another user.');
               } else {
-                toast.error('Profile updated but failed to update authentication email. User may need to re-login.');
+                // For any other error, try alternative approach
+                console.log('Trying alternative auth update approach...');
+                
+                // Try to force update by getting fresh session
+                try {
+                  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+                  if (!sessionError && session) {
+                    console.log('Got fresh session, retrying auth update...');
+                    const { error: retryError } = await supabase.auth.updateUser({
+                      email: newEmail
+                    });
+                    
+                    if (retryError) {
+                      console.error('Retry also failed:', retryError);
+                      toast.error('Profile updated but auth update failed. Please update manually in Supabase Dashboard.');
+                    } else {
+                      console.log('Auth email updated successfully on retry');
+                      toast.success('User profile and authentication email updated successfully!');
+                    }
+                  } else {
+                    toast.error('Profile updated but auth update failed. Please update manually in Supabase Dashboard.');
+                  }
+                } catch (retryError) {
+                  console.error('Retry attempt failed:', retryError);
+                  toast.error('Profile updated but auth update failed. Please update manually in Supabase Dashboard.');
+                }
               }
             } else {
               console.log('Auth email updated successfully');
-              toast.success('User profile and authentication email updated successfully.');
+              toast.success('User profile and authentication email updated successfully!');
             }
           } else {
             console.log('No auth user found, skipping auth update');
@@ -1051,10 +1104,15 @@ export default function EditUserModal() {
                               style={{ borderStyle: 'solid !important', borderWidth: '2px !important', borderColor: '#6b7280 !important' }}
                             >
                               <option value="">Select Section</option>
-                              <option value="A">Section A</option>
-                              <option value="B">Section B</option>
-                              <option value="C">Section C</option>
-                              <option value="D">Section D</option>
+                              {/* Ensure current value appears even if not in fetched list */}
+                              {formData.section && !sections.some((s) => s.id === formData.section) && (
+                                <option value={formData.section}>{formData.section}</option>
+                              )}
+                              {sections.map((sec) => (
+                                <option key={`section-${sec.id}`} value={sec.id}>
+                                  {sec.name}
+                                </option>
+                              ))}
                             </select>
                           </div>
                           <div>
