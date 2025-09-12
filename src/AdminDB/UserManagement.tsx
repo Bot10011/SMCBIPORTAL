@@ -62,6 +62,20 @@ export default function UserManagement() {
     setStudentStatusFilter('');
   };
   
+  // Helper function to get student name with fallback logic
+  const getStudentName = (user: {display_name?: string, first_name?: string, last_name?: string, middle_name?: string}) => {
+    if (user.display_name && user.display_name.trim() !== '') {
+      return user.display_name;
+    }
+    
+    const firstName = user.first_name || '';
+    const middleName = user.middle_name || '';
+    const lastName = user.last_name || '';
+    
+    const fullName = [firstName, middleName, lastName].filter(name => name.trim() !== '').join(' ');
+    return fullName || 'No Name';
+  };
+  
   // Memoized filtered users logic
   const filteredUsers = useMemo(() => {
     return users.filter(user => {
@@ -102,20 +116,6 @@ export default function UserManagement() {
       inactive: users.filter(u => !u.is_active).length
     };
   }, [users]);
-
-  // Helper function to get student name with fallback logic
-  const getStudentName = (user: {display_name?: string, first_name?: string, last_name?: string, middle_name?: string}) => {
-    if (user.display_name && user.display_name.trim() !== '') {
-      return user.display_name;
-    }
-    
-    const firstName = user.first_name || '';
-    const middleName = user.middle_name || '';
-    const lastName = user.last_name || '';
-    
-    const fullName = [firstName, middleName, lastName].filter(name => name.trim() !== '').join(' ');
-    return fullName || 'No Name';
-  };
 
   // Helper function to get section display name
   const getSectionDisplayName = (sectionUid: string | undefined) => {
@@ -178,9 +178,12 @@ export default function UserManagement() {
   // Set up the callback when opening edit modal
   const handleEditUser = useCallback((userId: string) => {
     console.log('UserManagement: Setting up edit modal with callback for user:', userId);
-    setSelectedUserId(userId);
-    setOnEditUserModalClose(handleUserUpdated);
-    setShowEditUserModal(true);
+    // Defer modal context state updates to avoid cross-render warnings
+    setTimeout(() => {
+      setSelectedUserId(userId);
+      setOnEditUserModalClose(handleUserUpdated);
+      setShowEditUserModal(true);
+    }, 0);
   }, [setSelectedUserId, setOnEditUserModalClose, setShowEditUserModal, handleUserUpdated]);
 
   useEffect(() => {
