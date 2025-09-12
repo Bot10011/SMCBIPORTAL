@@ -176,42 +176,8 @@ const DashboardOverview = () => {
     isLoading: boolean;
   }>({ courses: [], courseWork: [], submissions: [], isLoading: false });
 
-  // Check Google Classroom connection status and fetch data
-  useEffect(() => {
-    const checkGoogleClassroomStatus = async () => {
-      if (!user?.id) {
-        setGoogleClassroomStatus('disconnected');
-        return;
-      }
-
-      const connectionInfo = getGoogleClassroomConnectionInfo(user.id);
-      setGoogleClassroomStatus(connectionInfo.status);
-
-      // If connected, fetch Google Classroom data
-      if (connectionInfo.status === 'connected') {
-        try {
-          await fetchGoogleClassroomData();
-        } catch (error) {
-          console.error('Error fetching Google Classroom data:', error);
-        }
-      }
-    };
-
-    checkGoogleClassroomStatus();
-    
-    // Listen for storage changes to update status
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key?.includes('google_classroom_token_') || e.key?.includes('google_auth_code_')) {
-        checkGoogleClassroomStatus();
-      }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, [user?.id]);
-
   // Function to fetch Google Classroom data
-  const fetchGoogleClassroomData = async () => {
+  const fetchGoogleClassroomData = useCallback(async () => {
     try {
       // Set loading state
       setGoogleClassroomData(prev => ({ ...prev, isLoading: true }));
@@ -323,7 +289,41 @@ const DashboardOverview = () => {
       setGoogleClassroomStatus('disconnected');
       setGoogleClassroomData(prev => ({ ...prev, isLoading: false }));
     }
-  };
+  }, [user?.id]);
+
+  // Check Google Classroom connection status and fetch data
+  useEffect(() => {
+    const checkGoogleClassroomStatus = async () => {
+      if (!user?.id) {
+        setGoogleClassroomStatus('disconnected');
+        return;
+      }
+
+      const connectionInfo = getGoogleClassroomConnectionInfo(user.id);
+      setGoogleClassroomStatus(connectionInfo.status);
+
+      // If connected, fetch Google Classroom data
+      if (connectionInfo.status === 'connected') {
+        try {
+          await fetchGoogleClassroomData();
+        } catch (error) {
+          console.error('Error fetching Google Classroom data:', error);
+        }
+      }
+    };
+
+    checkGoogleClassroomStatus();
+    
+    // Listen for storage changes to update status
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key?.includes('google_classroom_token_') || e.key?.includes('google_auth_code_')) {
+        checkGoogleClassroomStatus();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [user?.id, fetchGoogleClassroomData]);
 
   // Fetch notifications for students (audience student/all)
   useEffect(() => {
@@ -374,64 +374,44 @@ const DashboardOverview = () => {
     const fetchStudentProfile = async () => {
       if (user?.id) {
         try {
-          // Preferred: display name from Auth (Google), fallback to email prefix
+          // Get auth data for fallbacks
           const { data: authData } = await supabase.auth.getUser();
-          const displayName = authData?.user ? (getAuthDisplayName(authData.user) || authData.user.email || '') : (user.email || '');
-          setStudentName(displayName);
-
-          // Fetch avatar from user_profiles table
-          const { data: profileData, error: profileError } = await supabase
+          
+          // Fetch profile data from database
+          const { data: profileData } = await supabase
             .from('user_profiles')
-            .select('avatar_url, profile_picture_url')
+            .select('avatar_url, display_name')
             .eq('id', user.id)
             .single();
 
-          if (!profileError && profileData) {
-            // Priority 1: Use avatar_url from database profile
-            let pictureUrl: string | null = profileData.avatar_url || null;
-            
-            // Priority 2: Fallback to profile_picture_url from storage bucket
-            if (!pictureUrl && profileData.profile_picture_url) {
-              const { data: signedUrlData } = await supabase
-                .storage
-                .from('avatar')
-                .createSignedUrl(profileData.profile_picture_url, 60 * 60);
-              if (signedUrlData?.signedUrl) {
-                pictureUrl = signedUrlData.signedUrl;
-              }
-            }
-            
-            if (pictureUrl) {
-              setProfilePictureUrl(pictureUrl);
-              return;
-            }
+          // Handle display name with fallback
+          let displayName = '';
+          if (profileData?.display_name) {
+            displayName = profileData.display_name;
+          } else if (authData?.user) {
+            displayName = getAuthDisplayName(authData.user) || authData.user.email || '';
+          } else {
+            displayName = user.email || '';
           }
+          setStudentName(displayName);
 
-          // Fallback: Avatar priority: Auth metadata/identities → Google userinfo → none
-          const authAvatar = authData?.user ? getAuthAvatarUrl(authData.user) : null;
-          if (authAvatar) {
-            setProfilePictureUrl(authAvatar);
-            return;
+          // Handle avatar with fallback
+          let pictureUrl: string | null = null;
+          
+          // Priority 1: Use avatar_url from database
+          if (profileData?.avatar_url) {
+            pictureUrl = profileData.avatar_url;
+          } 
+          // Priority 2: Fallback to Google metadata if no avatar_url
+          else if (authData?.user) {
+            pictureUrl = getAuthAvatarUrl(authData.user);
           }
-          const { data: sessionData } = await supabase.auth.getSession();
-          const token = sessionData?.session?.provider_token as string | undefined;
-          if (token) {
-            try {
-              const resp = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', { headers: { Authorization: `Bearer ${token}` } });
-              if (resp.ok) {
-                const json = await resp.json();
-                if (typeof json?.picture === 'string') {
-                  setProfilePictureUrl(json.picture);
-                  return;
-                }
-              }
-            } catch {
-              // ignore network errors; fallback below
-            }
-          }
-          setProfilePictureUrl(null);
+          
+          setProfilePictureUrl(pictureUrl);
         } catch (error) {
           console.error('Error fetching student profile:', error);
+          setProfilePictureUrl(null);
+          setStudentName(user?.email || '');
         }
       }
     };
@@ -522,8 +502,8 @@ const DashboardOverview = () => {
                       alt="Profile" 
                       className="dashboard-profile-picture w-full h-full object-cover"
                       referrerPolicy="no-referrer"
-                      crossOrigin="anonymous"
                       onError={handleProfileImageError}
+                      loading="lazy"
                     />
                   ) : (
                     <User className="w-10 h-10 text-gray-300" />
