@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, UserRole, ROLE_PERMISSIONS } from '../types/auth';
-import { supabase } from '../lib/supabase';
+import { supabase, getGoogleAvatarUrl } from '../lib/supabase';
 import toast from 'react-hot-toast';
 import { clearGoogleClassroomConnection } from '../lib/services/googleClassroomService';
 
@@ -14,6 +14,7 @@ interface AuthContextType {
   canCreateUser: (role: UserRole) => boolean;
   setCreatingUserFlag: (creating: boolean) => void; // Add this to the interface
   refreshUserMetadata: () => Promise<void>; // Add metadata refresh function
+  refreshGoogleAvatar: () => Promise<void>; // Add Google avatar refresh function
 }
 
 const AuthContext = createContext<AuthContextType & { loading: boolean } | undefined>(undefined);
@@ -54,9 +55,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (currentUser.user_metadata?.full_name && currentUser.user_metadata.full_name !== profile.display_name) {
           updateData.display_name = currentUser.user_metadata.full_name;
         }
-        if (currentUser.user_metadata?.picture && currentUser.user_metadata.picture !== profile.avatar_url) {
-          updateData.avatar_url = currentUser.user_metadata.picture;
+        
+        // Enhanced avatar detection from multiple sources
+        let newAvatarUrl: string | null = null;
+        
+        // Use the helper function to get Google avatar
+        newAvatarUrl = getGoogleAvatarUrl(currentUser);
+        
+        // Priority 3: Try Google Userinfo API if we have a provider token and no avatar yet
+        if (!newAvatarUrl && session.provider_token) {
+          try {
+            const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+              headers: { Authorization: `Bearer ${session.provider_token}` }
+            });
+            if (userInfoResponse.ok) {
+              const userInfo = await userInfoResponse.json();
+              if (userInfo.picture && typeof userInfo.picture === 'string') {
+                // Import the enhance function
+                const { enhanceGoogleAvatarUrl } = await import('../lib/supabase');
+                newAvatarUrl = enhanceGoogleAvatarUrl(userInfo.picture);
+              }
+            }
+          } catch (error) {
+            console.warn('Failed to fetch Google userinfo:', error);
+          }
         }
+        
+        // Update avatar_url if we found a new one
+        if (newAvatarUrl && newAvatarUrl !== profile.avatar_url) {
+          updateData.avatar_url = newAvatarUrl;
+          console.log('🔄 Updating avatar_url for Google user:', { 
+            userId: currentUser.id, 
+            oldAvatar: profile.avatar_url, 
+            newAvatar: newAvatarUrl 
+          });
+        }
+        
         if (currentUser.app_metadata?.provider && currentUser.app_metadata.provider !== profile.auth_provider) {
           updateData.auth_provider = currentUser.app_metadata.provider;
         }
@@ -69,12 +103,88 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             .eq('id', currentUser.id);
           
           if (!error) {
-            console.log('User metadata refreshed successfully:', updateData);
+            console.log('✅ User metadata refreshed successfully:', updateData);
+          } else {
+            console.error('❌ Failed to update user metadata:', error);
           }
         }
       }
     } catch (error) {
       console.warn('Failed to refresh user metadata:', error);
+    }
+  };
+
+  // Function to manually refresh Google avatar
+  const refreshGoogleAvatar = async () => {
+    try {
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser || currentUser.app_metadata?.provider !== 'google') {
+        console.log('Not a Google user, skipping avatar refresh');
+        return;
+      }
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        console.log('No active session, skipping avatar refresh');
+        return;
+      }
+
+      // Get current profile data
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('avatar_url')
+        .eq('id', currentUser.id)
+        .single();
+
+      if (!profile) {
+        console.log('No profile found, skipping avatar refresh');
+        return;
+      }
+
+      // Get latest avatar URL
+      let newAvatarUrl = getGoogleAvatarUrl(currentUser);
+      
+      // Try Google Userinfo API if we have a provider token and no avatar yet
+      if (!newAvatarUrl && session.provider_token) {
+        try {
+          const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+            headers: { Authorization: `Bearer ${session.provider_token}` }
+          });
+          if (userInfoResponse.ok) {
+            const userInfo = await userInfoResponse.json();
+            if (userInfo.picture && typeof userInfo.picture === 'string') {
+              newAvatarUrl = userInfo.picture;
+            }
+          }
+        } catch (error) {
+          console.warn('Failed to fetch Google userinfo:', error);
+        }
+      }
+
+      // Update avatar_url if we found a new one
+      if (newAvatarUrl && newAvatarUrl !== profile.avatar_url) {
+        const { error } = await supabase
+          .from('user_profiles')
+          .update({ avatar_url: newAvatarUrl })
+          .eq('id', currentUser.id);
+        
+        if (!error) {
+          console.log('✅ Google avatar refreshed successfully:', { 
+            userId: currentUser.id, 
+            oldAvatar: profile.avatar_url, 
+            newAvatar: newAvatarUrl 
+          });
+          toast.success('Profile picture updated!');
+        } else {
+          console.error('❌ Failed to refresh Google avatar:', error);
+          toast.error('Failed to update profile picture');
+        }
+      } else {
+        console.log('No avatar update needed');
+      }
+    } catch (error) {
+      console.error('Failed to refresh Google avatar:', error);
+      toast.error('Failed to refresh profile picture');
     }
   };
 
@@ -217,7 +327,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, hasPermission, canCreateUser, loading, setCreatingUserFlag, refreshUserMetadata }}>
+    <AuthContext.Provider value={{ user, login, logout, hasPermission, canCreateUser, loading, setCreatingUserFlag, refreshUserMetadata, refreshGoogleAvatar }}>
       {loading ? (
         <div className="flex items-center justify-center h-screen">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
