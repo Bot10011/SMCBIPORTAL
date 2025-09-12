@@ -138,6 +138,7 @@ const DashboardOverview = () => {
   const navigate = useNavigate();
   const [studentName, setStudentName] = useState<string>('');
   const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(null);
+  const [isProfileLoading, setIsProfileLoading] = useState<boolean>(true);
   const [stats, setStats] = useState({
     enrolledCourses: 0,
     gpa: 0
@@ -176,8 +177,42 @@ const DashboardOverview = () => {
     isLoading: boolean;
   }>({ courses: [], courseWork: [], submissions: [], isLoading: false });
 
+  // Check Google Classroom connection status and fetch data
+  useEffect(() => {
+    const checkGoogleClassroomStatus = async () => {
+      if (!user?.id) {
+        setGoogleClassroomStatus('disconnected');
+        return;
+      }
+
+      const connectionInfo = getGoogleClassroomConnectionInfo(user.id);
+      setGoogleClassroomStatus(connectionInfo.status);
+
+      // If connected, fetch Google Classroom data
+      if (connectionInfo.status === 'connected') {
+        try {
+          await fetchGoogleClassroomData();
+        } catch (error) {
+          console.error('Error fetching Google Classroom data:', error);
+        }
+      }
+    };
+
+    checkGoogleClassroomStatus();
+    
+    // Listen for storage changes to update status
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key?.includes('google_classroom_token_') || e.key?.includes('google_auth_code_')) {
+        checkGoogleClassroomStatus();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [user?.id]);
+
   // Function to fetch Google Classroom data
-  const fetchGoogleClassroomData = useCallback(async () => {
+  const fetchGoogleClassroomData = async () => {
     try {
       // Set loading state
       setGoogleClassroomData(prev => ({ ...prev, isLoading: true }));
@@ -289,41 +324,7 @@ const DashboardOverview = () => {
       setGoogleClassroomStatus('disconnected');
       setGoogleClassroomData(prev => ({ ...prev, isLoading: false }));
     }
-  }, [user?.id]);
-
-  // Check Google Classroom connection status and fetch data
-  useEffect(() => {
-    const checkGoogleClassroomStatus = async () => {
-      if (!user?.id) {
-        setGoogleClassroomStatus('disconnected');
-        return;
-      }
-
-      const connectionInfo = getGoogleClassroomConnectionInfo(user.id);
-      setGoogleClassroomStatus(connectionInfo.status);
-
-      // If connected, fetch Google Classroom data
-      if (connectionInfo.status === 'connected') {
-        try {
-          await fetchGoogleClassroomData();
-        } catch (error) {
-          console.error('Error fetching Google Classroom data:', error);
-        }
-      }
-    };
-
-    checkGoogleClassroomStatus();
-    
-    // Listen for storage changes to update status
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key?.includes('google_classroom_token_') || e.key?.includes('google_auth_code_')) {
-        checkGoogleClassroomStatus();
-      }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, [user?.id, fetchGoogleClassroomData]);
+  };
 
   // Fetch notifications for students (audience student/all)
   useEffect(() => {
@@ -350,11 +351,11 @@ const DashboardOverview = () => {
   // Memoized data processing
   const processedProfile = useMemo(() => {
     return {
-      fullName: studentName || user?.email?.split('@')[0] || 'Student',
+      fullName: studentName || (isProfileLoading ? 'Loading...' : user?.email?.split('@')[0] || 'Student'),
       initials: studentName ? studentName.split(' ').map(n => n[0]).join('').toUpperCase() : user?.email?.[0].toUpperCase() || '?',
       hasProfilePicture: !!profilePictureUrl
     };
-  }, [studentName, user?.email, profilePictureUrl]);
+  }, [studentName, user?.email, profilePictureUrl, isProfileLoading]);
 
   // Memoized handlers
   const handleProfileImageError = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
@@ -374,20 +375,26 @@ const DashboardOverview = () => {
     const fetchStudentProfile = async () => {
       if (user?.id) {
         try {
+          setIsProfileLoading(true);
           // Get auth data for fallbacks
           const { data: authData } = await supabase.auth.getUser();
           
           // Fetch profile data from database
           const { data: profileData } = await supabase
             .from('user_profiles')
-            .select('avatar_url, display_name')
+            .select('avatar_url, profile_picture_url, display_name, first_name, middle_name, last_name, email')
             .eq('id', user.id)
             .single();
 
-          // Handle display name with fallback
+          // Handle display name priority: display_name > DB full name > auth name/email > user email
           let displayName = '';
-          if (profileData?.display_name) {
+          if (profileData?.display_name && profileData.display_name.trim() !== '') {
             displayName = profileData.display_name;
+          } else if (profileData?.first_name || profileData?.middle_name || profileData?.last_name) {
+            const parts = [profileData.first_name, profileData.middle_name, profileData.last_name]
+              .map((p) => (typeof p === 'string' ? p.trim() : ''))
+              .filter(Boolean);
+            displayName = parts.join(' ').trim();
           } else if (authData?.user) {
             displayName = getAuthDisplayName(authData.user) || authData.user.email || '';
           } else {
@@ -401,8 +408,29 @@ const DashboardOverview = () => {
           // Priority 1: Use avatar_url from database
           if (profileData?.avatar_url) {
             pictureUrl = profileData.avatar_url;
-          } 
-          // Priority 2: Fallback to Google metadata if no avatar_url
+          }
+          // Priority 2: Use profile_picture_url from storage (sign if needed)
+          else if (profileData?.profile_picture_url) {
+            const path = profileData.profile_picture_url as unknown as string;
+            if (typeof path === 'string') {
+              if (/^https?:\/\//i.test(path)) {
+                pictureUrl = path;
+              } else if (path.trim() !== '') {
+                try {
+                  const { data: signed, error: signErr } = await supabase
+                    .storage
+                    .from('avatar')
+                    .createSignedUrl(path, 60 * 60);
+                  if (!signErr && signed?.signedUrl) {
+                    pictureUrl = signed.signedUrl;
+                  }
+                } catch {
+                  // ignore and fallback
+                }
+              }
+            }
+          }
+          // Priority 3: Fallback to Google metadata if no DB image
           else if (authData?.user) {
             pictureUrl = getAuthAvatarUrl(authData.user);
           }
@@ -412,7 +440,11 @@ const DashboardOverview = () => {
           console.error('Error fetching student profile:', error);
           setProfilePictureUrl(null);
           setStudentName(user?.email || '');
+        } finally {
+          setIsProfileLoading(false);
         }
+      } else {
+        setIsProfileLoading(false);
       }
     };
 
@@ -495,7 +527,7 @@ const DashboardOverview = () => {
             <div className="p-6 sm:p-8 md:p-10">
               <div className="flex flex-col sm:flex-row items-center gap-6 sm:gap-8">
                 {/* Profile Circle */}
-                <div className="relative w-24 h-24 sm:w-32 sm:h-32 rounded-full flex items-center justify-center overflow-hidden">
+                <div className="relative w-32 h-32 sm:w-40 sm:h-40 rounded-full flex items-center justify-center overflow-hidden ring-4 ring-white shadow-[0_10px_25px_-10px_rgba(0,0,0,0.5)]">
                   {profilePictureUrl ? (
                     <img 
                       src={profilePictureUrl} 
@@ -506,22 +538,26 @@ const DashboardOverview = () => {
                       loading="lazy"
                     />
                   ) : (
-                    <User className="w-10 h-10 text-gray-300" />
+                    <User className="w-12 h-12 sm:w-16 sm:h-16 text-gray-300" />
                   )}
                 </div>
 
                 {/* Welcome Text */}
                 <div className="flex-1 flex flex-col items-center text-center sm:items-start sm:text-left sm:block">
-                  <h1 className="text-4xl sm:text-3xl md:text-4xl font-black tracking-tighter text-gray-800">
-                    Welcome back
-                  </h1>
-                  <div className="mt-2 sm:mt-0 sm:inline-block">
-                    <span className="inline-block sm:ml-2">
-                      <span className="text-sm sm:text-2xl md:text-3xl font-bold tracking-wide text-gray-800">
-                        {processedProfile.fullName}
-                      </span>
-                    </span>
+                  {/* Mobile: Stacked layout */}
+                  <div className="block sm:hidden">
+                    <h1 className="text-3xl font-black tracking-tighter text-gray-800">
+                      Welcome back
+                    </h1>
+                    <h2 className="text-2xl font-light text-black mt-2">
+                      {processedProfile.fullName}
+                    </h2>
                   </div>
+                  
+                  {/* Desktop: Single line layout */}
+                  <h1 className="hidden sm:block text-4xl sm:text-3xl md:text-4xl font-black tracking-tighter text-gray-800">
+                    Welcome back, <span className="text-black font-light">{processedProfile.fullName}</span>
+                  </h1>
                   <p className="mt-3 text-sm sm:text-base text-gray-700 max-w-2xl sm:text-left text-center">
                     Here's what's happening with your academic progress. Stay updated with your subjects, grades, and important notifications.
                   </p>
@@ -538,22 +574,22 @@ const DashboardOverview = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.1 }}
               onClick={() => navigate('/dashboard/course')}
-              className="dashboard-stat-card group relative bg-white/90 rounded-xl p-3 xs:p-4 sm:p-5 md:p-6 border border-[#444] transition-all duration-300 min-h-[110px] cursor-pointer hover:shadow-lg hover:scale-[1.02] hover:border-blue-300"
+              className="dashboard-stat-card group relative bg-white/90 rounded-xl p-2 xs:p-3 sm:p-4 border border-[#444] transition-all duration-300 min-h-[90px] cursor-pointer hover:shadow-lg hover:scale-[1.02] hover:border-blue-300"
             >
               <div className="absolute inset-0 bg-gradient-to-br from-blue-50/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-xl"></div>
               <div className="relative flex flex-col sm:flex-row items-start justify-between h-full">
                 <div className="flex flex-col min-w-0 flex-1">
-                  <p className="text-lg xs:text-lg sm:text-xl md:text-2xl font-bold text-gray-800 group-hover:text-blue-700 transition-colors">
+                  <p className="text-sm xs:text-sm sm:text-base font-bold text-gray-800 group-hover:text-blue-700 transition-colors">
                     {stats.enrolledCourses}
                   </p>
-                  <p className="text-[10px] xs:text-xs sm:text-sm font-medium text-gray-800 leading-tight whitespace-nowrap mt-auto group-hover:text-blue-600 transition-colors">Enrolled Subjects</p>
+                  <p className="text-[10px] xs:text-xs sm:text-xs font-medium text-gray-800 leading-tight whitespace-nowrap mt-auto group-hover:text-blue-600 transition-colors">Enrolled Subjects</p>
                 </div>
-                <div className="p-1.5 rounded-lg bg-[#2b2d2f] group-hover:bg-blue-100 transition-colors duration-300 flex-shrink-0 mt-1">
-                  <BookOpen className="w-3 h-3 xs:w-4 xs:h-4 text-blue-600 group-hover:text-blue-700 transition-colors" />
+                <div className="p-1 rounded-lg bg-[#2b2d2f] group-hover:bg-blue-100 transition-colors duration-300 flex-shrink-0 mt-1">
+                  <BookOpen className="w-2.5 h-2.5 xs:w-3 xs:h-3 text-blue-600 group-hover:text-blue-700 transition-colors" />
                 </div>
               </div>
-              <div className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+              <div className="absolute bottom-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
               </div>
             </motion.div>
 
@@ -563,22 +599,22 @@ const DashboardOverview = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.2 }}
               onClick={() => navigate('/dashboard/grades')}
-              className="dashboard-stat-card group relative bg-white/90 rounded-xl p-3 xs:p-4 sm:p-5 md:p-6 border border-[#444] transition-all duration-300 min-h-[110px] cursor-pointer hover:shadow-lg hover:scale-[1.02] hover:border-green-300"
+              className="dashboard-stat-card group relative bg-white/90 rounded-xl p-2 xs:p-3 sm:p-4 border border-[#444] transition-all duration-300 min-h-[90px] cursor-pointer hover:shadow-lg hover:scale-[1.02] hover:border-green-300"
             >
               <div className="absolute inset-0 bg-gradient-to-br from-green-50/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-xl"></div>
               <div className="relative flex flex-col sm:flex-row items-start justify-between h-full">
                 <div className="flex flex-col min-w-0 flex-1">
-                  <p className="text-lg xs:text-lg sm:text-xl md:text-2xl font-bold text-gray-800 group-hover:text-green-700 transition-colors">
+                  <p className="text-sm xs:text-sm sm:text-base font-bold text-gray-800 group-hover:text-green-700 transition-colors">
                     {stats.gpa > 0 ? stats.gpa.toFixed(2) : '--'}
                   </p>
-                  <p className="text-[10px] xs:text-xs sm:text-sm font-medium text-gray-800 leading-tight whitespace-nowrap mt-auto group-hover:text-green-600 transition-colors">Current GPA</p>
+                  <p className="text-[10px] xs:text-xs sm:text-xs font-medium text-gray-800 leading-tight whitespace-nowrap mt-auto group-hover:text-green-600 transition-colors">Current GPA</p>
                 </div>
-                <div className="p-1.5 rounded-lg bg-[#2b2d2f] group-hover:bg-green-100 transition-colors duration-300 flex-shrink-0 mt-1">
-                  <TrendingUp className="w-3 h-3 xs:w-4 xs:h-4 text-green-600 group-hover:text-green-700 transition-colors" />
+                <div className="p-1 rounded-lg bg-[#2b2d2f] group-hover:bg-green-100 transition-colors duration-300 flex-shrink-0 mt-1">
+                  <TrendingUp className="w-2.5 h-2.5 xs:w-3 xs:h-3 text-green-600 group-hover:text-green-700 transition-colors" />
                 </div>
               </div>
-              <div className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <div className="absolute bottom-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
               </div>
             </motion.div>
 
@@ -588,40 +624,40 @@ const DashboardOverview = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.3 }}
               onClick={() => navigate('/dashboard/google-classroom')}
-              className="dashboard-stat-card group relative bg-white/90 rounded-xl p-3 xs:p-4 sm:p-5 md:p-6 border border-[#444] transition-all duration-300 cursor-pointer min-h-[110px] hover:shadow-lg hover:scale-[1.02] hover:border-purple-300"
+              className="dashboard-stat-card group relative bg-white/90 rounded-xl p-2 xs:p-3 sm:p-4 border border-[#444] transition-all duration-300 cursor-pointer min-h-[90px] hover:shadow-lg hover:scale-[1.02] hover:border-purple-300"
             >
               <div className="absolute inset-0 bg-gradient-to-br from-purple-50/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-xl"></div>
               <div className="relative flex flex-col sm:flex-row items-start justify-between h-full">
                 <div className="flex flex-col min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <p className="text-sm xs:text-sm sm:text-base md:text-lg font-bold text-gray-800 leading-tight whitespace-nowrap truncate max-w-[140px] group-hover:text-purple-700 transition-colors">
+                    <p className="text-[10px] xs:text-xs sm:text-xs font-bold text-gray-800 leading-tight whitespace-nowrap truncate max-w-[120px] group-hover:text-purple-700 transition-colors">
                       {googleClassroomStatus === 'checking' ? 'Checking...' : 
                        googleClassroomStatus === 'connected' ? 'Connected' : 'Not Connected'}
                     </p>
                     {googleClassroomStatus === 'connected' && (
-                      <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
+                      <div className="w-1 h-1 bg-green-500 rounded-full animate-pulse"></div>
                     )}
                     {googleClassroomStatus === 'disconnected' && (
-                      <div className="w-1.5 h-1.5 bg-red-500 rounded-full"></div>
+                      <div className="w-1 h-1 bg-red-500 rounded-full"></div>
                     )}
                     {googleClassroomStatus === 'checking' && (
-                      <div className="w-1.5 h-1.5 bg-yellow-500 rounded-full animate-pulse"></div>
+                      <div className="w-1 h-1 bg-yellow-500 rounded-full animate-pulse"></div>
                     )}
                   </div>
                   <div className="mt-auto">
-                    <p className="text-[10px] xs:text-xs sm:text-sm font-medium text-gray-800 leading-tight whitespace-nowrap group-hover:text-purple-600 transition-colors">Google Classroom</p>
-                    <p className="text-[10px] xs:text-xs sm:text-sm text-gray-600 leading-tight">
+                    <p className="text-[10px] xs:text-xs sm:text-xs font-medium text-gray-800 leading-tight whitespace-nowrap group-hover:text-purple-600 transition-colors">Google Classroom</p>
+                    <p className="text-[8px] xs:text-[9px] sm:text-[10px] text-gray-600 leading-tight">
                       {googleClassroomStatus === 'connected' ? '' : 
                        googleClassroomStatus === 'checking' ? 'Verifying connection' : ''}
                     </p>
                   </div>
                 </div>
-                <div className="p-1.5 rounded-lg bg-[#2b2d2f] group-hover:bg-purple-100 transition-colors duration-300 flex-shrink-0 mt-1">
-                  <ExternalLink className="w-3 h-3 xs:w-4 xs:h-4 text-purple-600 group-hover:text-purple-700 transition-colors" />
+                <div className="p-1 rounded-lg bg-[#2b2d2f] group-hover:bg-purple-100 transition-colors duration-300 flex-shrink-0 mt-1">
+                  <ExternalLink className="w-2.5 h-2.5 xs:w-3 xs:h-3 text-purple-600 group-hover:text-purple-700 transition-colors" />
                 </div>
               </div>
-              <div className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+              <div className="absolute bottom-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                <div className="w-1.5 h-1.5 bg-purple-500 rounded-full"></div>
               </div>
             </motion.div>
           </div>
