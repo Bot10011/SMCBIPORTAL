@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Loader2, BookOpen, Users, ChevronDown, ChevronRight, Search, Download, Printer, CheckCircle2, TrendingUp, ShieldAlert, Pencil, Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -47,6 +48,7 @@ interface Student {
   display_name?: string; // Display name from Google account
   avatar_url?: string; // Avatar URL from Google account
   can_edit_grades?: boolean; // per-grade approval
+  hasPendingRequest?: boolean; // Check if request already exists
 }
 
 interface DatabaseTeacherClass {
@@ -117,6 +119,7 @@ interface GradeRow {
 
 const ClassManagement: React.FC = () => {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
   const [classes, setClasses] = useState<TeacherClass[]>([]);
   const [selectedClass, setSelectedClass] = useState<TeacherClass | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
@@ -133,11 +136,58 @@ const ClassManagement: React.FC = () => {
   const [filterYearLevel, setFilterYearLevel] = useState<string>('all');
   const [filterSemester, setFilterSemester] = useState<string>('all');
 
+  const fetchClasses = useCallback(async () => {
+    if (!user?.id) return;
+    
+    setLoading(true);
+    try {
+      const { data, error: fetchError } = await supabase
+        .from('teacher_subjects')
+        .select(`
+          id,
+          subject_id,
+          section,
+          academic_year,
+          semester,
+          is_active,
+          created_at,
+          course:courses(id, code, name, units, year_level)
+        `)
+        .eq('teacher_id', user.id)
+        .order('created_at', { ascending: false });
+      
+      if (fetchError) throw fetchError;
+      
+      // Transform the data to match TeacherClass type
+      const transformedData = (data as DatabaseTeacherClass[] || []).map((item) => {
+        const course = Array.isArray(item.course) ? item.course[0] : item.course;
+        return {
+          id: item.id,
+          subject_id: item.subject_id,
+          section: item.section,
+          academic_year: item.academic_year,
+          semester: item.semester,
+          is_active: item.is_active,
+          created_at: item.created_at,
+          course: course,
+          year_level: course?.year_level
+        };
+      }) as TeacherClass[];
+      
+      setClasses(transformedData);
+    } catch (error) {
+      console.error('Error fetching classes:', error);
+      toast.error('Failed to load classes');
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.id]);
+
   useEffect(() => {
     if (user?.id) {
       void fetchClasses();
     }
-  }, [user?.id]);
+  }, [user?.id, fetchClasses]);
 
   // Fetch registrar approval status similar to Teacher Dashboard
   useEffect(() => {
@@ -191,54 +241,7 @@ const ClassManagement: React.FC = () => {
     void fetchCourses();
   }, []);
 
-  async function fetchClasses() {
-    if (!user?.id) return;
-    
-    setLoading(true);
-    try {
-      const { data, error: fetchError } = await supabase
-        .from('teacher_subjects')
-        .select(`
-          id,
-          subject_id,
-          section,
-          academic_year,
-          semester,
-          is_active,
-          created_at,
-          course:courses(id, code, name, units, year_level)
-        `)
-        .eq('teacher_id', user.id)
-        .order('created_at', { ascending: false });
-      
-      if (fetchError) throw fetchError;
-      
-      // Transform the data to match TeacherClass type
-      const transformedData = (data as DatabaseTeacherClass[] || []).map((item) => {
-        const course = Array.isArray(item.course) ? item.course[0] : item.course;
-        return {
-          id: item.id,
-          subject_id: item.subject_id,
-          section: item.section,
-          academic_year: item.academic_year,
-          semester: item.semester,
-          is_active: item.is_active,
-          created_at: item.created_at,
-          course: course,
-          year_level: course?.year_level
-        };
-      }) as TeacherClass[];
-      
-      setClasses(transformedData);
-    } catch (error) {
-      console.error('Error fetching classes:', error);
-      toast.error('Failed to load classes');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function fetchStudents(subjectId: string) {
+  const fetchStudents = useCallback(async (subjectId: string) => {
     setLoading(true);
     console.group('🔍 Fetching Students Debug Info');
     console.log('📌 Input Parameters:', { subjectId });
@@ -375,60 +378,7 @@ const ClassManagement: React.FC = () => {
 
       console.log('📊 Fetched grades:', grades);
 
-      // Helper functions for getting auth display name and avatar (same as MyProfile.tsx)
-      const getAuthDisplayName = (u: unknown): string | null => {
-        if (!u || typeof u !== 'object') return null;
-        const metadata = (u as { user_metadata?: Record<string, unknown> }).user_metadata;
-        const fromMetadata = [
-          typeof metadata?.full_name === 'string' ? (metadata.full_name as string) : null,
-          typeof metadata?.name === 'string' ? (metadata.name as string) : null,
-          typeof metadata?.display_name === 'string' ? (metadata.display_name as string) : null,
-          typeof metadata?.preferred_username === 'string' ? (metadata.preferred_username as string) : null,
-        ].find(Boolean) as string | null | undefined;
-        if (fromMetadata) return fromMetadata;
-
-        const identities = (u as { identities?: Array<{ identity_data?: Record<string, unknown> }> }).identities;
-        if (Array.isArray(identities)) {
-          for (const id of identities) {
-            const data = id?.identity_data;
-            const name = typeof data?.full_name === 'string' ? (data.full_name as string)
-              : typeof data?.name === 'string' ? (data.name as string)
-              : null;
-            if (name) return name;
-          }
-        }
-        return null;
-      };
-
-      const getAuthAvatarUrl = (u: unknown): string | null => {
-        if (!u || typeof u !== 'object') return null;
-        const urlKeys = [
-          'avatar_url', 'picture', 'picture_url', 'photoURL', 'photoUrl', 'avatar',
-          'image', 'image_url', 'imageUrl', 'profile_picture', 'profileImage'
-        ];
-
-        const tryKeys = (obj?: Record<string, unknown> | null): string | null => {
-          if (!obj) return null;
-          for (const key of urlKeys) {
-            const val = obj[key];
-            if (typeof val === 'string' && /^https?:\/\//i.test(val)) return val;
-          }
-          return null;
-        };
-
-        const metadata = (u as { user_metadata?: Record<string, unknown> }).user_metadata;
-        const fromMetadata = tryKeys(metadata);
-        if (fromMetadata) return fromMetadata;
-
-        const identities = (u as { identities?: Array<{ identity_data?: Record<string, unknown> }> }).identities;
-        if (Array.isArray(identities)) {
-          for (const id of identities) {
-            const candidate = tryKeys(id?.identity_data as Record<string, unknown> | undefined);
-            if (candidate) return candidate;
-          }
-        }
-        return null;
-      };
+      // Note: Removed Google OAuth helper functions since we're only using database fields for student names
 
       // 5. Transform and validate the data
       console.log('🔄 Starting data transformation');
@@ -463,211 +413,69 @@ const ClassManagement: React.FC = () => {
           (g.academic_year ?? null) === (selectedClass?.academic_year ?? null) &&
           (g.section ?? null) === (selectedClass?.section ?? null)
         )) || null;
+        
+        // Check if student already has a pending or granted request
+        const hasExistingRequest = gradeRow && (
+          gradeRow.edit_status === 'pending' || 
+          gradeRow.edit_status === 'granted' || 
+          gradeRow.edit_requested === true
+        );
+        
         const canEditThisStudent = (gradeRow?.edit_status || 'denied') === 'granted';
+        const hasPendingRequest = gradeRow?.edit_status === 'pending' || gradeRow?.edit_requested === true;
+        
         console.log(`📊 Grade data for ${student.id}:`, {
           hasGrade: !!gradeRow,
           prelim: gradeRow?.prelim_grade,
           midterm: gradeRow?.midterm_grade,
           final: gradeRow?.final_grade,
           edit_status: gradeRow?.edit_status,
-          can_edit: canEditThisStudent
+          edit_requested: gradeRow?.edit_requested,
+          can_edit: canEditThisStudent,
+          hasExistingRequest,
+          hasPendingRequest
         });
         
         console.log('Processing student:', student.id, student.email);
         
-        // Prefer database-provided display name and avatar first (use typed access)
-        const dbStudent: {
-          id: string;
-          email: string;
-          role: string;
-          student_status?: string;
-          first_name: string;
-          last_name: string;
-          middle_name?: string;
-          is_active: boolean;
-          year_level?: string;
-          student_id?: string;
-          profile_picture_url?: string;
-          avatar_url?: string;
-          display_name?: string;
-        } = student as unknown as {
-          id: string;
-          email: string;
-          role: string;
-          student_status?: string;
-          first_name: string;
-          last_name: string;
-          middle_name?: string;
-          is_active: boolean;
-          year_level?: string;
-          student_id?: string;
-          profile_picture_url?: string;
-          avatar_url?: string;
-          display_name?: string;
-        };
-
-        let displayName = dbStudent.display_name || '';
-        let avatarUrl = dbStudent.avatar_url || dbStudent.profile_picture_url || '';
+        // Get student display name with proper priority: display_name > first_name + middle_name + last_name > first_name + last_name > first_name > last_name > email
+        let displayName = '';
         
-        console.log(`🔍 [${student.id}] Starting auth data fetch for:`, student.email);
-        
-        // First, let's check if this student is the current user
-        const { data: currentUserCheck } = await supabase.auth.getUser();
-        const isCurrentUser = currentUserCheck?.user?.id === student.id;
-        
-        console.log(`🔍 [${student.id}] User identity check:`, {
-          currentUserId: currentUserCheck?.user?.id,
-          targetStudentId: student.id,
-          isCurrentUser,
-          currentUserEmail: currentUserCheck?.user?.email,
-          targetStudentEmail: student.email
-        });
-        
-        if (!isCurrentUser) {
-          console.log(`ℹ️ [${student.id}] This is NOT the current user. Google profile data will not be available.`);
-          console.log(`ℹ️ [${student.id}] Only the current user can access their own Google OAuth data.`);
+        // Priority 1: Use display_name if available and not empty
+        if (student.display_name && student.display_name.trim() !== '') {
+          displayName = student.display_name.trim();
+          console.log(`✅ [${student.id}] Using display_name:`, displayName);
         }
-        
-        try {
-          // Method 1: Try to get from current session if it's the same user (no admin required)
-          console.log(`🔍 [${student.id}] Trying current session method first...`);
-          const { data: currentUser, error: currentUserError } = await supabase.auth.getUser();
+        // Priority 2: Combine first_name + middle_name + last_name
+        else if (student.first_name || student.middle_name || student.last_name) {
+          const nameParts = [
+            student.first_name?.trim(),
+            student.middle_name?.trim(),
+            student.last_name?.trim()
+          ].filter(Boolean);
           
-          if (currentUserError) {
-            console.error(`❌ [${student.id}] Current user fetch error:`, currentUserError);
-          } else if (!currentUser?.user) {
-            console.warn(`⚠️ [${student.id}] No current user in session`);
-          } else {
-            console.log(`🔍 [${student.id}] Current user session:`, {
-              currentUserId: currentUser.user.id,
-              targetStudentId: student.id,
-              isSameUser: currentUser.user.id === student.id
-            });
-            
-            if (currentUser.user.id === student.id) {
-              console.log(`✅ [${student.id}] Same user, checking current session data...`);
-              
-              const sessionName = getAuthDisplayName(currentUser.user);
-              if (sessionName) {
-                displayName = sessionName;
-                console.log(`✅ [${student.id}] Using current session display name:`, sessionName);
-              }
-              
-              const sessionAvatar = getAuthAvatarUrl(currentUser.user);
-              if (sessionAvatar) {
-                avatarUrl = sessionAvatar;
-                console.log(`✅ [${student.id}] Using current session avatar:`, sessionAvatar);
-              }
-            } else {
-              console.log(`ℹ️ [${student.id}] Current user is different from target student`);
-            }
+          if (nameParts.length > 0) {
+            displayName = nameParts.join(' ');
+            console.log(`✅ [${student.id}] Using combined name parts:`, displayName);
           }
-          
-          // Note: Admin API calls removed - users can only access their own auth data
-          // For other users, we rely on the database profile data that's already available
-          
-          // Method 3: Try to get from Google Userinfo API if we have a provider token
-          if (!displayName || !avatarUrl) {
-            console.log(`🔍 [${student.id}] Trying Google Userinfo API method...`);
-            try {
-              const { data: sessionData } = await supabase.auth.getSession();
-              console.log(`🔍 [${student.id}] Session data:`, {
-                hasSession: !!sessionData?.session,
-                hasProviderToken: !!sessionData?.session?.provider_token,
-                providerTokenLength: sessionData?.session?.provider_token?.length || 0
-              });
-              
-              const accessToken = sessionData?.session?.provider_token as string | undefined;
-              
-              if (accessToken) {
-                console.log(`🔍 [${student.id}] Got provider token, fetching Google userinfo...`);
-                const resp = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-                  headers: { Authorization: `Bearer ${accessToken}` }
-                });
-                
-                if (resp.ok) {
-                  const json = await resp.json();
-                  console.log(`🔍 [${student.id}] Google userinfo response:`, {
-                    hasName: !!json?.name,
-                    hasPicture: !!json?.picture,
-                    email: json?.email,
-                    fullResponse: json
-                  });
-                  
-                  if (json?.name && !displayName) {
-                    displayName = json.name;
-                    console.log(`✅ [${student.id}] Using Google userinfo name:`, displayName);
-                  }
-                  
-                  if (json?.picture && !avatarUrl) {
-                    avatarUrl = json.picture;
-                    console.log(`✅ [${student.id}] Using Google userinfo picture:`, avatarUrl);
-                  }
-                } else {
-                  console.warn(`⚠️ [${student.id}] Google userinfo HTTP error:`, resp.status, resp.statusText);
-                  // Try to get error details
-                  try {
-                    const errorText = await resp.text();
-                    console.warn(`⚠️ [${student.id}] Google userinfo error details:`, errorText);
-                  } catch (e) {
-                    console.warn(`⚠️ [${student.id}] Could not read error response:`, e);
-                  }
-                }
-              } else {
-                console.log(`ℹ️ [${student.id}] No provider access token available for Google userinfo`);
-                console.log(`ℹ️ [${student.id}] This usually means the user didn't sign in with Google OAuth`);
-              }
-            } catch (googleErr) {
-              console.error(`❌ [${student.id}] Google userinfo fetch failed:`, googleErr);
-            }
-          }
-          
-        } catch (authErr) {
-          console.error(`❌ [${student.id}] Exception during auth data fetch:`, {
-            error: authErr,
-            message: authErr instanceof Error ? authErr.message : String(authErr),
-            stack: authErr instanceof Error ? authErr.stack : undefined,
-            type: typeof authErr
-          });
         }
-        
-        // Fallback to database fields if no auth data
-        if (!displayName) {
-          console.log(`🔄 [${student.id}] No auth display name, using database fallback...`);
-          if (student.first_name && student.last_name) {
-            displayName = `${student.first_name} ${student.last_name}`;
-            console.log(`🔄 [${student.id}] Using database first_name + last_name:`, displayName);
-          } else if (student.first_name) {
-            displayName = student.first_name;
-            console.log(`🔄 [${student.id}] Using database first_name only:`, displayName);
-          } else if (student.last_name) {
-            displayName = student.last_name;
-            console.log(`🔄 [${student.id}] Using database last_name only:`, displayName);
-          } else {
+        // Priority 3: Use email username as fallback
+        else {
             displayName = student.email.split('@')[0];
-            console.log(`🔄 [${student.id}] Using email username fallback:`, displayName);
-          }
+          console.log(`✅ [${student.id}] Using email username fallback:`, displayName);
         }
         
-        // Note about the limitation
-        if (!avatarUrl) {
-          console.log(`ℹ️ [${student.id}] No avatar available. This is expected because:`);
-          console.log(`   - Users can only access their own Google profile data`);
-          console.log(`   - Admin API requires special permissions`);
-          console.log(`   - For a complete solution, store profile data in the database during user registration`);
-        }
+        // For avatars, only use database fields (no Google OAuth for other users)
+        const avatarUrl = student.avatar_url || student.profile_picture_url || '';
         
-        // Summary of what we learned for this student
-        console.log(`📋 [${student.id}] Student processing summary:`, {
+        console.log(`📋 [${student.id}] Student name resolution:`, {
           email: student.email,
-          isCurrentUser,
-          displayName,
-          avatarUrl,
-          dataSource: {
-            displayName: isCurrentUser && displayName !== `${student.first_name} ${student.last_name}` ? 'Google OAuth' : 'Database',
-            avatar: isCurrentUser && avatarUrl ? 'Google OAuth' : 'None (initials only)'
-          },
-          expectedBehavior: isCurrentUser ? 'Should show Google profile' : 'Will show database name + initials'
+          display_name: student.display_name,
+          first_name: student.first_name,
+          middle_name: student.middle_name,
+          last_name: student.last_name,
+          final_display_name: displayName,
+          avatar_url: avatarUrl ? 'Available' : 'Not available'
         });
         
         enrolledStudents.push({
@@ -690,15 +498,16 @@ const ClassManagement: React.FC = () => {
           display_name: displayName,
           avatar_url: avatarUrl,
           can_edit_grades: canEditThisStudent,
+          hasPendingRequest: hasPendingRequest,
         });
       }
       
       // Final summary of all students
       console.log('\n🎯 FINAL SUMMARY - All Students Processed:', {
         totalStudents: enrolledStudents.length,
-        withAuthNames: enrolledStudents.filter(s => s.display_name && s.display_name !== `${s.first_name} ${s.last_name}`).length,
-        withAuthAvatars: enrolledStudents.filter(s => s.avatar_url).length,
-        withDatabaseNames: enrolledStudents.filter(s => s.display_name === `${s.first_name} ${s.last_name}`).length,
+        withDisplayNames: enrolledStudents.filter(s => s.display_name && s.display_name !== `${s.first_name} ${s.last_name}`).length,
+        withAvatars: enrolledStudents.filter(s => s.avatar_url).length,
+        withCombinedNames: enrolledStudents.filter(s => s.display_name === `${s.first_name} ${s.last_name}`).length,
         withFallbackNames: enrolledStudents.filter(s => s.display_name === s.email.split('@')[0]).length,
         successRate: {
           names: `${Math.round((enrolledStudents.filter(s => s.display_name).length / enrolledStudents.length) * 100)}%`,
@@ -712,25 +521,19 @@ const ClassManagement: React.FC = () => {
         display_name: s.display_name,
         avatar_url: s.avatar_url ? '✅' : '❌',
         source: {
-          name: s.display_name === `${s.first_name} ${s.last_name}` ? 'database' : 
-                 s.display_name === s.email.split('@')[0] ? 'fallback' : 'auth',
-          avatar: s.avatar_url ? 'auth' : 'none'
+          name: s.display_name === `${s.first_name} ${s.last_name}` ? 'combined' : 
+                 s.display_name === s.email.split('@')[0] ? 'fallback' : 'display_name',
+          avatar: s.avatar_url ? 'database' : 'none'
         }
       })));
       
-      // Final explanation of what we learned
-      console.log('\n💡 WHAT WE LEARNED FROM DEBUGGING:');
-      console.log('1. ✅ Admin API (403 Forbidden) - This is EXPECTED and CORRECT behavior');
-      console.log('2. ✅ Users can only access their own Google OAuth data (security feature)');
-      console.log('3. ✅ Current user will see their Google profile name and avatar');
-      console.log('4. ✅ Other students will show database names + generated initials');
-      console.log('5. ✅ This is the correct and secure implementation');
-      
-      console.log('\n🔧 LONG-TERM SOLUTION (if you want avatars for all students):');
-      console.log('1. Store Google profile data in user_profiles table during registration');
-      console.log('2. Update the table to include display_name and avatar_url fields');
-      console.log('3. Sync this data when users log in with Google OAuth');
-      console.log('4. This way all students can see each other\'s profile pictures');
+      // Final explanation of the implementation
+      console.log('\n💡 STUDENT NAME RESOLUTION IMPLEMENTATION:');
+      console.log('1. ✅ Primary: display_name field (if available and not empty)');
+      console.log('2. ✅ Secondary: first_name + middle_name + last_name combination');
+      console.log('3. ✅ Fallback: email username');
+      console.log('4. ✅ Avatars: Only from database fields (avatar_url, profile_picture_url)');
+      console.log('5. ✅ No Google OAuth calls for other users (security and performance)');
       
       setStudents(enrolledStudents);
       
@@ -774,7 +577,35 @@ const ClassManagement: React.FC = () => {
       console.groupEnd();
       setLoading(false);
     }
-  }
+  }, [user?.id, selectedClass?.section, selectedClass?.academic_year]);
+
+  // Handle URL parameters for direct navigation to specific student
+  useEffect(() => {
+    const studentId = searchParams.get('studentId');
+    const subjectId = searchParams.get('subjectId');
+    
+    if (studentId && subjectId && classes.length > 0) {
+      // Find the class that matches the subjectId
+      const targetClass = classes.find(c => c.subject_id === subjectId);
+      
+      if (targetClass) {
+        // Set the selected class
+        setSelectedClass(targetClass);
+        
+        // Fetch students for this class
+        fetchStudents(targetClass.subject_id);
+        
+        // Show a toast notification
+        toast.success(`Navigated to ${targetClass.course.name} - ${targetClass.section}`, {
+          duration: 3000,
+          id: `navigate-${studentId}-${subjectId}`
+        });
+        
+        // Set search term to highlight the specific student
+        setSearchTerm(studentId);
+      }
+    }
+  }, [searchParams, classes, fetchStudents]);
 
   // Calculate GA (General Average) - only used variant below
 
@@ -1841,10 +1672,14 @@ const ClassManagement: React.FC = () => {
                             </tr>
                           </thead>
                           <tbody className="bg-white/80 divide-y divide-gray-200">
-                            {students.map((student, idx) => (
+                            {students.map((student, idx) => {
+                              const studentId = searchParams.get('studentId');
+                              const isTargetStudent = studentId && (student.id === studentId || student.student_id === studentId);
+                              
+                              return (
                               <tr key={student.id} className={`transition-all duration-200 hover:bg-gray-50 ${
                                 idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'
-                              }`}>
+                              } ${isTargetStudent ? 'ring-2 ring-blue-500 bg-blue-50' : ''}`}>
                                 <td className="px-3 py-4 whitespace-nowrap">
                                   <div className="flex items-center">
                                     {student.avatar_url ? (
@@ -1859,8 +1694,20 @@ const ClassManagement: React.FC = () => {
                                       </div>
                                     )}
                                     <div className="min-w-0 flex-1">
-                                      <div className="text-sm font-semibold text-gray-900 truncate">
+                                      <div className="text-sm font-semibold text-gray-900 truncate flex items-center gap-2">
                                         {student.display_name || `${student.first_name} ${student.last_name}`}
+                                        {student.hasPendingRequest && (
+                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-yellow-100 text-yellow-700">
+                                            <ShieldAlert className="w-3 h-3" />
+                                            Pending
+                                          </span>
+                                        )}
+                                        {student.can_edit_grades && (
+                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700">
+                                            <CheckCircle2 className="w-3 h-3" />
+                                            Approved
+                                          </span>
+                                        )}
                                       </div>
                                       <div className="text-xs text-gray-500 hidden sm:block">
                                         ID: {student.student_id || student.id.slice(0, 8)}
@@ -1994,7 +1841,7 @@ const ClassManagement: React.FC = () => {
                                           >
                                             <Pencil className="w-4 h-4" />
                                           </button>
-                                          {gradeEditStatus !== 'granted' && (
+                                          {gradeEditStatus !== 'granted' && !student.can_edit_grades && !student.hasPendingRequest && (
                                             <button
                                               onClick={() => requestRegistrarApprovalForStudent(student)}
                                               className="inline-flex items-center p-1.5 border border-yellow-600 rounded-md text-yellow-50 bg-yellow-500 hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-600"
@@ -2009,7 +1856,8 @@ const ClassManagement: React.FC = () => {
                                   )}
                                 </td>
                               </tr>
-                            ))}
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
