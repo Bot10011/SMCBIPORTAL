@@ -77,6 +77,7 @@ const TeacherDashboardOverview: React.FC = () => {
   const [showAddDocument, setShowAddDocument] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [personalNotes, setPersonalNotes] = useState<Array<{ id: string; content: string; created_at: string }>>([]);
+  const [dailyBibleVerse, setDailyBibleVerse] = useState<{ verse: string; reference: string } | null>(null);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState<string>("");
   const [instructorNotifications, setInstructorNotifications] = useState<Array<{ id: string; title: string; message: string; severity: string; created_at: string }>>([]);
@@ -796,8 +797,8 @@ const TeacherDashboardOverview: React.FC = () => {
     console.log('Deleting document:', documentId);
   }, []);
 
-  // Daily Bible verse for motivation - randomized on each login
-  const getDailyBibleVerse = () => {
+  // Daily Bible verse for motivation - randomized only on login
+  const generateDailyBibleVerse = () => {
     // Generate a random index each time the function is called
     // This ensures different verses on each login session
     const randomIndex = Math.floor(Math.random() * 12); // 12 verses available
@@ -853,9 +854,16 @@ const TeacherDashboardOverview: React.FC = () => {
       }
     ];
     
-    // Return randomly selected verse - changes on each login
+    // Return randomly selected verse - changes only on login
     return verses[randomIndex];
   };
+
+  // Generate new Bible verse only when user logs in (when user.id changes)
+  useEffect(() => {
+    if (user?.id) {
+      setDailyBibleVerse(generateDailyBibleVerse());
+    }
+  }, [user?.id]);
 
   // Memoized navigation handlers
   const handleClassClick = useCallback((classId: string) => {
@@ -1464,11 +1472,11 @@ const TeacherDashboardOverview: React.FC = () => {
                           {/* Removed left-icon/gif placeholder as requested */}
                           <div className="flex-1">
                             <p className="text-xs sm:text-sm md:text-base lg:text-lg text-white/95 italic mb-1 leading-relaxed font-medium break-words hyphens-auto">
-                              "{getDailyBibleVerse().verse}"
+                              "{dailyBibleVerse?.verse || 'Loading...'}"
                             </p>
                        
                             <p className="text-xs sm:text-xs md:text-sm lg:text-sm text-blue-200 font-semibold mb-0">
-                            "{getDailyBibleVerse().reference}"
+                            "{dailyBibleVerse?.reference || ''}"
       
                             </p>
                             <p className="text-xs sm:text-xs md:text-sm text-white/80 mt-2 font-medium">
