@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Loader2, CheckCircle2, Clock, BookOpen, ChevronRight, Search, Users, GraduationCap } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -79,6 +80,7 @@ interface ProgramHead {
 }
 
 export default function StudentGrades() {
+  const [searchParams] = useSearchParams();
   const [grades, setGrades] = useState<Grade[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -94,8 +96,9 @@ export default function StudentGrades() {
   const [showSubjects, setShowSubjects] = useState(false);
   const [showEmptyProgram, setShowEmptyProgram] = useState(false);
   
-  // Navigation history to track the flow
-  const [navigationHistory, setNavigationHistory] = useState<string[]>(['programs']);
+  // Professional navigation stack system
+  const [navigationStack, setNavigationStack] = useState<string[]>(['programs']);
+  const [currentStackIndex, setCurrentStackIndex] = useState(0);
 
   const [yearLevelSectionSubjects, setYearLevelSectionSubjects] = useState<YearLevelSectionSubject[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
@@ -115,12 +118,58 @@ export default function StudentGrades() {
     year: string;
     section: string;
     items: Grade[];
+    department?: string;
   } | null>(null);
   const [releasedModalUpdating, setReleasedModalUpdating] = useState(false);
   const [releasedModalSearch, setReleasedModalSearch] = useState('');
+  
+  // Grade Change Request state
+  const [instructorRequests, setInstructorRequests] = useState<Array<{
+    id: string;
+    student_id: string;
+    student_name?: string | null;
+    instructor_id?: string | null;
+    instructor_name?: string | null;
+    subject_id?: string | null;
+    section?: string | null;
+    academic_year?: string | null;
+    edit_reason?: string | null;
+    edit_status?: string | null;
+    created_at?: string | null;
+  }>>([]);
+  
+  // Request details modal state
+  const [requestModalOpen, setRequestModalOpen] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState<{
+    id: string;
+    student_id: string;
+    student_name?: string | null;
+    instructor_id?: string | null;
+    instructor_name?: string | null;
+    subject_id?: string | null;
+    section?: string | null;
+    academic_year?: string | null;
+    edit_reason?: string | null;
+    edit_status?: string | null;
+    created_at?: string | null;
+  } | null>(null);
+  
+  // Confirmation modal state
+  const [confirmationModalOpen, setConfirmationModalOpen] = useState(false);
+  const [confirmationAction, setConfirmationAction] = useState<'approve' | 'deny' | 'hide' | null>(null);
+  const [confirmationRequestId, setConfirmationRequestId] = useState<string | null>(null);
 
-  const handleHideReleasedGroup = async () => {
+  // Hide confirmation modal state
+  const [hideConfirmationOpen, setHideConfirmationOpen] = useState(false);
+
+  const handleHideReleasedGroup = () => {
     if (!releasedModalGroup || releasedModalUpdating) return;
+    setHideConfirmationOpen(true);
+  };
+
+  const confirmHideReleasedGroup = async () => {
+    if (!releasedModalGroup || releasedModalUpdating) return;
+    
     try {
       setReleasedModalUpdating(true);
       const ids = releasedModalGroup.items.map((i) => i.id);
@@ -132,14 +181,279 @@ export default function StudentGrades() {
         toast.error('Failed to hide released grades');
       } else {
         setGrades((prev) => prev.map((g) => (ids.includes(g.id) ? { ...g, is_released: false } : g)));
-        toast.success('Grades moved back to pending');
+        toast.success(`Successfully moved ${releasedModalGroup.items.length} grades back to pending`);
         setReleasedModalOpen(false);
+        setHideConfirmationOpen(false);
       }
     } catch {
       toast.error('Failed to hide released grades');
     } finally {
       setReleasedModalUpdating(false);
     }
+  };
+  
+  const printReleasedGrades = () => {
+    if (!releasedModalGroup) return;
+
+    // Filter the data based on search term
+    const filteredData = releasedModalGroup.items
+      .slice()
+      .sort((a, b) => {
+        const aDate = new Date(a.updated_at || a.graded_at || a.created_at).getTime();
+        const bDate = new Date(b.updated_at || b.graded_at || b.created_at).getTime();
+        return bDate - aDate;
+      })
+      .filter((g) => {
+        if (!releasedModalSearch.trim()) return true;
+        const q = releasedModalSearch.toLowerCase();
+        const name = (g.student_name || '').toLowerCase();
+        const schoolId = (g.school_id || g.student_id || '').toLowerCase();
+        return name.includes(q) || schoolId.includes(q);
+      });
+
+    // Generate the HTML content for printing
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Released Grades Report</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              margin: 20px;
+              color: #333;
+            }
+            .header {
+              text-align: center;
+              margin-bottom: 30px;
+              border-bottom: 2px solid #2563eb;
+              padding-bottom: 20px;
+            }
+            .header-logo {
+              margin-bottom: 15px;
+            }
+            .header-logo img {
+              max-height: 80px;
+              max-width: 200px;
+              object-fit: contain;
+            }
+            .header h1 {
+              color: #2563eb;
+              margin: 0;
+              font-size: 24px;
+            }
+            .header p {
+              margin: 5px 0 0 0;
+              color: #666;
+            }
+            .info-section {
+              margin-bottom: 20px;
+              background: #f8fafc;
+              padding: 15px;
+              border-radius: 8px;
+            }
+            .info-section h3 {
+              margin: 0 0 10px 0;
+              color: #374151;
+            }
+            .info-grid {
+              display: grid;
+              grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+              gap: 8px;
+            }
+            .info-item {
+              display: flex;
+              align-items: center;
+              gap: 10px;
+            }
+            .info-label {
+              font-weight: bold;
+              color: #6b7280;
+            }
+            .info-value {
+              color: #111827;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-top: 20px;
+              background: white;
+            }
+            th, td {
+              border: 1px solid #d1d5db;
+              padding: 12px 8px;
+              text-align: left;
+            }
+            th {
+              background: #f3f4f6;
+              font-weight: bold;
+              color: #374151;
+              text-transform: uppercase;
+              font-size: 12px;
+            }
+            td {
+              font-size: 14px;
+            }
+            .grade-cell {
+              text-align: center;
+              font-weight: bold;
+            }
+            .ga-cell {
+              text-align: center;
+              font-weight: bold;
+              color: #2563eb;
+            }
+            .footer {
+              margin-top: 30px;
+              text-align: center;
+              color: #6b7280;
+              font-size: 12px;
+              border-top: 1px solid #e5e7eb;
+              padding-top: 20px;
+            }
+            @media print {
+              body { margin: 0; }
+              .no-print { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="header-logo">
+              <img src="/img/logo3.png" alt="School Logo" />
+            </div>
+            <h1>Released Grades Report</h1>
+            <p>Generated on ${new Date().toLocaleString()}</p>
+          </div>
+
+          <div class="info-section">
+            <h3>Report Information</h3>
+            <div class="info-grid">
+              <div class="info-item">
+                <span class="info-label">Department:</span>
+                <span class="info-value">${releasedModalGroup.department || 'N/A'}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Year & Section:</span>
+                <span class="info-value">${releasedModalGroup.section}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Total Records:</span>
+                <span class="info-value">${filteredData.length}</span>
+              </div>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Student Name</th>
+                <th>Student ID</th>
+                <th>Subject</th>
+                <th>Prelim</th>
+                <th>Midterm</th>
+                <th>Final</th>
+                <th>GA</th>
+                <th>Released Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filteredData.map(g => `
+                <tr>
+                  <td>${g.student_name || 'Unknown Student'}</td>
+                  <td>${g.school_id || g.student_id || 'N/A'}</td>
+                  <td>${g.course_code || 'Unknown'}</td>
+                  <td class="grade-cell">${g.prelim_grade !== null && g.prelim_grade !== undefined ? g.prelim_grade : '-'}</td>
+                  <td class="grade-cell">${g.midterm_grade !== null && g.midterm_grade !== undefined ? g.midterm_grade : '-'}</td>
+                  <td class="grade-cell">${g.final_grade !== null && g.final_grade !== undefined ? g.final_grade : '-'}</td>
+                  <td class="ga-cell">${g.general_average !== null && g.general_average !== undefined ? g.general_average.toFixed(2) : '-'}</td>
+                  <td>${new Date(g.updated_at || g.graded_at || g.created_at).toLocaleDateString()}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+
+          <div class="footer">
+            <p>This report was generated from the Student Portal Grade Management System</p>
+            <p>For questions or concerns, please contact the Registrar's Office</p>
+          </div>
+        </body>
+      </html>
+    `;
+
+    // Create a new window for printing
+    const printWindow = window.open('', '_blank', 'width=800,height=600');
+    if (!printWindow) {
+      toast.error('Please allow popups to print the document');
+      return;
+    }
+
+    // Write the content to the new window
+    printWindow.document.open();
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+
+    // Wait for content to load, then trigger print dialog
+    printWindow.onload = () => {
+      printWindow.focus();
+      printWindow.print();
+      
+      // Close the window after printing
+      printWindow.onafterprint = () => {
+        printWindow.close();
+      };
+    };
+
+    toast.success('Print dialog opened');
+  };
+
+  const downloadReleasedGrades = () => {
+    if (!releasedModalGroup) return;
+
+    // Filter the data based on search term
+    const filteredData = releasedModalGroup.items
+      .slice()
+      .sort((a, b) => {
+        const aDate = new Date(a.updated_at || a.graded_at || a.created_at).getTime();
+        const bDate = new Date(b.updated_at || b.graded_at || b.created_at).getTime();
+        return bDate - aDate;
+      })
+      .filter((g) => {
+        if (!releasedModalSearch.trim()) return true;
+        const q = releasedModalSearch.toLowerCase();
+        const name = (g.student_name || '').toLowerCase();
+        const schoolId = (g.school_id || g.student_id || '').toLowerCase();
+        return name.includes(q) || schoolId.includes(q);
+      });
+
+    // Create CSV content
+    const csvData = [
+      ['Student Name', 'Student ID', 'Subject', 'Prelim', 'Midterm', 'Final', 'GA', 'Released Date'],
+      ...filteredData.map(g => [
+        g.student_name || 'Unknown Student',
+        g.school_id || g.student_id || 'N/A',
+        g.course_code || 'Unknown',
+        g.prelim_grade !== null && g.prelim_grade !== undefined ? g.prelim_grade : '-',
+        g.midterm_grade !== null && g.midterm_grade !== undefined ? g.midterm_grade : '-',
+        g.final_grade !== null && g.final_grade !== undefined ? g.final_grade : '-',
+        g.general_average !== null && g.general_average !== undefined ? g.general_average.toFixed(2) : '-',
+        new Date(g.updated_at || g.graded_at || g.created_at).toLocaleDateString()
+      ])
+    ];
+
+    const csvContent = csvData.map(row => row.join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `Released_Grades_${releasedModalGroup.year}_${releasedModalGroup.section}_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    toast.success('Grades downloaded successfully');
   };
   
 
@@ -184,6 +498,120 @@ export default function StudentGrades() {
   useEffect(() => {
     fetchGrades();
   }, []);
+
+  // Professional navigation functions
+  const updateUIForStep = useCallback((step: string) => {
+    // Reset all views
+    setShowPrograms(false);
+    setShowYearLevels(false);
+    setShowSections(false);
+    setShowSubjects(false);
+    setShowEmptyProgram(false);
+
+    switch (step) {
+      case 'programs':
+        setShowPrograms(true);
+        setSelectedProgram('');
+        setSelectedYearLevel('');
+        setSelectedSection('');
+        setSelectedSubject('');
+        break;
+      case 'yearLevels':
+        setShowYearLevels(true);
+        setSelectedSection('');
+        setSelectedSubject('');
+        break;
+      case 'sections':
+        setShowSections(true);
+        setSelectedSubject('');
+        break;
+      case 'subjects':
+        setShowSubjects(true);
+        break;
+      case 'students':
+        // Students view - no additional UI changes needed
+        break;
+      case 'emptyProgram':
+        setShowEmptyProgram(true);
+        setSelectedProgram('');
+        setSelectedYearLevel('');
+        setSelectedSection('');
+        setSelectedSubject('');
+        break;
+    }
+  }, []);
+
+  const navigateTo = useCallback((step: string) => {
+    const newStack = [...navigationStack];
+    const newIndex = currentStackIndex + 1;
+    
+    // If we're navigating forward from a previous position, remove future steps
+    if (newIndex < newStack.length) {
+      newStack.splice(newIndex);
+    }
+    
+    // Add new step to stack
+    newStack.push(step);
+    
+    setNavigationStack(newStack);
+    setCurrentStackIndex(newIndex);
+    
+    // Update UI based on step
+    updateUIForStep(step);
+  }, [navigationStack, currentStackIndex, updateUIForStep]);
+
+  // Fetch instructor grade-edit requests
+  useEffect(() => {
+    fetchInstructorRequests();
+  }, []);
+
+  // Handle URL parameters for direct navigation to specific student
+  useEffect(() => {
+    const studentId = searchParams.get('studentId');
+    const subjectId = searchParams.get('subjectId');
+    
+    if (studentId && subjectId && grades.length > 0) {
+      // Find the grade record for this student and subject
+      const targetGrade = grades.find(g => 
+        g.student_id === studentId && 
+        g.subject_id === subjectId
+      );
+      
+      if (targetGrade) {
+        // Check if we're already showing this student to prevent duplicate navigation
+        const isAlreadyShowing = 
+          selectedProgram === programs.find(p => p.name === targetGrade.program_name)?.id &&
+          selectedYearLevel === targetGrade.year_level &&
+          selectedSection === targetGrade.section &&
+          selectedSubject === targetGrade.course_code &&
+          studentSearchTerm === targetGrade.student_name;
+        
+        if (!isAlreadyShowing) {
+          // Find the program ID by matching the program name
+          const program = programs.find(p => p.name === targetGrade.program_name);
+          if (program) {
+            setSelectedProgram(program.id);
+          }
+          
+          setSelectedYearLevel(targetGrade.year_level || '');
+          setSelectedSection(targetGrade.section || '');
+          setSelectedSubject(targetGrade.course_code || '');
+          
+          // Navigate to the students view
+          navigateTo('students');
+          
+          // Set search term to highlight the specific student
+          setStudentSearchTerm(targetGrade.student_name || '');
+          
+          // Show a toast notification only once
+          toast.success(`Navigated to ${targetGrade.student_name}'s grade change request`, {
+            duration: 3000,
+            id: `navigate-${studentId}-${subjectId}` // Use unique ID to prevent duplicates
+          });
+        }
+      }
+    }
+  }, [searchParams, grades, programs, navigateTo, selectedProgram, selectedYearLevel, selectedSection, selectedSubject, studentSearchTerm]);
 
   const fetchGrades = async () => {
     setLoading(true);
@@ -528,7 +956,10 @@ export default function StudentGrades() {
           section: ts.section,
           year_level: ts.year_level,
           normalizedYear,
-          teacher: teacher
+          teacher: teacher,
+          teacher_display_name: teacher?.display_name,
+          teacher_first_name: teacher?.first_name,
+          teacher_last_name: teacher?.last_name
         });
         
         // Create a composite key for more specific matching
@@ -537,6 +968,12 @@ export default function StudentGrades() {
         
         // Also store by just subject_id for fallback
         teacherMap.set(ts.subject_id, teacher);
+        
+        console.log('Added to teacher map:', {
+          compositeKey: key,
+          subjectIdKey: ts.subject_id,
+          teacherName: teacher?.display_name || `${teacher?.first_name} ${teacher?.last_name}` || 'Unknown'
+        });
       });
       
       console.log('Teacher map created with keys:', Array.from(teacherMap.keys()));
@@ -683,10 +1120,13 @@ export default function StudentGrades() {
           return nameParts.length > 0 ? nameParts.join(' ') : 'Unknown Student';
         };
         
-        // Calculate General Average
-        const grades = [g.prelim_grade, g.midterm_grade, g.final_grade].filter(grade => grade !== null && grade !== undefined);
-        const general_average = grades.length > 0 
-          ? Math.round((grades.reduce((sum, grade) => sum + (grade || 0), 0) / grades.length) * 100) / 100
+        // Calculate General Average - only when all three grades are present
+        const hasPrelim = g.prelim_grade !== null && g.prelim_grade !== undefined;
+        const hasMidterm = g.midterm_grade !== null && g.midterm_grade !== undefined;
+        const hasFinal = g.final_grade !== null && g.final_grade !== undefined;
+        
+        const general_average = (hasPrelim && hasMidterm && hasFinal) 
+          ? Math.round(((g.prelim_grade + g.midterm_grade + g.final_grade) / 3) * 100) / 100
           : null;
         
         // Get enrollment data for this student and subject
@@ -725,17 +1165,65 @@ export default function StudentGrades() {
             return name || 'Unknown';
           })(),
           teacher_name: (() => {
+            // Debug: Log the teacher lookup process
+            console.log('Teacher lookup for grade:', {
+              grade_id: g.id,
+              student_id: g.student_id,
+              subject_id: g.subject_id,
+              section: g.section,
+              year_level: g.year_level,
+              sectionName,
+              graded_by: g.graded_by
+            });
+            
             // Prefer graded_by profile display_name only
             if (g.graded_by) {
               const t = teachersById.get(g.graded_by);
+              console.log('Found teacher by graded_by:', t);
               if (t && t.display_name && t.display_name.trim()) return t.display_name.trim();
             }
+            
             // Fallback to teacherMap using composite key subject_id-section-year
             const compositeKey = `${g.subject_id || ''}-${sectionName}-${mapYearLevelToNumericString(g.year_level)}`;
-            const mappedTeacher = teacherMap.get(compositeKey) || (g.subject_id ? teacherMap.get(g.subject_id) : undefined);
+            console.log('Trying composite key:', compositeKey);
+            console.log('Available teacher map keys:', Array.from(teacherMap.keys()));
+            
+            // Try multiple key combinations to find the teacher
+            let mappedTeacher = teacherMap.get(compositeKey);
+            if (!mappedTeacher && g.subject_id) {
+              mappedTeacher = teacherMap.get(g.subject_id);
+            }
+            if (!mappedTeacher && g.subject_id && sectionName) {
+              // Try without year level
+              mappedTeacher = teacherMap.get(`${g.subject_id}-${sectionName}`);
+            }
+            if (!mappedTeacher && g.subject_id) {
+              // Try with different year level formats
+              const altYearLevel = g.year_level?.toString().toLowerCase().includes('1') ? '1' :
+                                 g.year_level?.toString().toLowerCase().includes('2') ? '2' :
+                                 g.year_level?.toString().toLowerCase().includes('3') ? '3' :
+                                 g.year_level?.toString().toLowerCase().includes('4') ? '4' : null;
+              if (altYearLevel) {
+                mappedTeacher = teacherMap.get(`${g.subject_id}-${sectionName}-${altYearLevel}`);
+              }
+            }
+            console.log('Mapped teacher result:', mappedTeacher);
+            
             if (mappedTeacher && (mappedTeacher as { display_name?: string }).display_name && (mappedTeacher as { display_name?: string }).display_name!.trim()) {
               return (mappedTeacher as { display_name: string }).display_name.trim();
             }
+            
+            // Try to get teacher name from first_name + last_name if display_name is not available
+            if (mappedTeacher && (mappedTeacher as { first_name?: string; last_name?: string }).first_name) {
+              const teacher = mappedTeacher as { first_name?: string; last_name?: string };
+              const fullName = `${teacher.first_name || ''} ${teacher.last_name || ''}`.trim();
+              if (fullName) {
+                console.log('Using first_name + last_name:', fullName);
+                return fullName;
+              }
+            }
+            
+            console.log('No teacher found, returning Not Assigned');
             return 'Not Assigned';
           })(),
         };
@@ -1201,75 +1689,27 @@ export default function StudentGrades() {
 
 
 
-  // Smart back function that goes to the previous step
-  const handleGoBack = () => {
-    const currentHistory = [...navigationHistory];
-    const previousStep = currentHistory[currentHistory.length - 2]; // Get the previous step
-    
-    if (previousStep === 'programs') {
-      setShowPrograms(true);
-      setShowYearLevels(false);
-      setShowSections(false);
-    setShowSubjects(false);
-      setSelectedProgram('');
-    setSelectedYearLevel('');
-    setSelectedSection('');
-    setSelectedSubject('');
-      setNavigationHistory(['programs']);
-    } else if (previousStep === 'yearLevels') {
-      setShowPrograms(false);
-      setShowYearLevels(true);
-      setShowSections(false);
-      setShowSubjects(false);
-      setSelectedSection('');
-      setSelectedSubject('');
-      setNavigationHistory(currentHistory.slice(0, -1));
-    } else if (previousStep === 'sections') {
-      setShowPrograms(false);
-      setShowYearLevels(false);
-      setShowSections(true);
-      setShowSubjects(false);
-      setSelectedSubject('');
-      setNavigationHistory(currentHistory.slice(0, -1));
-    } else if (previousStep === 'subjects') {
-      setShowPrograms(false);
-      setShowYearLevels(false);
-      setShowSections(false);
-      setShowSubjects(true);
-      setSelectedSubject('');
-      setNavigationHistory(currentHistory.slice(0, -1));
-    } else if (previousStep === 'students') {
-      setShowPrograms(false);
-      setShowYearLevels(false);
-      setShowSections(false);
-      setShowSubjects(true);
-      setSelectedSubject('');
-      setNavigationHistory(currentHistory.slice(0, -1));
-    } else if (previousStep === 'emptyProgram') {
-      // Going back from empty program state to programs list
-      setShowPrograms(true);
-      setShowYearLevels(false);
-      setShowSections(false);
-      setShowSubjects(false);
-      setShowEmptyProgram(false);
-      setSelectedProgram('');
-      setSelectedYearLevel('');
-      setSelectedSection('');
-      setSelectedSubject('');
-      setNavigationHistory(['programs']);
-    } else {
-      // Default fallback to programs
-      setShowPrograms(true);
-      setShowYearLevels(false);
-      setShowSections(false);
-      setShowSubjects(false);
-      setSelectedProgram('');
-      setSelectedYearLevel('');
-      setSelectedSection('');
-      setSelectedSubject('');
-      setNavigationHistory(['programs']);
+  const navigateBack = () => {
+    if (currentStackIndex > 0) {
+      const newIndex = currentStackIndex - 1;
+      setCurrentStackIndex(newIndex);
+      const step = navigationStack[newIndex];
+      updateUIForStep(step);
     }
   };
+
+  const navigateForward = () => {
+    if (currentStackIndex < navigationStack.length - 1) {
+      const newIndex = currentStackIndex + 1;
+      setCurrentStackIndex(newIndex);
+      const step = navigationStack[newIndex];
+      updateUIForStep(step);
+    }
+  };
+
+  // Check if back/forward navigation is available
+  const canGoBack = currentStackIndex > 0;
+  const canGoForward = currentStackIndex < navigationStack.length - 1;
 
   // New function to handle program card clicks
   const handleProgramClick = async (programId: string) => {
@@ -1312,19 +1752,17 @@ export default function StudentGrades() {
       if (actualStudentCount === 0) {
         // No students found in database - show empty state
         setSelectedProgram(programId);
-        setShowPrograms(false);
-        setShowYearLevels(false);
-        setShowSections(false);
-        setShowSubjects(false);
-        setShowEmptyProgram(true);
-        setNavigationHistory(prev => [...prev, 'emptyProgram']);
+        setSelectedYearLevel('');
+        setSelectedSection('');
+        setSelectedSubject('');
+        navigateTo('emptyProgram');
       } else {
         // Students found in database - proceed with normal navigation
         setSelectedProgram(programId);
-        setShowPrograms(false);
-        setShowYearLevels(true);
-        setShowEmptyProgram(false);
-        setNavigationHistory(prev => [...prev, 'yearLevels']);
+        setSelectedYearLevel('');
+        setSelectedSection('');
+        setSelectedSubject('');
+        navigateTo('yearLevels');
       }
     } catch (error) {
       console.error('Error in handleProgramClick:', error);
@@ -1340,24 +1778,22 @@ export default function StudentGrades() {
   // New function to handle year level card clicks
   const handleYearLevelClick = (yearLevel: string) => {
     setSelectedYearLevel(yearLevel);
-    setShowYearLevels(false);
-    setShowSections(true);
-    setNavigationHistory(prev => [...prev, 'sections']);
+    setSelectedSection('');
+    setSelectedSubject('');
+    navigateTo('sections');
   };
 
   // New function to handle section card clicks
   const handleSectionClick = (section: string) => {
     setSelectedSection(section);
-    setShowSections(false);
-    setShowSubjects(true);
-    setNavigationHistory(prev => [...prev, 'subjects']);
+    setSelectedSubject('');
+    navigateTo('subjects');
   };
 
   // New function to handle subject selection
   const handleSubjectClick = (subject: string) => {
     setSelectedSubject(subject);
-    setShowSubjects(false);
-    setNavigationHistory(prev => [...prev, 'students']);
+    navigateTo('students');
   };
 
 
@@ -1388,14 +1824,43 @@ export default function StudentGrades() {
     // Sort by student name
     filtered.sort((a, b) => (a.student_name || '').localeCompare(b.student_name || ''));
     
-    console.log('Filtered students:', filtered.length, 'for', selectedYearLevel, 'Section', selectedSection, 'Subject', selectedSubject, 'Search:', studentSearchTerm);
     return filtered;
   };
 
   // Bulk action handlers
+  // Function to validate if all students have complete grades
+  const validateCompleteGrades = (students: Grade[]) => {
+    const incompleteStudents = students.filter(student => {
+      const hasPrelim = student.prelim_grade !== null && student.prelim_grade !== undefined;
+      const hasMidterm = student.midterm_grade !== null && student.midterm_grade !== undefined;
+      const hasFinal = student.final_grade !== null && student.final_grade !== undefined;
+      
+      return !hasPrelim || !hasMidterm || !hasFinal;
+    });
+    
+    return {
+      isValid: incompleteStudents.length === 0,
+      incompleteStudents: incompleteStudents
+    };
+  };
+
   const handleBulkRelease = async () => {
     const filteredStudents = getFilteredStudents();
     if (filteredStudents.length === 0) return;
+    
+    // Validate that all students have complete grades
+    const validation = validateCompleteGrades(filteredStudents);
+    
+    if (!validation.isValid) {
+      const incompleteCount = validation.incompleteStudents.length;
+      const totalCount = filteredStudents.length;
+      
+      toast.error(
+        `Cannot release grades: ${incompleteCount} out of ${totalCount} students have incomplete grades. All students must have Prelim, Midterm, and Final grades before releasing.`,
+        { duration: 6000 }
+      );
+      return;
+    }
     
     setBulkUpdating(true);
     
@@ -1530,7 +1995,363 @@ export default function StudentGrades() {
       .length;
   };
 
+  // Grade Change Request functions
+  const fetchInstructorRequests = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('grades')
+        .select('id, student_id, subject_id, section, academic_year, edit_reason, edit_status, edit_requested_by, edit_requested_by_name, edit_student_name, created_at')
+        .eq('edit_requested', true)
+        .eq('edit_status', 'pending')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      const mapped = (data || []).map((g: {
+        id: string;
+        student_id: string;
+        subject_id: string | null;
+        section: string | null;
+        academic_year: string | null;
+        edit_reason: string | null;
+        edit_status: string | null;
+        edit_requested_by: string | null;
+        edit_requested_by_name: string | null;
+        edit_student_name: string | null;
+        created_at: string | null;
+      }) => ({
+        id: g.id,
+        student_id: g.student_id,
+        student_name: g.edit_student_name,
+        instructor_id: g.edit_requested_by,
+        instructor_name: g.edit_requested_by_name,
+        subject_id: g.subject_id,
+        section: g.section,
+        academic_year: g.academic_year,
+        edit_reason: g.edit_reason,
+        edit_status: g.edit_status,
+        created_at: g.created_at
+      }));
+      setInstructorRequests(mapped);
+    } catch (e) {
+      console.error('Failed to load instructor requests:', e);
+      setInstructorRequests([]);
+    }
+  };
+
+  const refreshInstructorRequests = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('grades')
+        .select('id, student_id, subject_id, section, academic_year, edit_reason, edit_status, edit_requested_by, edit_requested_by_name, edit_student_name, created_at')
+        .eq('edit_requested', true)
+        .eq('edit_status', 'pending')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      const mapped = (data || []).map((g: {
+        id: string;
+        student_id: string;
+        subject_id: string | null;
+        section: string | null;
+        academic_year: string | null;
+        edit_reason: string | null;
+        edit_status: string | null;
+        edit_requested_by: string | null;
+        edit_requested_by_name: string | null;
+        edit_student_name: string | null;
+        created_at: string | null;
+      }) => ({
+        id: g.id,
+        student_id: g.student_id,
+        student_name: g.edit_student_name,
+        instructor_id: g.edit_requested_by,
+        instructor_name: g.edit_requested_by_name,
+        subject_id: g.subject_id,
+        section: g.section,
+        academic_year: g.academic_year,
+        edit_reason: g.edit_reason,
+        edit_status: g.edit_status,
+        created_at: g.created_at
+      }));
+      setInstructorRequests(mapped);
+    } catch (e) {
+      console.error('Failed to refresh requests:', e);
+    }
+  };
+
+  const approveRequest = async (gradeId: string) => {
+    try {
+      const { error } = await supabase
+        .from('grades')
+        .update({ edit_status: 'granted', edit_requested: false, approved_at: new Date().toISOString() })
+        .eq('id', gradeId);
+      if (error) throw error;
+      toast.success('Grade edit request approved successfully');
+      await refreshInstructorRequests();
+    } catch (e) {
+      console.error('Approve failed:', e);
+      toast.error('Failed to approve request');
+    }
+  };
+
+  const denyRequest = async (gradeId: string) => {
+    try {
+      const { error } = await supabase
+        .from('grades')
+        .update({ edit_status: 'denied', edit_requested: false })
+        .eq('id', gradeId);
+      if (error) throw error;
+      toast.success('Grade edit request denied');
+      await refreshInstructorRequests();
+    } catch (e) {
+      console.error('Deny failed:', e);
+      toast.error('Failed to deny request');
+    }
+  };
+
+  const openRequestDetails = (request: {
+    id: string;
+    student_id: string;
+    student_name?: string | null;
+    instructor_id?: string | null;
+    instructor_name?: string | null;
+    subject_id?: string | null;
+    section?: string | null;
+    academic_year?: string | null;
+    edit_reason?: string | null;
+    edit_status?: string | null;
+    created_at?: string | null;
+  }) => {
+    setSelectedRequest(request);
+    setRequestModalOpen(true);
+  };
+
+  const showConfirmation = (action: 'approve' | 'deny', requestId: string) => {
+    setConfirmationAction(action);
+    setConfirmationRequestId(requestId);
+    setConfirmationModalOpen(true);
+  };
+
+  const handleConfirmedAction = async () => {
+    if (!confirmationAction || !confirmationRequestId) return;
+    
+    try {
+      if (confirmationAction === 'approve') {
+        await approveRequest(confirmationRequestId);
+      } else if (confirmationAction === 'deny') {
+        await denyRequest(confirmationRequestId);
+      }
+      
+      // Close both modals
+      setConfirmationModalOpen(false);
+      setRequestModalOpen(false);
+      
+      // Reset confirmation state
+      setConfirmationAction(null);
+      setConfirmationRequestId(null);
+    } catch (error) {
+      console.error('Error handling confirmed action:', error);
+    }
+  };
+
   return (
+    <>
+      {/* Request Details Modal - Outside main container */}
+      {requestModalOpen && selectedRequest && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
+          <div className="fixed inset-0 bg-black/50" onClick={() => setRequestModalOpen(false)}></div>
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden z-10">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+              <div>
+                <div className="text-lg font-semibold text-gray-800">Grade Change Request Details</div>
+                <div className="text-xs text-gray-500">Request ID: {selectedRequest.id}</div>
+              </div>
+              <button onClick={() => setRequestModalOpen(false)} className="p-2 rounded-lg hover:bg-gray-100">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5 text-gray-600">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-6 space-y-6">
+              {/* Request Information */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Instructor</label>
+                    <div className="text-lg font-semibold text-gray-800">{selectedRequest.instructor_name || 'Unknown Instructor'}</div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Student</label>
+                    <div className="text-lg font-semibold text-gray-800">{selectedRequest.student_name || selectedRequest.student_id}</div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Student ID</label>
+                    <div className="text-lg font-semibold text-gray-800">{selectedRequest.student_id}</div>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Section</label>
+                    <div className="text-lg font-semibold text-gray-800">{selectedRequest.section || 'N/A'}</div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Academic Year</label>
+                    <div className="text-lg font-semibold text-gray-800">{selectedRequest.academic_year || 'N/A'}</div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Request Date</label>
+                    <div className="text-lg font-semibold text-gray-800">
+                      {selectedRequest.created_at ? new Date(selectedRequest.created_at).toLocaleString() : 'Unknown'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Edit Reason */}
+              {selectedRequest.edit_reason && (
+                <div>
+                  <label className="text-sm font-medium text-gray-600">Edit Reason</label>
+                  <div className="mt-2 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                    <p className="text-gray-800 whitespace-pre-wrap">{selectedRequest.edit_reason}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                <button 
+                  onClick={() => showConfirmation('deny', selectedRequest.id)}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                >
+                  Deny Request
+                </button>
+                <button 
+                  onClick={() => showConfirmation('approve', selectedRequest.id)}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  Approve Request
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal - Outside main container */}
+      {confirmationModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
+          <div className="fixed inset-0 bg-black/60" onClick={() => setConfirmationModalOpen(false)}></div>
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden z-10">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                  confirmationAction === 'approve' ? 'bg-green-100' : 'bg-red-100'
+                }`}>
+                  {confirmationAction === 'approve' ? (
+                    <CheckCircle2 className="w-6 h-6 text-green-600" />
+                  ) : (
+                    <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800">
+                    {confirmationAction === 'approve' ? 'Approve Request' : 'Deny Request'}
+                  </h3>
+                  <p className="text-sm text-gray-600">Please confirm your action</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-6">
+              <div className="mb-4">
+                <p className="text-gray-700">
+                  Are you sure you want to <strong>{confirmationAction === 'approve' ? 'approve' : 'deny'}</strong> this grade change request?
+                </p>
+                <p className="text-sm text-gray-500 mt-2">
+                  This action cannot be undone.
+                </p>
+              </div>
+              <div className="flex justify-end gap-3">
+                <button 
+                  onClick={() => setConfirmationModalOpen(false)}
+                  className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleConfirmedAction}
+                  className={`px-4 py-2 text-white rounded-lg transition-colors ${
+                    confirmationAction === 'approve' 
+                      ? 'bg-green-600 hover:bg-green-700' 
+                      : 'bg-red-600 hover:bg-red-700'
+                  }`}
+                >
+                  {confirmationAction === 'approve' ? 'Approve' : 'Deny'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Hide Confirmation Modal - Outside main container */}
+      {hideConfirmationOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
+          <div className="fixed inset-0 bg-black/60" onClick={() => setHideConfirmationOpen(false)}></div>
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden z-10">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center bg-orange-100">
+                  <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800">Move Grades Back to Pending</h3>
+                  <p className="text-sm text-gray-600">Please confirm this action</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-6">
+              <div className="mb-6">
+                <p className="text-gray-700 mb-4">
+                  Are you sure you want to move <strong>{releasedModalGroup?.items.length || 0} released grades</strong> back to pending?
+                </p>
+                <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                  <h4 className="font-semibold text-orange-800 mb-2">This action will:</h4>
+                  <ul className="text-sm text-orange-700 space-y-1">
+                    <li>• Hide grades from students</li>
+                    <li>• Move grades back to pending status</li>
+                    <li>• Require re-release to make them visible again</li>
+                  </ul>
+                </div>
+                <p className="text-sm text-red-600 mt-3 font-medium">
+                  ⚠️ This action cannot be undone.
+                </p>
+              </div>
+              <div className="flex justify-end gap-3">
+                <button 
+                  onClick={() => setHideConfirmationOpen(false)}
+                  className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={confirmHideReleasedGroup}
+                  disabled={releasedModalUpdating}
+                  className={`px-4 py-2 text-white rounded-lg transition-colors ${
+                    releasedModalUpdating
+                      ? 'bg-gray-400 cursor-not-allowed'
+                      : 'bg-orange-600 hover:bg-orange-700'
+                  }`}
+                >
+                  {releasedModalUpdating ? 'Moving...' : 'Move to Pending'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     <div className="min-h-screen from-blue-50 via-white to-indigo-50 py-8">
       <div className="max-w-7xl mx-auto px-4">
         {/* Released Grades Modal */}
@@ -1563,6 +2384,19 @@ export default function StudentGrades() {
                       className="w-full h-10 px-4 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                     />
                   </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => printReleasedGrades()}
+                      className="px-4 py-2 rounded-lg text-sm font-semibold transition bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-md"
+                    >
+                      Print
+                    </button>
+                    <button
+                      onClick={() => downloadReleasedGrades()}
+                      className="px-4 py-2 rounded-lg text-sm font-semibold transition bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:shadow-md"
+                    >
+                      Download CSV
+                    </button>
                   <button
                     onClick={handleHideReleasedGroup}
                     disabled={releasedModalUpdating}
@@ -1570,6 +2404,7 @@ export default function StudentGrades() {
                   >
                     {releasedModalUpdating ? 'Hiding…' : 'Hide All (Move back to Pending)'}
                   </button>
+                  </div>
                 </div>
               </div>
               <div className="max-h-[60vh] overflow-y-auto">
@@ -1578,6 +2413,9 @@ export default function StudentGrades() {
                     <tr>
                       <th className="px-4 py-2 text-left">Student</th>
                       <th className="px-4 py-2 text-left">Subject</th>
+                      <th className="px-4 py-2 text-center">Prelim</th>
+                      <th className="px-4 py-2 text-center">Midterm</th>
+                      <th className="px-4 py-2 text-center">Final</th>
                       <th className="px-4 py-2 text-center">GA</th>
                       <th className="px-4 py-2 text-left">Updated</th>
                     </tr>
@@ -1613,7 +2451,22 @@ export default function StudentGrades() {
                               <span className="text-sm font-medium text-gray-900 truncate max-w-[200px]">{g.student_name || 'Unknown Student'}</span>
                             </div>
                           </td>
-                          <td className="px-4 py-2 text-sm text-gray-700 truncate max-w-[220px]">{g.course_code || 'Unknown'}{g.course_name && g.course_name !== 'Unknown' ? ` - ${g.course_name}` : ''}</td>
+                          <td className="px-4 py-2 text-sm text-gray-700 truncate max-w-[220px]">{g.course_code || 'Unknown'}</td>
+                          <td className="px-4 py-2 text-center">
+                            <div className="text-sm font-semibold text-gray-800">
+                              {g.prelim_grade !== null && g.prelim_grade !== undefined ? g.prelim_grade : '-'}
+                            </div>
+                          </td>
+                          <td className="px-4 py-2 text-center">
+                            <div className="text-sm font-semibold text-gray-800">
+                              {g.midterm_grade !== null && g.midterm_grade !== undefined ? g.midterm_grade : '-'}
+                            </div>
+                          </td>
+                          <td className="px-4 py-2 text-center">
+                            <div className="text-sm font-semibold text-gray-800">
+                              {g.final_grade !== null && g.final_grade !== undefined ? g.final_grade : '-'}
+                            </div>
+                          </td>
                           <td className="px-4 py-2 text-center text-sm font-semibold text-blue-900">{g.general_average !== null && g.general_average !== undefined ? g.general_average.toFixed(2) : '-'}</td>
                           <td className="px-4 py-2 text-xs text-gray-500">{new Date(g.updated_at || g.graded_at || g.created_at).toLocaleString()}</td>
                         </tr>
@@ -1687,6 +2540,7 @@ export default function StudentGrades() {
           </div>
         </div>
 
+
         {loading ? (
           <div className="flex flex-col items-center justify-center h-64 gap-4">
             <Loader2 className="w-12 h-12 animate-spin text-blue-500" />
@@ -1694,7 +2548,10 @@ export default function StudentGrades() {
           </div>
         ) : error ? (
           <div className="bg-red-100 text-red-700 rounded-xl p-6 text-center font-semibold">{error}</div>
-                ) : showPrograms ? (
+        ) : (
+          <>
+
+            {showPrograms ? (
           <>
           {/* Fast Selection Interface */}
           <div className="bg-white/90 rounded-2xl shadow-lg border border-gray-100 p-8">
@@ -1905,7 +2762,12 @@ export default function StudentGrades() {
                             <div
                               className="p-4 cursor-pointer"
                               onClick={() => {
-                                setReleasedModalGroup({ year: group.year, section: group.section, items: group.items as unknown as Grade[] });
+                                setReleasedModalGroup({ 
+                                  year: group.year, 
+                                  section: group.section, 
+                                  items: group.items as unknown as Grade[],
+                                  department: group.items[0]?.program_name || 'N/A'
+                                });
                                 setReleasedModalOpen(true);
                               }}
                               title="Click to view details"
@@ -1948,11 +2810,16 @@ export default function StudentGrades() {
                      {/* Back Button and Header */}
                      <div className="flex items-center justify-between">
                        <button
-                         onClick={handleGoBack}
-                         className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"
+                         onClick={navigateBack}
+                         className={`flex items-center justify-center w-10 h-10 rounded-lg transition-colors duration-200 ${
+                           canGoBack 
+                             ? 'bg-blue-100 hover:bg-blue-200 text-blue-700 hover:text-blue-800' 
+                             : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                         }`}
+                         disabled={!canGoBack}
+                         title={canGoBack ? "Go Back" : "No previous step"}
                        >
-                         <ChevronRight className="w-4 h-4 rotate-180" />
-                         Back to Programs
+                         <ChevronRight className="w-5 h-5 rotate-180" />
                        </button>
                        <div className="text-center flex-1">
                          <div className="bg-gradient-to-r from-gray-600 to-slate-600 text-white px-8 py-4 rounded-xl shadow-lg inline-block">
@@ -1996,8 +2863,13 @@ export default function StudentGrades() {
                          </div>
                          <div className="flex items-center justify-center gap-4">
                            <button
-                             onClick={handleGoBack}
-                             className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                             onClick={navigateBack}
+                             className={`px-6 py-3 rounded-lg transition-colors font-medium ${
+                               canGoBack 
+                                 ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                                 : 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                             }`}
+                             disabled={!canGoBack}
                            >
                              Back to Programs
                            </button>
@@ -2012,7 +2884,9 @@ export default function StudentGrades() {
                                setSelectedYearLevel('');
                                setSelectedSection('');
                                setSelectedSubject('');
-                               setNavigationHistory(['programs']);
+                               // Reset navigation stack
+                               setNavigationStack(['programs']);
+                               setCurrentStackIndex(0);
                              }}
                              className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
                            >
@@ -2027,13 +2901,32 @@ export default function StudentGrades() {
            <div className="space-y-6">
              {/* Back Button and Header */}
              <div className="flex items-center justify-between">
-               <button
-                 onClick={handleGoBack}
-                 className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"
-               >
-                 <ChevronRight className="w-4 h-4 rotate-180" />
-                 Back to Programs
-               </button>
+               <div className="flex items-center gap-2">
+                 <button
+                   onClick={navigateBack}
+                   className={`flex items-center justify-center w-10 h-10 rounded-lg transition-colors duration-200 ${
+                     canGoBack 
+                       ? 'bg-blue-100 hover:bg-blue-200 text-blue-700 hover:text-blue-800' 
+                       : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                   }`}
+                   disabled={!canGoBack}
+                   title={canGoBack ? "Go Back" : "No previous step"}
+                 >
+                   <ChevronRight className="w-5 h-5 rotate-180" />
+                 </button>
+                 <button
+                   onClick={navigateForward}
+                   className={`flex items-center justify-center w-10 h-10 rounded-lg transition-colors duration-200 ${
+                     canGoForward 
+                       ? 'bg-green-100 hover:bg-green-200 text-green-700 hover:text-green-800' 
+                       : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                   }`}
+                   disabled={!canGoForward}
+                   title={canGoForward ? "Go Forward" : "No next step"}
+                 >
+                   <ChevronRight className="w-5 h-5" />
+                 </button>
+               </div>
                <div className="text-center flex-1">
                  <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-4 rounded-xl shadow-lg inline-block">
                    <h2 className="text-2xl font-bold">
@@ -2170,13 +3063,32 @@ export default function StudentGrades() {
            <div className="space-y-6">
              {/* Back Button and Header */}
              <div className="flex items-center justify-between">
-               <button
-                 onClick={handleGoBack}
-                 className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"
-               >
-                 <ChevronRight className="w-4 h-4 rotate-180" />
-                 Back to Year Levels
-               </button>
+               <div className="flex items-center gap-2">
+                 <button
+                   onClick={navigateBack}
+                   className={`flex items-center justify-center w-10 h-10 rounded-lg transition-colors duration-200 ${
+                     canGoBack 
+                       ? 'bg-blue-100 hover:bg-blue-200 text-blue-700 hover:text-blue-800' 
+                       : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                   }`}
+                   disabled={!canGoBack}
+                   title={canGoBack ? "Go Back" : "No previous step"}
+                 >
+                   <ChevronRight className="w-5 h-5 rotate-180" />
+                 </button>
+                 <button
+                   onClick={navigateForward}
+                   className={`flex items-center justify-center w-10 h-10 rounded-lg transition-colors duration-200 ${
+                     canGoForward 
+                       ? 'bg-green-100 hover:bg-green-200 text-green-700 hover:text-green-800' 
+                       : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                   }`}
+                   disabled={!canGoForward}
+                   title={canGoForward ? "Go Forward" : "No next step"}
+                 >
+                   <ChevronRight className="w-5 h-5" />
+                 </button>
+               </div>
                <div className="text-center flex-1">
                  <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-4 rounded-xl shadow-lg inline-block">
                    <h2 className="text-2xl font-bold">
@@ -2316,14 +3228,33 @@ export default function StudentGrades() {
           // Subjects List View
           <div className="space-y-6">
             {/* Back Button and Header */}
-            <div className="flex items-center justify-between">
-              <button
-                onClick={handleGoBack}
-                className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"
-              >
-                <ChevronRight className="w-4 h-4 rotate-180" />
-                Back to Sections
-              </button>
+             <div className="flex items-center justify-between">
+               <div className="flex items-center gap-2">
+                 <button
+                   onClick={navigateBack}
+                   className={`flex items-center justify-center w-10 h-10 rounded-lg transition-colors duration-200 ${
+                     canGoBack 
+                       ? 'bg-blue-100 hover:bg-blue-200 text-blue-700 hover:text-blue-800' 
+                       : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                   }`}
+                   disabled={!canGoBack}
+                   title={canGoBack ? "Go Back" : "No previous step"}
+                 >
+                   <ChevronRight className="w-5 h-5 rotate-180" />
+                 </button>
+                 <button
+                   onClick={navigateForward}
+                   className={`flex items-center justify-center w-10 h-10 rounded-lg transition-colors duration-200 ${
+                     canGoForward 
+                       ? 'bg-green-100 hover:bg-green-200 text-green-700 hover:text-green-800' 
+                       : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                   }`}
+                   disabled={!canGoForward}
+                   title={canGoForward ? "Go Forward" : "No next step"}
+                 >
+                   <ChevronRight className="w-5 h-5" />
+                 </button>
+               </div>
               <div className="text-center flex-1">
                 <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-4 rounded-xl shadow-lg inline-block">
                   <h2 className="text-2xl font-bold">
@@ -2498,13 +3429,32 @@ export default function StudentGrades() {
           <div className="space-y-6">
             {/* Back Button and Header */}
             <div className="flex items-center justify-between">
-              <button
-                 onClick={handleGoBack}
-                className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"
-              >
-                <ChevronRight className="w-4 h-4 rotate-180" />
-                 Back
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                   onClick={navigateBack}
+                  className={`flex items-center justify-center w-10 h-10 rounded-lg transition-colors duration-200 ${
+                    canGoBack 
+                      ? 'bg-blue-100 hover:bg-blue-200 text-blue-700 hover:text-blue-800' 
+                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  }`}
+                  disabled={!canGoBack}
+                  title={canGoBack ? "Go Back" : "No previous step"}
+                >
+                  <ChevronRight className="w-5 h-5 rotate-180" />
+                </button>
+                <button
+                  onClick={navigateForward}
+                  className={`flex items-center justify-center w-10 h-10 rounded-lg transition-colors duration-200 ${
+                    canGoForward 
+                      ? 'bg-green-100 hover:bg-green-200 text-green-700 hover:text-green-800' 
+                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  }`}
+                  disabled={!canGoForward}
+                  title={canGoForward ? "Go Forward" : "No next step"}
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </div>
               <div className="text-center flex-1">
                 <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-4 rounded-xl shadow-lg inline-block">
                   <h2 className="text-2xl font-bold">
@@ -2567,16 +3517,38 @@ export default function StudentGrades() {
                       <span className="text-sm font-medium text-gray-700">
                         {getFilteredStudents().length} students in {selectedProgram ? programs.find(p => p.id === selectedProgram)?.name || 'Unknown Program' : 'Select a Program'} -{selectedYearLevel} Section {getSectionDisplayName(selectedSection, sectionMap)}
                       </span>
+                      {(() => {
+                        const validation = validateCompleteGrades(getFilteredStudents());
+                        if (!validation.isValid) {
+                          return (
+                            <div className="flex items-center gap-2 px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-xs font-medium">
+                              <Clock className="w-3 h-3" />
+                              {validation.incompleteStudents.length} incomplete grades
+                            </div>
+                          );
+                        }
+                        return (
+                          <div className="flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
+                            <CheckCircle2 className="w-3 h-3" />
+                            All grades complete
+                          </div>
+                        );
+                      })()}
                     </div>
                     <div className="flex items-center gap-3">
                       <button
                         onClick={handleBulkRelease}
-                        disabled={bulkUpdating}
+                        disabled={bulkUpdating || !validateCompleteGrades(getFilteredStudents()).isValid}
                         className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 ${
-                          bulkUpdating
+                          bulkUpdating || !validateCompleteGrades(getFilteredStudents()).isValid
                             ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
                             : 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:shadow-lg'
                         }`}
+                        title={
+                          !validateCompleteGrades(getFilteredStudents()).isValid
+                            ? 'Cannot release: Some students have incomplete grades (missing Prelim, Midterm, or Final)'
+                            : 'Release all grades for selected students'
+                        }
                       >
                         {bulkUpdating ? (
                           <div className="flex items-center gap-2">
@@ -2664,6 +3636,7 @@ export default function StudentGrades() {
                         <th className="px-6 py-4 text-center font-semibold">Final</th>
                         <th className="px-6 py-4 text-center font-semibold">GA</th>
                         <th className="px-6 py-4 text-center font-semibold">Release Status</th>
+                        <th className="px-6 py-4 text-center font-semibold">Grade Change Requests</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
@@ -2736,6 +3709,40 @@ export default function StudentGrades() {
                               </span>
                             )}
                           </td>
+                          <td className="px-6 py-4 text-center">
+                            {(() => {
+                              // Filter requests for this specific student and subject
+                              const studentRequests = instructorRequests.filter(req => 
+                                req.student_id === grade.student_id && 
+                                req.subject_id === grade.subject_id
+                              );
+                              
+                              if (studentRequests.length === 0) {
+                                return (
+                                  <span className="text-gray-400 text-xs">No requests</span>
+                                );
+                              }
+                              
+                              return (
+                                <div className="space-y-1">
+                                  {studentRequests.map(req => (
+                                    <div key={req.id} className="flex flex-col items-center gap-1">
+                                        <button 
+                                          onClick={() => openRequestDetails(req)}
+                                          className="px-2 py-1 text-xs rounded-md bg-blue-600 text-white hover:bg-blue-700"
+                                        title="View request details - Instructor needs permission to edit grades"
+                                        >
+                                          👁
+                                        </button>
+                                      <div className="text-xs text-amber-600 text-center max-w-32" title="Instructor needs permission to edit grades">
+                                        Permission Required
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              );
+                            })()}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -2760,9 +3767,11 @@ export default function StudentGrades() {
             )}
           </div>
         )}
-
+          </>
+        )}
 
       </div>
     </div>
+    </>
   );
 }
