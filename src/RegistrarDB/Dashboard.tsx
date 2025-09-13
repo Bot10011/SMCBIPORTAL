@@ -19,7 +19,6 @@ import {
 import { RegistrarGradeViewer } from './Allcourse';
 import { supabase } from '../lib/supabase';
 import StudentGrades from './StudentGrades';
-import SubjectsList from './SubjectsList';
 
 // Import registrar-specific components
 const StudentRecords = () => <div>Student Records</div>;
@@ -35,6 +34,33 @@ type ActivityLog = {
   time?: string;
   created_at?: string;
 };
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+type GradeActivity = {
+  id: any;
+  student_id: any;
+  subject_id: any;
+  section: any;
+  year_level: any;
+  is_released: any;
+  is_approved: any;
+  graded_by: any;
+  graded_at: any;
+  updated_at: any;
+  created_at: any;
+  edit_status: any;
+  edit_requested: any;
+  edit_requested_by: any;
+  edit_requested_by_name: any;
+  edit_student_name: any;
+  edit_reason: any;
+  prelim_grade: any;
+  midterm_grade: any;
+  final_grade: any;
+  course: any;
+  student: any;
+};
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 
 
@@ -183,7 +209,19 @@ const DashboardOverview: React.FC = () => {
           .eq('edit_status', 'pending')
           .order('created_at', { ascending: false });
         if (error) throw error;
-        const mapped = (data || []).map((g: any) => ({
+        const mapped = (data || []).map((g: {
+          id: string;
+          student_id: string;
+          subject_id: string | null;
+          section: string | null;
+          academic_year: string | null;
+          edit_reason: string | null;
+          edit_status: string | null;
+          edit_requested_by: string | null;
+          edit_requested_by_name: string | null;
+          edit_student_name: string | null;
+          created_at: string | null;
+        }) => ({
           id: g.id,
           student_id: g.student_id,
           student_name: g.edit_student_name,
@@ -207,63 +245,13 @@ const DashboardOverview: React.FC = () => {
     fetchInstructorRequests();
   }, []);
 
-  const refreshInstructorRequests = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('grades')
-        .select('id, student_id, subject_id, section, academic_year, edit_reason, edit_status, edit_requested_by, edit_requested_by_name, edit_student_name, created_at')
-        .eq('edit_requested', true)
-        .eq('edit_status', 'pending')
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      const mapped = (data || []).map((g: any) => ({
-        id: g.id,
-        student_id: g.student_id,
-        student_name: g.edit_student_name,
-        instructor_id: g.edit_requested_by,
-        instructor_name: g.edit_requested_by_name,
-        subject_id: g.subject_id,
-        section: g.section,
-        academic_year: g.academic_year,
-        edit_reason: g.edit_reason,
-        edit_status: g.edit_status,
-        created_at: g.created_at
-      }));
-      setInstructorRequests(mapped);
-    } catch (e) {
-      console.error('Failed to refresh requests:', e);
-    }
-  };
 
-  const approveRequest = async (gradeId: string) => {
-    try {
-      const { error } = await supabase
-        .from('grades')
-        .update({ edit_status: 'granted', edit_requested: false, approved_at: new Date().toISOString() })
-        .eq('id', gradeId);
-      if (error) throw error;
-      await refreshInstructorRequests();
-    } catch (e) {
-      console.error('Approve failed:', e);
-    }
-  };
-
-  const denyRequest = async (gradeId: string) => {
-    try {
-      const { error } = await supabase
-        .from('grades')
-        .update({ edit_status: 'denied', edit_requested: false })
-        .eq('id', gradeId);
-      if (error) throw error;
-      await refreshInstructorRequests();
-    } catch (e) {
-      console.error('Deny failed:', e);
-    }
-  };
 
 
   const fetchRecentActivities = async (): Promise<ActivityLog[]> => {
     try {
+      const activities: ActivityLog[] = [];
+
       // Fetch recent enrollment activities from user_profiles table
       const { data: enrollments, error: enrollError } = await supabase
         .from('user_profiles')
@@ -281,14 +269,10 @@ const DashboardOverview: React.FC = () => {
         `)
         .eq('role', 'student')
         .order('created_at', { ascending: false })
-        .limit(5);
+        .limit(3);
       
-      if (enrollError) {
-        console.error('Error fetching recent activities:', enrollError);
-        return [];
-      }
-      
-      return enrollments?.map(enrollment => {
+      if (!enrollError && enrollments) {
+        enrollments.forEach(enrollment => {
         // Helper function to get student name
         const getStudentName = () => {
           if (enrollment.display_name && enrollment.display_name.trim() !== '') {
@@ -304,15 +288,129 @@ const DashboardOverview: React.FC = () => {
           return nameParts.length > 0 ? nameParts.join(' ') : 'Unknown Student';
         };
 
-        return {
-          id: enrollment.id,
+          activities.push({
+            id: `enrollment-${enrollment.id}`,
           action: `Enrollment ${enrollment.enrollment_status}`,
           student: getStudentName(),
           subject: `${enrollment.department || 'Unknown'} - ${enrollment.year_level || 'Unknown'}`,
           time: new Date(enrollment.created_at).toLocaleString(),
           created_at: enrollment.created_at
-        };
-      }) || [];
+          });
+        });
+      }
+
+      // Fetch recent grade activities from grades table
+      const { data: grades, error: gradesError } = await supabase
+        .from('grades')
+        .select(`
+          id,
+          student_id,
+          subject_id,
+          section,
+          year_level,
+          is_released,
+          is_approved,
+          graded_by,
+          graded_at,
+          updated_at,
+          created_at,
+          edit_status,
+          edit_requested,
+          edit_requested_by,
+          edit_requested_by_name,
+          edit_student_name,
+          edit_reason,
+          prelim_grade,
+          midterm_grade,
+          final_grade,
+          course:courses(code, name),
+          student:user_profiles!grades_student_id_fkey(
+            display_name,
+            first_name,
+            last_name,
+            middle_name
+          )
+        `)
+        .order('updated_at', { ascending: false })
+        .limit(5);
+
+      if (!gradesError && grades) {
+        grades.forEach((grade: GradeActivity) => {
+          // Helper function to get student name
+          const getStudentName = () => {
+            if (grade.student) {
+              const student = Array.isArray(grade.student) ? grade.student[0] : grade.student;
+              if (student?.display_name && student.display_name.trim() !== '') {
+                return student.display_name;
+              }
+              
+              const firstName = student?.first_name || '';
+              const lastName = student?.last_name || '';
+              const middleName = student?.middle_name || '';
+              
+              const nameParts = [firstName, middleName, lastName].filter(part => part.trim() !== '');
+              return nameParts.length > 0 ? nameParts.join(' ') : 'Unknown Student';
+            }
+            return grade.edit_student_name || 'Unknown Student';
+          };
+
+          const course = Array.isArray(grade.course) ? grade.course[0] : grade.course;
+          const courseName = course?.name || course?.code || 'Unknown Course';
+
+          // Grade release activities
+          if (grade.is_released) {
+            activities.push({
+              id: `grade-release-${grade.id}`,
+              action: 'Grade Released',
+              student: getStudentName(),
+              subject: `${courseName} - Section ${grade.section || 'N/A'}`,
+              time: new Date(grade.updated_at || grade.graded_at || grade.created_at || '').toLocaleString(),
+              created_at: grade.updated_at || grade.graded_at || grade.created_at || ''
+            });
+          }
+
+          // Grade edit request activities
+          if (grade.edit_requested && grade.edit_status === 'pending') {
+            activities.push({
+              id: `grade-edit-request-${grade.id}`,
+              action: 'Grade Edit Request',
+              student: getStudentName(),
+              subject: `${courseName} - Requested by ${grade.edit_requested_by_name || 'Unknown Instructor'}`,
+              time: new Date(grade.created_at || '').toLocaleString(),
+              created_at: grade.created_at || ''
+            });
+          }
+
+          // Grade edit approval/denial activities
+          if (grade.edit_status === 'granted' || grade.edit_status === 'denied') {
+            activities.push({
+              id: `grade-edit-${grade.edit_status}-${grade.id}`,
+              action: `Grade Edit ${grade.edit_status === 'granted' ? 'Approved' : 'Denied'}`,
+              student: getStudentName(),
+              subject: `${courseName} - ${grade.edit_requested_by_name || 'Unknown Instructor'}`,
+              time: new Date(grade.updated_at || grade.created_at || '').toLocaleString(),
+              created_at: grade.updated_at || grade.created_at || ''
+            });
+          }
+
+          // Grade input activities (when grades are first entered)
+          if (grade.graded_at && (grade.prelim_grade || grade.midterm_grade || grade.final_grade)) {
+            activities.push({
+              id: `grade-input-${grade.id}`,
+              action: 'Grade Input',
+              student: getStudentName(),
+              subject: `${courseName} - Section ${grade.section || 'N/A'}`,
+              time: new Date(grade.graded_at || '').toLocaleString(),
+              created_at: grade.graded_at || ''
+            });
+          }
+        });
+      }
+
+      // Sort all activities by creation time (most recent first) and limit to 8
+      return activities
+        .sort((a, b) => new Date(b.created_at || '').getTime() - new Date(a.created_at || '').getTime())
+        .slice(0, 8);
     } catch (error) {
       console.error('Error in fetchRecentActivities:', error);
       return [];
@@ -905,7 +1003,9 @@ const DashboardOverview: React.FC = () => {
               <ShieldAlert className="w-5 h-5 mr-2 text-amber-600" />
            Grade Change Request
             </h2>
+            <div className="flex items-center gap-3">
             <span className="text-sm text-gray-500">{instructorRequests.length} request(s)</span>
+            </div>
           </div>
           <div className="space-y-3 max-h-80 overflow-y-auto">
             {requestsLoading ? (
@@ -917,19 +1017,22 @@ const DashboardOverview: React.FC = () => {
                 const status = (req.edit_status || '').toLowerCase();
                 const requestedAt = req.created_at ? new Date(req.created_at).toLocaleString() : 'Unknown';
                 return (
-                  <div key={req.id} className="p-3 rounded-xl border bg-white/80">
+                  <div 
+                    key={req.id} 
+                    className="p-3 rounded-xl border bg-white/80 hover:bg-blue-50 hover:border-blue-200 cursor-pointer transition-all duration-200"
+                    onClick={() => navigate(`/dashboard/student-grades?studentId=${req.student_id}&subjectId=${req.subject_id}`)}
+                  >
                     <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="text-sm font-semibold text-gray-900 truncate">Instructor: {req.instructor_name || 'Unknown Instructor'}</div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-semibold text-gray-900 truncate">Inst: {req.instructor_name || 'Unknown Instructor'}</div>
                         <div className="text-xs text-gray-900 truncate">Student: {req.student_name || req.student_id}</div>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
                         <span className={`inline-flex items-center px-2 py-0.5 text-xs rounded-full ${status === 'pending' ? 'bg-amber-100 text-amber-700' : status === 'granted' ? 'bg-emerald-100 text-emerald-700' : status === 'denied' ? 'bg-rose-100 text-rose-700' : 'bg-gray-100 text-gray-700'}`}>{status || 'pending'}</span>
-                        <button onClick={() => approveRequest(req.id)} className="px-2 py-1 text-xs rounded-md bg-emerald-600 text-white">Approve</button>
-                        <button onClick={() => denyRequest(req.id)} className="px-2 py-1 text-xs rounded-md bg-rose-600 text-white">Deny</button>
+                        <div className="text-blue-600 text-xs">Click to view →</div>
                       </div>
                     </div>
-                    <div className="mt-2 text-xs text-gray-600 truncate">Section: {req.section || 'N/A'} • AY: {req.academic_year || 'N/A'} • Requested: {requestedAt}</div>
+                    <div className="mt-2 text-xs text-gray-600 truncate">Section: {req.section || 'N/A'}  • Requested: {requestedAt}</div>
                     {req.edit_reason && (
                       <div className="mt-1 text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 whitespace-pre-wrap break-words">
                         {req.edit_reason}
