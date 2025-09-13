@@ -86,7 +86,19 @@ const TeacherDashboardOverview: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState(new Date().getDate());
   const [googleClassroomStatus, setGoogleClassroomStatus] = useState<'connected' | 'disconnected' | 'checking'>('checking');
   const [activePanel, setActivePanel] = useState<'notifications' | 'notes' | 'documents' | 'calendar'>('calendar');
-  const [gradeEditStatus, setGradeEditStatus] = useState<'granted' | 'pending' | 'denied' | 'unknown'>('unknown');
+  const [gradeEditRequests, setGradeEditRequests] = useState<Array<{
+    id: string;
+    student_id: string;
+    student_name?: string | null;
+    subject_id?: string | null;
+    course_code?: string | null;
+    course_name?: string | null;
+    section?: string | null;
+    year_level?: string | null;
+    edit_reason?: string | null;
+    edit_status?: string | null;
+    created_at?: string | null;
+  }>>([]);
   
   // Notification form state
   const [showNotificationForm, setShowNotificationForm] = useState(false);
@@ -278,33 +290,10 @@ const TeacherDashboardOverview: React.FC = () => {
         }
         setProfilePictureUrl(pictureUrl);
         setProfileCache({ pictureUrl, timestamp: Date.now() });
-
-        // Determine grade edit status from common profile fields
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const profile: any = data || {};
-          const allowed = Boolean(
-            profile?.can_edit_grades ??
-            profile?.grade_edit_allowed ??
-            (typeof profile?.grade_edit_status === 'string' && profile?.grade_edit_status.toLowerCase() === 'granted')
-          );
-          const denied = typeof profile?.grade_edit_status === 'string' && profile?.grade_edit_status.toLowerCase() === 'denied';
-          const pending = Boolean(
-            profile?.grade_edit_requested ??
-            (typeof profile?.grade_edit_status === 'string' && profile?.grade_edit_status.toLowerCase() === 'pending')
-          );
-          if (allowed) setGradeEditStatus('granted');
-          else if (denied) setGradeEditStatus('denied');
-          else if (pending) setGradeEditStatus('pending');
-          else setGradeEditStatus('unknown');
-        } catch {
-          setGradeEditStatus('unknown');
-        }
       } catch (error) {
         console.error('Error fetching profile:', error);
         setProfilePictureUrl(null);
         setProfileCache({ pictureUrl: null, timestamp: Date.now() });
-        setGradeEditStatus('unknown');
       } finally {
         setProfileLoading(false);
       }
@@ -353,6 +342,67 @@ const TeacherDashboardOverview: React.FC = () => {
     };
     fetchNotifications();
   }, [user?.id]);
+
+  // Fetch grade edit requests for this teacher
+  const fetchGradeEditRequests = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const { data, error } = await supabase
+        .from('grades')
+        .select(`
+          id,
+          student_id,
+          subject_id,
+          section,
+          year_level,
+          edit_reason,
+          edit_status,
+          edit_requested_by,
+          edit_student_name,
+          created_at,
+          course:courses(code, name)
+        `)
+        .eq('edit_requested_by', user.id)
+        .or('edit_requested.eq.true,edit_status.eq.granted')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const mappedRequests = (data || []).map((req: any) => ({
+        id: req.id,
+        student_id: req.student_id,
+        student_name: req.edit_student_name,
+        subject_id: req.subject_id,
+        course_code: req.course?.code,
+        course_name: req.course?.name,
+        section: req.section,
+        year_level: req.year_level,
+        edit_reason: req.edit_reason,
+        edit_status: req.edit_status,
+        created_at: req.created_at
+      }));
+      
+      setGradeEditRequests(mappedRequests);
+    } catch (err) {
+      console.error('Error fetching grade edit requests:', err);
+      setGradeEditRequests([]);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    fetchGradeEditRequests();
+  }, [fetchGradeEditRequests]);
+
+  // Refresh grade edit requests when user returns to dashboard
+  useEffect(() => {
+    const handleFocus = () => {
+      fetchGradeEditRequests();
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [fetchGradeEditRequests]);
 
   // Optimized classes fetching with loading state
   useEffect(() => {
@@ -746,10 +796,11 @@ const TeacherDashboardOverview: React.FC = () => {
     console.log('Deleting document:', documentId);
   }, []);
 
-  // Daily Bible verse for motivation - changes based on current date
-  const getDailyBibleVerse = useCallback(() => {
-    const today = new Date();
-    const dayOfYear = Math.floor((today.getTime() - new Date(today.getFullYear(), 0, 0).getTime()) / (1000 * 60 * 60 * 24));
+  // Daily Bible verse for motivation - randomized on each login
+  const getDailyBibleVerse = () => {
+    // Generate a random index each time the function is called
+    // This ensures different verses on each login session
+    const randomIndex = Math.floor(Math.random() * 12); // 12 verses available
     
     const verses = [
       {
@@ -802,10 +853,9 @@ const TeacherDashboardOverview: React.FC = () => {
       }
     ];
     
-    // Use day of year to get consistent verse for the day
-    const verseIndex = dayOfYear % verses.length;
-    return verses[verseIndex];
-  }, []);
+    // Return randomly selected verse - changes on each login
+    return verses[randomIndex];
+  };
 
   // Memoized navigation handlers
   const handleClassClick = useCallback((classId: string) => {
@@ -1154,10 +1204,14 @@ const TeacherDashboardOverview: React.FC = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  // Reset active panel to calendar on route change
+  // Reset active panel to calendar on route change and refresh grade edit requests
   useEffect(() => {
     setActivePanel('calendar');
-  }, [location.pathname]);
+    // Refresh grade edit requests when returning to dashboard
+    if (location.pathname === '/dashboard') {
+      fetchGradeEditRequests();
+    }
+  }, [location.pathname, fetchGradeEditRequests]);
 
   // Loading skeleton component with smooth animations
   if (isLoading) {
@@ -1401,39 +1455,35 @@ const TeacherDashboardOverview: React.FC = () => {
             {/* Left Column - Main Content */}
             <div className="xl:col-span-2 space-y-4 lg:space-y-3 contain-layout">
               {/* Promotional Banner */}
-              <div className="bg-gradient-to-r from-blue-600/90 to-purple-600/90 backdrop-blur-xl rounded-2xl p-4 text-white relative overflow-hidden border border-white/20 shadow-xl transform-gpu will-change-transform transition-all duration-500 ease-out">
-                <div className="flex items-center justify-between">
+              <div className="bg-gradient-to-r from-blue-600/90 to-purple-600/90 backdrop-blur-xl rounded-2xl p-6 py-8 text-white relative overflow-hidden border border-white/20 shadow-xl transform-gpu will-change-transform transition-all duration-500 ease-out min-h-fit">
+                <div className="flex items-start justify-between">
                   <div className="flex-1">
                   
-                                          <div className="mb-4">
+                                          <div className="mb-0">
                         <div className="flex items-start ">
                           {/* Removed left-icon/gif placeholder as requested */}
                           <div className="flex-1">
-                            <p className="text-sm text-white/90 italic mb-1 leading-relaxed">
+                            <p className="text-xs sm:text-sm md:text-base lg:text-lg text-white/95 italic mb-1 leading-relaxed font-medium break-words hyphens-auto">
                               "{getDailyBibleVerse().verse}"
                             </p>
-                            <p className="text-xs text-blue-200 font-medium">
-                              {getDailyBibleVerse().reference}
+                       
+                            <p className="text-xs sm:text-xs md:text-sm lg:text-sm text-blue-200 font-semibold mb-0">
+                            "{getDailyBibleVerse().reference}"
+      
                             </p>
-                            <p className="text-xs text-white/70 mt-1">
+                            <p className="text-xs sm:text-xs md:text-sm text-white/80 mt-2 font-medium">
                               Today's guidance for your teaching journey
                             </p>
+                            
                           </div>
                         </div>
-                      </div>
+                        </div>
+                    
                     
                                           {/* Stats and Button in horizontal layout */}
-                      <div className="flex items-center gap-4 mb-5">
+                      <div className="flex items-center gap-4 mb-6">
                           {/* Get Started Button */}
-                          <button 
-                            onClick={() => {
-                              setActivePanel('calendar');
-                              navigate('/dashboard/class-management');
-                            }}
-                            className="bg-teal-400/90 backdrop-blur-sm hover:bg-teal-500/90 text-white px-6 py-2 rounded-lg font-medium transition-colors border border-white/20 shadow-lg"
-                          >
-                            Get Started
-                          </button>
+                      
                           
 
                         </div>
@@ -2412,49 +2462,87 @@ const TeacherDashboardOverview: React.FC = () => {
               {/* Registrar Grade Edit Confirmation Card - placed under the unified panel */}
               <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-4 shadow-xl border border-white/20 relative glassmorphism transform-gpu will-change-transform transition-all duration-300 ease-out mt-3 h-[310px] overflow-y-auto">
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-bold text-gray-700 text-sm">Registrar Approval</h3>
-                  {gradeEditStatus === 'granted' && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-700">
-                      <CheckCircle className="w-3.5 h-3.5" /> Allowed
-                    </span>
-                  )}
-                  {gradeEditStatus === 'pending' && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-700">
-                      <Clock className="w-3.5 h-3.5" /> Pending
-                    </span>
-                  )}
-                  {gradeEditStatus === 'denied' && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-rose-100 text-rose-700">
-                      <XCircle className="w-3.5 h-3.5" /> Denied
-                    </span>
-                  )}
-                  {gradeEditStatus === 'unknown' && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-700">
-                      <Clock className="w-3.5 h-3.5" /> Unknown
-                    </span>
-                  )}
+                  <h3 className="font-bold text-gray-700 text-sm">Grade Edit Requests</h3>
+                  <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                    {gradeEditRequests.length} request{gradeEditRequests.length !== 1 ? 's' : ''}
+                  </span>
                 </div>
-                <p className="text-xs text-gray-600 mb-3">
-                  Registrar confirmation determines whether you can edit student grades in your classes.
-                </p>
-                {gradeEditStatus === 'granted' && (
-                  <div className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg p-3">
-                    You are authorized to edit grades. Proceed to your class to update grades.
+                
+                {gradeEditRequests.length === 0 ? (
+                  <div className="text-center py-8">
+                    <div className="text-gray-400 mb-2">
+                      <Clock className="w-8 h-8 mx-auto" />
+                    </div>
+                    <p className="text-xs text-gray-500">No grade edit requests</p>
                   </div>
-                )}
-                {gradeEditStatus === 'pending' && (
-                  <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                    Your request to edit grades is pending registrar approval.
-                  </div>
-                )}
-                {gradeEditStatus === 'denied' && (
-                  <div className="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg p-3">
-                    Editing grades is currently not allowed. Contact the registrar for assistance.
-                  </div>
-                )}
-                {gradeEditStatus === 'unknown' && (
-                  <div className="text-xs text-gray-700 bg-gray-50 border border-gray-200 rounded-lg p-3">
-                    Status is not configured. Please contact the registrar if you need access.
+                ) : (
+                  <div className="space-y-2">
+                    {gradeEditRequests.map((request) => (
+                      <div 
+                        key={request.id}
+                        onClick={() => {
+                          if (request.edit_status === 'granted') {
+                            navigate(`/dashboard/class-management?studentId=${request.student_id}&subjectId=${request.subject_id}`);
+                          }
+                        }}
+                        className={`p-3 rounded-lg border cursor-pointer transition-all duration-200 hover:shadow-md ${
+                          request.edit_status === 'granted' 
+                            ? 'bg-emerald-50 border-emerald-200 hover:bg-emerald-100' 
+                            : request.edit_status === 'denied'
+                            ? 'bg-red-50 border-red-200 hover:bg-red-100'
+                            : 'bg-amber-50 border-amber-200 hover:bg-amber-100'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-medium text-xs text-gray-800">
+                                {request.student_name || 'Unknown Student'}
+                              </span>
+                              {request.edit_status === 'granted' && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-700">
+                                  <CheckCircle className="w-3 h-3" /> Approved
+                                </span>
+                              )}
+                              {request.edit_status === 'denied' && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-700">
+                                  <XCircle className="w-3 h-3" /> Denied
+                                </span>
+                              )}
+                              {request.edit_status === 'pending' && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-700">
+                                  <Clock className="w-3 h-3" /> Pending
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-xs text-gray-600 space-y-1">
+                              <div>Subject: {request.course_code || 'Unknown'} - {request.course_name || 'Unknown'}</div>
+                              <div>Section: {request.section || 'N/A'} • Year: {request.year_level || 'N/A'}</div>
+                              {request.edit_reason && (
+                                <div className="text-gray-500 italic">"{request.edit_reason}"</div>
+                              )}
+                            </div>
+                          </div>
+                          {request.edit_status === 'granted' && (
+                            <div className="flex-shrink-0 ml-2">
+                              <div className="w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center">
+                                <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-400">
+                          {request.created_at ? new Date(request.created_at).toLocaleDateString('en-US', { 
+                            month: 'short', 
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          }) : 'Unknown date'}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
