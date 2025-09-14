@@ -445,6 +445,13 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
   const [modalError, setModalError] = useState<string>('');
   const [modalSuccess, setModalSuccess] = useState<string>('');
 
+  // State for scroll indicators
+  const [showLeftScrollIndicator, setShowLeftScrollIndicator] = useState(false);
+  const [showRightScrollIndicator, setShowRightScrollIndicator] = useState(false);
+  const [showActionButtonIndicator, setShowActionButtonIndicator] = useState(false);
+  const leftColumnRef = useRef<HTMLDivElement>(null);
+  const rightColumnRef = useRef<HTMLDivElement>(null);
+
   // Update assignment.subject_id when selectedSubjects changes (for backward compatibility)
   React.useEffect(() => {
     if (selectedSubjects.length === 1) {
@@ -457,6 +464,54 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
       } as React.ChangeEvent<HTMLSelectElement>);
     }
   }, [selectedSubjects]);
+
+  // Check if columns need scroll indicators
+  React.useEffect(() => {
+    const checkScrollable = () => {
+      if (leftColumnRef.current) {
+        const { scrollHeight, clientHeight } = leftColumnRef.current;
+        setShowLeftScrollIndicator(scrollHeight > clientHeight);
+      }
+      if (rightColumnRef.current) {
+        const { scrollHeight, clientHeight } = rightColumnRef.current;
+        setShowRightScrollIndicator(scrollHeight > clientHeight);
+      }
+      
+      // Show action button indicator if there's scrollable content
+      const hasScrollableContent = Boolean(
+        (leftColumnRef.current && leftColumnRef.current.scrollHeight > leftColumnRef.current.clientHeight) ||
+        (rightColumnRef.current && rightColumnRef.current.scrollHeight > rightColumnRef.current.clientHeight)
+      );
+      setShowActionButtonIndicator(hasScrollableContent);
+    };
+
+    // Check initially and on window resize
+    checkScrollable();
+    window.addEventListener('resize', checkScrollable);
+    
+    // Check when content changes
+    const timeoutId = setTimeout(checkScrollable, 100);
+
+    return () => {
+      window.removeEventListener('resize', checkScrollable);
+      clearTimeout(timeoutId);
+    };
+  }, [assignment.year_level, assignment.semester, filteredCourses.length]);
+
+  // Handle scroll events to hide indicators
+  const handleLeftScroll = () => {
+    if (leftColumnRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = leftColumnRef.current;
+      setShowLeftScrollIndicator(scrollTop < scrollHeight - clientHeight - 10);
+    }
+  };
+
+  const handleRightScroll = () => {
+    if (rightColumnRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = rightColumnRef.current;
+      setShowRightScrollIndicator(scrollTop < scrollHeight - clientHeight - 10);
+    }
+  };
 
   // Handle form submission - show confirmation modal instead of submitting directly
   const handleFormSubmit = (e: React.FormEvent) => {
@@ -533,17 +588,17 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.95, opacity: 0, y: 20 }}
           transition={{ type: "spring", stiffness: 300, damping: 30 }}
-          className="bg-gradient-to-br from-white/95 to-white/90 backdrop-blur-md rounded-3xl p-6 sm:p-10 max-w-5xl w-full mx-2 sm:mx-4 shadow-2xl border border-white/20 relative z-10 min-h-[60vh] max-h-[90vh] flex flex-col"
+          className="bg-gradient-to-br from-white/95 to-white/90 backdrop-blur-md rounded-3xl p-4 sm:p-6 lg:p-10 max-w-5xl w-full mx-2 sm:mx-4 shadow-2xl border border-white/20 relative z-10 max-h-[95vh] flex flex-col overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Modal header */}
-          <div className="flex items-center justify-between mb-8">
-            <h3 className="text-2xl font-bold text-gray-800">
+          <div className="flex items-center justify-between mb-4 sm:mb-6 lg:mb-8 flex-shrink-0">
+            <h3 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-800 pr-4">
               {isEditMode ? 'Edit Subject Assignment' : 'Assign New Subject'}
             </h3>
             <button 
               onClick={onClose}
-              className="absolute w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center text-lg sm:text-xl font-bold text-white bg-red-500 hover:bg-red-600 rounded-full shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 animate-pop-in hover:scale-110 hover:rotate-90 top-2 right-2 sm:top-3 sm:right-3"
+              className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 flex items-center justify-center text-base sm:text-lg lg:text-xl font-bold text-white bg-red-500 hover:bg-red-600 rounded-full shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 animate-pop-in hover:scale-110 hover:rotate-90 flex-shrink-0"
               aria-label="Close modal"
               style={{ backgroundColor: 'rgb(239, 68, 68)', boxShadow: 'rgba(239, 68, 68, 0.3) 0px 2px 8px', zIndex: 50 }}
             >
@@ -551,9 +606,28 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
             </button>
           </div>
           {/* Form - two column on md+ screens */}
-          <form onSubmit={handleFormSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+          <form onSubmit={handleFormSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-x-4 sm:gap-x-6 lg:gap-x-8 gap-y-4 sm:gap-y-6 flex-1 overflow-hidden relative">
             {/* Left column: Teacher, Academic Year, Section, Semester */}
-            <div className="flex flex-col gap-6">
+            <div 
+              ref={leftColumnRef}
+              onScroll={handleLeftScroll}
+              className="flex flex-col gap-4 sm:gap-6 overflow-y-auto relative"
+            >
+              {/* Bottom fade indicator */}
+              {showLeftScrollIndicator && (
+                <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-white/80 to-transparent pointer-events-none z-5"></div>
+              )}
+              {/* Scroll indicator for left column */}
+              {showLeftScrollIndicator && (
+                <div className="absolute top-2 right-2 z-10 pointer-events-none">
+                  <div className="bg-blue-500 text-white text-xs px-2 py-1 rounded-full shadow-lg animate-bounce flex items-center gap-1">
+                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                    Scroll
+                  </div>
+                </div>
+              )}
               {/* Teacher Selection */}
               <div>
                 <label htmlFor="teacher_id" className="block text-sm font-medium text-gray-700 mb-1">
@@ -564,11 +638,11 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
                   name="teacher_id"
                   value={assignment.teacher_id}
                   onChange={handleInputChange}
-                  className={`w-full px-4 py-3 rounded-xl border ${
+                  className={`w-full px-3 sm:px-4 py-2 sm:py-3 rounded-lg sm:rounded-xl border ${
                     formErrors.teacher_id || (!assignment.teacher_id && !isFormValid())
                       ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
                       : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
-                  } focus:ring-2 focus:ring-opacity-50 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm`}
+                  } focus:ring-2 focus:ring-opacity-50 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm text-sm sm:text-base`}
                 >
                   <option value="">Select a teacher</option>
                   {teachers.map(teacher => (
@@ -593,11 +667,11 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
                   name="academic_year"
                   value={assignment.academic_year}
                   onChange={handleInputChange}
-                  className={`w-full px-4 py-3 rounded-xl border ${
+                  className={`w-full px-3 sm:px-4 py-2 sm:py-3 rounded-lg sm:rounded-xl border ${
                     formErrors.academic_year || (!assignment.academic_year && !isFormValid())
                       ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
                       : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
-                  } focus:ring-2 focus:ring-opacity-50 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm`}
+                  } focus:ring-2 focus:ring-opacity-50 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm text-sm sm:text-base`}
                   required
                 >
                   <option value="">Select Academic Year</option>
@@ -623,11 +697,11 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
                   name="year_level"
                   value={assignment.year_level}
                   onChange={handleInputChange}
-                  className={`w-full px-4 py-3 rounded-xl border ${
+                  className={`w-full px-3 sm:px-4 py-2 sm:py-3 rounded-lg sm:rounded-xl border ${
                     formErrors.year_level || (!assignment.year_level && !isFormValid())
                       ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
                       : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
-                  } focus:ring-2 focus:ring-opacity-50 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm`}
+                  } focus:ring-2 focus:ring-opacity-50 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm text-sm sm:text-base`}
                   required
                 >
                   <option value="">Select Year Level</option>
@@ -651,11 +725,11 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
                   name="semester"
                   value={assignment.semester}
                   onChange={handleInputChange}
-                  className={`w-full px-4 py-3 rounded-xl border ${
+                  className={`w-full px-3 sm:px-4 py-2 sm:py-3 rounded-lg sm:rounded-xl border ${
                     formErrors.semester || (!assignment.semester && !isFormValid())
                       ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
                       : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
-                  } focus:ring-2 focus:ring-opacity-50 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm`}
+                  } focus:ring-2 focus:ring-opacity-50 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm text-sm sm:text-base`}
                   required
                 >
                   <option value="">Select Semester</option>
@@ -679,11 +753,11 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
                   name="section"
                   value={assignment.section}
                   onChange={handleInputChange}
-                  className={`w-full px-4 py-3 rounded-xl border ${
+                  className={`w-full px-3 sm:px-4 py-2 sm:py-3 rounded-lg sm:rounded-xl border ${
                     formErrors.section || (!assignment.section && !isFormValid())
                       ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
                       : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
-                  } focus:ring-2 focus:ring-opacity-50 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm`}
+                  } focus:ring-2 focus:ring-opacity-50 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm text-sm sm:text-base`}
                   required
                 >
                   <option value="">Select Section</option>
@@ -711,16 +785,17 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Day(s) <span className="text-red-500">*</span>
                   </label>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-1 sm:gap-2">
                     {days.map(day => (
-                      <label key={day} className="inline-flex items-center gap-1 text-sm">
+                      <label key={day} className="inline-flex items-center gap-1 text-xs sm:text-sm">
                         <input
                           type="checkbox"
                           checked={selectedDay.includes(day)}
                           onChange={() => handleDayCheckbox(day)}
-                          className="accent-blue-600 w-4 h-4"
+                          className="accent-blue-600 w-3 h-3 sm:w-4 sm:h-4"
                         />
-                        {day}
+                        <span className="hidden sm:inline">{day}</span>
+                        <span className="sm:hidden">{day.substring(0, 3)}</span>
                       </label>
                     ))}
                   </div>
@@ -741,11 +816,11 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
                     placeholder="e.g. 8:00-10:00 AM"
                     value={assignment.time || ''}
                     onChange={handleInputChange}
-                    className={`w-full px-4 py-3 rounded-xl border ${
+                    className={`w-full px-3 sm:px-4 py-2 sm:py-3 rounded-lg sm:rounded-xl border ${
                       formErrors.time || (!assignment.time && !isFormValid())
                         ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
                         : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
-                    } focus:ring-2 focus:ring-opacity-50 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm`}
+                    } focus:ring-2 focus:ring-opacity-50 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm text-sm sm:text-base`}
                     required
                   />
                   {(formErrors.time || (!assignment.time && !isFormValid())) && (
@@ -757,7 +832,26 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
               </div>
             </div>
             {/* Right column: Year Level, Subject, Subject List */}
-            <div className="flex flex-col gap-6">
+            <div 
+              ref={rightColumnRef}
+              onScroll={handleRightScroll}
+              className="flex flex-col gap-4 sm:gap-6 overflow-y-auto relative"
+            >
+              {/* Bottom fade indicator */}
+              {showRightScrollIndicator && (
+                <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-white/80 to-transparent pointer-events-none z-5"></div>
+              )}
+              {/* Scroll indicator for right column */}
+              {showRightScrollIndicator && (
+                <div className="absolute top-2 right-2 z-10 pointer-events-none">
+                  <div className="bg-green-500 text-white text-xs px-2 py-1 rounded-full shadow-lg animate-bounce flex items-center gap-1">
+                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                    Scroll
+                  </div>
+                </div>
+              )}
               {/* Show all subjects for selected year level as cards/list, right after year level selection */}
               {assignment.year_level && assignment.semester && (
                 <div className="mt-2">
@@ -775,7 +869,7 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
                     Select one or more subjects for this year level, semester, and section
                   </p>
                   {filteredCourses.length > 0 ? (
-                    <div className="overflow-y-auto max-h-72 md:max-h-96 rounded-lg border border-blue-100 bg-white/60">
+                    <div className="overflow-y-auto max-h-48 sm:max-h-64 md:max-h-72 lg:max-h-96 rounded-lg border border-blue-100 bg-white/60">
                       {/* Select All Checkbox */}
                       <div className="sticky top-0 bg-blue-100 border-b border-blue-200 p-3">
                         <label className="flex items-center gap-3 cursor-pointer select-none">
@@ -889,18 +983,29 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
             </div>
             
             {/* Action Buttons - full width on mobile, right on desktop */}
-            <div className="md:col-span-2 flex flex-col sm:flex-row justify-end items-center gap-3 mt-8">
+            <div className="md:col-span-2 flex flex-col sm:flex-row justify-end items-center gap-3 mt-4 sm:mt-6 lg:mt-8 flex-shrink-0 pt-4 border-t border-gray-200 relative">
+              {/* Scroll up indicator */}
+              {showActionButtonIndicator && (
+                <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 pointer-events-none">
+                  <div className="bg-gray-500 text-white text-xs px-3 py-1 rounded-full shadow-lg animate-pulse flex items-center gap-1">
+                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
+                    </svg>
+                    Action buttons below
+                  </div>
+                </div>
+              )}
               <button
                 type="button"
                 onClick={onClose}
-                className="w-full sm:w-auto px-5 py-2.5 text-base font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                className="w-full sm:w-auto px-4 sm:px-5 py-2 sm:py-2.5 text-sm sm:text-base font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={formSubmitting || !isFormValid()}
-                className={`w-full sm:w-auto px-5 py-2.5 text-base font-semibold border border-transparent rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 ${
+                className={`w-full sm:w-auto px-4 sm:px-5 py-2 sm:py-2.5 text-sm sm:text-base font-semibold border border-transparent rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 ${
                   isFormValid() && !formSubmitting
                     ? 'text-white bg-blue-600 hover:bg-blue-700 shadow-md'
                     : 'text-gray-400 bg-gray-200 cursor-not-allowed'
