@@ -38,7 +38,7 @@ const ClassManagement: React.FC = () => {
   // Sections tab state
   const [sections, setSections] = useState<SectionRow[]>([]);
   const [sectionYear, setSectionYear] = useState<number>(1);
-  const [newSection, setNewSection] = useState<{ name: string; year_level: number; academic_year: string }>({ name: '', year_level: 1, academic_year: '' });
+  const [newSection, setNewSection] = useState<{ name: string; year_level: number; academic_year: string }>({ name: '', year_level: 1, academic_year: getDefaultAcademicYear() });
   const [selectedSectionId, setSelectedSectionId] = useState<string>('');
   const [selectedStudentIds, setSelectedStudentIds] = useState<Record<string, boolean>>({});
   const [createLoading, setCreateLoading] = useState(false);
@@ -296,7 +296,7 @@ const ClassManagement: React.FC = () => {
         .single();
       if (error) throw error;
       setSections(prev => [...prev, data as SectionRow].sort((a, b) => (Number(a.year_level) - Number(b.year_level)) || a.name.localeCompare(b.name)));
-      setNewSection({ name: '', year_level: newSection.year_level, academic_year: newSection.academic_year });
+      setNewSection({ name: '', year_level: newSection.year_level, academic_year: getDefaultAcademicYear() });
       // keep the filter aligned to created section year
       setSectionYear(Number(data?.year_level ?? newSection.year_level));
       setShowCreateModal(false);
@@ -927,7 +927,11 @@ const ClassManagement: React.FC = () => {
           {/* Create Section trigger */}
           <div className="flex justify-end">
             <button
-              onClick={() => { setCreateError(null); setShowCreateModal(true); }}
+              onClick={() => { 
+                setCreateError(null); 
+                setNewSection({ name: '', year_level: 1, academic_year: getDefaultAcademicYear() });
+                setShowCreateModal(true); 
+              }}
               className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
             >
               + Create Section
@@ -1329,7 +1333,16 @@ const ClassManagement: React.FC = () => {
                 className="rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Academic Year (e.g., 2024-2025)"
                 value={newSection.academic_year}
-                onChange={e => setNewSection(prev => ({ ...prev, academic_year: e.target.value }))}
+                onChange={e => {
+                  const value = e.target.value;
+                  // Only allow numbers and hyphens, and limit to format YYYY-YYYY
+                  const sanitized = value.replace(/[^0-9-]/g, '');
+                  // Ensure proper format: YYYY-YYYY (max 9 characters)
+                  if (sanitized.length <= 9 && /^(\d{0,4}-?\d{0,4})?$/.test(sanitized)) {
+                    setNewSection(prev => ({ ...prev, academic_year: sanitized }));
+                  }
+                }}
+                maxLength={9}
               />
             </div>
             <div className="mt-4 flex justify-end gap-2">
@@ -1376,7 +1389,16 @@ const ClassManagement: React.FC = () => {
                 className="rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Academic Year (e.g., 2024-2025)"
                 value={editingSection.academic_year || ''}
-                onChange={e => setEditingSection(prev => prev ? { ...prev, academic_year: e.target.value } : null)}
+                onChange={e => {
+                  const value = e.target.value;
+                  // Only allow numbers and hyphens, and limit to format YYYY-YYYY
+                  const sanitized = value.replace(/[^0-9-]/g, '');
+                  // Ensure proper format: YYYY-YYYY (max 9 characters)
+                  if (sanitized.length <= 9 && /^(\d{0,4}-?\d{0,4})?$/.test(sanitized)) {
+                    setEditingSection(prev => prev ? { ...prev, academic_year: sanitized } : null);
+                  }
+                }}
+                maxLength={9}
               />
             </div>
             <div className="mt-4 flex justify-end gap-2">
