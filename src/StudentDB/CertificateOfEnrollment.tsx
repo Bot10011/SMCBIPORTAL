@@ -151,11 +151,18 @@ const COEModal = ({ coe, open, onClose }: { coe: COERecord, open: boolean, onClo
     };
   };
 
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  };
+
   return (
     <>
-      {/* Full screen overlay to completely block all interactions */}
+      {/* Full screen overlay with click handler */}
       <div 
         className="fixed inset-0 z-[99999] bg-black bg-opacity-50"
+        onClick={handleBackdropClick}
         style={{ 
           pointerEvents: 'auto',
           userSelect: 'none',
@@ -165,92 +172,98 @@ const COEModal = ({ coe, open, onClose }: { coe: COERecord, open: boolean, onClo
       
       {/* Modal container */}
       <div
-        className="fixed inset-0 z-[100000] flex items-center justify-center"
+        className="fixed inset-0 z-[100000] flex items-center justify-center p-4"
+        onClick={handleBackdropClick}
         style={{ 
           minHeight: '100vh',
-          pointerEvents: 'none'
+          pointerEvents: 'auto'
         }}
       >
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
-          className="coe-modal bg-white rounded-2xl shadow-xl p-8 border border-gray-100 w-full max-w-xl relative mx-4 flex flex-col"
+          className="coe-modal bg-white rounded-2xl shadow-xl border border-gray-100 w-full max-w-4xl relative mx-4 flex flex-col"
           style={{ 
             maxHeight: '90vh', 
-            overflowY: 'auto', 
             boxSizing: 'border-box',
             pointerEvents: 'auto'
           }}
           ref={contentRef}
+          onClick={(e) => e.stopPropagation()}
         >
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 text-2xl font-bold"
-            aria-label="Close"
-          >
-            &times;
-          </button>
-          <div className="flex justify-end gap-2 mb-4">
-            <button
-              onClick={handleDownload}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <Download className="w-4 h-4" /> Download
-            </button>
-            <button
-              onClick={handlePrint}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-            >
-              <Printer className="w-4 h-4" /> Print
-            </button>
-          </div>
-          <div className="text-center mb-8">
-            <div className="flex flex-col items-center gap-3 mb-4">
-              <img 
-                src="/img/logo.png" 
-                alt="SMCBI Logo" 
-                className="w-20 h-20 object-contain"
-              />
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900">SMCBI</h1>
-                <p className="text-gray-600 mt-1">Certificate of Enrollment</p>
+          {/* Sticky Header with Action Buttons */}
+          <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 rounded-t-2xl z-10">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <img 
+                  src="/img/logo.png" 
+                  alt="SMCBI Logo" 
+                  className="w-8 h-8 object-contain"
+                />
+                <div>
+                  <h1 className="text-xl font-bold text-gray-900">SMCBI</h1>
+                  <p className="text-sm text-gray-600">Certificate of Enrollment</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleDownload}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+                >
+                  <Download className="w-4 h-4" /> Download
+                </button>
+                <button
+                  onClick={handlePrint}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors shadow-sm"
+                >
+                  <Printer className="w-4 h-4" /> Print
+                </button>
+                <button
+                  onClick={onClose}
+                  className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
+                  aria-label="Close"
+                >
+                  <span className="text-xl font-bold">&times;</span>
+                </button>
               </div>
             </div>
-            <p className="text-gray-500">Date: {coe.date_issued ? new Date(coe.date_issued).toLocaleDateString() : 'N/A'}</p>
           </div>
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <p className="text-sm text-gray-500">Student ID</p>
-                <p className="font-medium">{coe.student_number || coe.student_id}</p>
+
+          {/* Scrollable Content */}
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <p className="text-sm text-gray-500">Student ID</p>
+                  <p className="font-medium">{coe.student_number || coe.student_id}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Full Name</p>
+                  <p className="font-medium">{coe.full_name || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">School Year</p>
+                  <p className="font-medium">{coe.school_year}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Semester</p>
+                  <p className="font-medium">{coe.semester}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Year Level</p>
+                  <p className="font-medium">{coe.year_level || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Program</p>
+                  <p className="font-medium">{coe.department || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Email</p>
+                  <p className="font-medium">{coe.email || 'N/A'}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm text-gray-500">Full Name</p>
-                <p className="font-medium">{coe.full_name || 'N/A'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">School Year</p>
-                <p className="font-medium">{coe.school_year}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Semester</p>
-                <p className="font-medium">{coe.semester}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Year Level</p>
-                <p className="font-medium">{coe.year_level || 'N/A'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Program</p>
-                <p className="font-medium">{coe.department || 'N/A'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Email</p>
-                <p className="font-medium">{coe.email || 'N/A'}</p>
-              </div>
-            </div>
-                          <div className="mt-8">
+              <div className="mt-8">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Enrolled Courses</h3>
                 <div className="rounded-xl border border-gray-200 overflow-hidden w-full shadow-sm">
                   <table className="coe-certificate-table min-w-full bg-white/90">
@@ -285,15 +298,16 @@ const COEModal = ({ coe, open, onClose }: { coe: COERecord, open: boolean, onClo
                   </table>
                 </div>
               </div>
-            <div className="mt-8 text-center">
-              <p className="text-2xl font-bold text-green-600">ENROLLED</p>
-              <p className="text-sm text-gray-500 mt-2">This is to certify that the above-named student is officially enrolled in the above-mentioned program for the current academic year.</p>
-            </div>
-            <div className="mt-12 flex justify-between">
-              <div className="text-center">
-                <p className="font-medium">Registrar</p>
-                <div className="mt-8 border-t border-gray-300 pt-2">
-                  <p className="text-sm text-gray-600">Signature over printed name</p>
+              <div className="mt-8 text-center">
+                <p className="text-2xl font-bold text-green-600">ENROLLED</p>
+                <p className="text-sm text-gray-500 mt-2">This is to certify that the above-named student is officially enrolled in the above-mentioned program for the current academic year.</p>
+              </div>
+              <div className="mt-12 flex justify-between">
+                <div className="text-center">
+                  <p className="font-medium">Registrar</p>
+                  <div className="mt-8 border-t border-gray-300 pt-2">
+                    <p className="text-sm text-gray-600">Signature over printed name</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -456,6 +470,7 @@ export const CertificateOfEnrollment: React.FC = () => {
                               section,
                               academic_year,
                               semester,
+                              year_level,
                               teacher:user_profiles!teacher_subjects_teacher_id_fkey(
                                 first_name,
                                 last_name,
@@ -482,6 +497,7 @@ export const CertificateOfEnrollment: React.FC = () => {
                               section,
                               academic_year,
                               semester,
+                              year_level,
                               teacher:user_profiles!teacher_subjects_teacher_id_fkey(
                                 first_name,
                                 last_name,
@@ -500,7 +516,7 @@ export const CertificateOfEnrollment: React.FC = () => {
                         console.log('Assignment query for subject:', subject.code, 'result:', assignmentData, 'error:', assignmentError);
 
                         if (!assignmentError && assignmentData) {
-                          const teacher = assignmentData.teacher;
+                          const teacher = assignmentData.teacher as any;
                           const instructorName = teacher 
                             ? `${teacher.first_name} ${teacher.middle_name ? teacher.middle_name + ' ' : ''}${teacher.last_name}`
                             : 'TBA';
