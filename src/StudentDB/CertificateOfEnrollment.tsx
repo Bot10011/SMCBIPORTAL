@@ -51,7 +51,8 @@ const COEModal = ({ coe, open, onClose }: { coe: COERecord, open: boolean, onClo
     const logo = new Image();
     logo.src = '/img/logo.png';
     logo.onload = () => {
-      doc.addImage(logo, 'PNG', 85, 15, 25, 25);
+      // Center the logo: (page width - logo width) / 2 = (210 - 25) / 2 = 92.5
+      doc.addImage(logo, 'PNG', 92.5, 15, 25, 25);
       
       // Header
       doc.setFontSize(18);
@@ -106,7 +107,8 @@ const COEModal = ({ coe, open, onClose }: { coe: COERecord, open: boolean, onClo
     const logo = new Image();
     logo.src = '/img/logo.png';
     logo.onload = () => {
-      doc.addImage(logo, 'PNG', 85, 15, 25, 25);
+      // Center the logo: (page width - logo width) / 2 = (210 - 25) / 2 = 92.5
+      doc.addImage(logo, 'PNG', 92.5, 15, 25, 25);
       
       // Header
       doc.setFontSize(18);
@@ -123,7 +125,7 @@ const COEModal = ({ coe, open, onClose }: { coe: COERecord, open: boolean, onClo
       doc.text(`Semester: ${coe.semester}`, 120, y);
       y += 7;
       doc.text(`Year Level: ${coe.year_level || 'N/A'}`, 20, y);
-      doc.text(`Porgram: ${coe.department || 'N/A'}`, 120, y);
+      doc.text(`Program: ${coe.department || 'N/A'}`, 120, y);
       y += 7;
       doc.text(`Email: ${coe.email || 'N/A'}`, 20, y);
       autoTable(doc, {
@@ -314,6 +316,17 @@ export const CertificateOfEnrollment: React.FC = () => {
     const fetchCOEs = async () => {
       try {
         if (user?.id) {
+          // First, get the student's profile to get their section information
+          const { data: studentProfile, error: profileError } = await supabase
+            .from('user_profiles')
+            .select('section, year_level, department')
+            .eq('id', user.id)
+            .single();
+
+          if (profileError) {
+            console.error('Error fetching student profile:', profileError);
+          }
+
           // Fetch COE records
           const { data: coeData, error: coeError } = await supabase
             .from('coe')
@@ -325,6 +338,55 @@ export const CertificateOfEnrollment: React.FC = () => {
           if (coeError) throw coeError;
           
           if (coeData && coeData.length > 0) {
+            // Fetch sections data to map UIDs to names
+            const { data: sectionsData, error: sectionsError } = await supabase
+              .from('sections')
+              .select('id, name');
+            
+            if (sectionsError) {
+              console.error('Error fetching sections:', sectionsError);
+            }
+
+            // Create a map of section UIDs to section names
+            const sectionMap = new Map<string, string>();
+            if (sectionsData) {
+              sectionsData.forEach(section => {
+                sectionMap.set(section.id, section.name);
+              });
+            }
+
+            // Get the student's section name
+            const studentSectionName = studentProfile?.section && sectionMap.has(studentProfile.section) 
+              ? sectionMap.get(studentProfile.section) 
+              : studentProfile?.section || 'A';
+
+            // Debug: Let's see what teacher assignments exist in the database
+            const { data: allTeacherAssignments, error: allAssignmentsError } = await supabase
+              .from('teacher_subjects')
+              .select(`
+                id,
+                teacher_id,
+                subject_id,
+                section,
+                academic_year,
+                semester,
+                year_level,
+                is_active,
+                teacher:user_profiles!teacher_subjects_teacher_id_fkey(
+                  first_name,
+                  last_name,
+                  middle_name
+                ),
+                subject:courses!teacher_subjects_subject_id_fkey(
+                  code,
+                  name
+                )
+              `)
+              .eq('is_active', true)
+              .limit(10);
+
+            console.log('Sample teacher assignments in database:', allTeacherAssignments, 'Error:', allAssignmentsError);
+
             // Fetch instructor assignments for each COE
             const enrichedCOEs = await Promise.all(
               coeData.map(async (coe) => {
@@ -339,58 +401,151 @@ export const CertificateOfEnrollment: React.FC = () => {
                         try {
                           const { data: courseRow, error: courseErr } = await supabase
                             .from('courses')
-                            .select('id')
+                            .select('id, code, name')
                             .eq('code', subject.code)
                             .single();
                           if (!courseErr && courseRow?.id) {
                             courseId = courseRow.id as string;
+                            console.log('Found course for code:', subject.code, 'ID:', courseId, 'Name:', courseRow.name);
+                          } else {
+                            console.warn('Course not found for code:', subject.code, 'Error:', courseErr);
                           }
-                        } catch {
-                          // ignore
+                        } catch (err) {
+                          console.warn('Could not find course for code:', subject.code, err);
                         }
 
-                        // Find the teacher assignment for this subject and section
-                        const { data: assignmentData, error: assignmentError } = await supabase
+                        // Debug: Log the query parameters
+                        console.log('Querying for instructor assignment:', {
+                          subjectCode: subject.code,
+                          courseId: courseId,
+                          schoolYear: coe.school_year,
+                          semester: coe.semester,
+                          yearLevel: coe.year_level
+                        });
+
+                        // Find the teacher assignment for this subject using proper joins
+                        // First try with all filters
+                        let { data: assignmentData, error: assignmentError } = await supabase
                           .from('teacher_subjects')
                           .select(`
                             teacher_id,
-                            section
+                            section,
+                            academic_year,
+                            semester,
+                            year_level,
+                            teacher:user_profiles!teacher_subjects_teacher_id_fkey(
+                              first_name,
+                              last_name,
+                              middle_name
+                            )
                           `)
-                          .eq('subject_id', courseId || subject.code) // prefer course UUID; fallback to code if schema uses code
-                          .eq('section', subject.section || 'A') // Default to 'A' if no section specified
+                          .eq('subject_id', courseId || subject.code)
                           .eq('academic_year', coe.school_year)
                           .eq('semester', coe.semester)
                           .eq('year_level', coe.year_level)
+                          .eq('is_active', true)
                           .maybeSingle();
 
-                        if (!assignmentError && assignmentData) {
-                          // Fetch teacher details separately
-                          const { data: teacherData, error: teacherError } = await supabase
-                            .from('user_profiles')
-                            .select('first_name, last_name')
-                            .eq('id', assignmentData.teacher_id)
+                        // If no exact match, try without year_level filter (in case it's not in the schema)
+                        if (!assignmentData && !assignmentError) {
+                          console.log('No exact match found, trying without year_level filter');
+                          const { data: assignmentData2, error: assignmentError2 } = await supabase
+                            .from('teacher_subjects')
+                            .select(`
+                              teacher_id,
+                              section,
+                              academic_year,
+                              semester,
+                              teacher:user_profiles!teacher_subjects_teacher_id_fkey(
+                                first_name,
+                                last_name,
+                                middle_name
+                              )
+                            `)
+                            .eq('subject_id', courseId || subject.code)
+                            .eq('academic_year', coe.school_year)
+                            .eq('semester', coe.semester)
+                            .eq('is_active', true)
                             .maybeSingle();
+                          
+                          assignmentData = assignmentData2;
+                          assignmentError = assignmentError2;
+                        }
 
-                          if (!teacherError && teacherData) {
-                            return {
-                              ...subject,
-                              instructor: `${teacherData.first_name} ${teacherData.last_name}`,
-                              section: subject.section || assignmentData.section || 'A'
-                            };
-                          }
+                        // If still no match, try with just subject_id and is_active
+                        if (!assignmentData && !assignmentError) {
+                          console.log('No academic year/semester match, trying with just subject_id');
+                          const { data: assignmentData3, error: assignmentError3 } = await supabase
+                            .from('teacher_subjects')
+                            .select(`
+                              teacher_id,
+                              section,
+                              academic_year,
+                              semester,
+                              teacher:user_profiles!teacher_subjects_teacher_id_fkey(
+                                first_name,
+                                last_name,
+                                middle_name
+                              )
+                            `)
+                            .eq('subject_id', courseId || subject.code)
+                            .eq('is_active', true)
+                            .limit(1)
+                            .maybeSingle();
+                          
+                          assignmentData = assignmentData3;
+                          assignmentError = assignmentError3;
+                        }
+
+                        console.log('Assignment query for subject:', subject.code, 'result:', assignmentData, 'error:', assignmentError);
+
+                        if (!assignmentError && assignmentData) {
+                          const teacher = assignmentData.teacher;
+                          const instructorName = teacher 
+                            ? `${teacher.first_name} ${teacher.middle_name ? teacher.middle_name + ' ' : ''}${teacher.last_name}`
+                            : 'TBA';
+                          
+                          return {
+                            ...subject,
+                            instructor: instructorName,
+                            section: assignmentData.section || studentSectionName
+                          };
+                        }
+
+                        // If still no assignment found, let's see what assignments exist for this course
+                        if (!assignmentData) {
+                          const { data: allAssignments, error: allAssignmentsError } = await supabase
+                            .from('teacher_subjects')
+                            .select(`
+                              teacher_id,
+                              section,
+                              academic_year,
+                              semester,
+                              year_level,
+                              is_active,
+                              teacher:user_profiles!teacher_subjects_teacher_id_fkey(
+                                first_name,
+                                last_name,
+                                middle_name
+                              )
+                            `)
+                            .eq('subject_id', courseId || subject.code)
+                            .eq('is_active', true);
+
+                          console.log('All assignments for course:', subject.code, 'result:', allAssignments, 'error:', allAssignmentsError);
                         }
 
                         return {
                           ...subject,
                           instructor: 'TBA',
-                          section: subject.section || 'A'
+                          section: studentSectionName
                         };
-                      } catch {
-                        console.warn('Could not find instructor for subject:', subject.code);
+                      } catch (err) {
+                        console.warn('Could not find instructor for subject:', subject.code, err);
                         return {
                           ...subject,
                           instructor: 'TBA',
-                          section: subject.section || 'A'
+                          section: studentSectionName
                         };
                       }
                     })
