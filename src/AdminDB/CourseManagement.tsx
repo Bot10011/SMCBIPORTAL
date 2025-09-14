@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
 import { motion } from 'framer-motion';
-import { Plus, BookOpen, Users, GraduationCap, Search, Filter, Grid, List, Trash2 } from 'lucide-react';
+import { Plus, BookOpen, Users, GraduationCap, Search, Filter, Grid, List } from 'lucide-react';
 import CourseActions from '../components/CourseActions';
 import { createPortal } from 'react-dom';
 import './dashboard.css';
@@ -417,55 +417,6 @@ export default function CourseManagement() {
 
 
 
-  const cleanupUnusedImages = useCallback(async () => {
-    try {
-      // Get all course image paths from the database
-      const { data: coursesData, error: coursesError } = await supabase
-        .from('courses')
-        .select('image_url')
-        .not('image_url', 'is', null);
-
-      if (coursesError) {
-        console.error('Error fetching course images:', coursesError);
-        return;
-      }
-
-      const usedImagePaths = coursesData
-        .map(course => course.image_url)
-        .filter(path => path && path.trim() !== '');
-
-      // List all files in the course-images directory
-      const { data: storageFiles, error: storageError } = await supabase.storage
-        .from('course')
-        .list('course-images', { limit: 1000 });
-
-      if (storageError) {
-        console.error('Error listing storage files:', storageError);
-        return;
-      }
-
-      // Find unused files
-      const unusedFiles = storageFiles
-        ?.filter(file => !usedImagePaths.includes(`course-images/${file.name}`))
-        .map(file => `course-images/${file.name}`) || [];
-
-      // Remove unused files
-      if (unusedFiles.length > 0) {
-        const { error: removeError } = await supabase.storage
-          .from('course')
-          .remove(unusedFiles);
-
-        if (removeError) {
-          console.error('Error removing unused files:', removeError);
-        } else {
-          console.log(`Cleaned up ${unusedFiles.length} unused images`);
-          toast.success(`Cleaned up ${unusedFiles.length} unused images`);
-        }
-      }
-    } catch (error) {
-      console.error('Error during cleanup:', error);
-    }
-  }, []);
 
   const handleCloseModal = () => {
     setShowAddModal(false);
@@ -1355,15 +1306,6 @@ export default function CourseManagement() {
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  onClick={cleanupUnusedImages}
-                  className="coursemanagement-cleanup-button bg-white/20 backdrop-blur-sm text-white px-4 py-2 rounded-lg hover:bg-white/30 transition-all duration-300 font-semibold flex items-center gap-2 border border-white/30"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Cleanup
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
                   onClick={() => setShowAddModal(true)}
                   className="coursemanagement-add-button bg-white/20 backdrop-blur-sm text-white px-6 py-2 rounded-lg hover:bg-white/30 transition-all duration-300 font-semibold flex items-center gap-2 border border-white/30"
                 >
@@ -1535,7 +1477,7 @@ export default function CourseManagement() {
                 
                 filteredCourses.forEach(course => {
                   const yearLevel = course.year_level || 'Unknown Year';
-                  const semester = course.semester || 'No Semester';
+                  const semester = course.semester || 'Summer';
                   
                   if (!groupedCourses[yearLevel]) {
                     groupedCourses[yearLevel] = {};
@@ -1547,7 +1489,15 @@ export default function CourseManagement() {
                   groupedCourses[yearLevel][semester].push(course);
                 });
                 
-                return Object.entries(groupedCourses).map(([yearLevel, semesters], yearIdx) => (
+                return Object.entries(groupedCourses)
+                  .sort(([a], [b]) => {
+                    // Sort year levels in proper order: 1st Year, 2nd Year, 3rd Year, 4th Year, Unknown Year
+                    const yearOrder = ['1st Year', '2nd Year', '3rd Year', '4th Year', 'Unknown Year'];
+                    const aIndex = yearOrder.indexOf(a);
+                    const bIndex = yearOrder.indexOf(b);
+                    return aIndex - bIndex;
+                  })
+                  .map(([yearLevel, semesters], yearIdx) => (
                 <motion.div
                     key={yearLevel}
                   initial={{ opacity: 0, y: 20 }}
@@ -1567,7 +1517,15 @@ export default function CourseManagement() {
                     
                     {/* Semesters */}
                     <div className="p-6 space-y-6">
-                      {Object.entries(semesters).map(([semester, courses], semesterIdx) => (
+                      {Object.entries(semesters)
+                        .sort(([a], [b]) => {
+                          // Sort semesters in proper order: 1st Semester, 2nd Semester, Summer
+                          const semesterOrder = ['1st Semester', '2nd Semester', 'Summer'];
+                          const aIndex = semesterOrder.indexOf(a);
+                          const bIndex = semesterOrder.indexOf(b);
+                          return aIndex - bIndex;
+                        })
+                        .map(([semester, courses], semesterIdx) => (
                         <div key={semester} className="space-y-4">
                           {/* Semester Header */}
                           <div className="flex items-center justify-between">
@@ -1770,7 +1728,7 @@ export default function CourseManagement() {
                 
                 filteredCourses.forEach(course => {
                   const yearLevel = course.year_level || 'Unknown Year';
-                  const semester = course.semester || 'No Semester';
+                  const semester = course.semester || 'Summer';
                   
                   if (!groupedCourses[yearLevel]) {
                     groupedCourses[yearLevel] = {};
@@ -1782,7 +1740,15 @@ export default function CourseManagement() {
                   groupedCourses[yearLevel][semester].push(course);
                 });
                 
-                return Object.entries(groupedCourses).map(([yearLevel, semesters], yearIdx) => (
+                return Object.entries(groupedCourses)
+                  .sort(([a], [b]) => {
+                    // Sort year levels in proper order: 1st Year, 2nd Year, 3rd Year, 4th Year, Unknown Year
+                    const yearOrder = ['1st Year', '2nd Year', '3rd Year', '4th Year', 'Unknown Year'];
+                    const aIndex = yearOrder.indexOf(a);
+                    const bIndex = yearOrder.indexOf(b);
+                    return aIndex - bIndex;
+                  })
+                  .map(([yearLevel, semesters], yearIdx) => (
                   <motion.div
                     key={yearLevel}
                     initial={{ opacity: 0, y: 20 }}
@@ -1802,7 +1768,15 @@ export default function CourseManagement() {
                     
                     {/* Semesters */}
                     <div className="space-y-6">
-                      {Object.entries(semesters).map(([semester, courses], semesterIdx) => (
+                      {Object.entries(semesters)
+                        .sort(([a], [b]) => {
+                          // Sort semesters in proper order: 1st Semester, 2nd Semester, Summer
+                          const semesterOrder = ['1st Semester', '2nd Semester', 'Summer'];
+                          const aIndex = semesterOrder.indexOf(a);
+                          const bIndex = semesterOrder.indexOf(b);
+                          return aIndex - bIndex;
+                        })
+                        .map(([semester, courses], semesterIdx) => (
                         <div key={semester} className="space-y-4">
                           {/* Semester Header */}
                           <div className="px-6 pt-6 pb-2">
