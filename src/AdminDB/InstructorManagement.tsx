@@ -2098,7 +2098,7 @@ const InstructorManagement: React.FC = () => {
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap'
                 }}>
-                  Assignment Details
+                  Assign Details
                 </Typography>
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
