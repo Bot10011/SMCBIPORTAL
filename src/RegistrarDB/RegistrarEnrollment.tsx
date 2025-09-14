@@ -8,7 +8,10 @@ import { Download, Printer, Eye, Users, BookOpen, CheckCircle2, UserCheck, UserP
 interface Student {
   id: string;
   student_id: string;
-  display_name: string;        // Changed from first_name + last_name
+  display_name: string;        // Constructed from first_name + middle_name + last_name
+  first_name?: string;
+  middle_name?: string;
+  last_name?: string;
   email: string;
   year_level: string;
   enrollment_status: string;
@@ -387,6 +390,9 @@ const RegistrarEnrollment: React.FC = () => {
           id,
           student_id,
           display_name,
+          first_name,
+          middle_name,
+          last_name,
           email,
           year_level,
           enrollment_status,
@@ -396,14 +402,31 @@ const RegistrarEnrollment: React.FC = () => {
           avatar_url
         `)
         .eq('role', 'student')
-        .order('display_name', { ascending: true });
+        .order('first_name', { ascending: true });
 
       if (error) throw error;
       
-      // Log how many students were fetched
-      console.log(`Fetched ${data?.length || 0} students from database`);
+      // Process the data to construct full names
+      const processedData = (data || []).map(student => {
+        // Construct display name from individual name fields if display_name is not available
+        let fullName = student.display_name;
+        if (!fullName || fullName.trim() === '') {
+          const parts = [student.first_name, student.middle_name, student.last_name]
+            .map(part => (typeof part === 'string' ? part.trim() : ''))
+            .filter(Boolean);
+          fullName = parts.join(' ').trim();
+        }
+        
+        return {
+          ...student,
+          display_name: fullName
+        };
+      });
       
-      setStudents(data || []);
+      // Log how many students were fetched
+      console.log(`Fetched ${processedData.length} students from database`);
+      
+      setStudents(processedData);
     } catch (error) {
       console.error('Error fetching students:', error);
       toast.error('Failed to load students');
