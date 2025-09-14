@@ -61,6 +61,16 @@ interface Instructor {
   updated_at: string;
 }
 
+interface Program {
+  id: number;
+  name: string;
+  description: string;
+  major: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 interface TeacherSubject {
   id?: string;
   teacher_id: string;
@@ -140,6 +150,8 @@ const InstructorManagement: React.FC = () => {
   const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [programs, setPrograms] = useState<Program[]>([]);
+  const [programsLoading, setProgramsLoading] = useState(true);
   // Removed role/department/status filters from UI
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -149,7 +161,7 @@ const InstructorManagement: React.FC = () => {
     lastName: '',
     email: '',
     role: 'instructor' as 'teacher' | 'instructor', // default to instructor
-    department: 'BSIT', // default to BSIT
+    department: '', // will be set when programs are loaded
     password: 'TempPass@123',
   });
 
@@ -163,7 +175,7 @@ const InstructorManagement: React.FC = () => {
     lastName: '',
     email: '',
     role: 'instructor' as 'teacher' | 'instructor',
-    department: 'BSIT',
+    department: '',
     is_active: true,
   });
 
@@ -268,6 +280,26 @@ const InstructorManagement: React.FC = () => {
       console.error('Error fetching sections:', error);
       toast.error('Failed to load sections');
       setSections([]);
+    }
+  };
+
+  const fetchPrograms = async () => {
+    try {
+      setProgramsLoading(true);
+      const { data, error } = await supabase
+        .from('programs')
+        .select('*')
+        .eq('is_active', true)
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      setPrograms(data || []);
+    } catch (error) {
+      console.error('Error fetching programs:', error);
+      toast.error('Failed to load programs');
+      setPrograms([]);
+    } finally {
+      setProgramsLoading(false);
     }
   };
 
@@ -496,7 +528,7 @@ const InstructorManagement: React.FC = () => {
       lastName: instructor.last_name,
       email: instructor.email,
       role: instructor.role,
-      department: instructor.department || 'BSIT',
+      department: instructor.department || (programs.length > 0 ? programs[0].name : ''),
       is_active: instructor.is_active,
     });
     setEditDialogOpen(true);
@@ -541,7 +573,7 @@ const InstructorManagement: React.FC = () => {
       lastName: '',
       email: '',
       role: 'instructor',
-      department: 'BSIT',
+      department: programs.length > 0 ? programs[0].name : '',
       is_active: true,
     });
   };
@@ -616,7 +648,15 @@ const InstructorManagement: React.FC = () => {
     fetchInstructors();
     fetchCourses();
     fetchSections();
+    fetchPrograms();
   }, []);
+
+  // Set default department when programs are loaded
+  useEffect(() => {
+    if (programs.length > 0 && !createForm.department) {
+      setCreateForm(prev => ({ ...prev, department: programs[0].name }));
+    }
+  }, [programs, createForm.department]);
 
   // Fetch assignments when tab changes to Year Level Assigned Subjects
   useEffect(() => {
@@ -705,7 +745,7 @@ const InstructorManagement: React.FC = () => {
       lastName: '',
       email: '',
       role: 'instructor', // default to instructor
-      department: 'BSIT', // default to BSIT
+      department: programs.length > 0 ? programs[0].name : '', // default to first available program
       password: 'TempPass@123',
     });
   };
@@ -1985,21 +2025,29 @@ const InstructorManagement: React.FC = () => {
               </Grid>
               {/* Remove Role Dropdown, use hidden input instead */}
               <input type="hidden" name="role" value="instructor" />
-              {/* Remove Department Dropdown, use read-only text field instead */}
+              {/* Department Dropdown */}
               <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Department"
-                  value={createForm.department}
-                  InputProps={{ readOnly: true }}
-                  size="small"
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      backgroundColor: '#f9fafb'
-                    }
-                  }}
-                  helperText="Department is set to BSIT by default."
-                />
+                <FormControl fullWidth size="small">
+                  <InputLabel>Department</InputLabel>
+                  <Select
+                    value={createForm.department}
+                    label="Department"
+                    onChange={(e) => setCreateForm(f => ({ ...f, department: e.target.value }))}
+                    disabled={programsLoading}
+                  >
+                    {programsLoading ? (
+                      <MenuItem disabled>Loading departments...</MenuItem>
+                    ) : programs.length === 0 ? (
+                      <MenuItem disabled>No departments available</MenuItem>
+                    ) : (
+                      programs.map((program) => (
+                        <MenuItem key={program.id} value={program.name}>
+                          {program.name}
+                        </MenuItem>
+                      ))
+                    )}
+                  </Select>
+                </FormControl>
               </Grid>
               <Grid item xs={12}>
                 <TextField
@@ -2098,7 +2146,7 @@ const InstructorManagement: React.FC = () => {
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap'
                 }}>
-                  Assignment Details
+                  Assign Details
                 </Typography>
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
@@ -2411,10 +2459,19 @@ const InstructorManagement: React.FC = () => {
                     value={editForm.department}
                     label="Department"
                     onChange={(e) => setEditForm(f => ({ ...f, department: e.target.value }))}
+                    disabled={programsLoading}
                   >
-                    <MenuItem value="BSIT">BSIT</MenuItem>
-                    <MenuItem value="BSBA">BSBA</MenuItem>
-                    <MenuItem value="BSA">BSA</MenuItem>
+                    {programsLoading ? (
+                      <MenuItem disabled>Loading departments...</MenuItem>
+                    ) : programs.length === 0 ? (
+                      <MenuItem disabled>No departments available</MenuItem>
+                    ) : (
+                      programs.map((program) => (
+                        <MenuItem key={program.id} value={program.name}>
+                          {program.name}
+                        </MenuItem>
+                      ))
+                    )}
                   </Select>
                 </FormControl>
               </Grid>
