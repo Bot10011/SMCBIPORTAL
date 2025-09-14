@@ -4444,7 +4444,10 @@ const ProgramHeadEnrollment: React.FC = () => {
             height: { xs: '100vh', sm: 'auto' },
             position: { xs: 'fixed', sm: 'relative' },
             top: { xs: 0, sm: 'auto' },
-            left: { xs: 0, sm: 'auto' }
+            left: { xs: 0, sm: 'auto' },
+            display: 'flex',
+            flexDirection: 'column',
+            minHeight: { xs: '100vh', sm: 'auto' }
           }
         }}
       >
@@ -4484,12 +4487,14 @@ const ProgramHeadEnrollment: React.FC = () => {
             <DialogContent
               sx={{
                 minWidth: { xs: 0, sm: 700, md: 950 },
-                maxHeight: { xs: 'calc(100vh - 200px)', sm: '70vh' },
+                maxHeight: { xs: 'calc(100vh - 180px)', sm: 'calc(90vh - 180px)' },
                 overflow: 'auto',
                 background: 'linear-gradient(135deg, #f8fafc 0%, #e0e7ef 100%)',
                 borderRadius: 0,
                 p: { xs: 2, sm: 4 },
                 position: 'relative',
+                flex: 1,
+                minHeight: 0,
                 '&::before': {
                   content: '""',
                   position: 'absolute',
@@ -4501,9 +4506,9 @@ const ProgramHeadEnrollment: React.FC = () => {
                 }
               }}
             >
-              <Grid container spacing={3} alignItems="flex-start">
+              <Grid container spacing={{ xs: 2, sm: 3 }} alignItems="flex-start">
                 {/* Left side: Existing student info (read-only) */}
-                <Grid item xs={12} md={6}>
+                <Grid item xs={12} lg={6}>
                   <Box sx={{ mb: 3 }}>
                     <Typography variant="h6" sx={{ 
                       fontWeight: 600, 
@@ -4529,8 +4534,8 @@ const ProgramHeadEnrollment: React.FC = () => {
                       Student Information
                     </Typography>
                   </Box>
-                  <Grid container spacing={2}>
-                    <Grid item xs={12} sm={4}>
+                  <Grid container spacing={{ xs: 2, sm: 2 }}>
+                    <Grid item xs={12} sm={6} md={4}>
                       <TextField 
                         label="First Name" 
                         value={createForm.firstName} 
@@ -4556,7 +4561,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                         }}
                       />
                     </Grid>
-                    <Grid item xs={12} sm={4}>
+                    <Grid item xs={12} sm={6} md={4}>
                       <TextField 
                         label="Middle Name" 
                         value={createForm.middleName} 
@@ -4581,7 +4586,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                         }}
                       />
                     </Grid>
-                    <Grid item xs={12} sm={4}>
+                    <Grid item xs={12} sm={6} md={4}>
                       <TextField 
                         label="Last Name" 
                         value={createForm.lastName} 
@@ -4811,7 +4816,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                   </Grid>
                 </Grid>
                 {/* Right side: Courses Offered (checkboxes) */}
-                <Grid item xs={12} md={6}>
+                <Grid item xs={12} lg={6}>
                   <Box sx={{ mb: 3 }}>
                     <Typography variant="h6" sx={{ 
                       fontWeight: 600, 
@@ -4846,7 +4851,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                     size="small"
                     fullWidth
                     sx={{ 
-                      mb: 3,
+                      mb: { xs: 2, sm: 3 },
                       '& .MuiOutlinedInput-root': {
                         borderRadius: 2,
                         '& fieldset': {
@@ -4863,7 +4868,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                     placeholder="Type course code or name..."
                     InputProps={{
                       startAdornment: (
-                        <Box sx={{ mr: 1, color: '#6b7280' }}>
+                        <Box sx={{ mr: 1, color: '#6b7280', fontSize: { xs: '0.9rem', sm: '1rem' } }}>
                           🔍
                         </Box>
                       )
@@ -4872,8 +4877,8 @@ const ProgramHeadEnrollment: React.FC = () => {
                   
                   {/* Course selection summary and check all option */}
                   <Box sx={{ 
-                    mb: 2, 
-                    p: 2, 
+                    mb: { xs: 1.5, sm: 2 }, 
+                    p: { xs: 1.5, sm: 2 }, 
                     borderRadius: 2, 
                     background: selectedCourses.length > 0 ? '#f0f9ff' : '#f9fafb',
                     border: `1px solid ${selectedCourses.length > 0 ? '#0ea5e9' : '#e5e7eb'}`
@@ -4940,21 +4945,24 @@ const ProgramHeadEnrollment: React.FC = () => {
                   
                   {/* Render categorized courses */}
                   <Box sx={{ 
-                    maxHeight: 400, 
+                    maxHeight: { xs: 250, sm: 350, md: 400 }, 
                     overflowY: 'auto',
                     border: '1px solid #e5e7eb',
                     borderRadius: 2,
-                    p: 2,
-                    background: '#ffffff'
+                    p: { xs: 1.5, sm: 2 },
+                    background: '#ffffff',
+                    flex: 1,
+                    minHeight: 0
                   }}>
                     {Object.entries(visibleCourses).map(([category, subcats]) => (
-                      <Box key={category} mb={3}>
+                      <Box key={category} mb={{ xs: 2, sm: 3 }}>
                         <Typography variant="subtitle1" sx={{ 
                           fontWeight: 600, 
                           color: '#374151',
-                          mb: 2,
+                          mb: { xs: 1.5, sm: 2 },
                           pb: 1,
-                          borderBottom: '2px solid #f3f4f6'
+                          borderBottom: '2px solid #f3f4f6',
+                          fontSize: { xs: '0.9rem', sm: '1rem' }
                         }}>
                           {category}
                         </Typography>
@@ -5028,7 +5036,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                                   }
                                   sx={{
                                     margin: 0,
-                                    padding: '8px 12px',
+                                    padding: { xs: '6px 8px', sm: '8px 12px' },
                                     borderRadius: 1,
                                     '&:hover': {
                                       background: '#f9fafb'
@@ -5052,10 +5060,16 @@ const ProgramHeadEnrollment: React.FC = () => {
               p: { xs: 2, sm: 3 }, 
               background: '#f9fafb',
               borderTop: '1px solid #e5e7eb',
-              gap: { xs: 2, sm: 2 },
+              gap: { xs: 1.5, sm: 2 },
               flexDirection: { xs: 'column', sm: 'row' },
+              flexShrink: 0,
+              position: 'sticky',
+              bottom: 0,
+              zIndex: 1,
               '& .MuiButton-root': {
-                width: { xs: '100%', sm: 'auto' }
+                width: { xs: '100%', sm: 'auto' },
+                minHeight: { xs: '44px', sm: 'auto' },
+                flexShrink: 0
               }
             }}>
               <Button 
@@ -5118,12 +5132,14 @@ const ProgramHeadEnrollment: React.FC = () => {
             <DialogContent
               sx={{
                 minWidth: { xs: 0, sm: 700, md: 950 },
-                maxHeight: { xs: 'calc(100vh - 200px)', sm: '70vh' },
+                maxHeight: { xs: 'calc(100vh - 180px)', sm: 'calc(90vh - 180px)' },
                 overflow: 'auto',
                 background: 'linear-gradient(135deg, #f8fafc 0%, #e0e7ef 100%)',
                 borderRadius: 0,
                 p: { xs: 2, sm: 4 },
                 position: 'relative',
+                flex: 1,
+                minHeight: 0,
                 '&::before': {
                   content: '""',
                   position: 'absolute',
@@ -5135,8 +5151,8 @@ const ProgramHeadEnrollment: React.FC = () => {
                 }
               }}
             >
-              <Grid container spacing={3} alignItems="flex-start">
-                <Grid item xs={12} md={6}>
+              <Grid container spacing={{ xs: 2, sm: 3 }} alignItems="flex-start">
+                <Grid item xs={12} lg={6}>
                   <Box sx={{ mb: 3 }}>
                     <Typography variant="h6" sx={{ 
                       fontWeight: 600, 
@@ -5162,8 +5178,8 @@ const ProgramHeadEnrollment: React.FC = () => {
                       Student Information
                     </Typography>
                   </Box>
-                  <Grid container spacing={2}>
-                    <Grid item xs={12} sm={4}>
+                  <Grid container spacing={{ xs: 2, sm: 2 }}>
+                    <Grid item xs={12} sm={6} md={4}>
                       <TextField 
                         label="First Name" 
                         value={createForm.firstName} 
@@ -5189,7 +5205,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                         }}
                       />
                     </Grid>
-                    <Grid item xs={12} sm={4}>
+                    <Grid item xs={12} sm={6} md={4}>
                       <TextField 
                         label="Middle Name" 
                         value={createForm.middleName} 
@@ -5214,7 +5230,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                         }}
                       />
                     </Grid>
-                    <Grid item xs={12} sm={4}>
+                    <Grid item xs={12} sm={6} md={4}>
                       <TextField 
                         label="Last Name" 
                         value={createForm.lastName} 
@@ -5498,15 +5514,22 @@ const ProgramHeadEnrollment: React.FC = () => {
                   </Grid>
                 </Grid>
                 {/* Right side: Courses Offered */}
-                <Grid item xs={12} md={6}>
-                  <Box sx={{ mb: 3 }}>
+                <Grid item xs={12} lg={6}>
+                  <Box sx={{ 
+                    mb: 3, 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    height: '100%',
+                    minHeight: 0
+                  }}>
                     <Typography variant="h6" sx={{ 
                       fontWeight: 600, 
                       color: '#374151',
                       mb: 2,
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 1
+                      gap: 1,
+                      flexShrink: 0
                     }}>
                       <Box sx={{ 
                         width: 24, 
@@ -5523,7 +5546,6 @@ const ProgramHeadEnrollment: React.FC = () => {
                       </Box>
                       Course Selection
                     </Typography>
-                  </Box>
                   
                   {/* Search bar for filtering courses */}
                   <TextField
@@ -5533,7 +5555,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                     size="small"
                     fullWidth
                     sx={{ 
-                      mb: 3,
+                      mb: { xs: 2, sm: 3 },
                       '& .MuiOutlinedInput-root': {
                         borderRadius: 2,
                         '& fieldset': {
@@ -5550,7 +5572,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                     placeholder="Type course code or name..."
                     InputProps={{
                       startAdornment: (
-                        <Box sx={{ mr: 1, color: '#6b7280' }}>
+                        <Box sx={{ mr: 1, color: '#6b7280', fontSize: { xs: '0.9rem', sm: '1rem' } }}>
                           🔍
                         </Box>
                       )
@@ -5586,8 +5608,8 @@ const ProgramHeadEnrollment: React.FC = () => {
                   
                   {/* Course selection summary and check all option */}
                   <Box sx={{ 
-                    mb: 2, 
-                    p: 2, 
+                    mb: { xs: 1.5, sm: 2 }, 
+                    p: { xs: 1.5, sm: 2 }, 
                     borderRadius: 2, 
                     background: selectedCourses.length > 0 ? '#f0f9ff' : '#f9fafb',
                     border: `1px solid ${selectedCourses.length > 0 ? '#0ea5e9' : '#e5e7eb'}`
@@ -5654,21 +5676,24 @@ const ProgramHeadEnrollment: React.FC = () => {
                   
                   {/* Render categorized courses */}
                   <Box sx={{ 
-                    maxHeight: 400, 
+                    maxHeight: { xs: 250, sm: 350, md: 400 }, 
                     overflowY: 'auto',
                     border: '1px solid #e5e7eb',
                     borderRadius: 2,
-                    p: 2,
-                    background: '#ffffff'
+                    p: { xs: 1.5, sm: 2 },
+                    background: '#ffffff',
+                    flex: 1,
+                    minHeight: 0
                   }}>
                     {Object.entries(visibleCourses).map(([category, subcats]) => (
-                      <Box key={category} mb={3}>
+                      <Box key={category} mb={{ xs: 2, sm: 3 }}>
                         <Typography variant="subtitle1" sx={{ 
                           fontWeight: 600, 
                           color: '#374151',
-                          mb: 2,
+                          mb: { xs: 1.5, sm: 2 },
                           pb: 1,
-                          borderBottom: '2px solid #f3f4f6'
+                          borderBottom: '2px solid #f3f4f6',
+                          fontSize: { xs: '0.9rem', sm: '1rem' }
                         }}>
                           {category}
                         </Typography>
@@ -5789,7 +5814,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                                   }
                                   sx={{
                                     margin: 0,
-                                    padding: '8px 12px',
+                                    padding: { xs: '6px 8px', sm: '8px 12px' },
                                     borderRadius: 1,
                                     '&:hover': {
                                       background: '#f9fafb'
@@ -5842,6 +5867,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                       </Box>
                     )}
                   </Box>
+                  </Box>
                 </Grid>
               </Grid>
             </DialogContent>
@@ -5849,10 +5875,16 @@ const ProgramHeadEnrollment: React.FC = () => {
               p: { xs: 2, sm: 3 }, 
               background: '#f9fafb',
               borderTop: '1px solid #e5e7eb',
-              gap: { xs: 2, sm: 2 },
+              gap: { xs: 1.5, sm: 2 },
               flexDirection: { xs: 'column', sm: 'row' },
+              flexShrink: 0,
+              position: 'sticky',
+              bottom: 0,
+              zIndex: 1,
               '& .MuiButton-root': {
-                width: { xs: '100%', sm: 'auto' }
+                width: { xs: '100%', sm: 'auto' },
+                minHeight: { xs: '44px', sm: 'auto' },
+                flexShrink: 0
               }
             }}>
               <Button onClick={handleCloseCreateDialog} disabled={creating}>Cancel</Button>
