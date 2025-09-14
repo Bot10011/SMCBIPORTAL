@@ -1907,10 +1907,13 @@ const InstructorManagement: React.FC = () => {
         onClose={() => setCreateDialogOpen(false)}
         maxWidth="md"
         fullWidth
+        fullScreen={window.innerWidth < 600}
         PaperProps={{
           sx: {
-            borderRadius: 3,
-            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)'
+            borderRadius: { xs: 0, sm: 3 },
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)',
+            margin: { xs: 0, sm: 2 },
+            maxHeight: { xs: '100vh', sm: '90vh' }
           }
         }}
       >
@@ -1918,20 +1921,21 @@ const InstructorManagement: React.FC = () => {
           sx={{
             background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
             color: 'white',
-            py: 3,
-            px: 4,
+            py: { xs: 2, sm: 3 },
+            px: { xs: 2, sm: 4 },
             display: 'flex',
             alignItems: 'center',
-            gap: 2
+            gap: 2,
+            fontSize: { xs: '1.1rem', sm: '1.25rem' }
           }}
         >
-          <UserPlus className="w-6 h-6" />
-          Add New Instructor
+          <UserPlus className="w-5 h-5 sm:w-6 sm:h-6" />
+          <span>Add New Instructor</span>
         </DialogTitle>
         
         <form onSubmit={handleCreateInstructor}>
-          <DialogContent sx={{ p: 4 }}>
-            <Grid container spacing={3}>
+          <DialogContent sx={{ p: { xs: 2, sm: 4 }, overflow: 'auto' }}>
+            <Grid container spacing={{ xs: 2, sm: 3 }}>
               <Grid item xs={12} sm={4}>
                 <TextField
                   fullWidth
@@ -1939,6 +1943,7 @@ const InstructorManagement: React.FC = () => {
                   value={createForm.firstName}
                   onChange={(e) => setCreateForm(f => ({ ...f, firstName: e.target.value }))}
                   required
+                  size="small"
                 />
               </Grid>
               <Grid item xs={12} sm={4}>
@@ -1947,6 +1952,7 @@ const InstructorManagement: React.FC = () => {
                   label="Middle Name"
                   value={createForm.middleName}
                   onChange={(e) => setCreateForm(f => ({ ...f, middleName: e.target.value }))}
+                  size="small"
                 />
               </Grid>
               <Grid item xs={12} sm={4}>
@@ -1956,6 +1962,7 @@ const InstructorManagement: React.FC = () => {
                   value={createForm.lastName}
                   onChange={(e) => setCreateForm(f => ({ ...f, lastName: e.target.value }))}
                   required
+                  size="small"
                 />
               </Grid>
               <Grid item xs={12}>
@@ -1964,10 +1971,11 @@ const InstructorManagement: React.FC = () => {
                   label="Email"
                   value={createForm.email}
                   InputProps={{
-                    endAdornment: <span style={{ color: '#6b7280' }}>@smcbi.edu.ph</span>,
+                    endAdornment: <span style={{ color: '#6b7280', fontSize: '0.875rem' }}>@smcbi.edu.ph</span>,
                     readOnly: true
                   }}
                   disabled
+                  size="small"
                   sx={{
                     '& .MuiOutlinedInput-root': {
                       backgroundColor: '#f3f4f6'
@@ -1984,6 +1992,7 @@ const InstructorManagement: React.FC = () => {
                   label="Department"
                   value={createForm.department}
                   InputProps={{ readOnly: true }}
+                  size="small"
                   sx={{
                     '& .MuiOutlinedInput-root': {
                       backgroundColor: '#f9fafb'
@@ -1999,6 +2008,7 @@ const InstructorManagement: React.FC = () => {
                   type="text"
                   value={createForm.password}
                   InputProps={{ readOnly: true }}
+                  size="small"
                   sx={{
                     '& .MuiOutlinedInput-root': {
                       backgroundColor: '#f9fafb'
@@ -2010,13 +2020,20 @@ const InstructorManagement: React.FC = () => {
             </Grid>
           </DialogContent>
           
-          <DialogActions sx={{ p: 3, background: '#f8fafc' }}>
+          <DialogActions sx={{ 
+            p: { xs: 2, sm: 3 }, 
+            background: '#f8fafc',
+            flexDirection: { xs: 'column', sm: 'row' },
+            gap: { xs: 1, sm: 0 }
+          }}>
             <Button 
               onClick={() => {
                 setCreateDialogOpen(false);
                 resetCreateForm();
               }}
               disabled={creating}
+              fullWidth={window.innerWidth < 600}
+              size="small"
             >
               Cancel
             </Button>
@@ -2024,6 +2041,8 @@ const InstructorManagement: React.FC = () => {
               type="submit" 
               variant="contained"
               disabled={creating}
+              fullWidth={window.innerWidth < 600}
+              size="small"
               sx={{
                 background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                 '&:hover': {
@@ -2042,12 +2061,16 @@ const InstructorManagement: React.FC = () => {
         open={assignmentDetailModal.isOpen}
         onClose={closeAssignmentDetail}
         maxWidth="sm"
+        fullWidth
+        fullScreen={window.innerWidth < 600}
         PaperProps={{
           sx: {
-            borderRadius: 2,
+            borderRadius: { xs: 0, sm: 2 },
             boxShadow: '0 10px 40px rgba(0, 0, 0, 0.15)',
-            maxWidth: '500px',
-            width: '100%'
+            maxWidth: { xs: '100%', sm: '500px' },
+            width: '100%',
+            margin: { xs: 0, sm: 2 },
+            maxHeight: { xs: '100vh', sm: '90vh' }
           }
         }}
       >
@@ -2057,65 +2080,87 @@ const InstructorManagement: React.FC = () => {
               sx={{
                 background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                 color: 'white',
-                py: 2,
-                px: 3,
+                py: { xs: 1.5, sm: 2 },
+                px: { xs: 2, sm: 3 },
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'space-between'
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: 1
               }}
             >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                <BookOpen className="w-5 h-5" />
-                <Typography variant="h6" sx={{ fontWeight: '600', fontSize: '1.1rem' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0, flex: 1 }}>
+                <BookOpen className="w-4 h-4 sm:w-5 sm:h-5" />
+                <Typography variant="h6" sx={{ 
+                  fontWeight: '600', 
+                  fontSize: { xs: '1rem', sm: '1.1rem' },
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap'
+                }}>
                   Assignment Details
                 </Typography>
               </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
                 <IconButton
                   onClick={() => openEditAssignment(assignmentDetailModal.assignment!)}
                   sx={{ 
                     color: 'white', 
-                    p: 1,
+                    p: { xs: 0.5, sm: 1 },
                     '&:hover': { 
                       bg: 'rgba(255, 255, 255, 0.1)'
                     }
                   }}
-                  size="medium"
+                  size="small"
                 >
-                  <Edit className="w-5 h-5" />
+                  <Edit className="w-4 h-4 sm:w-5 sm:h-5" />
                 </IconButton>
                 <IconButton
                   onClick={closeAssignmentDetail}
-                  sx={{ color: 'white', p: 1 }}
-                  size="medium"
+                  sx={{ color: 'white', p: { xs: 0.5, sm: 1 } }}
+                  size="small"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-4 h-4 sm:w-5 sm:h-5" />
                 </IconButton>
               </Box>
             </DialogTitle>
             
-            <DialogContent sx={{ p: 3 }}>
-              <Grid container spacing={2}>
+            <DialogContent sx={{ p: { xs: 2, sm: 3 }, overflow: 'auto' }}>
+              <Grid container spacing={{ xs: 1.5, sm: 2 }}>
                 {/* Teacher Information */}
                 <Grid item xs={12}>
-                  <Card sx={{ p: 2, bg: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Card sx={{ p: { xs: 1.5, sm: 2 }, bg: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                    <Box sx={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: { xs: 1.5, sm: 2 },
+                      flexDirection: { xs: 'column', sm: 'row' },
+                      textAlign: { xs: 'center', sm: 'left' }
+                    }}>
                       <Avatar
                         src={assignmentDetailModal.assignment.teacher_profile_picture || undefined}
                         sx={{ 
-                          width: 48, 
-                          height: 48, 
+                          width: { xs: 40, sm: 48 }, 
+                          height: { xs: 40, sm: 48 }, 
                           bgcolor: '#dbeafe',
                           color: '#2563eb',
-                          fontSize: '1rem',
+                          fontSize: { xs: '0.875rem', sm: '1rem' },
                           fontWeight: 'semibold',
                           border: '2px solid #e5e7eb'
                         }}
                       >
                         {assignmentDetailModal.assignment.teacher_name?.split(' ').map((n: string) => n[0]).join('')}
                       </Avatar>
-                      <Box sx={{ flexGrow: 1 }}>
-                        <Typography variant="h6" sx={{ fontWeight: '600', color: '#111827', mb: 0.5 }}>
+                      <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                        <Typography variant="h6" sx={{ 
+                          fontWeight: '600', 
+                          color: '#111827', 
+                          mb: 0.5,
+                          fontSize: { xs: '1rem', sm: '1.25rem' },
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}>
                           {assignmentDetailModal.assignment.teacher_name}
                         </Typography>
                         <Chip 
@@ -2271,10 +2316,13 @@ const InstructorManagement: React.FC = () => {
         onClose={() => setEditDialogOpen(false)}
         maxWidth="md"
         fullWidth
+        fullScreen={window.innerWidth < 600}
         PaperProps={{
           sx: {
-            borderRadius: 3,
-            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)'
+            borderRadius: { xs: 0, sm: 3 },
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)',
+            margin: { xs: 0, sm: 2 },
+            maxHeight: { xs: '100vh', sm: '90vh' }
           }
         }}
       >
@@ -2282,20 +2330,21 @@ const InstructorManagement: React.FC = () => {
           sx={{
             background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
             color: 'white',
-            py: 3,
-            px: 4,
+            py: { xs: 2, sm: 3 },
+            px: { xs: 2, sm: 4 },
             display: 'flex',
             alignItems: 'center',
-            gap: 2
+            gap: 2,
+            fontSize: { xs: '1.1rem', sm: '1.25rem' }
           }}
         >
-          <Edit className="w-6 h-6" />
-          Edit Instructor
+          <Edit className="w-5 h-5 sm:w-6 sm:h-6" />
+          <span>Edit Instructor</span>
         </DialogTitle>
         
         <form onSubmit={handleUpdateInstructor}>
-          <DialogContent sx={{ p: 4 }}>
-            <Grid container spacing={3}>
+          <DialogContent sx={{ p: { xs: 2, sm: 4 }, overflow: 'auto' }}>
+            <Grid container spacing={{ xs: 2, sm: 3 }}>
               <Grid item xs={12} sm={4}>
                 <TextField
                   fullWidth
@@ -2303,6 +2352,7 @@ const InstructorManagement: React.FC = () => {
                   value={editForm.firstName}
                   onChange={(e) => setEditForm(f => ({ ...f, firstName: e.target.value }))}
                   required
+                  size="small"
                 />
               </Grid>
               <Grid item xs={12} sm={4}>
@@ -2311,6 +2361,7 @@ const InstructorManagement: React.FC = () => {
                   label="Middle Name"
                   value={editForm.middleName}
                   onChange={(e) => setEditForm(f => ({ ...f, middleName: e.target.value }))}
+                  size="small"
                 />
               </Grid>
               <Grid item xs={12} sm={4}>
@@ -2320,6 +2371,7 @@ const InstructorManagement: React.FC = () => {
                   value={editForm.lastName}
                   onChange={(e) => setEditForm(f => ({ ...f, lastName: e.target.value }))}
                   required
+                  size="small"
                 />
               </Grid>
               <Grid item xs={12}>
@@ -2328,6 +2380,7 @@ const InstructorManagement: React.FC = () => {
                   label="Email"
                   value={editForm.email}
                   InputProps={{ readOnly: true }}
+                  size="small"
                   sx={{
                     '& .MuiOutlinedInput-root': {
                       backgroundColor: '#f3f4f6'
@@ -2342,6 +2395,7 @@ const InstructorManagement: React.FC = () => {
                   label="Role"
                   value={editForm.role.charAt(0).toUpperCase() + editForm.role.slice(1)}
                   InputProps={{ readOnly: true }}
+                  size="small"
                   sx={{
                     '& .MuiOutlinedInput-root': {
                       backgroundColor: '#f3f4f6'
@@ -2351,7 +2405,7 @@ const InstructorManagement: React.FC = () => {
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
-                <FormControl fullWidth>
+                <FormControl fullWidth size="small">
                   <InputLabel>Department</InputLabel>
                   <Select
                     value={editForm.department}
@@ -2365,7 +2419,7 @@ const InstructorManagement: React.FC = () => {
                 </FormControl>
               </Grid>
               <Grid item xs={12}>
-                <FormControl fullWidth>
+                <FormControl fullWidth size="small">
                   <InputLabel>Status</InputLabel>
                   <Select
                     value={editForm.is_active ? 'true' : 'false'}
@@ -2380,13 +2434,20 @@ const InstructorManagement: React.FC = () => {
             </Grid>
           </DialogContent>
           
-          <DialogActions sx={{ p: 3, background: '#f8fafc' }}>
+          <DialogActions sx={{ 
+            p: { xs: 2, sm: 3 }, 
+            background: '#f8fafc',
+            flexDirection: { xs: 'column', sm: 'row' },
+            gap: { xs: 1, sm: 0 }
+          }}>
             <Button 
               onClick={() => {
                 setEditDialogOpen(false);
                 resetEditForm();
               }}
               disabled={editing}
+              fullWidth={window.innerWidth < 600}
+              size="small"
             >
               Cancel
             </Button>
@@ -2394,6 +2455,8 @@ const InstructorManagement: React.FC = () => {
               type="submit" 
               variant="contained"
               disabled={editing}
+              fullWidth={window.innerWidth < 600}
+              size="small"
               sx={{
                 background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                 '&:hover': {
@@ -2413,10 +2476,13 @@ const InstructorManagement: React.FC = () => {
         onClose={closeViewDialog}
         maxWidth="md"
         fullWidth
+        fullScreen={window.innerWidth < 600}
         PaperProps={{
           sx: {
-            borderRadius: 3,
-            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)'
+            borderRadius: { xs: 0, sm: 3 },
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)',
+            margin: { xs: 0, sm: 2 },
+            maxHeight: { xs: '100vh', sm: '90vh' }
           }
         }}
       >
@@ -2426,64 +2492,87 @@ const InstructorManagement: React.FC = () => {
               sx={{
                 background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                 color: 'white',
-                py: 3,
-                px: 4,
+                py: { xs: 2, sm: 3 },
+                px: { xs: 2, sm: 4 },
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'space-between'
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: 1
               }}
             >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Eye className="w-6 h-6" />
-                <Typography variant="h6" sx={{ fontWeight: '600', fontSize: '1.1rem' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, minWidth: 0, flex: 1 }}>
+                <Eye className="w-5 h-5 sm:w-6 sm:h-6" />
+                <Typography variant="h6" sx={{ 
+                  fontWeight: '600', 
+                  fontSize: { xs: '1rem', sm: '1.1rem' },
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap'
+                }}>
                   Instructor Details
                 </Typography>
               </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
                 <IconButton
                   onClick={() => handleEditInstructor(instructorToView)}
                   sx={{ 
                     color: 'white', 
-                    p: 1,
+                    p: { xs: 0.5, sm: 1 },
                     '&:hover': { 
                       bg: 'rgba(255, 255, 255, 0.1)'
                     }
                   }}
-                  size="medium"
+                  size="small"
                 >
-                  <Edit className="w-5 h-5" />
+                  <Edit className="w-4 h-4 sm:w-5 sm:h-5" />
                 </IconButton>
                 <IconButton
                   onClick={closeViewDialog}
-                  sx={{ color: 'white', p: 1 }}
-                  size="medium"
+                  sx={{ color: 'white', p: { xs: 0.5, sm: 1 } }}
+                  size="small"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-4 h-4 sm:w-5 sm:h-5" />
                 </IconButton>
               </Box>
             </DialogTitle>
             
-            <DialogContent sx={{ p: 4 }}>
-              <Grid container spacing={3}>
+            <DialogContent sx={{ p: { xs: 2, sm: 4 }, overflow: 'auto' }}>
+              <Grid container spacing={{ xs: 2, sm: 3 }}>
                 {/* Basic Information */}
                 <Grid item xs={12}>
-                  <Card sx={{ p: 3, bg: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                    <Typography variant="h6" sx={{ fontWeight: '600', color: '#374151', mb: 2 }}>
+                  <Card sx={{ p: { xs: 2, sm: 3 }, bg: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                    <Typography variant="h6" sx={{ 
+                      fontWeight: '600', 
+                      color: '#374151', 
+                      mb: 2,
+                      fontSize: { xs: '1rem', sm: '1.25rem' }
+                    }}>
                       Basic Information
                     </Typography>
-                    <Grid container spacing={2}>
+                    <Grid container spacing={{ xs: 1.5, sm: 2 }}>
                       <Grid item xs={12} sm={4}>
                         <Box sx={{ 
                           bg: 'white', 
-                          p: 2, 
+                          p: { xs: 1.5, sm: 2 }, 
                           borderRadius: 1, 
                           border: '1px solid #e5e7eb',
                           textAlign: 'center'
                         }}>
-                          <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: '600', textTransform: 'uppercase' }}>
+                          <Typography variant="caption" sx={{ 
+                            color: '#6b7280', 
+                            fontWeight: '600', 
+                            textTransform: 'uppercase',
+                            fontSize: { xs: '0.7rem', sm: '0.75rem' }
+                          }}>
                             First Name
                           </Typography>
-                          <Typography variant="body1" sx={{ fontWeight: '600', color: '#111827', mt: 0.5 }}>
+                          <Typography variant="body1" sx={{ 
+                            fontWeight: '600', 
+                            color: '#111827', 
+                            mt: 0.5,
+                            fontSize: { xs: '0.875rem', sm: '1rem' }
+                          }}>
                             {instructorToView.first_name}
                           </Typography>
                         </Box>
@@ -2491,15 +2580,25 @@ const InstructorManagement: React.FC = () => {
                       <Grid item xs={12} sm={4}>
                         <Box sx={{ 
                           bg: 'white', 
-                          p: 2, 
+                          p: { xs: 1.5, sm: 2 }, 
                           borderRadius: 1, 
                           border: '1px solid #e5e7eb',
                           textAlign: 'center'
                         }}>
-                          <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: '600', textTransform: 'uppercase' }}>
+                          <Typography variant="caption" sx={{ 
+                            color: '#6b7280', 
+                            fontWeight: '600', 
+                            textTransform: 'uppercase',
+                            fontSize: { xs: '0.7rem', sm: '0.75rem' }
+                          }}>
                             Middle Name
                           </Typography>
-                          <Typography variant="body1" sx={{ fontWeight: '600', color: '#111827', mt: 0.5 }}>
+                          <Typography variant="body1" sx={{ 
+                            fontWeight: '600', 
+                            color: '#111827', 
+                            mt: 0.5,
+                            fontSize: { xs: '0.875rem', sm: '1rem' }
+                          }}>
                             {instructorToView.middle_name || 'N/A'}
                           </Typography>
                         </Box>
@@ -2507,15 +2606,25 @@ const InstructorManagement: React.FC = () => {
                       <Grid item xs={12} sm={4}>
                         <Box sx={{ 
                           bg: 'white', 
-                          p: 2, 
+                          p: { xs: 1.5, sm: 2 }, 
                           borderRadius: 1, 
                           border: '1px solid #e5e7eb',
                           textAlign: 'center'
                         }}>
-                          <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: '600', textTransform: 'uppercase' }}>
+                          <Typography variant="caption" sx={{ 
+                            color: '#6b7280', 
+                            fontWeight: '600', 
+                            textTransform: 'uppercase',
+                            fontSize: { xs: '0.7rem', sm: '0.75rem' }
+                          }}>
                             Last Name
                           </Typography>
-                          <Typography variant="body1" sx={{ fontWeight: '600', color: '#111827', mt: 0.5 }}>
+                          <Typography variant="body1" sx={{ 
+                            fontWeight: '600', 
+                            color: '#111827', 
+                            mt: 0.5,
+                            fontSize: { xs: '0.875rem', sm: '1rem' }
+                          }}>
                             {instructorToView.last_name}
                           </Typography>
                         </Box>
@@ -2699,10 +2808,14 @@ const InstructorManagement: React.FC = () => {
         open={deleteDialogOpen}
         onClose={resetDeleteDialog}
         maxWidth="sm"
+        fullWidth
+        fullScreen={window.innerWidth < 600}
         PaperProps={{
           sx: {
-            borderRadius: 3,
-            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)'
+            borderRadius: { xs: 0, sm: 3 },
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)',
+            margin: { xs: 0, sm: 2 },
+            maxHeight: { xs: '100vh', sm: '90vh' }
           }
         }}
       >
@@ -2710,51 +2823,74 @@ const InstructorManagement: React.FC = () => {
           sx={{
             background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
             color: 'white',
-            py: 3,
-            px: 4,
+            py: { xs: 2, sm: 3 },
+            px: { xs: 2, sm: 4 },
             display: 'flex',
             alignItems: 'center',
-            gap: 2
+            gap: 2,
+            fontSize: { xs: '1.1rem', sm: '1.25rem' }
           }}
         >
-          <Trash2 className="w-6 h-6" />
-          Delete Instructor
+          <Trash2 className="w-5 h-5 sm:w-6 sm:h-6" />
+          <span>Delete Instructor</span>
         </DialogTitle>
         
-        <DialogContent sx={{ p: 4 }}>
-          <Typography variant="body1" sx={{ mb: 2 }}>
+        <DialogContent sx={{ p: { xs: 2, sm: 4 }, overflow: 'auto' }}>
+          <Typography variant="body1" sx={{ 
+            mb: 2,
+            fontSize: { xs: '0.875rem', sm: '1rem' }
+          }}>
             Are you sure you want to delete this instructor?
           </Typography>
           {instructorToDelete && (
             <Box sx={{ 
               bg: '#fef2f2', 
-              p: 3, 
+              p: { xs: 2, sm: 3 }, 
               borderRadius: 2, 
               border: '1px solid #fecaca',
               mb: 2
             }}>
-              <Typography variant="h6" sx={{ color: '#dc2626', mb: 1 }}>
+              <Typography variant="h6" sx={{ 
+                color: '#dc2626', 
+                mb: 1,
+                fontSize: { xs: '1rem', sm: '1.25rem' },
+                wordBreak: 'break-word'
+              }}>
                 {instructorToDelete.first_name} {instructorToDelete.middle_name ? instructorToDelete.middle_name + ' ' : ''}{instructorToDelete.last_name}
               </Typography>
-              <Typography variant="body2" sx={{ color: '#6b7280' }}>
+              <Typography variant="body2" sx={{ 
+                color: '#6b7280',
+                fontSize: { xs: '0.8rem', sm: '0.875rem' },
+                wordBreak: 'break-word'
+              }}>
                 {instructorToDelete.email}
               </Typography>
-              <Typography variant="body2" sx={{ color: '#6b7280' }}>
+              <Typography variant="body2" sx={{ 
+                color: '#6b7280',
+                fontSize: { xs: '0.8rem', sm: '0.875rem' }
+              }}>
                 {instructorToDelete.role.charAt(0).toUpperCase() + instructorToDelete.role.slice(1)} • {instructorToDelete.department}
               </Typography>
             </Box>
           )}
           <Alert severity="warning" sx={{ mb: 2 }}>
-            <Typography variant="body2">
+            <Typography variant="body2" sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
               <strong>Warning:</strong> This action cannot be undone. The instructor will be permanently removed from the system.
             </Typography>
           </Alert>
         </DialogContent>
         
-        <DialogActions sx={{ p: 3, background: '#f8fafc' }}>
+        <DialogActions sx={{ 
+          p: { xs: 2, sm: 3 }, 
+          background: '#f8fafc',
+          flexDirection: { xs: 'column', sm: 'row' },
+          gap: { xs: 1, sm: 0 }
+        }}>
           <Button 
             onClick={resetDeleteDialog}
             disabled={deleting}
+            fullWidth={window.innerWidth < 600}
+            size="small"
           >
             Cancel
           </Button>
@@ -2762,6 +2898,8 @@ const InstructorManagement: React.FC = () => {
             onClick={confirmDeleteInstructor}
             variant="contained"
             disabled={deleting}
+            fullWidth={window.innerWidth < 600}
+            size="small"
             sx={{
               background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
               '&:hover': {
@@ -2804,11 +2942,13 @@ const InstructorManagement: React.FC = () => {
         onClose={closeSubjectTraceModal}
         maxWidth="lg"
         fullWidth
+        fullScreen={window.innerWidth < 600}
         PaperProps={{
           sx: {
-            borderRadius: 3,
+            borderRadius: { xs: 0, sm: 3 },
             boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)',
-            maxHeight: '90vh'
+            maxHeight: { xs: '100vh', sm: '90vh' },
+            margin: { xs: 0, sm: 2 }
           }
         }}
       >
@@ -2818,66 +2958,93 @@ const InstructorManagement: React.FC = () => {
               sx={{
                 background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                 color: 'white',
-                py: 3,
-                px: 4,
+                py: { xs: 2, sm: 3 },
+                px: { xs: 2, sm: 4 },
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'space-between'
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: 1
               }}
             >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <FileText className="w-6 h-6" />
-                <Typography variant="h6" sx={{ fontWeight: '600', fontSize: '1.1rem' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, minWidth: 0, flex: 1 }}>
+                <FileText className="w-5 h-5 sm:w-6 sm:h-6" />
+                <Typography variant="h6" sx={{ 
+                  fontWeight: '600', 
+                  fontSize: { xs: '0.9rem', sm: '1.1rem' },
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap'
+                }}>
                   Subject Trace - {subjectTraceModal.instructor.first_name} {subjectTraceModal.instructor.middle_name ? subjectTraceModal.instructor.middle_name + ' ' : ''}{subjectTraceModal.instructor.last_name}
                 </Typography>
               </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
                 <Button
                   variant="contained"
-                  startIcon={<Download className="w-4 h-4" />}
+                  startIcon={<Download className="w-3 h-3 sm:w-4 sm:h-4" />}
                   onClick={async () => await generateSubjectTracePDF(subjectTraceModal.instructor!, subjectTraceModal.records)}
+                  size="small"
                   sx={{
                     background: 'rgba(255, 255, 255, 0.2)',
                     color: 'white',
                     border: '1px solid rgba(255, 255, 255, 0.3)',
+                    fontSize: { xs: '0.75rem', sm: '0.875rem' },
                     '&:hover': {
                       background: 'rgba(255, 255, 255, 0.3)',
                     }
                   }}
                 >
-                  Generate PDF
+                  <span className="hidden sm:inline">Generate PDF</span>
+                  <span className="sm:hidden">PDF</span>
                 </Button>
                 <IconButton
                   onClick={closeSubjectTraceModal}
-                  sx={{ color: 'white', p: 1 }}
-                  size="medium"
+                  sx={{ color: 'white', p: { xs: 0.5, sm: 1 } }}
+                  size="small"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-4 h-4 sm:w-5 sm:h-5" />
                 </IconButton>
               </Box>
             </DialogTitle>
             
-            <DialogContent sx={{ p: 4 }}>
-              <Grid container spacing={3}>
+            <DialogContent sx={{ p: { xs: 2, sm: 4 }, overflow: 'auto' }}>
+              <Grid container spacing={{ xs: 2, sm: 3 }}>
                 {/* Instructor Information */}
                 <Grid item xs={12}>
-                  <Card sx={{ p: 3, bg: '#f8fafc', border: '1px solid #e2e8f0', mb: 3 }}>
-                    <Typography variant="h6" sx={{ fontWeight: '600', color: '#374151', mb: 2 }}>
+                  <Card sx={{ p: { xs: 2, sm: 3 }, bg: '#f8fafc', border: '1px solid #e2e8f0', mb: { xs: 2, sm: 3 } }}>
+                    <Typography variant="h6" sx={{ 
+                      fontWeight: '600', 
+                      color: '#374151', 
+                      mb: 2,
+                      fontSize: { xs: '1rem', sm: '1.25rem' }
+                    }}>
                       Instructor Information
                     </Typography>
-                    <Grid container spacing={2}>
+                    <Grid container spacing={{ xs: 1.5, sm: 2 }}>
                       <Grid item xs={12} sm={6}>
                         <Box sx={{ 
                           bg: 'white', 
-                          p: 2, 
+                          p: { xs: 1.5, sm: 2 }, 
                           borderRadius: 1, 
                           border: '1px solid #e5e7eb',
                           textAlign: 'center'
                         }}>
-                          <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: '600', textTransform: 'uppercase' }}>
+                          <Typography variant="caption" sx={{ 
+                            color: '#6b7280', 
+                            fontWeight: '600', 
+                            textTransform: 'uppercase',
+                            fontSize: { xs: '0.7rem', sm: '0.75rem' }
+                          }}>
                             Full Name
                           </Typography>
-                          <Typography variant="body1" sx={{ fontWeight: '600', color: '#111827', mt: 0.5 }}>
+                          <Typography variant="body1" sx={{ 
+                            fontWeight: '600', 
+                            color: '#111827', 
+                            mt: 0.5,
+                            fontSize: { xs: '0.875rem', sm: '1rem' },
+                            wordBreak: 'break-word'
+                          }}>
                             {subjectTraceModal.instructor.first_name} {subjectTraceModal.instructor.middle_name ? subjectTraceModal.instructor.middle_name + ' ' : ''}{subjectTraceModal.instructor.last_name}
                           </Typography>
                         </Box>
@@ -2885,15 +3052,26 @@ const InstructorManagement: React.FC = () => {
                       <Grid item xs={12} sm={6}>
                         <Box sx={{ 
                           bg: 'white', 
-                          p: 2, 
+                          p: { xs: 1.5, sm: 2 }, 
                           borderRadius: 1, 
                           border: '1px solid #e5e7eb',
                           textAlign: 'center'
                         }}>
-                          <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: '600', textTransform: 'uppercase' }}>
+                          <Typography variant="caption" sx={{ 
+                            color: '#6b7280', 
+                            fontWeight: '600', 
+                            textTransform: 'uppercase',
+                            fontSize: { xs: '0.7rem', sm: '0.75rem' }
+                          }}>
                             Email
                           </Typography>
-                          <Typography variant="body1" sx={{ fontWeight: '600', color: '#111827', mt: 0.5 }}>
+                          <Typography variant="body1" sx={{ 
+                            fontWeight: '600', 
+                            color: '#111827', 
+                            mt: 0.5,
+                            fontSize: { xs: '0.875rem', sm: '1rem' },
+                            wordBreak: 'break-word'
+                          }}>
                             {subjectTraceModal.instructor.email}
                           </Typography>
                         </Box>
@@ -2901,15 +3079,25 @@ const InstructorManagement: React.FC = () => {
                       <Grid item xs={12} sm={6}>
                         <Box sx={{ 
                           bg: 'white', 
-                          p: 2, 
+                          p: { xs: 1.5, sm: 2 }, 
                           borderRadius: 1, 
                           border: '1px solid #e5e7eb',
                           textAlign: 'center'
                         }}>
-                          <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: '600', textTransform: 'uppercase' }}>
+                          <Typography variant="caption" sx={{ 
+                            color: '#6b7280', 
+                            fontWeight: '600', 
+                            textTransform: 'uppercase',
+                            fontSize: { xs: '0.7rem', sm: '0.75rem' }
+                          }}>
                             Department
                           </Typography>
-                          <Typography variant="body1" sx={{ fontWeight: '600', color: '#111827', mt: 0.5 }}>
+                          <Typography variant="body1" sx={{ 
+                            fontWeight: '600', 
+                            color: '#111827', 
+                            mt: 0.5,
+                            fontSize: { xs: '0.875rem', sm: '1rem' }
+                          }}>
                             {subjectTraceModal.instructor.department || 'N/A'}
                           </Typography>
                         </Box>
@@ -2917,12 +3105,17 @@ const InstructorManagement: React.FC = () => {
                       <Grid item xs={12} sm={6}>
                         <Box sx={{ 
                           bg: 'white', 
-                          p: 2, 
+                          p: { xs: 1.5, sm: 2 }, 
                           borderRadius: 1, 
                           border: '1px solid #e5e7eb',
                           textAlign: 'center'
                         }}>
-                          <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: '600', textTransform: 'uppercase' }}>
+                          <Typography variant="caption" sx={{ 
+                            color: '#6b7280', 
+                            fontWeight: '600', 
+                            textTransform: 'uppercase',
+                            fontSize: { xs: '0.7rem', sm: '0.75rem' }
+                          }}>
                             Role
                           </Typography>
                           <Chip 
@@ -2931,7 +3124,7 @@ const InstructorManagement: React.FC = () => {
                             sx={{ 
                               bgcolor: subjectTraceModal.instructor.role === 'instructor' ? '#fef3c7' : '#dbeafe',
                               color: subjectTraceModal.instructor.role === 'instructor' ? '#92400e' : '#1e40af',
-                              fontSize: '0.75rem',
+                              fontSize: { xs: '0.7rem', sm: '0.75rem' },
                               fontWeight: '600',
                               mt: 0.5
                             }}
@@ -2944,79 +3137,143 @@ const InstructorManagement: React.FC = () => {
 
                 {/* Subject Assignments Table */}
                 <Grid item xs={12}>
-                  <Card sx={{ p: 3, bg: '#f0f9ff', border: '1px solid #bae6fd' }}>
-                    <Typography variant="h6" sx={{ fontWeight: '600', color: '#0c4a6e', mb: 2 }}>
+                  <Card sx={{ p: { xs: 2, sm: 3 }, bg: '#f0f9ff', border: '1px solid #bae6fd' }}>
+                    <Typography variant="h6" sx={{ 
+                      fontWeight: '600', 
+                      color: '#0c4a6e', 
+                      mb: 2,
+                      fontSize: { xs: '1rem', sm: '1.25rem' }
+                    }}>
                       Subject Assignments History ({subjectTraceModal.records.length} records)
                     </Typography>
                     
                     {subjectTraceModal.records.length === 0 ? (
-                      <Box sx={{ textAlign: 'center', py: 4 }}>
-                        <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                        <Typography variant="h6" color="textSecondary" sx={{ mb: 2 }}>
+                      <Box sx={{ textAlign: 'center', py: { xs: 3, sm: 4 } }}>
+                        <FileText className="w-12 h-12 sm:w-16 sm:h-16 text-gray-400 mx-auto mb-4" />
+                        <Typography variant="h6" color="textSecondary" sx={{ 
+                          mb: 2,
+                          fontSize: { xs: '1rem', sm: '1.25rem' }
+                        }}>
                           No Subject Assignments Found
                         </Typography>
-                        <Typography variant="body2" color="textSecondary">
+                        <Typography variant="body2" color="textSecondary" sx={{
+                          fontSize: { xs: '0.8rem', sm: '0.875rem' }
+                        }}>
                           This instructor has no subject assignment records yet.
                         </Typography>
                       </Box>
                     ) : (
-                      <TableContainer sx={{ maxHeight: 400 }}>
-                        <Table stickyHeader>
+                      <TableContainer sx={{ maxHeight: { xs: 300, sm: 400 }, overflow: 'auto' }}>
+                        <Table stickyHeader size="small">
                           <TableHead>
                             <TableRow>
-                              <TableCell sx={{ fontWeight: 600, bgcolor: '#e0f2fe' }}>Semester</TableCell>
-                              <TableCell sx={{ fontWeight: 600, bgcolor: '#e0f2fe' }}>Subject Code</TableCell>
-                              <TableCell sx={{ fontWeight: 600, bgcolor: '#e0f2fe' }}>Subject Name</TableCell>
-                              <TableCell sx={{ fontWeight: 600, bgcolor: '#e0f2fe' }}>Units</TableCell>
-                              <TableCell sx={{ fontWeight: 600, bgcolor: '#e0f2fe' }}>Section</TableCell>
-                              <TableCell sx={{ fontWeight: 600, bgcolor: '#e0f2fe' }}>Status</TableCell>
-                              <TableCell sx={{ fontWeight: 600, bgcolor: '#e0f2fe' }}>Confirmed At</TableCell>
+                              <TableCell sx={{ 
+                                fontWeight: 600, 
+                                bgcolor: '#e0f2fe',
+                                fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                                py: { xs: 1, sm: 1.5 }
+                              }}>Semester</TableCell>
+                              <TableCell sx={{ 
+                                fontWeight: 600, 
+                                bgcolor: '#e0f2fe',
+                                fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                                py: { xs: 1, sm: 1.5 }
+                              }}>Subject Code</TableCell>
+                              <TableCell sx={{ 
+                                fontWeight: 600, 
+                                bgcolor: '#e0f2fe',
+                                fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                                py: { xs: 1, sm: 1.5 }
+                              }}>Subject Name</TableCell>
+                              <TableCell sx={{ 
+                                fontWeight: 600, 
+                                bgcolor: '#e0f2fe',
+                                fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                                py: { xs: 1, sm: 1.5 }
+                              }}>Units</TableCell>
+                              <TableCell sx={{ 
+                                fontWeight: 600, 
+                                bgcolor: '#e0f2fe',
+                                fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                                py: { xs: 1, sm: 1.5 }
+                              }}>Section</TableCell>
+                              <TableCell sx={{ 
+                                fontWeight: 600, 
+                                bgcolor: '#e0f2fe',
+                                fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                                py: { xs: 1, sm: 1.5 }
+                              }}>Status</TableCell>
+                              <TableCell sx={{ 
+                                fontWeight: 600, 
+                                bgcolor: '#e0f2fe',
+                                fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                                py: { xs: 1, sm: 1.5 }
+                              }}>Confirmed At</TableCell>
                             </TableRow>
                           </TableHead>
                           <TableBody>
                             {subjectTraceModal.records.map((record) => (
                               <TableRow key={record.id} hover>
-                                <TableCell>
-                                  <Typography variant="body2" sx={{ fontWeight: '500' }}>
+                                <TableCell sx={{ py: { xs: 1, sm: 1.5 } }}>
+                                  <Typography variant="body2" sx={{ 
+                                    fontWeight: '500',
+                                    fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                                  }}>
                                     {record.semester} {record.academic_year}
                                   </Typography>
                                 </TableCell>
-                                <TableCell>
-                                  <Typography variant="body2" sx={{ fontWeight: '600', color: '#1e40af' }}>
+                                <TableCell sx={{ py: { xs: 1, sm: 1.5 } }}>
+                                  <Typography variant="body2" sx={{ 
+                                    fontWeight: '600', 
+                                    color: '#1e40af',
+                                    fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                                  }}>
                                     {record.subject_code}
                                   </Typography>
                                 </TableCell>
-                                <TableCell>
-                                  <Typography variant="body2">
+                                <TableCell sx={{ py: { xs: 1, sm: 1.5 } }}>
+                                  <Typography variant="body2" sx={{
+                                    fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                                    wordBreak: 'break-word'
+                                  }}>
                                     {record.subject_name}
                                   </Typography>
                                 </TableCell>
-                                <TableCell>
+                                <TableCell sx={{ py: { xs: 1, sm: 1.5 } }}>
                                   <Chip 
                                     label={`${record.subject_units} ${record.subject_units === 1 ? 'Unit' : 'Units'}`}
                                     size="small"
                                     sx={{ 
                                       bgcolor: '#dbeafe',
                                       color: '#1e40af',
-                                      fontWeight: '500'
+                                      fontWeight: '500',
+                                      fontSize: { xs: '0.7rem', sm: '0.75rem' }
                                     }}
                                   />
                                 </TableCell>
-                                <TableCell>
-                                  <Typography variant="body2">
+                                <TableCell sx={{ py: { xs: 1, sm: 1.5 } }}>
+                                  <Typography variant="body2" sx={{
+                                    fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                                  }}>
                                     Section {record.section}
                                   </Typography>
                                 </TableCell>
-                                <TableCell>
+                                <TableCell sx={{ py: { xs: 1, sm: 1.5 } }}>
                                   <Chip 
                                     label={record.status}
                                     size="small"
                                     color={record.status === 'Confirmed by Program Head' ? 'success' : 'default'}
-                                    sx={{ fontWeight: '500' }}
+                                    sx={{ 
+                                      fontWeight: '500',
+                                      fontSize: { xs: '0.7rem', sm: '0.75rem' }
+                                    }}
                                   />
                                 </TableCell>
-                                <TableCell>
-                                  <Typography variant="body2" sx={{ color: '#6b7280' }}>
+                                <TableCell sx={{ py: { xs: 1, sm: 1.5 } }}>
+                                  <Typography variant="body2" sx={{ 
+                                    color: '#6b7280',
+                                    fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                                  }}>
                                     {new Date(record.confirmed_at).toLocaleDateString()}
                                   </Typography>
                                 </TableCell>
