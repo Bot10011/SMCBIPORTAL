@@ -76,6 +76,7 @@ const ProgramHeadEnrollment: React.FC = () => {
       'Student ID': student.studentId || 'N/A',
       'Full Name': student.name,
       'Email': student.email ? `${student.email}@smcbi.edu.ph` : 'N/A',
+      'Password': 'TempPass@123', // Default password for all students
       'Year Level': student.yearLevel,
       'Section': getSectionName(student.section)
     }));
@@ -1876,6 +1877,12 @@ const ProgramHeadEnrollment: React.FC = () => {
       units: number;
       year_level?: string;
     }>>> = {};
+    
+    // Debug logging for course categorization
+    console.log('=== COURSE CATEGORIZATION DEBUG ===');
+    console.log('Total courses to categorize:', courses.length);
+    console.log('Course codes:', courses.map(c => c.code));
+    
     courses.forEach((course) => {
       if (course.code.startsWith('IT')) {
         // Major
@@ -1889,13 +1896,17 @@ const ProgramHeadEnrollment: React.FC = () => {
         if (!categories['Major']) categories['Major'] = {};
         if (!categories['Major'][yearLabel]) categories['Major'][yearLabel] = [];
         categories['Major'][yearLabel].push(course);
+        console.log(`Categorized ${course.code} as Major - ${yearLabel}`);
       } else {
         // Minor (was 'Other')
         if (!categories['Minor']) categories['Minor'] = {};
         if (!categories['Minor']['All']) categories['Minor']['All'] = [];
         categories['Minor']['All'].push(course);
+        console.log(`Categorized ${course.code} as Minor`);
       }
     });
+    
+    console.log('Final categories:', categories);
     return categories;
   };
 
@@ -1903,6 +1914,13 @@ const ProgramHeadEnrollment: React.FC = () => {
   const getVisibleCourses = () => {
     // If Irregular or Transferee, show all
     let filteredCourses = courses;
+    
+    const yearMap: Record<string, string> = {
+      '1': '1st Year',
+      '2': '2nd Year',
+      '3': '3rd Year',
+      '4': '4th Year',
+    };
     
     // Apply search filter
     if (courseSearch.trim() !== '') {
@@ -1915,12 +1933,6 @@ const ProgramHeadEnrollment: React.FC = () => {
 
     // Filter courses based on instructor assignments for the selected section
     if (createForm.section && createForm.section !== '') {
-      const yearMap: Record<string, string> = {
-        '1': '1st Year',
-        '2': '2nd Year',
-        '3': '3rd Year',
-        '4': '4th Year',
-      };
       
       // Convert section ID to section name for comparison
       const selectedSectionName = getSectionName(createForm.section);
@@ -1945,25 +1957,37 @@ const ProgramHeadEnrollment: React.FC = () => {
         )
         .map(assignment => assignment.subject_id);
 
-      // Filter courses to only show those with instructor assignments
-      filteredCourses = filteredCourses.filter(course => 
-        availableCourseIds.includes(course.id)
-      );
+      // For Freshman students, if no instructor assignments are found for their year level,
+      // show all courses for that year level to ensure they can see available courses
+      if (createForm.studentType === "Freshman" && availableCourseIds.length === 0) {
+        console.log('No instructor assignments found for Freshman, showing all courses for year level');
+        // Don't filter by instructor assignments for freshmen if none are found
+        // This ensures freshmen can see all available courses for their year level
+      } else {
+        // Filter courses to only show those with instructor assignments
+        filteredCourses = filteredCourses.filter(course => 
+          availableCourseIds.includes(course.id)
+        );
+      }
     }
 
     const categorized = categorizeCourses(filteredCourses);
+    
+    // Debug logging for Freshman students
+    if (createForm.studentType === "Freshman") {
+      console.log('=== FRESHMAN COURSE DEBUG ===');
+      console.log('Total filtered courses:', filteredCourses.length);
+      console.log('Categorized courses:', categorized);
+      console.log('Year level:', createForm.yearLevel);
+      console.log('Year label:', yearMap[String(createForm.yearLevel)] || '1st Year');
+    }
+    
     if (["Irregular", "Transferee"].includes(createForm.studentType)) {
       return categorized;
     }
     if (createForm.studentType === "Regular" && allowMixedCourses) {
       return categorized;
     }
-    const yearMap: Record<string, string> = {
-      '1': '1st Year',
-      '2': '2nd Year',
-      '3': '3rd Year',
-      '4': '4th Year',
-    };
     const yearLabel = yearMap[String(createForm.yearLevel)] || '1st Year';
     const filtered: Record<string, Record<string, Array<{
       id: string;
@@ -1972,12 +1996,33 @@ const ProgramHeadEnrollment: React.FC = () => {
       units: number;
       year_level?: string;
     }>>> = {};
-    if (categorized['Major'] && categorized['Major'][yearLabel]) {
-      filtered['Major'] = { [yearLabel]: categorized['Major'][yearLabel] };
+    
+    // For Freshman students, show both Major and Minor courses for their year level
+    if (createForm.studentType === "Freshman") {
+      // Include Major courses for the student's year level
+      if (categorized['Major'] && categorized['Major'][yearLabel]) {
+        filtered['Major'] = { [yearLabel]: categorized['Major'][yearLabel] };
+        console.log('Added Major courses for Freshman:', categorized['Major'][yearLabel].length);
+      } else {
+        console.log('No Major courses found for Freshman year level:', yearLabel);
+        console.log('Available Major categories:', Object.keys(categorized['Major'] || {}));
+      }
+      // Include all Minor courses
+      if (categorized['Minor']) {
+        filtered['Minor'] = categorized['Minor'];
+        console.log('Added Minor courses for Freshman:', Object.values(categorized['Minor']).flat().length);
+      }
+    } else {
+      // For Regular students, show Major courses for their year level and all Minor courses
+      if (categorized['Major'] && categorized['Major'][yearLabel]) {
+        filtered['Major'] = { [yearLabel]: categorized['Major'][yearLabel] };
+      }
+      if (categorized['Minor']) {
+        filtered['Minor'] = categorized['Minor'];
+      }
     }
-    if (categorized['Minor']) {
-      filtered['Minor'] = categorized['Minor'];
-    }
+    
+    console.log('Final filtered courses for Freshman:', filtered);
     return filtered;
   };
 
