@@ -20,6 +20,7 @@ interface Student {
   department?: string;
   semester?: string;
   avatar_url?: string;
+  section?: string;
 }
 interface Course {
   id: string;
@@ -42,7 +43,7 @@ interface COEData {
   department?: string;
   email?: string;
   avatar_url?: string;
-  subjects?: { code: string; name: string; units: number }[];
+  subjects?: { code: string; name: string; units: number; section?: string; instructor?: string }[];
 }
 
 // COEModal for viewing Certificate of Enrollment
@@ -82,14 +83,20 @@ const COEModal = ({ coe, open, onClose }: { coe: COEData, open: boolean, onClose
           doc.text(`School Portal Email: ${coe.email || 'N/A'}`, 120, y);
           autoTable(doc, {
             startY: y + 10,
-            head: [['Course Code', 'Course Name', 'Units']],
+            head: [['Course Code', 'Course Name', 'Section', 'Instructor', 'Units']],
             body: Array.isArray(coe.subjects) ? [
-              ...coe.subjects.map((subj: { code: string; name: string; units: number }) => [subj.code, subj.name, subj.units]),
-              ["", "Total Units", coe.subjects.reduce((sum: number, subj: { units: number }) => sum + (Number(subj.units) || 0), 0)]
+              ...coe.subjects.map((subj: { code: string; name: string; units: number; section?: string; instructor?: string }) => [
+                subj.code, 
+                subj.name, 
+                subj.section || 'N/A', 
+                subj.instructor || 'TBA', 
+                subj.units
+              ]),
+              ["", "Total Units", "", "", coe.subjects.reduce((sum: number, subj: { units: number }) => sum + (Number(subj.units) || 0), 0)]
             ] : [],
             theme: 'grid',
             headStyles: { fillColor: [41, 128, 185] },
-            styles: { fontSize: 10 }
+            styles: { fontSize: 9 }
           });
           const finalY = (doc as any).lastAutoTable.finalY || y + 30;
           doc.setFontSize(12);
@@ -135,14 +142,20 @@ const COEModal = ({ coe, open, onClose }: { coe: COEData, open: boolean, onClose
           doc.text(`School Portal Email: ${coe.email || 'N/A'}`, 120, y);
           autoTable(doc, {
             startY: y + 10,
-            head: [['Course Code', 'Course Name', 'Units']],
+            head: [['Course Code', 'Course Name', 'Section', 'Instructor', 'Units']],
             body: Array.isArray(coe.subjects) ? [
-              ...coe.subjects.map((subj: { code: string; name: string; units: number }) => [subj.code, subj.name, subj.units]),
-              ["", "Total Units", coe.subjects.reduce((sum: number, subj: { units: number }) => sum + (Number(subj.units) || 0), 0)]
+              ...coe.subjects.map((subj: { code: string; name: string; units: number; section?: string; instructor?: string }) => [
+                subj.code, 
+                subj.name, 
+                subj.section || 'N/A', 
+                subj.instructor || 'TBA', 
+                subj.units
+              ]),
+              ["", "Total Units", "", "", coe.subjects.reduce((sum: number, subj: { units: number }) => sum + (Number(subj.units) || 0), 0)]
             ] : [],
             theme: 'grid',
             headStyles: { fillColor: [41, 128, 185] },
-            styles: { fontSize: 10 }
+            styles: { fontSize: 9 }
           });
           const finalY = (doc as any).lastAutoTable.finalY || y + 30;
           doc.setFontSize(12);
@@ -164,7 +177,7 @@ const COEModal = ({ coe, open, onClose }: { coe: COEData, open: boolean, onClose
   };
   return (
     <>
-      {/* Full screen overlay to completely block all interactions */}
+      {/* Full screen overlay with click handler */}
       <div 
         className="fixed inset-0 z-[99999] bg-black bg-opacity-60 backdrop-blur-sm"
         onClick={handleBackdropClick}
@@ -178,76 +191,74 @@ const COEModal = ({ coe, open, onClose }: { coe: COEData, open: boolean, onClose
       {/* Modal container */}
       <div
         className="fixed inset-0 z-[100000] flex items-center justify-center p-2 sm:p-4"
+        onClick={handleBackdropClick}
         style={{ 
           minHeight: '100vh',
-          pointerEvents: 'none'
+          pointerEvents: 'auto'
         }}
       >
-        <div className="bg-white/90 rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-3xl lg:max-w-4xl relative mx-2 sm:mx-4 flex flex-col overflow-y-auto"
+        <div 
+          className="bg-white/90 rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-3xl lg:max-w-4xl relative mx-2 sm:mx-4 flex flex-col"
           style={{ 
             maxHeight: '90vh', 
             boxSizing: 'border-box',
             pointerEvents: 'auto'
-          }}>
-          
-                    {/* Header with Action Buttons and Close */}
-          <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-100">
-            {/* Left side - empty for balance */}
-            <div></div>
-            
-           
-            
-            {/* Right side - Action buttons and close */}
-            <div className="flex items-center gap-2 sm:gap-3">
-          <button
-                onClick={handleDownload}
-                className="inline-flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-300 shadow-md hover:shadow-lg font-semibold text-xs sm:text-sm"
-              >
-                <Download className="w-3 h-3 sm:w-4 sm:h-4" /> 
-                <span className="hidden sm:inline">Download PDF</span>
-                <span className="sm:hidden">PDF</span>
-          </button>
-            <button
-                onClick={handlePrint}
-                className="inline-flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-lg hover:from-gray-700 hover:to-gray-800 transition-all duration-300 shadow-md hover:shadow-lg font-semibold text-xs sm:text-sm"
-            >
-                <Printer className="w-3 h-3 sm:w-4 sm:h-4" /> 
-                <span className="hidden sm:inline">Print</span>
-                <span className="sm:hidden">Print</span>
-            </button>
-            <button
-                onClick={onClose}
-                className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center text-lg sm:text-xl font-bold text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-full transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-400"
-                aria-label="Close"
-            >
-                ×
-            </button>
-            </div>
-          </div>
-
-          {/* SMCBI Logo and Date Section */}
-          <div className="text-center py-2 sm:py-3 px-3 sm:px-4 border-b border-gray-100">
-            <div className="flex flex-col items-center gap-1 sm:gap-2 mb-2 sm:mb-3">
-              <div className="w-10 h-10 sm:w-14 sm:h-14 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl flex items-center justify-center shadow-lg">
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Sticky Header with Action Buttons */}
+          <div className="sticky top-0 bg-white/90 backdrop-blur-sm border-b border-gray-200 p-3 sm:p-4 rounded-t-2xl sm:rounded-t-3xl z-10">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
                 <img 
                   src="/img/logo.png" 
                   alt="SMCBI Logo" 
-                  className="w-6 h-6 sm:w-10 sm:h-10 object-contain"
+                  className="w-8 h-8 object-contain"
                 />
+                <div>
+                  <h1 className="text-lg sm:text-xl font-bold text-gray-900">SMCBI</h1>
+                  <p className="text-sm text-gray-600">Certificate of Enrollment</p>
+                </div>
               </div>
-              <div>
-                <h1 className="text-lg sm:text-xl font-bold text-gray-900 mb-1">SMCBI</h1>
-                <p className="text-sm sm:text-base text-gray-600 font-medium">Certificate of Enrollment</p>
+              <div className="flex items-center gap-2 sm:gap-3">
+                <button
+                  onClick={handleDownload}
+                  className="inline-flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-300 shadow-md hover:shadow-lg font-semibold text-xs sm:text-sm"
+                >
+                  <Download className="w-3 h-3 sm:w-4 sm:h-4" /> 
+                  <span className="hidden sm:inline">Download PDF</span>
+                  <span className="sm:hidden">PDF</span>
+                </button>
+                <button
+                  onClick={handlePrint}
+                  className="inline-flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-lg hover:from-gray-700 hover:to-gray-800 transition-all duration-300 shadow-md hover:shadow-lg font-semibold text-xs sm:text-sm"
+                >
+                  <Printer className="w-3 h-3 sm:w-4 sm:h-4" /> 
+                  <span className="hidden sm:inline">Print</span>
+                  <span className="sm:hidden">Print</span>
+                </button>
+                <button
+                  onClick={onClose}
+                  className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center text-lg sm:text-xl font-bold text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-full transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-400"
+                  aria-label="Close"
+                >
+                  ×
+                </button>
               </div>
-            </div>
-            <div className="inline-flex items-center gap-2 px-2 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
-              <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
-              Date: {new Date(coe.date_issued).toLocaleDateString()}
             </div>
           </div>
 
-          {/* Student Information Section */}
-          <div className="p-2 sm:p-3">
+          {/* Scrollable Content */}
+          <div className="flex-1 overflow-y-auto p-3 sm:p-4">
+            {/* Date Section */}
+            <div className="text-center py-2 sm:py-3 mb-4">
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
+                <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
+                Date: {new Date(coe.date_issued).toLocaleDateString()}
+              </div>
+            </div>
+
+            {/* Student Information Section */}
             <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-2 sm:p-3 mb-3">
               <h2 className="text-sm sm:text-base font-bold text-gray-900 mb-2 flex items-center gap-2">
                 <div className="w-4 h-4 sm:w-5 sm:h-5 bg-blue-600 rounded-lg flex items-center justify-center">
@@ -302,14 +313,18 @@ const COEModal = ({ coe, open, onClose }: { coe: COEData, open: boolean, onClose
                     <tr>
                       <th className="px-2 py-1.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Course Code</th>
                       <th className="px-2 py-1.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Course Name</th>
+                      <th className="px-2 py-1.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Section</th>
+                      <th className="px-2 py-1.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Instructor</th>
                       <th className="px-2 py-1.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Units</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-100">
-                    {Array.isArray(coe.subjects) && coe.subjects.map((subject: { code: string; name: string; units: number }, idx: number) => (
+                    {Array.isArray(coe.subjects) && coe.subjects.map((subject: { code: string; name: string; units: number; section?: string; instructor?: string }, idx: number) => (
                       <tr key={idx} className="hover:bg-gray-50 transition-colors">
                         <td className="px-2 py-1.5 whitespace-nowrap text-xs font-semibold text-blue-600">{subject.code}</td>
                         <td className="px-2 py-1.5 whitespace-nowrap text-xs text-gray-900">{subject.name}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap text-xs text-gray-900">{subject.section || 'N/A'}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap text-xs text-gray-900">{subject.instructor || 'TBA'}</td>
                         <td className="px-2 py-1.5 whitespace-nowrap text-xs font-semibold text-gray-900">{subject.units}</td>
                       </tr>
                     ))}
@@ -317,6 +332,8 @@ const COEModal = ({ coe, open, onClose }: { coe: COEData, open: boolean, onClose
                     <tr className="bg-gradient-to-r from-blue-50 to-indigo-50">
                       <td className="px-2 py-1.5"></td>
                       <td className="px-2 py-1.5 text-right font-bold text-xs sm:text-sm text-gray-900">Total Units</td>
+                      <td className="px-2 py-1.5"></td>
+                      <td className="px-2 py-1.5"></td>
                       <td className="px-2 py-1.5 font-bold text-xs sm:text-sm text-blue-600">{Array.isArray(coe.subjects) ? coe.subjects.reduce((sum: number, subj: { units: number }) => sum + (Number(subj.units) || 0), 0) : 0}</td>
                     </tr>
                   </tbody>
@@ -532,7 +549,8 @@ const RegistrarEnrollment: React.FC = () => {
           code: course.code,
           name: course.name,
           department: course.department,
-          units: course.units
+          units: course.units,
+          section: studentProfile.section || 'A' // Include student's section
         } : null;
       }).filter(Boolean);
       // Registrar name (issuer) - replace with actual registrar name if available
@@ -578,6 +596,17 @@ const RegistrarEnrollment: React.FC = () => {
     setCOEData(null);
     setCOEModalOpen(true);
     try {
+      // First, get the student's profile to get their section information
+      const { data: studentProfile, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('section, year_level, department')
+        .eq('id', studentId)
+        .single();
+
+      if (profileError) {
+        console.error('Error fetching student profile:', profileError);
+      }
+
       const { data, error } = await supabase
         .from('coe')
         .select('*')
@@ -585,8 +614,158 @@ const RegistrarEnrollment: React.FC = () => {
         .order('date_issued', { ascending: false })
         .limit(1);
       if (error) throw error;
+      
       if (data && data.length > 0) {
-        setCOEData(data[0]);
+        const coe = data[0];
+        
+        // Fetch sections data to map UIDs to names
+        const { data: sectionsData, error: sectionsError } = await supabase
+          .from('sections')
+          .select('id, name');
+        
+        if (sectionsError) {
+          console.error('Error fetching sections:', sectionsError);
+        }
+
+        // Create a map of section UIDs to section names
+        const sectionMap = new Map<string, string>();
+        if (sectionsData) {
+          sectionsData.forEach(section => {
+            sectionMap.set(section.id, section.name);
+          });
+        }
+
+        // Get the student's section name
+        const studentSectionName = studentProfile?.section && sectionMap.has(studentProfile.section) 
+          ? sectionMap.get(studentProfile.section) 
+          : studentProfile?.section || 'A';
+
+        // Enrich subjects with instructor and section information
+        if (coe.subjects && Array.isArray(coe.subjects)) {
+          const enrichedSubjects = await Promise.all(
+            coe.subjects.map(async (subject: any) => {
+              try {
+                // Resolve subject code to the actual course UUID
+                let courseId: string | null = null;
+                try {
+                  const { data: courseRow, error: courseErr } = await supabase
+                    .from('courses')
+                    .select('id, code, name')
+                    .eq('code', subject.code)
+                    .single();
+                  if (!courseErr && courseRow?.id) {
+                    courseId = courseRow.id as string;
+                  }
+                } catch (err) {
+                  console.warn('Could not find course for code:', subject.code, err);
+                }
+
+                // Find the teacher assignment for this subject
+                let { data: assignmentData, error: assignmentError } = await supabase
+                  .from('teacher_subjects')
+                  .select(`
+                    teacher_id,
+                    section,
+                    academic_year,
+                    semester,
+                    year_level,
+                    teacher:user_profiles!teacher_subjects_teacher_id_fkey(
+                      first_name,
+                      last_name,
+                      middle_name
+                    )
+                  `)
+                  .eq('subject_id', courseId || subject.code)
+                  .eq('academic_year', coe.school_year)
+                  .eq('semester', coe.semester)
+                  .eq('year_level', coe.year_level)
+                  .eq('is_active', true)
+                  .maybeSingle();
+
+                // If no exact match, try without year_level filter
+                if (!assignmentData && !assignmentError) {
+                  const { data: assignmentData2, error: assignmentError2 } = await supabase
+                    .from('teacher_subjects')
+                    .select(`
+                      teacher_id,
+                      section,
+                      academic_year,
+                      semester,
+                      year_level,
+                      teacher:user_profiles!teacher_subjects_teacher_id_fkey(
+                        first_name,
+                        last_name,
+                        middle_name
+                      )
+                    `)
+                    .eq('subject_id', courseId || subject.code)
+                    .eq('academic_year', coe.school_year)
+                    .eq('semester', coe.semester)
+                    .eq('is_active', true)
+                    .maybeSingle();
+                  
+                  assignmentData = assignmentData2;
+                  assignmentError = assignmentError2;
+                }
+
+                // If still no match, try with just subject_id and is_active
+                if (!assignmentData && !assignmentError) {
+                  const { data: assignmentData3, error: assignmentError3 } = await supabase
+                    .from('teacher_subjects')
+                    .select(`
+                      teacher_id,
+                      section,
+                      academic_year,
+                      semester,
+                      year_level,
+                      teacher:user_profiles!teacher_subjects_teacher_id_fkey(
+                        first_name,
+                        last_name,
+                        middle_name
+                      )
+                    `)
+                    .eq('subject_id', courseId || subject.code)
+                    .eq('is_active', true)
+                    .limit(1)
+                    .maybeSingle();
+                  
+                  assignmentData = assignmentData3;
+                  assignmentError = assignmentError3;
+                }
+
+                if (!assignmentError && assignmentData) {
+                  const teacher = assignmentData.teacher as any;
+                  const instructorName = teacher 
+                    ? `${teacher.first_name} ${teacher.middle_name ? teacher.middle_name + ' ' : ''}${teacher.last_name}`
+                    : 'TBA';
+                  
+                  return {
+                    ...subject,
+                    instructor: instructorName,
+                    section: assignmentData.section || studentSectionName
+                  };
+                }
+
+                return {
+                  ...subject,
+                  instructor: 'TBA',
+                  section: studentSectionName
+                };
+              } catch (err) {
+                console.warn('Could not find instructor for subject:', subject.code, err);
+                return {
+                  ...subject,
+                  instructor: 'TBA',
+                  section: studentSectionName
+                };
+              }
+            })
+          );
+
+          coe.subjects = enrichedSubjects;
+        }
+
+        setCOEData(coe);
       } else {
         setCOEError('No Certificate of Enrollment found for this student.');
       }
