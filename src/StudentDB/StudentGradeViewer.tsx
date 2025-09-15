@@ -145,7 +145,7 @@ export const StudentGradeViewer: React.FC = () => {
           .from('grades')
           .select(`
             *,
-            course:courses!fk_grades_course (code, name),
+            course:courses!fk_grades_course (code, name, units),
             teacher:user_profiles!grades_graded_by_fkey (display_name, avatar_url)
           `)
           .eq('student_id', user.id);
@@ -177,6 +177,7 @@ export const StudentGradeViewer: React.FC = () => {
           remarks: grade.remarks ?? null,
           year_level: normalizeYearLevel(grade.year_level?.toString()),
           is_released: grade.is_released ?? false,
+          units: typeof grade.course?.units === 'number' ? grade.course.units : null,
         }));
         console.log('Fetched grades:', gradesSummary);
 
@@ -237,34 +238,60 @@ export const StudentGradeViewer: React.FC = () => {
     setOpenSections(prev => ({ ...prev, [year]: !prev[year] }));
   }, []);
 
-  // Calculate GPA for display (based on final grades only) - 4.0 scale
+  // Calculate GPA for the selected year using PH weighted method (1.0–5.0 scale)
   const calculateGPA = (grades: GradeSummary[]) => {
-    const validGrades = grades.filter(g => g.final_grade !== null && g.final_grade !== undefined);
-    if (validGrades.length === 0) return null;
-    
-    // Convert percentage grades to 4.0 scale
-    const convertTo4Scale = (percentage: number): number => {
-      if (percentage >= 97) return 4.0;
-      if (percentage >= 93) return 3.7;
-      if (percentage >= 90) return 3.3;
-      if (percentage >= 87) return 3.0;
-      if (percentage >= 83) return 2.7;
-      if (percentage >= 80) return 2.3;
-      if (percentage >= 77) return 2.0;
-      if (percentage >= 73) return 1.7;
-      if (percentage >= 70) return 1.3;
-      if (percentage >= 67) return 1.0;
-      if (percentage >= 65) return 0.7;
-      return 0.0;
+    const valid = grades.filter(g => g.is_released && (g.prelim_grade !== null || g.midterm_grade !== null || g.final_grade !== null));
+    if (valid.length === 0) return null;
+
+    const toPhGpa = (raw: number): number => {
+      if (!Number.isFinite(raw)) return NaN;
+      if (raw <= 5) return raw; // already on 1.0–5.0 scale
+      const pct = Math.max(0, Math.min(100, raw));
+      if (pct >= 99) return 1.0;
+      if (pct >= 96) return 1.25;
+      if (pct >= 93) return 1.5;
+      if (pct >= 90) return 1.75;
+      if (pct >= 87) return 2.0;
+      if (pct >= 84) return 2.25;
+      if (pct >= 81) return 2.5;
+      if (pct >= 78) return 2.75;
+      if (pct >= 75) return 3.0;
+      return 5.0;
     };
-    
-    const total = validGrades.reduce((sum, grade) => sum + convertTo4Scale(grade.final_grade || 0), 0);
-    const gpa = total / validGrades.length;
-    
+
+    let totalWeighted = 0;
+    let totalUnits = 0;
+    for (const g of valid) {
+      const units = typeof (g as unknown as { units?: number }).units === 'number'
+        ? (g as unknown as { units?: number }).units as number
+        : 0;
+      if (units <= 0) continue;
+      const parts = [g.prelim_grade, g.midterm_grade, g.final_grade]
+        .filter(v => typeof v === 'number')
+        .map(v => toPhGpa(v as number))
+        .filter(v => Number.isFinite(v)) as number[];
+      if (parts.length === 0) continue;
+      const subjectGrade = (typeof g.final_grade === 'number' && Number.isFinite(g.final_grade))
+        ? toPhGpa(g.final_grade as number)
+        : (parts.reduce((a, b) => a + b, 0) / parts.length);
+      totalWeighted += subjectGrade * units;
+      totalUnits += units;
+    }
+
+    if (totalUnits === 0) return null;
+    const gpa = totalWeighted / totalUnits; // 1.0–5.0 (lower is better)
+
+    // Status mapping for PH scale (1.0 best, 5.0 fail)
+    const status = gpa <= 1.75 ? 'excellent'
+      : gpa <= 2.25 ? 'very-good'
+      : gpa <= 2.75 ? 'good'
+      : gpa <= 3.0 ? 'passing'
+      : 'needs-improvement';
+
     return {
       value: gpa.toFixed(2),
       numeric: gpa,
-      status: gpa >= 3.7 ? 'excellent' : gpa >= 3.3 ? 'very-good' : gpa >= 2.7 ? 'good' : gpa >= 2.0 ? 'passing' : 'needs-improvement'
+      status
     };
   };
 
