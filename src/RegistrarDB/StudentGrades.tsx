@@ -66,6 +66,7 @@ interface Program {
     id: string;
     display_name: string;
     avatar_url?: string;
+    department: string;
   };
 }
 
@@ -79,9 +80,27 @@ interface ProgramHead {
   role?: string;
 }
 
+interface Student {
+  id: string;
+  student_id: string;
+  display_name?: string;
+  first_name?: string;
+  last_name?: string;
+  middle_name?: string;
+  avatar_url?: string;
+  year_level: string;
+  section: string;
+  program_id: string;
+  department?: string;
+  student_status?: string;
+  enrollment_status?: string;
+  student_type?: string;
+}
+
 export default function StudentGrades() {
   const [searchParams] = useSearchParams();
   const [grades, setGrades] = useState<Grade[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -90,6 +109,7 @@ export default function StudentGrades() {
   const [selectedYearLevel, setSelectedYearLevel] = useState<string>('');
   const [selectedSection, setSelectedSection] = useState<string>('');
   const [selectedSubject, setSelectedSubject] = useState<string>('');
+  const [selectedCourseId, setSelectedCourseId] = useState<string>('');
   const [showPrograms, setShowPrograms] = useState(true);
   const [showYearLevels, setShowYearLevels] = useState(false);
   const [showSections, setShowSections] = useState(false);
@@ -112,6 +132,7 @@ export default function StudentGrades() {
   
   // State for section mapping
   const [sectionMap, setSectionMap] = useState<Map<string, string>>(new Map());
+  const [sectionsList, setSectionsList] = useState<Array<{ id: string; name: string; year_level?: string | number | null }>>([]);
   // Released grades modal state
   const [releasedModalOpen, setReleasedModalOpen] = useState(false);
   const [releasedModalGroup, setReleasedModalGroup] = useState<{
@@ -161,6 +182,20 @@ export default function StudentGrades() {
 
   // Hide confirmation modal state
   const [hideConfirmationOpen, setHideConfirmationOpen] = useState(false);
+
+  // Subjects sourced from courses table for the selected year level
+  const [courseSubjects, setCourseSubjects] = useState<Array<{
+    id: string;
+    code: string;
+    name: string;
+    unit?: number | null;
+    year_level?: string | number | null;
+    summer?: boolean | null;
+    semester?: string | null;
+  }>>([]);
+
+  // Count of courses for the selected year level (used in Sections view)
+  const [coursesCount, setCoursesCount] = useState<number>(0);
 
   const handleHideReleasedGroup = () => {
     if (!releasedModalGroup || releasedModalUpdating) return;
@@ -460,6 +495,45 @@ export default function StudentGrades() {
   
 
 
+  // Debug effect to track students state changes
+  useEffect(() => {
+    console.group('🔄 Students State Changed');
+    console.log('Students count:', students.length);
+    console.log('Selected program:', selectedProgram);
+    console.log('Sample students:', students.slice(0, 3));
+    console.groupEnd();
+  }, [students, selectedProgram]);
+
+  // Helper function to normalize year level values
+  const normalizeYearLevel = (yearLevel: string | number): string => {
+    if (typeof yearLevel === 'number') {
+      return yearLevel.toString();
+    }
+    
+    const yearLevelStr = yearLevel.toString().toLowerCase();
+    
+    // Handle various formats
+    if (yearLevelStr.includes('1st') || yearLevelStr === '1' || yearLevelStr === 'first') {
+      return '1';
+    }
+    if (yearLevelStr.includes('2nd') || yearLevelStr === '2' || yearLevelStr === 'second') {
+      return '2';
+    }
+    if (yearLevelStr.includes('3rd') || yearLevelStr === '3' || yearLevelStr === 'third') {
+      return '3';
+    }
+    if (yearLevelStr.includes('4th') || yearLevelStr === '4' || yearLevelStr === 'fourth') {
+      return '4';
+    }
+    
+    // If it's already a single digit, return it
+    if (/^[1-4]$/.test(yearLevelStr)) {
+      return yearLevelStr;
+    }
+    
+    return yearLevelStr; // Return as-is if no match
+  };
+
   // Helper function to convert year level number to display format
   const getYearLevelDisplayName = (yearLevel: string): string => {
     switch (yearLevel) {
@@ -654,6 +728,7 @@ export default function StudentGrades() {
       }
       
       // First, get all students with their year level and section info
+      // We'll filter by department after we get the program head information
       const { data: studentsData, error: initialStudentsError } = await supabase
         .from('user_profiles')
         .select('id, student_id, display_name, first_name, last_name, middle_name, avatar_url, year_level, section, program_id, department, student_status, enrollment_status, student_type')
@@ -670,10 +745,13 @@ export default function StudentGrades() {
       
       console.log('Students data:', studentsData?.length || 0, 'records');
       
-      // Fetch sections data to map UIDs to names
+      // Store students data in state (will be filtered later by department)
+      setStudents(studentsData || []);
+      
+      // Fetch sections data to map UIDs to names and drive Sections UI
       const { data: sectionsData, error: sectionsError } = await supabase
         .from('sections')
-        .select('id, name');
+        .select('id, name, year_level');
         
       if (sectionsError) {
         console.error('Sections error:', sectionsError);
@@ -686,6 +764,7 @@ export default function StudentGrades() {
           sectionMap.set(section.id, section.name);
         });
         console.log('Section map created:', sectionMap.size, 'entries');
+        setSectionsList(sectionsData as Array<{ id: string; name: string; year_level?: string | number | null }>);
       }
       
       // Set section map in state for use in UI
@@ -1554,13 +1633,14 @@ export default function StudentGrades() {
       console.log('Program student count map (department-based):', Array.from(programStudentCountMap.entries()));
       
       // Create a map to link programs to their program heads
-      const programHeadMap = new Map<string, { id: string; display_name: string; avatar_url?: string }>();
+      const programHeadMap = new Map<string, { id: string; display_name: string; avatar_url?: string; department: string }>();
       (programHeadsData || []).forEach(programHead => {
         if (programHead.department) {
           programHeadMap.set(programHead.department, {
             id: programHead.id,
             display_name: programHead.display_name,
-            avatar_url: programHead.avatar_url
+            avatar_url: programHead.avatar_url,
+            department: programHead.department
           });
         }
       });
@@ -1666,6 +1746,67 @@ export default function StudentGrades() {
       if (programsArray.length > 0) {
         console.log('Sample programs:', programsArray.slice(0, 3));
       }
+      
+      // Filter students by department matching program head departments
+      console.group('🔍 DEPARTMENT FILTERING DEBUG');
+      console.log('Total students before filtering:', studentsData?.length || 0);
+      console.log('Programs array:', programsArray.map(p => ({ id: p.id, name: p.name, hasProgramHead: !!p.programHead })));
+      
+      const filteredStudents = (studentsData || []).filter(student => {
+        // Find the program for this student
+        const studentProgram = programsArray.find(p => p.id === student.program_id);
+        
+        console.log(`Student ${student.id}:`, {
+          program_id: student.program_id,
+          department: student.department,
+          foundProgram: !!studentProgram,
+          programName: studentProgram?.name,
+          hasProgramHead: !!studentProgram?.programHead
+        });
+        
+        if (!studentProgram || !studentProgram.programHead) {
+          console.log(`❌ Student ${student.id} filtered out: No program or program head`);
+          return false; // Skip students without program or program head
+        }
+        
+        // Get the program head's department
+        const programHeadDepartment = (studentProgram.programHead as { id: string; display_name: string; avatar_url?: string; department: string }).department;
+        if (!programHeadDepartment) {
+          console.log(`❌ Student ${student.id} filtered out: Program head has no department`);
+          return false; // Skip if program head has no department
+        }
+        
+        // Check if student's department matches program head's department
+        const departmentMatch = student.department === programHeadDepartment;
+        console.log(`Student ${student.id} department check:`, {
+          studentDepartment: student.department,
+          programHeadDepartment: programHeadDepartment,
+          matches: departmentMatch
+        });
+        
+        if (!departmentMatch) {
+          console.log(`❌ Student ${student.id} filtered out: Department mismatch`);
+        } else {
+          console.log(`✅ Student ${student.id} passed department filter`);
+        }
+        
+        return departmentMatch;
+      });
+      
+      console.log('Students after filtering:', filteredStudents.length);
+      console.log('Sample filtered students:', filteredStudents.slice(0, 3));
+      console.groupEnd();
+      
+      // If department filtering removes all students, use all students as fallback
+      const finalStudents = filteredStudents.length > 0 ? filteredStudents : (studentsData || []);
+      
+      if (filteredStudents.length === 0 && (studentsData || []).length > 0) {
+        console.warn('⚠️ Department filtering removed all students. Using all students as fallback.');
+        console.log('This might indicate an issue with department matching logic.');
+      }
+      
+      console.log('Final students to store in state:', finalStudents.length);
+      setStudents(finalStudents);
       
       // Check for missing data
       // Note: skip logging gradesWithoutEnrollments to keep console clean and linter satisfied
@@ -1787,12 +1928,14 @@ export default function StudentGrades() {
   const handleSectionClick = (section: string) => {
     setSelectedSection(section);
     setSelectedSubject('');
+    setSelectedCourseId('');
     navigateTo('subjects');
   };
 
   // New function to handle subject selection
-  const handleSubjectClick = (subject: string) => {
-    setSelectedSubject(subject);
+  const handleSubjectClick = (course: { id: string; code: string }) => {
+    setSelectedSubject(course.code);
+    setSelectedCourseId(course.id);
     navigateTo('students');
   };
 
@@ -1806,12 +1949,19 @@ export default function StudentGrades() {
   const getFilteredStudents = () => {
     if (!selectedYearLevel || !selectedSection || !selectedSubject) return [];
     
-    let filtered = grades.filter(grade => 
-      grade.year_level === selectedYearLevel && 
-      grade.section === selectedSection &&
-      grade.course_code === selectedSubject &&
-      !grade.is_released
-    );
+    const normalizeStr = (v?: string | null) => (v || '').toString().trim().toLowerCase();
+    const sectionTarget = normalizeStr(selectedSection);
+    const subjectTarget = normalizeStr(selectedSubject);
+
+    let filtered = grades.filter(grade => {
+      const sectionMatches = normalizeStr(grade.section) === sectionTarget;
+      const subjectMatches = normalizeStr(grade.course_code) === subjectTarget || (!!selectedCourseId && grade.course_id === selectedCourseId);
+      return (
+        grade.year_level === selectedYearLevel &&
+        sectionMatches &&
+        subjectMatches
+      );
+    });
     
     // Apply search filter if search term exists
     if (studentSearchTerm.trim()) {
@@ -1966,34 +2116,6 @@ export default function StudentGrades() {
   const totalGrades = grades.length;
   const releasedGrades = grades.filter(g => g.is_released).length;
   const pendingGrades = grades.filter(g => !g.is_released).length;
-
-  // Get students for a given combination (year, section, subject) - filtered by selected program
-  const getStudentsForCombination = (yearLevel: string, section: string, subject: string) => {
-    const selectedProgramName = programs.find(p => p.id === selectedProgram)?.name;
-    return grades
-      .filter(g => 
-        g.program_name === selectedProgramName &&
-        g.year_level === yearLevel && 
-        g.section === section && 
-        g.course_code === subject &&
-        !g.is_released
-      )
-      .slice(0, 8); // cap to 8 avatars for layout
-  };
-
-  // Get total student count for a combination - filtered by selected program
-  const getTotalStudentCount = (yearLevel: string, section: string, subject: string) => {
-    const selectedProgramName = programs.find(p => p.id === selectedProgram)?.name;
-    return grades
-      .filter(g => 
-        g.program_name === selectedProgramName &&
-        g.year_level === yearLevel && 
-        g.section === section && 
-        g.course_code === subject &&
-        !g.is_released
-      )
-      .length;
-  };
 
   // Grade Change Request functions
   const fetchInstructorRequests = async () => {
@@ -2151,6 +2273,47 @@ export default function StudentGrades() {
       console.error('Error handling confirmed action:', error);
     }
   };
+
+  // Fetch courses for the selected year level when Subjects view is active
+  useEffect(() => {
+    const fetchCoursesForYear = async () => {
+      if (!showSubjects || !selectedYearLevel) return;
+      try {
+        const displayYear = getYearLevelDisplayName(selectedYearLevel);
+        const { data, error } = await supabase
+          .from('courses')
+          .select('id, code, name, units, year_level, summer, semester')
+          // Support both display format (e.g., '1st Year') and numeric forms ('1') using IN to avoid encoding issues
+          .in('year_level', [displayYear, selectedYearLevel]);
+        if (error) throw error;
+        setCourseSubjects(data || []);
+      } catch (e) {
+        console.error('Failed to fetch courses for year level', selectedYearLevel, e);
+        setCourseSubjects([]);
+      }
+    };
+    fetchCoursesForYear();
+  }, [showSubjects, selectedYearLevel]);
+
+  // Fetch course count for the selected year level to show in Sections view
+  useEffect(() => {
+    const fetchCoursesCount = async () => {
+      if (!showSections || !selectedYearLevel) { setCoursesCount(0); return; }
+      try {
+        const displayYear = getYearLevelDisplayName(selectedYearLevel);
+        const { count, error } = await supabase
+          .from('courses')
+          .select('id', { count: 'exact', head: true })
+          .in('year_level', [displayYear, selectedYearLevel]);
+        if (error) throw error;
+        setCoursesCount(count || 0);
+      } catch (e) {
+        console.error('Failed to count courses for year level', selectedYearLevel, e);
+        setCoursesCount(0);
+      }
+    };
+    fetchCoursesCount();
+  }, [showSections, selectedYearLevel]);
 
   return (
     <>
@@ -2949,89 +3112,190 @@ export default function StudentGrades() {
                {/* Year Level Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                  {(() => {
-                   // Get unique year levels for the selected program
-                   const selectedProgramName = programs.find(p => p.id === selectedProgram)?.name;
-                   const programYearLevels = Array.from(new Set(
-                     yearLevelSectionSubjects
-                       .filter(item => {
-                         // Filter by selected program using grades data
-                         const hasStudentsInProgram = grades.some(g => 
-                           g.program_name === selectedProgramName &&
-                           g.year_level === item.year_level &&
-                           g.section === item.section &&
-                           g.course_code === item.subject
-                         );
-                         return hasStudentsInProgram;
-                       })
-                       .map(item => item.year_level)
-                   )).sort();
-                   
-                   return programYearLevels.map((yearLevel) => {
-                     // Count students for this year level in the selected program
-                     const studentCount = grades.filter(g => 
-                       g.program_name === selectedProgramName &&
-                       g.year_level === yearLevel
-                     ).length;
-                     
+                   // Only show year levels when a program is selected
+                   if (!selectedProgram) {
                      return (
-                       <div
-                         key={yearLevel}
-                         onClick={() => handleYearLevelClick(yearLevel)}
-                         className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 border border-green-200 hover:border-green-400 hover:shadow-lg transition-all duration-200 cursor-pointer transform hover:scale-105"
-                  >
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                             <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                             <span className="text-sm font-medium text-green-700">
-                               {getYearLevelDisplayName(yearLevel)}
-                        </span>
-                      </div>
-                           <span className="text-xs font-medium text-green-600 bg-green-100 px-2 py-1 rounded-full">
-                             {studentCount} students
-                      </span>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <div className="text-lg font-bold text-gray-800">
-                             {(() => {
-                               const sections = Array.from(new Set(
-                                 yearLevelSectionSubjects
-                                   .filter(item => item.year_level === yearLevel)
-                                   .map(item => item.section)
-                               ));
-                               return `${sections.length} section${sections.length !== 1 ? 's' : ''}`;
-                             })()}
-                      </div>
-                      <div className="flex -space-x-2 items-center">
-                             {/* Year level icon */}
-                             <div className="w-6 h-6 rounded-full bg-green-100 border-2 border-white shadow-sm flex items-center justify-center">
-                               <BookOpen className="w-4 h-4 text-green-600" />
-                             </div>
-                        {(() => {
-                               const totalCount = studentCount;
-                          
-                          if (totalCount === 0) {
-                            return <span className="text-sm font-medium text-gray-500">No students</span>;
-                               } else if (totalCount > 1) {
-                            return (
-                                   <div className="w-6 h-6 rounded-full bg-green-100 border-2 border-white shadow-sm flex items-center justify-center">
-                                     <span className="text-xs font-bold text-green-600">+{totalCount - 1}</span>
-                              </div>
-                            );
-                          }
-                          return null;
-                        })()}
-                      </div>
-                    </div>
-                    
-                         <div className="mt-4 pt-3 border-t border-green-200">
-                      <div className="flex items-center justify-between text-xs text-gray-500">
-                        <span>Click to view</span>
-                             <ChevronRight className="w-4 h-4" />
-                      </div>
-                    </div>
-                  </div>
+                       <div className="col-span-full text-center py-12">
+                         <div className="text-gray-400 mb-4">
+                           <Users className="w-16 h-16 mx-auto" />
+                         </div>
+                         <h3 className="text-lg font-semibold text-gray-600 mb-2">No Program Selected</h3>
+                         <p className="text-gray-500">Please select a program to view year levels and student counts.</p>
+                       </div>
                      );
+                   }
+                   
+                   // Show all year levels from 1st to 4th year
+                   const allYearLevels = ['1', '2', '3', '4'];
+                   
+                   return allYearLevels.map((yearLevel) => {
+                     try {
+                       // Comprehensive error handling and debugging
+                       console.group(`🔍 DEBUGGING Year Level ${yearLevel}`);
+                       
+                       // Check basic data
+                       console.log('📊 Basic Data Check:', {
+                         selectedProgram: selectedProgram || 'EMPTY',
+                         selectedProgramType: typeof selectedProgram,
+                         totalStudentsInState: students.length,
+                         studentsIsArray: Array.isArray(students),
+                         allYearLevels: allYearLevels
+                       });
+                       
+                       // Check if students data is valid
+                       if (!Array.isArray(students)) {
+                         console.error('❌ ERROR: students is not an array:', students);
+                         console.groupEnd();
+                         return (
+                           <div key={yearLevel} className="bg-red-50 border border-red-200 rounded-xl p-6">
+                             <div className="text-red-600 font-semibold">Error: Invalid students data</div>
+                             <div className="text-red-500 text-sm">Students data is not an array</div>
+                           </div>
+                         );
+                       }
+                       
+                       if (students.length === 0) {
+                         console.warn('⚠️ WARNING: No students in state');
+                         console.log('Students state:', students);
+                       }
+                       
+                       // Resolve selected program info
+                       const selectedProgramInfo = programs.find(p => String(p.id) === String(selectedProgram));
+                       const selectedDeptName = selectedProgramInfo?.name?.trim();
+                       
+                       // Match helpers
+                       const programIdMatches = (s: Student) => String(s.program_id) === String(selectedProgram);
+                       const departmentMatches = (s: Student) => !!selectedDeptName && !!s.department && s.department.trim() === selectedDeptName;
+                       
+                       // Check program filtering
+                       const studentsInProgramById = students.filter(programIdMatches);
+                       const studentsInProgramByDept = students.filter(departmentMatches);
+                       
+                       console.log('🎯 Program Filtering:', {
+                         studentsInProgramByIdCount: studentsInProgramById.length,
+                         studentsInProgramByDeptCount: studentsInProgramByDept.length,
+                         selectedProgram,
+                         selectedDeptName,
+                         sampleStudentProgramIds: students.slice(0, 5).map(s => s.program_id),
+                         sampleStudentDepartments: students.slice(0, 5).map(s => s.department)
+                       });
+                       
+                       // Check year level filtering
+                       const studentsInYearLevel = students.filter(s => normalizeYearLevel(s.year_level) === yearLevel);
+                       console.log('📚 Year Level Filtering:', {
+                         studentsInYearLevelCount: studentsInYearLevel.length,
+                         targetYearLevel: yearLevel,
+                         allOriginalYearLevels: [...new Set(students.map(s => s.year_level))],
+                         allNormalizedYearLevels: [...new Set(students.map(s => normalizeYearLevel(s.year_level)))]
+                       });
+                       
+                       // Final count calculation (match by program_id OR department)
+                       const studentCount = students.filter(s => {
+                         const programMatch = programIdMatches(s) || departmentMatches(s);
+                         const yearLevelMatch = normalizeYearLevel(s.year_level) === yearLevel;
+                         
+                         return programMatch && yearLevelMatch;
+                       }).length;
+                       
+                       // Prepare matching students (first 8 for avatar display)
+                       const matchingStudents = students.filter(s => {
+                         const programMatch = programIdMatches(s) || departmentMatches(s);
+                         const yearLevelMatch = normalizeYearLevel(s.year_level) === yearLevel;
+                         return programMatch && yearLevelMatch;
+                       });
+                       const displayedStudents = matchingStudents.slice(0, 8);
+                       
+                       console.log('🎯 Final Count Calculation:', {
+                         studentCount,
+                         selectedProgram,
+                         selectedDeptName,
+                         yearLevel,
+                         byIdOnlyCount: students.filter(s => programIdMatches(s) && normalizeYearLevel(s.year_level) === yearLevel).length,
+                         byDeptOnlyCount: students.filter(s => departmentMatches(s) && normalizeYearLevel(s.year_level) === yearLevel).length
+                       });
+                       
+                       // Sample data for debugging
+                       console.log('📋 Sample Students Data:', students.slice(0, 3).map(s => ({
+                         id: s.id,
+                         program_id: s.program_id,
+                         year_level: s.year_level,
+                         normalized_year_level: normalizeYearLevel(s.year_level),
+                         department: s.department,
+                         student_id: s.student_id
+                       })));
+                       
+                       console.groupEnd();
+                       
+                       // Return the year level card with error handling
+                       return (
+                         <div
+                           key={yearLevel}
+                           onClick={() => handleYearLevelClick(yearLevel)}
+                           className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 border border-green-200 hover:border-green-400 hover:shadow-lg transition-all duration-200 cursor-pointer transform hover:scale-105"
+                        >
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                              <span className="text-sm font-medium text-green-700">
+                                {getYearLevelDisplayName(yearLevel)}
+                              </span>
+                            </div>
+                            <span className="text-xs font-medium text-green-600 bg-green-100 px-2 py-1 rounded-full">
+                              {studentCount} students
+                            </span>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <div className="flex -space-x-2 items-center">
+                              {/* Avatars of matching students */}
+                              {displayedStudents.length === 0 ? (
+                                <div className="w-6 h-6 rounded-full bg-green-100 border-2 border-white shadow-sm flex items-center justify-center">
+                                  <BookOpen className="w-4 h-4 text-green-600" />
+                                </div>
+                              ) : (
+                                <>
+                                  {displayedStudents.map(s => (
+                                    <img
+                                      key={s.id}
+                                      src={s.avatar_url || "/img/user-avatar.png"}
+                                      alt={s.display_name || 'Student'}
+                                      title={s.display_name || ''}
+                                      className="w-6 h-6 rounded-full border-2 border-white shadow-sm"
+                                      onError={(e) => {
+                                        const target = e.target as HTMLImageElement;
+                                        target.src = "/img/user-avatar.png";
+                                      }}
+                                    />
+                                  ))}
+                                  {studentCount > displayedStudents.length && (
+                                    <div className="w-6 h-6 rounded-full bg-green-100 border-2 border-white shadow-sm flex items-center justify-center">
+                                      <span className="text-xs font-bold text-green-600">+{studentCount - displayedStudents.length}</span>
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          
+                          <div className="mt-4 pt-3 border-t border-green-200">
+                            <div className="flex items-center justify-between text-xs text-gray-500">
+                              <span>Click to view</span>
+                              <ChevronRight className="w-4 h-4" />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                     } catch (error) {
+                       console.error(`❌ ERROR in Year Level ${yearLevel}:`, error);
+                       console.groupEnd();
+                       return (
+                         <div key={yearLevel} className="bg-red-50 border border-red-200 rounded-xl p-6">
+                           <div className="text-red-600 font-semibold">Error in Year Level {yearLevel}</div>
+                           <div className="text-red-500 text-sm">{error instanceof Error ? error.message : 'Unknown error'}</div>
+                           <div className="text-red-400 text-xs mt-2">Check console for details</div>
+                         </div>
+                       );
+                     }
                    });
                  })()}
               </div>
@@ -3109,89 +3373,105 @@ export default function StudentGrades() {
                  {/* Sections Grid */}
                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                    {(() => {
-                     // Get unique sections for the selected year level and program
                      const selectedProgramName = programs.find(p => p.id === selectedProgram)?.name;
-                     const yearLevelSections = Array.from(new Set(
-                       yearLevelSectionSubjects
-                         .filter(item => item.year_level === selectedYearLevel)
-                         .filter(item => {
-                           // Filter by selected program using grades data
-                           const hasStudentsInProgram = grades.some(g => 
-                             g.program_name === selectedProgramName &&
-                             g.year_level === item.year_level &&
-                             g.section === item.section &&
-                             g.course_code === item.subject
-                           );
-                           return hasStudentsInProgram;
-                         })
-                         .map(item => item.section)
-                     )).sort();
-                     
-                     return yearLevelSections.map((section) => {
-                       // Count students for this section in the selected program and year level
-                       const studentCount = grades.filter(g => 
-                         g.program_name === selectedProgramName &&
-                         g.year_level === selectedYearLevel &&
-                         g.section === section
-                       ).length;
-                
-                return (
+
+                     // Normalize helper to compare different year_level formats
+                     const normalize = (v: string | number | null | undefined) => {
+                       if (v === null || v === undefined) return '';
+                       const s = String(v).toLowerCase();
+                       if (s.startsWith('1')) return '1';
+                       if (s.startsWith('2')) return '2';
+                       if (s.startsWith('3')) return '3';
+                       if (s.startsWith('4')) return '4';
+                       if (['1','2','3','4'].includes(s)) return s;
+                       return s;
+                     };
+
+                     // Source sections directly from sections table, filtered by selected year level
+                     const sectionsForYear = sectionsList
+                       .filter(s => normalize(s.year_level) === selectedYearLevel)
+                       .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+                     return sectionsForYear.map((sec) => {
+                       const sectionName = sec.name;
+
+                       // Count students from user_profiles by section UUID and year_level, with program match
+                       const studentCount = students.filter(s => {
+                         const programMatch = String(s.program_id) === String(selectedProgram) || (s.department && selectedProgramName && s.department.trim() === selectedProgramName);
+                         const yearMatch = normalizeYearLevel(s.year_level) === selectedYearLevel;
+                         const sectionMatch = s.section === sec.id; // section stores UUID in user_profiles
+                         return programMatch && yearMatch && sectionMatch;
+                       }).length;
+
+                       // Count subjects for this section from processed yearLevelSectionSubjects
+                       const subjects = Array.from(new Set(
+                         yearLevelSectionSubjects
+                           .filter(item => item.year_level === selectedYearLevel && item.section === sectionName)
+                           .map(item => item.subject)
+                       ));
+
+                       return (
                          <div
-                           key={section}
-                           onClick={() => handleSectionClick(section)}
+                           key={sec.id}
+                           onClick={() => handleSectionClick(sectionName)}
                            className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 border border-purple-200 hover:border-purple-400 hover:shadow-lg transition-all duration-200 cursor-pointer transform hover:scale-105"
                          >
                            <div className="flex items-center justify-between mb-3">
                              <div className="flex items-center gap-2">
                                <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
                                <span className="text-sm font-medium text-purple-700">
-                                 Section {getSectionDisplayName(section, sectionMap)}
+                                  {sectionName}
                                </span>
                              </div>
                              <span className="text-xs font-medium text-purple-600 bg-purple-100 px-2 py-1 rounded-full">
                                {studentCount} students
                              </span>
                            </div>
-                           
+
                            <div className="space-y-2">
                              <div className="text-lg font-bold text-gray-800">
-                               {(() => {
-                                 const subjects = Array.from(new Set(
-                                   yearLevelSectionSubjects
-                                     .filter(item => item.year_level === selectedYearLevel && item.section === section)
-                                     .map(item => item.subject)
-                                 ));
-                                 return `${subjects.length} subject${subjects.length !== 1 ? 's' : ''}`;
-                               })()}
+                               {`${coursesCount} subject${coursesCount !== 1 ? 's' : ''}`}
                              </div>
                              <div className="flex -space-x-2 items-center">
-                               {/* Section icon */}
-                               <div className="w-6 h-6 rounded-full bg-purple-100 border-2 border-white shadow-sm flex items-center justify-center">
-                                 <Users className="w-4 h-4 text-purple-600" />
-                               </div>
                                {(() => {
-                                 const totalCount = studentCount;
-                                 
-                                 if (totalCount === 0) {
-                                   return <span className="text-sm font-medium text-gray-500">No students</span>;
-                                 } else if (totalCount > 1) {
-                                   return (
-                                     <div className="w-6 h-6 rounded-full bg-purple-100 border-2 border-white shadow-sm flex items-center justify-center">
-                                       <span className="text-xs font-bold text-purple-600">+{totalCount - 1}</span>
-                  </div>
-                );
-                                 }
-                                 return null;
-              })()}
+                                 const selectedProgramName = programs.find(p => p.id === selectedProgram)?.name;
+                                 const yearMatch = (s: Student) => normalizeYearLevel(s.year_level) === selectedYearLevel;
+                                 const programMatch = (s: Student) => String(s.program_id) === String(selectedProgram) || (s.department && selectedProgramName && s.department.trim() === selectedProgramName);
+                                 const sectionMatch = (s: Student) => s.section === sec.id; // UUID match to sections.id
+                                 const matchingStudents = students.filter(s => programMatch(s) && yearMatch(s) && sectionMatch(s));
+                                 const displayed = matchingStudents.slice(0, 8);
+                                 return (
+                                   <>
+                                     {displayed.map(s => (
+                                       <img
+                                         key={s.id}
+                                         src={s.avatar_url || "/img/user-avatar.png"}
+                                         alt={s.display_name || 'Student'}
+                                         title={s.display_name || ''}
+                                         className="w-6 h-6 rounded-full border-2 border-white shadow-sm"
+                                         onError={(e) => {
+                                           const target = e.target as HTMLImageElement;
+                                           target.src = "/img/user-avatar.png";
+                                         }}
+                                       />
+                                     ))}
+                                     {matchingStudents.length > displayed.length && (
+                                       <div className="w-6 h-6 rounded-full bg-purple-100 border-2 border-white shadow-sm flex items-center justify-center">
+                                         <span className="text-xs font-bold text-purple-600">+{matchingStudents.length - displayed.length}</span>
+                                       </div>
+                                     )}
+                                   </>
+                                 );
+                               })()}
                              </div>
                            </div>
-                           
+
                            <div className="mt-4 pt-3 border-t border-purple-200">
                              <div className="flex items-center justify-between text-xs text-gray-500">
                                <span>Click to view</span>
                                <ChevronRight className="w-4 h-4" />
-                  </div>
-                </div>
+                             </div>
+                           </div>
                          </div>
                        );
                      });
@@ -3314,69 +3594,33 @@ export default function StudentGrades() {
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {yearLevelSectionSubjects
-                  .filter(item => 
-                    item.year_level === selectedYearLevel && 
-                    item.section === selectedSection &&
-                    (!subjectSearchTerm || 
-                     item.subject.toLowerCase().includes(subjectSearchTerm.toLowerCase()) ||
-                     (item.subject_name && item.subject_name.toLowerCase().includes(subjectSearchTerm.toLowerCase())))
+                {courseSubjects
+                  .filter(course =>
+                    (!subjectSearchTerm ||
+                      course.code.toLowerCase().includes(subjectSearchTerm.toLowerCase()) ||
+                      (course.name && course.name.toLowerCase().includes(subjectSearchTerm.toLowerCase())))
                   )
-                  .map((item) => (
+                  .map((course) => (
                     <div
-                      key={`${item.year_level}-${item.section}-${item.subject}`}
-                      onClick={() => handleSubjectClick(item.subject)}
+                      key={course.id}
+                      onClick={() => handleSubjectClick({ id: course.id, code: course.code })}
                       className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 border border-green-200 hover:border-green-400 hover:shadow-lg transition-all duration-200 cursor-pointer transform hover:scale-105"
                     >
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
                           <div className="w-3 h-3 bg-green-500 rounded-full"></div>
                           <span className="text-sm font-medium text-green-700">
-                            {item.subject}
+                            {course.code}
                           </span>
                         </div>
-                        <span className="text-xs font-medium text-green-600 bg-green-100 px-2 py-1 rounded-full">
-                          {item.studentCount} students
-                        </span>
+            
                       </div>
                       
                       <div className="space-y-2">
                         <div className="text-lg font-bold text-gray-800">
-                          {item.subject_name}
+                          {course.name}
                         </div>
-                        {/* Removed year level and section line as requested */}
-                        <div className="flex -space-x-2 items-center">
-                          {getStudentsForCombination(item.year_level, item.section, item.subject).map((s) => (
-                            <img
-                              key={s.id}
-                              src={s.avatar_url || "/img/user-avatar.png"}
-                              alt={s.student_name || 'Student'}
-                              title={s.student_name || ''}
-                              className="w-6 h-6 rounded-full border-2 border-white shadow-sm"
-                              onError={(e) => {
-                                const target = e.target as HTMLImageElement;
-                                target.src = "/img/user-avatar.png";
-                              }}
-                            />
-                          ))}
-                          {(() => {
-                            const totalCount = getTotalStudentCount(item.year_level, item.section, item.subject);
-                            const displayedCount = getStudentsForCombination(item.year_level, item.section, item.subject).length;
-                            
-                            if (totalCount === 0) {
-                              return <span className="text-sm font-medium text-gray-500">No students</span>;
-                            } else if (totalCount > displayedCount) {
-                              return (
-                                <div className="w-6 h-6 rounded-full bg-green-100 border-2 border-white shadow-sm flex items-center justify-center">
-                                  <span className="text-xs font-bold text-green-600">+{totalCount - displayedCount}</span>
-                                </div>
-                              );
-                            }
-                            return null;
-                          })()}
                         </div>
-                      </div>
-                      
                       <div className="mt-4 pt-3 border-t border-green-200">
                         <div className="flex items-center justify-between text-xs text-gray-500">
                           <span>Click to view students</span>
@@ -3388,15 +3632,12 @@ export default function StudentGrades() {
               </div>
               
               {(() => {
-                const totalSubjects = yearLevelSectionSubjects.filter(item => 
-                item.year_level === selectedYearLevel && 
-                item.section === selectedSection
-                );
+                const totalSubjects = courseSubjects;
                 
                 const filteredSubjects = totalSubjects.filter(item => 
                   !subjectSearchTerm || 
-                  item.subject.toLowerCase().includes(subjectSearchTerm.toLowerCase()) ||
-                  (item.subject_name && item.subject_name.toLowerCase().includes(subjectSearchTerm.toLowerCase()))
+                  item.code.toLowerCase().includes(subjectSearchTerm.toLowerCase()) ||
+                  (item.name && item.name.toLowerCase().includes(subjectSearchTerm.toLowerCase()))
                 );
                 
                 if (totalSubjects.length === 0) {
@@ -3406,7 +3647,7 @@ export default function StudentGrades() {
                     <BookOpen className="w-16 h-16 mx-auto" />
                   </div>
                   <h3 className="text-lg font-semibold text-gray-600 mb-2">No Subjects Available</h3>
-                  <p className="text-gray-500">No subjects found for the selected year level and section.</p>
+                  <p className="text-gray-500">No subjects found for the selected year level.</p>
                 </div>
                   );
                 } else if (filteredSubjects.length === 0) {
@@ -3462,25 +3703,7 @@ export default function StudentGrades() {
                   </h2>
                   {getFilteredStudents().length > 0 && (
                     <div className="mt-3 text-base font-medium">
-                      <span className="mr-6">
-                        Subject: {(() => {
-                          const student = getFilteredStudents()[0];
-                          const courseCode = student?.course_code;
-                          if (courseCode && courseCode !== 'Unknown') {
-                            return courseCode;
-                          }
-                          
-                          // Debug: Show why course_code is missing
-                          console.log('Header Debug - Student data:', {
-                            id: student?.id,
-                            student_id: student?.student_id,
-                            course_code: student?.course_code,
-                            course_id: student?.course_id
-                          });
-                          
-                          return courseCode || 'Unknown (Check console for debug info)';
-                        })()}
-                      </span>
+                      <span className="mr-6">Subject: {selectedSubject || getFilteredStudents()[0]?.course_code || 'Unknown'}</span>
                       <span>
                         Instructor: {(() => {
                           const student = getFilteredStudents()[0];
@@ -3515,7 +3738,7 @@ export default function StudentGrades() {
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-4">
                       <span className="text-sm font-medium text-gray-700">
-                        {getFilteredStudents().length} students in {selectedProgram ? programs.find(p => p.id === selectedProgram)?.name || 'Unknown Program' : 'Select a Program'} -{selectedYearLevel} Section {getSectionDisplayName(selectedSection, sectionMap)}
+                      {getFilteredStudents().length} students
                       </span>
                       {(() => {
                         const validation = validateCompleteGrades(getFilteredStudents());
@@ -3617,7 +3840,10 @@ export default function StudentGrades() {
                       Showing {getFilteredStudents().length} of {grades.filter(grade => 
                         grade.year_level === selectedYearLevel && 
                         grade.section === selectedSection &&
-                        grade.course_code === selectedSubject
+                        (
+                          grade.course_code === selectedSubject ||
+                          (!!selectedCourseId && grade.course_id === selectedCourseId)
+                        )
                       ).length} students
                     </div>
                   )}
