@@ -144,7 +144,7 @@ const DashboardOverview = () => {
     gpa: 0
   });
   const [googleClassroomStatus, setGoogleClassroomStatus] = useState<'connected' | 'disconnected' | 'checking'>('checking');
-  const [notifications, setNotifications] = useState<Array<{ id: string; title: string; message: string; severity: string; created_at: string }>>([]);
+  const [notifications, setNotifications] = useState<Array<{ id: string; title: string; message: string; severity: string; created_at: string; expires_at?: string | null; created_by?: string | null; created_by_name?: string | null }>>([]);
   const [googleClassroomData, setGoogleClassroomData] = useState<{
     courses: Array<{
       id: string;
@@ -333,13 +333,29 @@ const DashboardOverview = () => {
       try {
         const { data, error } = await supabase
           .from('notifications')
-          .select('id, title, message, severity, created_at')
+          .select('id, title, message, severity, created_at, expires_at, created_by')
           .eq('is_active', true)
           .in('audience', ['student','all'])
+          .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
           .order('created_at', { ascending: false })
           .limit(20);
         if (error) throw error;
-        setNotifications(data || []);
+        const base = (data || []) as Array<{ id: string; title: string; message: string; severity: string; created_at: string; expires_at?: string | null; created_by?: string | null }>; 
+        const creatorIds = Array.from(new Set(base.map(n => n.created_by).filter(Boolean))) as string[];
+        const nameMap: Record<string, string> = {};
+        if (creatorIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from('user_profiles')
+            .select('id, display_name, first_name, last_name')
+            .in('id', creatorIds);
+          if (profiles) {
+            for (const p of profiles as Array<{ id: string; display_name?: string | null; first_name?: string | null; last_name?: string | null }>) {
+              const full = (p.display_name && p.display_name.trim()) || [p.first_name, p.last_name].filter(Boolean).join(' ').trim();
+              if (full) nameMap[p.id] = full;
+            }
+          }
+        }
+        setNotifications(base.map(n => ({ ...n, created_by_name: n.created_by ? (nameMap[n.created_by] || null) : null })));
       } catch (err) {
         console.error('Student notifications fetch error:', err);
         setNotifications([]);
@@ -682,16 +698,83 @@ const DashboardOverview = () => {
               {notifications.length === 0 ? (
                 <div className="text-gray-600 text-sm">No notifications right now.</div>
               ) : (
-                <div className="space-y-3">
-                  {notifications.map((n) => (
-                    <div key={n.id} className="flex items-start justify-between p-3 bg-gray-100 rounded-lg border border-gray-200">
-                      <div className="pr-4">
-                        <div className="text-gray-800 font-medium text-sm">{n.title}</div>
-                        <div className="text-gray-600 text-xs">{n.message}</div>
+                <div className="space-y-1.5">
+                  {notifications.map((n) => {
+                    const getSeverityInfo = (severity: string) => {
+                      switch (severity) {
+                        case 'announcement':
+                          return { color: 'bg-blue-500', label: 'Announcement', icon: '📢', bgColor: 'bg-gradient-to-r from-blue-50 to-blue-100/50', borderColor: 'border-blue-200/60', textColor: 'text-blue-700' };
+                        case 'reminder':
+                          return { color: 'bg-amber-500', label: 'Reminder', icon: '⏰', bgColor: 'bg-gradient-to-r from-amber-50 to-amber-100/50', borderColor: 'border-amber-200/60', textColor: 'text-amber-700' };
+                        case 'deadline':
+                          return { color: 'bg-red-500', label: 'Deadline', icon: '⏳', bgColor: 'bg-gradient-to-r from-red-50 to-red-100/50', borderColor: 'border-red-200/60', textColor: 'text-red-700' };
+                        case 'exam':
+                          return { color: 'bg-purple-500', label: 'Exam', icon: '📝', bgColor: 'bg-gradient-to-r from-purple-50 to-purple-100/50', borderColor: 'border-purple-200/60', textColor: 'text-purple-700' };
+                        case 'meeting':
+                          return { color: 'bg-indigo-500', label: 'Meeting', icon: '🤝', bgColor: 'bg-gradient-to-r from-indigo-50 to-indigo-100/50', borderColor: 'border-indigo-200/60', textColor: 'text-indigo-700' };
+                        case 'advisory':
+                          return { color: 'bg-teal-500', label: 'Advisory', icon: '💡', bgColor: 'bg-gradient-to-r from-teal-50 to-teal-100/50', borderColor: 'border-teal-200/60', textColor: 'text-teal-700' };
+                        case 'success':
+                          return { color: 'bg-emerald-500', label: 'Success', icon: '✅', bgColor: 'bg-gradient-to-r from-emerald-50 to-emerald-100/50', borderColor: 'border-emerald-200/60', textColor: 'text-emerald-700' };
+                        case 'warning':
+                          return { color: 'bg-orange-500', label: 'Warning', icon: '⚠️', bgColor: 'bg-gradient-to-r from-orange-50 to-orange-100/50', borderColor: 'border-orange-200/60', textColor: 'text-orange-700' };
+                        case 'error':
+                          return { color: 'bg-red-500', label: 'Error', icon: '❌', bgColor: 'bg-gradient-to-r from-red-50 to-red-100/50', borderColor: 'border-red-200/60', textColor: 'text-red-700' };
+                        case 'info':
+                        default:
+                          return { color: 'bg-sky-500', label: 'Information', icon: 'ℹ️', bgColor: 'bg-gradient-to-r from-sky-50 to-sky-100/50', borderColor: 'border-sky-200/60', textColor: 'text-sky-700' };
+                      }
+                    };
+                    const severityInfo = getSeverityInfo(n.severity);
+                    return (
+                      <div key={n.id} className={`group relative overflow-hidden rounded-lg border ${severityInfo.bgColor} ${severityInfo.borderColor} hover:shadow-md hover:scale-[1.01] transition-all duration-200 ease-out backdrop-blur-sm`}>
+                        <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
+                        <div className="relative p-2">
+                          <div className="flex items-start gap-2">
+                            <div className="flex-shrink-0">
+                              <div className="flex items-center justify-center w-6 h-6 rounded-full bg-white/80 shadow-sm border border-white/60">
+                                <span className="text-xs">{severityInfo.icon}</span>
+                              </div>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="inline-flex items-center gap-1">
+                                <div className={`w-1 h-1 rounded-full ${severityInfo.color} shadow-sm`}></div>
+                                <span className={`text-xs font-semibold uppercase tracking-wide ${severityInfo.textColor}`}>{severityInfo.label}</span>
+                              </div>
+                              {n.created_by && (
+                                <div className="mt-0.5 text-[10px] text-gray-500 flex items-center gap-1 flex-wrap w-full max-w-full">
+                                  <span className="opacity-70">by</span>
+                                  <span className="font-medium text-gray-700 truncate max-w-[160px]" title={n.created_by_name || n.created_by}>
+                                    {n.created_by_name || n.created_by.slice(0, 8) + '…'}
+                                  </span>
+                                </div>
+                              )}
+                              <h4 className="font-semibold text-gray-800 text-xs mb-0.5 leading-tight">{n.title}</h4>
+                              <p className="text-gray-600 text-xs leading-relaxed line-clamp-2">{n.message}</p>
+                            </div>
+                            <div className="flex-shrink-0 text-right">
+                              <div className="text-xs text-gray-400 font-medium">
+                                {new Date(n.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })}
+                              </div>
+                              {n.expires_at && (
+                                <div className="text-[10px] text-gray-400 mt-0.5">
+                                  Expires in {(() => {
+                                    const ms = new Date(n.expires_at!).getTime() - Date.now();
+                                    if (ms <= 0) return '0m';
+                                    const mins = Math.ceil(ms / 60000);
+                                    if (mins < 60) return `${mins}m`;
+                                    const hrs = Math.floor(mins / 60);
+                                    const rem = mins % 60;
+                                    return rem ? `${hrs}h ${rem}m` : `${hrs}h`;
+                                  })()}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-xs text-gray-500 whitespace-nowrap">{new Date(n.created_at).toLocaleString()}</div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
