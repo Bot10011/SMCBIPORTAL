@@ -18,6 +18,7 @@ import { IoDocuments } from 'react-icons/io5';
 
 interface ClassData {
   id: string;
+  subject_id?: string;
   name: string;
   sections: number;
   students: number;
@@ -59,6 +60,18 @@ interface CourseDetail {
   code: string;
 }
 
+// Notification item type
+interface NotificationItem {
+  id: string;
+  title: string;
+  message: string;
+  severity: string;
+  created_at: string;
+  expires_at?: string | null;
+  created_by?: string | null;
+  created_by_name?: string | null;
+}
+
 const TeacherDashboardOverview: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -80,7 +93,7 @@ const TeacherDashboardOverview: React.FC = () => {
   const [dailyBibleVerse, setDailyBibleVerse] = useState<{ verse: string; reference: string } | null>(null);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState<string>("");
-  const [instructorNotifications, setInstructorNotifications] = useState<Array<{ id: string; title: string; message: string; severity: string; created_at: string }>>([]);
+  const [instructorNotifications, setInstructorNotifications] = useState<NotificationItem[]>([]);
   const [classes, setClasses] = useState<ClassData[]>([]);
   const [students, setStudents] = useState<StudentData[]>([]);
   const [notifications] = useState(3);
@@ -110,7 +123,8 @@ const TeacherDashboardOverview: React.FC = () => {
     title: '',
     message: '',
     severity: 'announcement' as NotificationSeverity,
-    audience: 'student' as const
+    audience: 'student' as const,
+    durationMinutes: 60 as number | null // default 1 hour, null means never expires
   });
   
   // Handle notification creation
@@ -127,15 +141,20 @@ const TeacherDashboardOverview: React.FC = () => {
 
       setCreatingNotification(true);
 
+      const expiresAt = notificationForm.durationMinutes
+        ? new Date(Date.now() + notificationForm.durationMinutes * 60 * 1000).toISOString()
+        : null;
+
       const { error } = await supabase
         .from('notifications')
-        .insert([{
+        .insert([{ 
           title: notificationForm.title,
           message: notificationForm.message,
           severity: notificationForm.severity,
           audience: notificationForm.audience,
           created_by: user.id,
-          is_active: true
+          is_active: true,
+          expires_at: expiresAt
         }]);
 
       if (error) {
@@ -143,7 +162,7 @@ const TeacherDashboardOverview: React.FC = () => {
       }
 
       console.log('Notification sent successfully to your students!');
-      setNotificationForm({ title: '', message: '', severity: 'announcement', audience: 'student' });
+      setNotificationForm({ title: '', message: '', severity: 'announcement', audience: 'student', durationMinutes: 60 });
       setShowNotificationForm(false);
       
     } catch (err) {
@@ -329,19 +348,64 @@ const TeacherDashboardOverview: React.FC = () => {
       try {
         const { data, error } = await supabase
           .from('notifications')
-          .select('id, title, message, severity, created_at')
+          .select('id, title, message, severity, created_at, expires_at, created_by')
           .eq('is_active', true)
-          .or('audience.eq.instructor,audience.eq.all')
+          .eq('audience', 'instructor')
+          .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
           .order('created_at', { ascending: false })
           .limit(20);
         if (error) throw error;
-        setInstructorNotifications(data || []);
+        const notifications = (data as NotificationItem[]) || [];
+        // Resolve creator names from user_profiles
+        const creatorIds = Array.from(new Set((notifications
+          .map(n => n.created_by)
+          .filter(Boolean) as string[])));
+        if (creatorIds.length > 0) {
+          const { data: profiles, error: profileError } = await supabase
+            .from('user_profiles')
+            .select('id, display_name, first_name, last_name')
+            .in('id', creatorIds);
+          if (!profileError && profiles) {
+            const nameMap = new Map<string, string>();
+            profiles.forEach((p: { id: string; display_name?: string | null; first_name?: string | null; last_name?: string | null; }) => {
+              const display = (p.display_name && p.display_name.trim())
+                || [p.first_name, p.last_name].filter(Boolean).join(' ').trim()
+                || 'Unknown';
+              nameMap.set(p.id, display);
+            });
+            notifications.forEach(n => {
+              if (n.created_by) {
+                n.created_by_name = nameMap.get(n.created_by) || null;
+              }
+            });
+          }
+        }
+        setInstructorNotifications(notifications);
       } catch (err) {
         console.error('Error fetching notifications:', err);
         setInstructorNotifications([]);
       }
     };
     fetchNotifications();
+  }, [user?.id]);
+
+  // Periodic cleanup of expired notifications created by current user
+  useEffect(() => {
+    if (!user?.id) return;
+    const runCleanup = async () => {
+      try {
+        await supabase
+          .from('notifications')
+          .delete()
+          .lte('expires_at', new Date().toISOString())
+          .eq('created_by', user.id);
+      } catch {
+        // ignore
+      }
+    };
+    runCleanup(); // run once immediately
+    const intervalId = setInterval(runCleanup, 60 * 1000); // every minute
+    return () => clearInterval(intervalId);
   }, [user?.id]);
 
   // Fetch grade edit requests for this teacher
@@ -410,15 +474,24 @@ const TeacherDashboardOverview: React.FC = () => {
     const fetchClasses = async () => {
       if (!user?.id) return;
       
+      console.group('🎓 My Classes: Fetch Start');
+      console.log('teacher_id:', user.id);
       // Check cache first
       if (classesCache && isCacheValid(classesCache.timestamp)) {
         setClasses(classesCache.data);
         setClassesLoading(false);
-        return;
+        console.log('Using cached classes:', classesCache.data.length);
+        // If cache is empty, don't return; continue to try fetch again to recover
+        if ((classesCache.data?.length || 0) > 0) {
+          console.groupEnd();
+          return;
+        }
+        console.warn('Cached classes are empty; attempting fresh fetch...');
       }
-
+ 
       setClassesLoading(true);
       try {
+        // Primary: active assignments only
         const { data, error } = await supabase
           .from('teacher_subjects')
           .select(`
@@ -435,10 +508,39 @@ const TeacherDashboardOverview: React.FC = () => {
           .eq('teacher_id', user.id)
           .eq('is_active', true);
         
-        if (!error && data) {
+        console.log('Raw fetch result:', { error, rows: data?.length || 0 });
+        let rows = data;
+        let fetchError = error;
+
+        // Fallback: if zero rows, try without is_active to diagnose data shape
+        if (!fetchError && (rows?.length || 0) === 0) {
+          console.warn('No active classes found. Trying fallback without is_active filter...');
+          const { data: fallbackRows, error: fallbackError } = await supabase
+            .from('teacher_subjects')
+            .select(`
+              id,
+              subject_id,
+              day,
+              time,
+              year_level,
+              semester,
+              section,
+              teacher_id,
+              course:courses(name, code, units)
+            `)
+            .eq('teacher_id', user.id);
+          console.log('Fallback fetch result:', { error: fallbackError, rows: fallbackRows?.length || 0 });
+          if (!fallbackError) {
+            rows = fallbackRows || [];
+            fetchError = null;
+          }
+        }
+
+        if (!fetchError && rows) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const classData = data.map((item: any) => ({
+          const classData = rows.map((item: any) => ({
             id: item.id,
+            subject_id: item.subject_id,
             name: `${item.course?.code || 'Unknown'} - ${item.course?.name || 'Unknown Course'}`,
             sections: 1,
             students: Math.floor(Math.random() * 30) + 10,
@@ -451,13 +553,23 @@ const TeacherDashboardOverview: React.FC = () => {
             units: item.course?.units || 0
           }));
           setClasses(classData);
-          setClassesCache({ data: classData, timestamp: Date.now() });
+          if ((classData?.length || 0) > 0) {
+            setClassesCache({ data: classData, timestamp: Date.now() });
+          }
+          console.log('Transformed classes:', classData.length);
+          if (classData.length === 0) {
+            console.warn('My Classes: No classes found for this teacher. Check teacher_subjects and is_active.');
+          }
+        } else if (fetchError) {
+          setClasses([]);
+          console.error('My Classes fetch error:', fetchError);
         }
       } catch (error) {
         console.error('Error fetching classes:', error);
         setClasses([]);
       } finally {
         setClassesLoading(false);
+        console.groupEnd();
       }
     };
     fetchClasses();
@@ -868,8 +980,13 @@ const TeacherDashboardOverview: React.FC = () => {
   // Memoized navigation handlers
   const handleClassClick = useCallback((classId: string) => {
     setActivePanel('calendar');
-    navigate(`/dashboard/class-management/${classId}`);
-  }, [navigate]);
+    const cls = classes.find(c => c.id === classId);
+    if (cls?.subject_id) {
+      navigate(`/dashboard/class-management?subjectId=${encodeURIComponent(cls.subject_id)}`);
+    } else {
+      navigate('/dashboard/class-management');
+    }
+  }, [navigate, classes]);
 
  
 
@@ -1560,11 +1677,11 @@ const TeacherDashboardOverview: React.FC = () => {
                   </div>
                   ) : (
                     <div className="h-full flex flex-col items-center justify-center text-center py-8">
-                    <div className="text-gray-400 text-6xl mb-4">📚</div>
-                    <h4 className="text-gray-600 font-medium mb-2">No Classes Yet</h4>
-                    <p className="text-gray-500 text-sm">Your assigned classes will appear here</p>
-                  </div>
-                )}
+                      <div className="text-gray-400 text-6xl mb-4">📚</div>
+                      <h4 className="text-gray-600 font-medium mb-2">No Classes Yet</h4>
+                      <p className="text-gray-500 text-sm">Your assigned classes will appear here</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1818,12 +1935,20 @@ const TeacherDashboardOverview: React.FC = () => {
                                     {/* Content */}
                                     <div className="flex-1 min-w-0">
                                       {/* Status badge */}
-                                      <div className="inline-flex items-center gap-1 mb-0.5">
+                                      <div className="inline-flex items-center gap-1">
                                         <div className={`w-1 h-1 rounded-full ${severityInfo.color} shadow-sm`}></div>
                                         <span className={`text-xs font-semibold uppercase tracking-wide ${severityInfo.textColor}`}>
                                           {severityInfo.label}
                                         </span>
                                       </div>
+                                      {n.created_by && (
+                                        <div className="mt-0.5 text-[10px] text-gray-500 inline-flex items-center gap-1 max-w-[200px]">
+                                          <span className="opacity-70">by</span>
+                                          <span className="font-medium text-gray-700 truncate" title={n.created_by_name || n.created_by}>
+                                            {n.created_by_name || n.created_by.slice(0, 8) + '…'}
+                                          </span>
+                                        </div>
+                                      )}
                                       
                                       {/* Title */}
                                       <h4 className="font-semibold text-gray-800 text-xs mb-0.5 leading-tight">
@@ -1836,7 +1961,7 @@ const TeacherDashboardOverview: React.FC = () => {
                                       </p>
                                     </div>
                                     
-                                    {/* Timestamp */}
+                                    {/* Timestamp and expiry */}
                                     <div className="flex-shrink-0 text-right">
                                       <div className="text-xs text-gray-400 font-medium">
                                         {new Date(n.created_at).toLocaleDateString('en-US', { 
@@ -1847,6 +1972,19 @@ const TeacherDashboardOverview: React.FC = () => {
                                           hour12: true
                                         })}
                                       </div>
+                                      {n.expires_at && (
+                                        <div className="text-[10px] text-gray-400 mt-0.5">
+                                          Expires in {(() => {
+                                            const ms = new Date(n.expires_at).getTime() - Date.now();
+                                            if (ms <= 0) return '0m';
+                                            const mins = Math.ceil(ms / 60000);
+                                            if (mins < 60) return `${mins}m`;
+                                            const hrs = Math.floor(mins / 60);
+                                            const rem = mins % 60;
+                                            return rem ? `${hrs}h ${rem}m` : `${hrs}h`;
+                                          })()}
+                                        </div>
+                                      )}
                                     </div>
                                   </div>
                                 </div>
@@ -1857,16 +1995,19 @@ const TeacherDashboardOverview: React.FC = () => {
                       </div>
                     ) : (
                       <div className="space-y-2.5">
-                        <div>
-                          <label className="block text-xs font-medium text-gray-700 mb-1.5">Title *</label>
-                          <input
-                            type="text"
-                            value={notificationForm.title}
-                            onChange={(e) => setNotificationForm(prev => ({ ...prev, title: e.target.value }))}
-                            className="w-full px-2.5 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900 placeholder-gray-400 text-sm"
-                            placeholder="Enter notification title"
-                            required
-                          />
+                        <div className="grid grid-cols-3 gap-3 items-end">
+                          <div className="col-span-2">
+                            <label className="block text-xs font-medium text-gray-700 mb-1.5">Title *</label>
+                            <input
+                              type="text"
+                              value={notificationForm.title}
+                              onChange={(e) => setNotificationForm(prev => ({ ...prev, title: e.target.value }))}
+                              className="w-full px-2.5 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900 placeholder-gray-400 text-sm"
+                              placeholder="Enter notification title"
+                              required
+                            />
+                          </div>
+                          <div></div>
                         </div>
                         
                         <div className="grid grid-cols-2 gap-3">
@@ -1889,12 +2030,33 @@ const TeacherDashboardOverview: React.FC = () => {
                               <option value="warning">Warning</option>
                               <option value="error">Error</option>
                             </select>
+                            <div className="mt-2">
+                              <label className="block text-xs font-medium text-gray-700 mb-1.5">Duration</label>
+                              <select
+                                value={notificationForm.durationMinutes === null ? 'never' : String(notificationForm.durationMinutes)}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setNotificationForm(prev => ({ ...prev, durationMinutes: val === 'never' ? null : parseInt(val, 10) }));
+                                }}
+                                className="w-full px-2 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900 text-xs"
+                              >
+                                <option value="15">15m</option>
+                                <option value="30">30m</option>
+                                <option value="60">1h</option>
+                                <option value="180">3h</option>
+                                <option value="1440">1d</option>
+                                <option value="4320">3d</option>
+                                <option value="10080">7d</option>
+                                <option value="never">Never</option>
+                              </select>
+                            </div>
                           </div>
 
                           <div>
                             <label className="block text-xs font-medium text-gray-700 mb-1.5">Audience *</label>
                             <select
                               value={notificationForm.audience}
+                              onChange={(e) => setNotificationForm(prev => ({ ...prev, audience: e.target.value as 'student' }))}
                               className="w-full px-2.5 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900 text-sm"
                               required
                             >
@@ -1902,6 +2064,8 @@ const TeacherDashboardOverview: React.FC = () => {
                             </select>
                           </div>
                         </div>
+
+                        
 
                         <div>
                           <label className="block text-xs font-medium text-gray-700 mb-1.5">Message *</label>
