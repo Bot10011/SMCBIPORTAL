@@ -68,12 +68,15 @@ const DashboardOverview: React.FC = () => {
   const [personalNotes, setPersonalNotes] = useState<Array<{ id: string; content: string; created_at: string }>>([]);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingNoteContent, setEditingNoteContent] = useState<string>("");
-  const [programNotifications, setProgramNotifications] = useState<Array<{ id: string; title: string; message: string; severity: 'announcement' | 'reminder' | 'deadline' | 'exam' | 'meeting' | 'advisory' | 'info' | 'success' | 'warning' | 'error'; audience: 'instructor' | 'student' | 'all'; created_by: string | null; created_at: string }>>([]);
+  const [programNotifications, setProgramNotifications] = useState<Array<{ id: string; title: string; message: string; severity: 'announcement' | 'reminder' | 'deadline' | 'exam' | 'meeting' | 'advisory' | 'info' | 'success' | 'warning' | 'error'; audience: 'instructor' | 'student' | 'programhead' | 'all'; created_by: string | null; created_at: string; expires_at?: string | null; created_by_name?: string | null }>>([]);
   const [editingNotifId, setEditingNotifId] = useState<string | null>(null);
-  const [editingNotif, setEditingNotif] = useState<{ title: string; message: string; severity: 'announcement' | 'reminder' | 'deadline' | 'exam' | 'meeting' | 'advisory' | 'info' | 'success' | 'warning' | 'error'; audience: 'instructor' | 'student' | 'all' }>({ title: '', message: '', severity: 'announcement', audience: 'instructor' });
+  const [editingNotif, setEditingNotif] = useState<{ title: string; message: string; severity: 'announcement' | 'reminder' | 'deadline' | 'exam' | 'meeting' | 'advisory' | 'info' | 'success' | 'warning' | 'error'; audience: 'instructor' | 'student' | 'programhead' | 'all' }>({ title: '', message: '', severity: 'announcement', audience: 'instructor' });
   const [viewMode, setViewMode] = useState<'capacity' | 'enrollment'>('capacity');
   const [isLoadingEnrollment, setIsLoadingEnrollment] = useState(false);
   const [enrollmentStatusFilter, setEnrollmentStatusFilter] = useState<string>('all');
+  const [notifDurationMinutes, setNotifDurationMinutes] = useState<number | null>(60);
+  const [showNotificationForm, setShowNotificationForm] = useState(false);
+  const [creatingNotification, setCreatingNotification] = useState(false);
 
   const handlePreviousMonth = () => {
     setCurrentMonth(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
@@ -293,20 +296,53 @@ const DashboardOverview: React.FC = () => {
       try {
         const { data, error } = await supabase
           .from('notifications')
-          .select('id, title, message, severity, audience, created_by, created_at')
+          .select('id, title, message, severity, audience, created_by, created_at, expires_at')
           .eq('is_active', true)
-          .or('audience.eq.instructor,audience.eq.student,audience.eq.all')
+          .or(`audience.eq.programhead,audience.eq.all${user?.id ? `,created_by.eq.${user.id}` : ''}`)
+          .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
           .order('created_at', { ascending: false })
           .limit(50);
         if (error) throw error;
-        setProgramNotifications(data || []);
+        const base = (data || []) as Array<{ id: string; title: string; message: string; severity: 'announcement' | 'reminder' | 'deadline' | 'exam' | 'meeting' | 'advisory' | 'info' | 'success' | 'warning' | 'error'; audience: 'instructor' | 'student' | 'programhead' | 'all'; created_by: string | null; created_at: string; expires_at?: string | null }>;
+        const creatorIds = Array.from(new Set(base.map(n => n.created_by).filter(Boolean))) as string[];
+        let validIds = new Set<string>();
+        if (creatorIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from('user_profiles')
+            .select('id')
+            .in('id', creatorIds);
+          if (profiles) {
+            validIds = new Set((profiles as Array<{ id: string }>).map(p => p.id));
+          }
+        }
+        const filtered = base.filter(n => !n.created_by || validIds.has(n.created_by));
+        setProgramNotifications(filtered);
       } catch (err) {
         console.error('ProgramHead notifications fetch error:', err);
         setProgramNotifications([]);
       }
     };
     loadNotifications();
-  }, []);
+  }, [user?.id]);
+
+  // Periodic cleanup of expired notifications created by current program head
+  useEffect(() => {
+    if (!user?.id) return;
+    const runCleanup = async () => {
+      try {
+        await supabase
+          .from('notifications')
+          .delete()
+          .lte('expires_at', new Date().toISOString())
+          .eq('created_by', user.id);
+      } catch {
+        // ignore
+      }
+    };
+    runCleanup();
+    const intervalId = setInterval(runCleanup, 60 * 1000);
+    return () => clearInterval(intervalId);
+  }, [user?.id]);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -775,8 +811,27 @@ const DashboardOverview: React.FC = () => {
           >
             {activePanel === 'notifications' && (
               <div>
-                <h3 className="font-bold text-gray-700 flex items-center mb-3"><Bell className="w-4 h-4 mr-2 text-blue-500" /> Notifications</h3>
-                {/* Add notification indicator/form */}
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-bold text-gray-700 flex items-center"><Bell className="w-4 h-4 mr-2 text-blue-500" /> Notifications</h3>
+                  <button
+                    onClick={() => setShowNotificationForm(!showNotificationForm)}
+                    className={`p-2 rounded-lg transition-colors duration-200 ${
+                      showNotificationForm ? 'bg-gray-600 hover:bg-gray-700 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'
+                    }`}
+                  >
+                    {showNotificationForm ? (
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    ) : (
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+                {/* Add notification form (hidden until +) */}
+                {showNotificationForm ? (
                 <form
                   onSubmit={async (e) => {
                     e.preventDefault();
@@ -791,10 +846,12 @@ const DashboardOverview: React.FC = () => {
                     const audience = (audienceSelect?.value || 'instructor') as 'instructor' | 'student' | 'all';
                     if (!title || !message || !user?.id) return;
                     try {
+                      setCreatingNotification(true);
+                      const expires_at = notifDurationMinutes === null ? null : new Date(Date.now() + notifDurationMinutes * 60000).toISOString();
                       const { data: inserted, error } = await supabase
                         .from('notifications')
-                        .insert({ title, message, severity, audience, created_by: user.id, is_active: true })
-                        .select('id, title, message, severity, audience, created_by, created_at')
+                        .insert({ title, message, severity, audience, created_by: user.id, is_active: true, expires_at })
+                        .select('id, title, message, severity, audience, created_by, created_at, expires_at')
                         .single();
                       if (error) throw error;
                       if (inserted) setProgramNotifications(prev => [inserted, ...prev]);
@@ -802,20 +859,46 @@ const DashboardOverview: React.FC = () => {
                       messageInput.value = '';
                       severitySelect.value = 'announcement';
                       audienceSelect.value = 'instructor';
+                      setNotifDurationMinutes(60);
+                      setShowNotificationForm(false);
                     } catch (err) {
                       console.error('Failed to add notification:', err);
+                    } finally {
+                      setCreatingNotification(false);
                     }
                   }}
                   className="space-y-3 mb-4"
                 >
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1.5">Title *</label>
-                    <input 
-                      name="title" 
-                      placeholder="Enter notification title" 
-                      className="w-full px-2.5 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
-                      required 
-                    />
+                  <div className="grid grid-cols-3 gap-3 items-end">
+                    <div className="col-span-2">
+                      <label className="block text-xs font-medium text-gray-700 mb-1.5">Title *</label>
+                      <input 
+                        name="title" 
+                        placeholder="Enter notification title" 
+                        className="w-full px-2.5 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                        required 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1.5">Duration</label>
+                      <select
+                        value={notifDurationMinutes === null ? 'never' : String(notifDurationMinutes)}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setNotifDurationMinutes(val === 'never' ? null : parseInt(val, 10));
+                        }}
+                        className="w-full px-2 py-2 rounded-lg border border-gray-300 text-xs focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      >
+                        <option value="15">15m</option>
+                        <option value="30">30m</option>
+                        <option value="60">1h</option>
+                        <option value="180">3h</option>
+                        <option value="1440">1d</option>
+                        <option value="4320">3d</option>
+                        <option value="10080">7d</option>
+                        <option value="never">Never</option>
+                      </select>
+                    </div>
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1.5">Message *</label>
@@ -853,13 +936,22 @@ const DashboardOverview: React.FC = () => {
                     </div>
                   </div>
                   <div className="pt-2">
-                    <button type="submit" className="w-full px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors duration-200 flex items-center justify-center gap-2">
-                      <Bell className="w-4 h-4" />
-                      Send Notification
+                    <button type="submit" disabled={creatingNotification} className={`w-full px-4 py-2 rounded-lg text-white text-sm font-medium transition-colors duration-200 flex items-center justify-center gap-2 ${creatingNotification ? 'bg-blue-600 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}>
+                      {creatingNotification ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          <span>Sending...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Bell className="w-4 h-4" />
+                          <span>Send</span>
+                        </>
+                      )}
                     </button>
                   </div>
                 </form>
-                {/* List notifications with edit/delete for own items */}
+                ) : (
                 <div className="space-y-1.5">
                   {programNotifications.length === 0 ? (
                     <div className="text-sm text-gray-500">No notifications</div>
@@ -909,12 +1001,32 @@ const DashboardOverview: React.FC = () => {
                               <div className="text-xs text-gray-600">{n.message}</div>
                               <div className="mt-1 inline-flex items-center gap-2 text-[10px]">
                                 <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 border border-gray-200">{n.severity}</span>
-                                <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 border border-gray-200">{n.audience}</span>
+                                <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 border border-gray-200">
+                                  {n.audience === 'programhead' ? 'Program Head' : n.audience === 'instructor' ? 'Instructors' : n.audience === 'student' ? 'Students' : 'All'}
+                                </span>
                               </div>
+                              {/* Creator hidden by request */}
                             </>
                           )}
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-col items-end gap-1">
+                          <div className="text-xs text-gray-400 font-medium">
+                            {new Date(n.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })}
+                          </div>
+                          {n.expires_at && (
+                            <div className="text-[10px] text-gray-400">
+                              Expires in {(() => {
+                                const ms = new Date(n.expires_at as string).getTime() - Date.now();
+                                if (ms <= 0) return '0m';
+                                const mins = Math.ceil(ms / 60000);
+                                if (mins < 60) return `${mins}m`;
+                                const hrs = Math.floor(mins / 60);
+                                const rem = mins % 60;
+                                return rem ? `${hrs}h ${rem}m` : `${hrs}h`;
+                              })()}
+                            </div>
+                          )}
+                          <div className="flex items-center gap-2">
                           {n.created_by === (user?.id || null) ? (
                             editingNotifId === n.id ? (
                               <>
@@ -973,11 +1085,13 @@ const DashboardOverview: React.FC = () => {
                           ) : (
                             <span className="text-[10px] text-gray-400">read-only</span>
                           )}
+                          </div>
                         </div>
                       </div>
                     ))
                   )}
                 </div>
+                )}
               </div>
             )}
             {activePanel === 'notes' && (
