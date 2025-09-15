@@ -300,62 +300,107 @@ const DashboardOverview: React.FC = () => {
       }
 
       // Fetch recent grade activities from grades table
-      const { data: grades, error: gradesError } = await supabase
+      // Safer two-step fetch to avoid PostgREST 400 on complex selects/order
+      const { data: gradeIds, error: gradeIdsError } = await supabase
         .from('grades')
-        .select(`
-          id,
-          student_id,
-          subject_id,
-          section,
-          year_level,
-          is_released,
-          is_approved,
-          graded_by,
-          graded_at,
-          updated_at,
-          created_at,
-          edit_status,
-          edit_requested,
-          edit_requested_by,
-          edit_requested_by_name,
-          edit_student_name,
-          edit_reason,
-          prelim_grade,
-          midterm_grade,
-          final_grade,
-          course:courses(code, name),
-          student:user_profiles!grades_student_id_fkey(
-            display_name,
-            first_name,
-            last_name,
-            middle_name
-          )
-        `)
+        .select('id, updated_at, created_at')
         .order('updated_at', { ascending: false })
         .limit(5);
+      let idsToLoad: string[] = [];
+      if (gradeIdsError) {
+        // Fallback: order by created_at if updated_at causes issues
+        const { data: fallbackIds } = await supabase
+          .from('grades')
+          .select('id, created_at')
+          .order('created_at', { ascending: false })
+          .limit(5);
+        idsToLoad = (fallbackIds || []).map((g: { id: string }) => g.id);
+      } else {
+        idsToLoad = (gradeIds || []).map((g: { id: string }) => g.id);
+      }
+
+      let grades: GradeActivity[] = [] as unknown as GradeActivity[];
+      let gradesError: unknown = null;
+      if (idsToLoad.length > 0) {
+        // Try the simplest possible query first to test table access
+        console.log('Testing grades table access with simple query...');
+        const { error: testError } = await supabase
+          .from('grades')
+          .select('id')
+          .limit(1);
+        
+        if (testError) {
+          console.error('Grades table access failed:', testError);
+          gradesError = testError;
+        } else {
+          console.log('Grades table accessible, trying individual fetches...');
+          // Try individual fetches with minimal fields first
+          const gradePromises = idsToLoad.slice(0, 2).map(async (id) => { // Limit to 2 for testing
+            console.log(`Fetching grade with id: ${id}`);
+            const { data, error } = await supabase
+              .from('grades')
+              .select('id, student_id, subject_id, updated_at')
+              .eq('id', id)
+              .single();
+            console.log(`Grade ${id} result:`, { data: !!data, error });
+            return { data, error };
+          });
+          
+          const results = await Promise.all(gradePromises);
+          const validGrades = results
+            .filter(r => r.data && !r.error)
+            .map(r => r.data) as GradeActivity[];
+          
+          grades = validGrades;
+          gradesError = results.find(r => r.error)?.error || null;
+        }
+      }
 
       if (!gradesError && grades) {
-        grades.forEach((grade: GradeActivity) => {
+        // Build a map of student_id -> display name from user_profiles to avoid failing joins
+        const studentIds = Array.from(new Set((grades as GradeActivity[]).map(g => g.student_id).filter(Boolean)));
+        let nameMap: Record<string, string> = {};
+        if (studentIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from('user_profiles')
+            .select('id, display_name, first_name, last_name, middle_name')
+            .in('id', studentIds);
+          if (profiles) {
+            nameMap = (profiles as Array<{ id: string; display_name?: string | null; first_name?: string | null; last_name?: string | null; middle_name?: string | null }>)
+              .reduce((acc, p) => {
+                const full = (p.display_name && p.display_name.trim()) || [p.first_name, p.middle_name, p.last_name]
+                  .filter((x) => typeof x === 'string' && x.trim() !== '')
+                  .join(' ')
+                  .trim();
+                if (full) acc[p.id] = full;
+                return acc;
+              }, {} as Record<string, string>);
+          }
+        }
+
+        // Build a map of subject_id -> course name/code to avoid embedded join
+        const subjectIds = Array.from(new Set((grades as GradeActivity[]).map(g => g.subject_id).filter(Boolean)));
+        let courseMap: Record<string, { code?: string | null; name?: string | null }> = {};
+        if (subjectIds.length > 0) {
+          const { data: courses } = await supabase
+            .from('courses')
+            .select('id, code, name')
+            .in('id', subjectIds as string[]);
+          if (courses) {
+            courseMap = (courses as Array<{ id: string; code?: string | null; name?: string | null }>)
+              .reduce((acc, c) => { acc[c.id] = { code: c.code || null, name: c.name || null }; return acc; }, {} as Record<string, { code?: string | null; name?: string | null }>);
+          }
+        }
+
+        (grades as GradeActivity[]).forEach((grade: GradeActivity) => {
           // Helper function to get student name
           const getStudentName = () => {
-            if (grade.student) {
-              const student = Array.isArray(grade.student) ? grade.student[0] : grade.student;
-              if (student?.display_name && student.display_name.trim() !== '') {
-                return student.display_name;
-              }
-              
-              const firstName = student?.first_name || '';
-              const lastName = student?.last_name || '';
-              const middleName = student?.middle_name || '';
-              
-              const nameParts = [firstName, middleName, lastName].filter(part => part.trim() !== '');
-              return nameParts.length > 0 ? nameParts.join(' ') : 'Unknown Student';
-            }
+            if (grade.student_id && nameMap[grade.student_id]) return nameMap[grade.student_id];
             return grade.edit_student_name || 'Unknown Student';
           };
 
-          const course = Array.isArray(grade.course) ? grade.course[0] : grade.course;
-          const courseName = course?.name || course?.code || 'Unknown Course';
+          const courseInfo = grade.subject_id ? courseMap[grade.subject_id] : undefined;
+          const courseName = (courseInfo?.name || courseInfo?.code) || 'Unknown Course';
 
           // Grade release activities
           if (grade.is_released) {
@@ -423,10 +468,10 @@ const DashboardOverview: React.FC = () => {
       console.log('Attempting to fetch sections table directly...');
       
       // First, let's try to fetch from sections table directly to see if it exists
-      const { data: sectionsData, error: sectionsError } = await supabase
+      const { error: sectionsError } = await supabase
         .from('sections')
-        .select('*')
-        .limit(5);
+        .select('id')
+        .limit(1);
       
       if (sectionsError) {
         console.log('Sections table error:', sectionsError);
@@ -474,10 +519,7 @@ const DashboardOverview: React.FC = () => {
           return a.section.localeCompare(b.section);
         });
       } else {
-        console.log('Sections table exists:', sectionsData);
-        
-        // Check what's in the sections table
-        console.log('Sections table structure:', sectionsData[0]);
+        console.log('Sections table exists');
         
         // Since there's no foreign key relationship, let's try a different approach
         // First get all students with their section UIDs
@@ -496,13 +538,21 @@ const DashboardOverview: React.FC = () => {
         
         console.log('Sample student data:', students?.slice(0, 3));
         
-        // Create a map of section UIDs to names
-        const sectionMap = new Map<string, string>();
-        sectionsData.forEach(section => {
-          sectionMap.set(section.id, section.name);
-        });
-        
-        console.log('Section map:', Object.fromEntries(sectionMap));
+        // Create a map of section UIDs to names using only the sections we need
+        const sectionIds = Array.from(new Set((students || []).map((s: { section?: string | null }) => s.section).filter(Boolean))) as string[];
+        let sectionMap = new Map<string, string>();
+        if (sectionIds.length > 0) {
+          const { data: sectionsAll, error: sectionsAllError } = await supabase
+            .from('sections')
+            .select('id, name')
+            .in('id', sectionIds);
+          if (!sectionsAllError && sectionsAll) {
+            sectionMap = sectionsAll.reduce((acc: Map<string, string>, sec: { id: string; name?: string | null }) => {
+              if (sec && sec.id) acc.set(sec.id, sec.name || sec.id);
+              return acc;
+            }, new Map<string, string>());
+          }
+        }
         
         // Group students by program, year level, and section
         const capacityMap = new Map<string, CapacityData>();
