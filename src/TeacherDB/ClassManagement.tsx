@@ -135,7 +135,6 @@ const ClassManagement: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterYearLevel, setFilterYearLevel] = useState<string>('all');
   const [filterSemester, setFilterSemester] = useState<string>('all');
-  const [studentSearch, setStudentSearch] = useState<string>('');
 
   const fetchClasses = useCallback(async () => {
     if (!user?.id) return;
@@ -244,7 +243,7 @@ const ClassManagement: React.FC = () => {
 
   const emptyToastShownRef = useRef<Record<string, boolean>>({});
 
-  const fetchStudents = useCallback(async (subjectId: string, options?: { showEmptyToast?: boolean; section?: string | null; academic_year?: string | null }) => {
+  const fetchStudents = useCallback(async (subjectId: string, options?: { showEmptyToast?: boolean }) => {
     setLoading(true);
     console.group('🔍 Fetching Students Debug Info');
     console.log('📌 Input Parameters:', { subjectId });
@@ -260,13 +259,11 @@ const ClassManagement: React.FC = () => {
       if (user?.id) {
         subjectQuery = subjectQuery.eq('teacher_id', user.id);
       }
-      const contextSection = options?.section ?? selectedClass?.section ?? null;
-      const contextAcademicYear = options?.academic_year ?? selectedClass?.academic_year ?? null;
-      if (contextSection) {
-        subjectQuery = subjectQuery.eq('section', contextSection);
+      if (selectedClass?.section) {
+        subjectQuery = subjectQuery.eq('section', selectedClass.section);
       }
-      if (contextAcademicYear) {
-        subjectQuery = subjectQuery.eq('academic_year', contextAcademicYear);
+      if (selectedClass?.academic_year) {
+        subjectQuery = subjectQuery.eq('academic_year', selectedClass.academic_year);
       }
 
       const { data: subjectData, error: subjectError } = await subjectQuery.maybeSingle();
@@ -287,143 +284,36 @@ const ClassManagement: React.FC = () => {
         throw new Error('Subject not found in teacher_subjects table');
       }
 
-      // 2. Fetch enrollments from student_enrollment_archive by subject and class context
-      const contextSectionForArchive = options?.section ?? selectedClass?.section ?? (subjectData as unknown as { section?: string } | null)?.section ?? null;
-      const contextAcademicYearForArchive = options?.academic_year ?? selectedClass?.academic_year ?? (subjectData as unknown as { academic_year?: string } | null)?.academic_year ?? null;
-      const contextSemester = selectedClass?.semester ?? null;
-      // Normalize year_level from selected class to number for archive filter
-      const rawYear = (selectedClass?.year_level) as unknown as string | number | undefined;
-      const normalizeYear = (v?: string | number | null) => {
-        if (v === null || v === undefined) return undefined;
-        const s = String(v).toLowerCase();
-        if (s.startsWith('1')) return 1;
-        if (s.startsWith('2')) return 2;
-        if (s.startsWith('3')) return 3;
-        if (s.startsWith('4')) return 4;
-        const n = Number(v);
-        return Number.isFinite(n) ? (n as number) : undefined;
-      };
-      const contextYearLevel = normalizeYear(rawYear);
+      // 2. Check raw enrollments
+      const { data: rawEnrollments, error: enrollError } = await supabase
+        .from('enrollcourse')
+        .select(`
+          *,
+          subject:courses(id, code, name)
+        `)
+        .eq('subject_id', subjectId);
 
-      const buildArchiveQuery = (opts: { includeAY: boolean; includeSem: boolean; includeSection: boolean; includeYear: boolean; includeTeacher: boolean }) => {
-        let q = supabase
-          .from('student_enrollment_archive')
-          .select('student_id, subject_id, course_code, course_name, course_units, teacher_id, section, year_level, semester, academic_year')
-          .eq('subject_id', subjectId);
-        if (opts.includeAY && contextAcademicYearForArchive) q = q.eq('academic_year', contextAcademicYearForArchive);
-        if (opts.includeSem && contextSemester) q = q.eq('semester', contextSemester);
-        if (opts.includeSection && contextSectionForArchive) q = q.eq('section', contextSectionForArchive);
-        if (opts.includeYear && typeof contextYearLevel === 'number') q = q.eq('year_level', contextYearLevel);
-        if (opts.includeTeacher && user?.id) q = q.eq('teacher_id', user.id);
-        return q;
-      };
-
-      // Try progressively looser filters to avoid empty results on re-clicks
-      const attempts: Array<{ includeAY: boolean; includeSem: boolean; includeSection: boolean; includeYear: boolean; includeTeacher: boolean; label: string }> = [
-        { includeAY: true, includeSem: true, includeSection: true, includeYear: true, includeTeacher: true, label: 'subject+teacher+AY+sem+section+year' },
-        { includeAY: true, includeSem: true, includeSection: true, includeYear: true, includeTeacher: false, label: 'subject+AY+sem+section+year' },
-        { includeAY: true, includeSem: false, includeSection: true, includeYear: true, includeTeacher: false, label: 'subject+AY+section+year' },
-        { includeAY: true, includeSem: false, includeSection: true, includeYear: false, includeTeacher: false, label: 'subject+AY+section' },
-        { includeAY: true, includeSem: false, includeSection: false, includeYear: false, includeTeacher: false, label: 'subject+AY' },
-        { includeAY: false, includeSem: false, includeSection: false, includeYear: false, includeTeacher: false, label: 'subject-only' },
-      ];
-
-      let archiveRows: Array<{ student_id: string; subject_id: string; course_code?: string; course_name?: string; course_units?: number; teacher_id?: string | null; section?: string | null; year_level?: number | null; semester?: string | null; academic_year?: string | null; }> = [];
-      let archiveErr: { message?: string } | null = null;
-      for (const a of attempts) {
-        const { data, error } = await buildArchiveQuery(a);
-        if (error) {
-          archiveErr = { message: (error as { message?: string })?.message };
-          continue;
-        }
-        if (data && data.length > 0) {
-          console.log('✅ Archive match using:', a.label, 'count:', data.length);
-          archiveRows = data;
-          archiveErr = null;
-          break;
-        } else {
-          console.warn('⚠️ No archive rows for attempt:', a.label);
-        }
-      }
-      console.group('📦 Archive Source Context');
-      console.log('SubjectId:', subjectId);
-      console.log('Teacher (user.id):', user?.id || null);
-      console.log('Section (ctx):', contextSectionForArchive);
-      console.log('Academic Year (ctx):', contextAcademicYearForArchive);
-      console.log('Semester (ctx):', contextSemester);
-      console.log('Year Level (ctx):', contextYearLevel);
-      console.groupEnd();
-
-      console.log('📊 Archive Enrollments Check:', {
-        count: archiveRows?.length || 0,
-        rows: archiveRows,
-        error: archiveErr?.message
+      console.log('📊 Raw Enrollments Check:', {
+        count: rawEnrollments?.length || 0,
+        enrollments: rawEnrollments,
+        error: enrollError?.message
       });
 
-      if (archiveErr) {
-        console.error('❌ Archive Enrollment Error:', archiveErr);
-        throw new Error(`Failed to fetch archive enrollments: ${archiveErr.message}`);
+      if (enrollError) {
+        console.error('❌ Enrollment Error:', enrollError);
+        throw new Error(`Failed to fetch enrollments: ${enrollError.message}`);
       }
 
-      // 3. Join student profiles for archive enrollments
-      let enrollRows = [] as EnrollmentRow[];
-      if (archiveRows && archiveRows.length > 0) {
-        const ids = Array.from(new Set(archiveRows.map(r => r.student_id).filter(Boolean)));
-        if (ids.length === 0) {
-          console.warn('⚠️ Archive returned rows but no valid student_ids');
-        }
-        let profiles: Array<{ id: string; email: string; role: string; student_status?: string; first_name: string; last_name: string; middle_name?: string; is_active: boolean; year_level?: string; student_id?: string; profile_picture_url?: string; display_name?: string; avatar_url?: string; created_at?: string; updated_at?: string; }> = [];
-        if (ids.length > 0) {
-          const { data: profs, error: profErr } = await supabase
-            .from('user_profiles')
-            .select('id, email, role, student_status, first_name, last_name, middle_name, is_active, year_level, student_id, profile_picture_url, display_name, avatar_url, created_at, updated_at')
-            .in('id', ids);
-          if (profErr) {
-            console.warn('Profile join failed:', profErr);
-          } else {
-            profiles = profs || [];
-          }
-        }
-        const profileMap = new Map(profiles.map(p => [p.id, p]));
-        enrollRows = archiveRows.map(r => {
-          const p = profileMap.get(r.student_id) || ({} as typeof profiles[number]);
-          return {
-            id: `${r.student_id}-${r.subject_id}`,
-            student_id: r.student_id,
-            status: 'archive',
-            subject_id: r.subject_id,
-            enrollment_date: new Date().toISOString(),
-            student: {
-              id: p?.id || r.student_id,
-              email: p?.email || '',
-              role: p?.role || 'student',
-              student_status: p?.student_status,
-              first_name: p?.first_name || '',
-              last_name: p?.last_name || '',
-              middle_name: p?.middle_name,
-              is_active: p?.is_active ?? true,
-              year_level: p?.year_level,
-              student_id: p?.student_id,
-              profile_picture_url: p?.profile_picture_url,
-              display_name: p?.display_name,
-              avatar_url: p?.avatar_url
-            }
-          } as unknown as EnrollmentRow;
-        });
-      } else {
-        console.warn('⚠️ No rows found in student_enrollment_archive for subject/teacher', {
-          subjectId,
-          teacherId: user?.id || null
-        });
-      }
-
-      // If no enrollments found, fallback: fetch students by section (roster-based)
-      if (!enrollRows || enrollRows.length === 0) {
-        const fallbackSection = options?.section ?? selectedClass?.section ?? null;
-        if (fallbackSection) {
-          const { data: roster, error: rosterErr } = await supabase
-            .from('user_profiles')
+      // 3. Get active enrollments with student details
+      const { data, error } = await supabase
+        .from('enrollcourse')
         .select(`
+          id,
+          student_id,
+          status,
+          subject_id,
+          enrollment_date,
+          student:user_profiles(
             id,
             email,
             role,
@@ -438,71 +328,39 @@ const ClassManagement: React.FC = () => {
             display_name,
             avatar_url,
             created_at,
-              updated_at,
-              section
-            `)
-            .eq('role', 'student')
-            .eq('section', fallbackSection);
-          if (rosterErr) {
-            console.warn('Roster fallback failed:', rosterErr);
-          } else if (roster && roster.length > 0) {
-            console.log('👥 Using roster fallback students:', roster.length);
-            enrollRows = roster.map((u: {
-              id: string;
-              email: string;
-              role: string;
-              student_status?: string;
-              first_name: string;
-              last_name: string;
-              middle_name?: string;
-              is_active: boolean;
-              year_level?: string;
-              student_id?: string;
-              profile_picture_url?: string;
-              display_name?: string;
-              avatar_url?: string;
-            }) => ({
-              id: u.id,
-              student_id: u.id,
-              status: 'roster',
-              subject_id: subjectId,
-              enrollment_date: new Date().toISOString(),
-              student: {
-                id: u.id,
-                email: u.email,
-                role: u.role,
-                student_status: u.student_status,
-                first_name: u.first_name,
-                last_name: u.last_name,
-                middle_name: u.middle_name,
-                is_active: u.is_active,
-                year_level: u.year_level,
-                student_id: u.student_id,
-                profile_picture_url: u.profile_picture_url,
-                display_name: u.display_name,
-                avatar_url: u.avatar_url
-              }
-            })) as unknown as EnrollmentRow[];
-          }
-        }
+            updated_at
+          )
+        `)
+        .eq('subject_id', subjectId)
+        .eq('status', 'active');
+
+      console.log('👥 Active Enrollments Query:', {
+        count: data?.length || 0,
+        data,
+        error: error?.message
+      });
+
+      if (error) {
+        console.error('❌ Active Enrollments Error:', error);
+        throw new Error(`Failed to fetch active enrollments: ${error.message}`);
       }
 
       // Debug: Let's see what fields are actually available
-      if (enrollRows && enrollRows.length > 0) {
-        const firstStudent = Array.isArray(enrollRows[0].student) ? enrollRows[0].student[0] : enrollRows[0].student;
+      if (data && data.length > 0) {
+        const firstStudent = Array.isArray(data[0].student) ? data[0].student[0] : data[0].student;
         console.log('🔍 Sample student data structure:', {
           studentKeys: Object.keys(firstStudent || {}),
           studentData: firstStudent,
           firstStudentType: typeof firstStudent,
-          isArray: Array.isArray((enrollRows as EnrollmentRow[])[0].student)
+          isArray: Array.isArray(data[0].student)
         });
         
         // Let's also check the raw data structure
-        console.log('🔍 Raw enrollment data sample:', enrollRows[0]);
+        console.log('🔍 Raw enrollment data sample:', data[0]);
       }
 
       // 4. Fetch grades separately for all students
-      const studentIds = ((enrollRows as EnrollmentRow[] | undefined) || []).map(row => {
+      const studentIds = (data as EnrollmentRow[] || []).map(row => {
         const student = Array.isArray(row.student) ? row.student[0] : row.student;
         return student?.id;
       }).filter(Boolean);
@@ -510,18 +368,13 @@ const ClassManagement: React.FC = () => {
       const { data: grades, error: gradesError } = await supabase
         .from('grades')
         .select('id, student_id, subject_id, academic_year, section, prelim_grade, midterm_grade, final_grade, edit_status, edit_requested')
-        .in('student_id', studentIds.length > 0 ? studentIds : ['00000000-0000-0000-0000-000000000000'])
+        .in('student_id', studentIds)
         .eq('subject_id', subjectId)
-        .eq('academic_year', (options?.academic_year ?? selectedClass?.academic_year) || null)
-        .eq('section', (options?.section ?? selectedClass?.section) || null);
+        .eq('academic_year', selectedClass?.academic_year || null)
+        .eq('section', selectedClass?.section || null);
 
       if (gradesError) {
-        console.error('❌ Grades Error:', gradesError, {
-          subjectId,
-          academicYear: options?.academic_year ?? selectedClass?.academic_year ?? null,
-          section: options?.section ?? selectedClass?.section ?? null,
-          studentIdsCount: studentIds.length
-        });
+        console.error('❌ Grades Error:', gradesError);
         throw new Error(`Failed to fetch grades: ${gradesError.message}`);
       }
 
@@ -532,7 +385,7 @@ const ClassManagement: React.FC = () => {
       // 5. Transform and validate the data
       console.log('🔄 Starting data transformation');
       console.log('📊 Input data summary:', {
-        totalEnrollments: enrollRows?.length || 0,
+        totalEnrollments: data?.length || 0,
         studentIds: studentIds,
         studentIdCount: studentIds.length,
         gradesCount: grades?.length || 0
@@ -540,7 +393,7 @@ const ClassManagement: React.FC = () => {
       
       const enrolledStudents: Student[] = [];
       
-      for (const row of (enrollRows as EnrollmentRow[] || [])) {
+      for (const row of (data as EnrollmentRow[] || [])) {
         const student = Array.isArray(row.student) ? row.student[0] : row.student;
         if (!student || !student.is_active) {
           console.log(`⏭️ Skipping inactive student:`, student?.id, student?.email);
@@ -559,15 +412,9 @@ const ClassManagement: React.FC = () => {
         const gradeRow = grades?.find((g: GradeRow) => (
           g.student_id === student.id &&
           g.subject_id === row.subject_id &&
-          (g.academic_year ?? null) === ((options?.academic_year ?? selectedClass?.academic_year) ?? null) &&
-          (g.section ?? null) === ((options?.section ?? selectedClass?.section) ?? null)
+          (g.academic_year ?? null) === (selectedClass?.academic_year ?? null) &&
+          (g.section ?? null) === (selectedClass?.section ?? null)
         )) || null;
-
-        // Ensure instructor assignment matches teacher_subjects for this subject
-        // If a grade row exists but was graded by a different teacher, skip editing flags
-        if (gradeRow && subjectData?.teacher_id && gradeRow) {
-          // no-op here, but hook is ready if you want to filter by graded_by
-        }
         
         // Check if student already has a pending or granted request
         const hasExistingRequest = gradeRow && (
@@ -707,11 +554,19 @@ const ClassManagement: React.FC = () => {
       // 6. Show appropriate message based on the data
       if (enrolledStudents.length === 0) {
         const shouldToast = options?.showEmptyToast === true && !emptyToastShownRef.current[subjectId];
-        console.warn('⚠️ No enrollments found in archive or roster');
+        if (!rawEnrollments?.length) {
+          console.warn('⚠️ No enrollments found at all');
           if (shouldToast) toast('No students are enrolled in this class.', { icon: '⚠️', id: `empty-${subjectId}` });
+        } else if (rawEnrollments.every(e => e.status !== 'active')) {
+          console.warn('⚠️ Enrollments exist but none are active');
+          if (shouldToast) toast('Students are enrolled but none have active status.', { icon: '⚠️', id: `inactive-${subjectId}` });
+        } else {
+          console.warn('⚠️ No valid student profiles found');
+          if (shouldToast) toast('No active students found in this class.', { icon: '⚠️', id: `noactive-${subjectId}` });
+        }
         if (shouldToast) emptyToastShownRef.current[subjectId] = true;
       } else {
-        console.log('✅ Successfully loaded students', { count: enrolledStudents.length });
+        console.log('✅ Successfully loaded students');
       }
       
     } catch (error) {
@@ -726,7 +581,7 @@ const ClassManagement: React.FC = () => {
       console.groupEnd();
       setLoading(false);
     }
-  }, [user?.id, selectedClass?.section, selectedClass?.academic_year, selectedClass?.semester, selectedClass?.year_level]);
+  }, [user?.id, selectedClass?.section, selectedClass?.academic_year]);
 
   // Handle URL parameters for direct navigation to specific student
   const autoSelectedForSubject = useRef<string | null>(null);
@@ -778,17 +633,6 @@ const ClassManagement: React.FC = () => {
   const totalStudents = students.length;
   const completedGrades = students.filter(s => s.final_grade !== null && s.final_grade !== undefined).length;
   const completionRate = totalStudents > 0 ? Math.round((completedGrades / totalStudents) * 100) : 0;
-
-  // Filter students by search query (name, email, ID)
-  const filteredStudents = studentSearch.trim() === ''
-    ? students
-    : students.filter(s => {
-        const q = studentSearch.toLowerCase();
-        const name = (s.display_name || `${s.first_name || ''} ${s.last_name || ''}`).toLowerCase();
-        const email = (s.email || '').toLowerCase();
-        const sid = (s.student_id || s.id || '').toLowerCase();
-        return name.includes(q) || email.includes(q) || sid.includes(q);
-      });
 
   // State for inline editing
   const [editingGrades, setEditingGrades] = useState<{ [key: string]: { prelim?: string; midterm?: string; final?: string } }>({});
@@ -1586,7 +1430,7 @@ const ClassManagement: React.FC = () => {
                                     }`}
                                     onClick={() => {
                                       setSelectedClass(cls);
-                                      if (cls.subject_id) fetchStudents(cls.subject_id, { section: cls.section || null, academic_year: cls.academic_year || null });
+                                      if (cls.subject_id) fetchStudents(cls.subject_id);
                                     }}
                                   >
                                     {/* Class Header */}
@@ -1787,19 +1631,6 @@ const ClassManagement: React.FC = () => {
 
                   {/* Students Table */}
                   <div className="p-6">
-                    {/* Student search bar */}
-                    <div className="mb-4">
-                      <div className="relative max-w-md">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                        <input
-                          type="text"
-                          value={studentSearch}
-                          onChange={(e) => setStudentSearch(e.target.value)}
-                          placeholder="Search students by name, email, or ID..."
-                          className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                        />
-                      </div>
-                    </div>
                     {loading ? (
                       <div className="flex justify-center items-center py-16">
                         <div className="text-center">
@@ -1808,13 +1639,13 @@ const ClassManagement: React.FC = () => {
                           <p className="text-gray-400 text-sm mt-1">Please wait while we fetch the student information</p>
                         </div>
                       </div>
-                    ) : (students.length === 0 || filteredStudents.length === 0) ? (
+                    ) : students.length === 0 ? (
                       <div className="text-center py-12">
                         <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                           <Users className="w-10 h-10 text-gray-400" />
                         </div>
-                        <h3 className="text-lg font-medium text-gray-900 mb-2">{students.length === 0 ? 'No Students Enrolled' : 'No Matching Students'}</h3>
-                        <p className="text-gray-500">{students.length === 0 ? 'This class currently has no enrolled students.' : 'Try a different search term.'}</p>
+                        <h3 className="text-lg font-medium text-gray-900 mb-2">No Students Enrolled</h3>
+                        <p className="text-gray-500">This class currently has no enrolled students.</p>
                       </div>
                     ) : (
                       <div className="overflow-x-auto">
@@ -1845,7 +1676,7 @@ const ClassManagement: React.FC = () => {
                             </tr>
                           </thead>
                           <tbody className="bg-white/80 divide-y divide-gray-200">
-                            {filteredStudents.map((student, idx) => {
+                            {students.map((student, idx) => {
                               const studentId = searchParams.get('studentId');
                               const isTargetStudent = studentId && (student.id === studentId || student.student_id === studentId);
                               
