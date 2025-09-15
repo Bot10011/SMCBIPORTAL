@@ -502,23 +502,82 @@ const DashboardOverview = () => {
     const fetchCurrentGpa = async () => {
       if (!user?.id) return;
       try {
-        const { data, error } = await supabase
+        // Helper: Convert percentage (e.g., 92) to PH GPA scale (1.0–5.0).
+        // If already 1.0–5.0, return as-is.
+        const toPhGpa = (raw: number): number => {
+          if (!Number.isFinite(raw)) return NaN;
+          if (raw <= 5) return raw; // already GPA scale
+          const pct = Math.max(0, Math.min(100, raw));
+          if (pct >= 99) return 1.0;
+          if (pct >= 96) return 1.25;
+          if (pct >= 93) return 1.5;
+          if (pct >= 90) return 1.75;
+          if (pct >= 87) return 2.0;
+          if (pct >= 84) return 2.25;
+          if (pct >= 81) return 2.5;
+          if (pct >= 78) return 2.75;
+          if (pct >= 75) return 3.0;
+          return 5.0; // failing (<75)
+        };
+
+        // 1) Get released grades for this student with subject_id to look up units
+        const { data: grades, error: gradesError } = await supabase
           .from('grades')
-          .select('prelim_grade, midterm_grade, final_grade')
+          .select('subject_id, prelim_grade, midterm_grade, final_grade')
           .eq('student_id', user.id)
           .eq('is_released', true);
-        if (error) throw error;
-        const gradeAverages: number[] = [];
-        (data || []).forEach((g: { prelim_grade: number | null; midterm_grade: number | null; final_grade: number | null }) => {
-          const parts = [g.prelim_grade, g.midterm_grade, g.final_grade].filter(v => v !== null && v !== undefined) as number[];
-          if (parts.length > 0) {
-            const avg = parts.reduce((a, b) => a + b, 0) / parts.length;
-            gradeAverages.push(avg);
+        if (gradesError) throw gradesError;
+
+        const gradeRows = (grades || []) as Array<{
+          subject_id: string | null;
+          prelim_grade: number | null;
+          midterm_grade: number | null;
+          final_grade: number | null;
+        }>;
+
+        if (gradeRows.length === 0) {
+          setStats(prev => ({ ...prev, gpa: 0 }));
+          return;
+        }
+
+        // 2) Collect distinct subject_ids and fetch their units from courses
+        const subjectIds = Array.from(new Set(gradeRows.map(r => r.subject_id).filter(Boolean))) as string[];
+        let unitsMap = new Map<string, number>();
+        if (subjectIds.length > 0) {
+          const { data: courses, error: coursesError } = await supabase
+            .from('courses')
+            .select('id, units')
+            .in('id', subjectIds);
+          if (!coursesError && courses) {
+            unitsMap = (courses as Array<{ id: string; units: number | null }>)
+              .reduce((acc, c) => { acc.set(c.id, typeof c.units === 'number' ? c.units : 0); return acc; }, new Map<string, number>());
           }
-        });
-        const currentGpa = gradeAverages.length > 0
-          ? Math.round((gradeAverages.reduce((a, b) => a + b, 0) / gradeAverages.length) * 100) / 100
-          : 0;
+        }
+
+        // 3) Compute weighted GPA per PH rule: sum(grade * units) / sum(units)
+        let totalWeighted = 0;
+        let totalUnits = 0;
+
+        for (const row of gradeRows) {
+          if (!row.subject_id) continue;
+          const units = unitsMap.get(row.subject_id) ?? 0;
+          if (units <= 0) continue; // skip if units unknown or zero
+
+          // Prefer final grade; otherwise average available parts
+          const componentGrades = [row.prelim_grade, row.midterm_grade, row.final_grade]
+            .filter(v => typeof v === 'number')
+            .map(v => toPhGpa(v as number))
+            .filter(v => Number.isFinite(v)) as number[];
+          if (componentGrades.length === 0) continue;
+          const subjectGrade = (typeof row.final_grade === 'number' && Number.isFinite(row.final_grade))
+            ? toPhGpa(row.final_grade as number)
+            : (componentGrades.reduce((a, b) => a + b, 0) / componentGrades.length);
+
+          totalWeighted += subjectGrade * units;
+          totalUnits += units;
+        }
+
+        const currentGpa = totalUnits > 0 ? Math.round((totalWeighted / totalUnits) * 100) / 100 : 0;
         setStats(prev => ({ ...prev, gpa: currentGpa }));
       } catch (err) {
         console.error('Error computing current GPA:', err);
