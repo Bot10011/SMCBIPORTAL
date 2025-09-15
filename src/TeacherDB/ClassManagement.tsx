@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Loader2, BookOpen, Users, ChevronDown, ChevronRight, Search, Download, Printer, CheckCircle2, TrendingUp, ShieldAlert, Pencil, Plus } from 'lucide-react';
@@ -196,7 +196,7 @@ const ClassManagement: React.FC = () => {
       try {
         const { data, error } = await supabase
           .from('user_profiles')
-          .select('can_edit_grades, grade_edit_allowed, grade_edit_status, grade_edit_requested')
+          .select('*')
           .eq('id', user.id)
           .maybeSingle();
         if (error) throw error;
@@ -241,7 +241,9 @@ const ClassManagement: React.FC = () => {
     void fetchCourses();
   }, []);
 
-  const fetchStudents = useCallback(async (subjectId: string) => {
+  const emptyToastShownRef = useRef<Record<string, boolean>>({});
+
+  const fetchStudents = useCallback(async (subjectId: string, options?: { showEmptyToast?: boolean }) => {
     setLoading(true);
     console.group('🔍 Fetching Students Debug Info');
     console.log('📌 Input Parameters:', { subjectId });
@@ -551,16 +553,18 @@ const ClassManagement: React.FC = () => {
 
       // 6. Show appropriate message based on the data
       if (enrolledStudents.length === 0) {
+        const shouldToast = options?.showEmptyToast === true && !emptyToastShownRef.current[subjectId];
         if (!rawEnrollments?.length) {
           console.warn('⚠️ No enrollments found at all');
-          toast('No students are enrolled in this class.', { icon: '⚠️' });
+          if (shouldToast) toast('No students are enrolled in this class.', { icon: '⚠️', id: `empty-${subjectId}` });
         } else if (rawEnrollments.every(e => e.status !== 'active')) {
           console.warn('⚠️ Enrollments exist but none are active');
-          toast('Students are enrolled but none have active status.', { icon: '⚠️' });
+          if (shouldToast) toast('Students are enrolled but none have active status.', { icon: '⚠️', id: `inactive-${subjectId}` });
         } else {
           console.warn('⚠️ No valid student profiles found');
-          toast('No active students found in this class.', { icon: '⚠️' });
+          if (shouldToast) toast('No active students found in this class.', { icon: '⚠️', id: `noactive-${subjectId}` });
         }
+        if (shouldToast) emptyToastShownRef.current[subjectId] = true;
       } else {
         console.log('✅ Successfully loaded students');
       }
@@ -580,29 +584,29 @@ const ClassManagement: React.FC = () => {
   }, [user?.id, selectedClass?.section, selectedClass?.academic_year]);
 
   // Handle URL parameters for direct navigation to specific student
+  const autoSelectedForSubject = useRef<string | null>(null);
+
   useEffect(() => {
     const studentId = searchParams.get('studentId');
     const subjectId = searchParams.get('subjectId');
     
-    if (studentId && subjectId && classes.length > 0) {
+    if (classes.length > 0 && subjectId && autoSelectedForSubject.current !== subjectId) {
       // Find the class that matches the subjectId
       const targetClass = classes.find(c => c.subject_id === subjectId);
-      
       if (targetClass) {
-        // Set the selected class
+        // Set the selected class and load students
         setSelectedClass(targetClass);
+        fetchStudents(targetClass.subject_id, { showEmptyToast: false });
+        autoSelectedForSubject.current = subjectId;
         
-        // Fetch students for this class
-        fetchStudents(targetClass.subject_id);
-        
-        // Show a toast notification
-        toast.success(`Navigated to ${targetClass.course.name} - ${targetClass.section}`, {
-          duration: 3000,
-          id: `navigate-${studentId}-${subjectId}`
-        });
-        
-        // Set search term to highlight the specific student
-        setSearchTerm(studentId);
+        // If studentId is present, highlight it
+        if (studentId) {
+          toast.success(`Navigated to ${targetClass.course.name} - ${targetClass.section}`, {
+            duration: 3000,
+            id: `navigate-${studentId}-${subjectId}`
+          });
+          setSearchTerm(studentId);
+        }
       }
     }
   }, [searchParams, classes, fetchStudents]);
@@ -1276,9 +1280,9 @@ const ClassManagement: React.FC = () => {
                       <div className="flex justify-end">
                         <button
                           onClick={() => setShowAddSubject(v => !v)}
-                          className="px-3 py-1.5 text-xs bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+                          className="px-3 py-1.5 text-xs  text-white rounded-md hover:bg-indigo-700"
                         >
-                          {showAddSubject ? 'Close' : 'Add Subject'}
+                          {showAddSubject ? 'Close' : ' '}
                         </button>
                       </div>
                       {showAddSubject && (
@@ -1419,7 +1423,7 @@ const ClassManagement: React.FC = () => {
                                 {group.classes.map((cls) => (
                                   <button
                                     key={cls.id}
-                                    className={`w-full text-left p-3 rounded-lg border transition-all duration-200 hover:shadow-md ${
+                                    className={`w-full text-left p-3 rounded-lg border transition-all duration-200 hover:shadow-md overflow-hidden ${
                                       selectedClass?.id === cls.id 
                                         ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-300 shadow-md' 
                                         : 'bg-gray-50 border-gray-200 hover:border-blue-200 hover:bg-blue-50/50'
@@ -1431,18 +1435,18 @@ const ClassManagement: React.FC = () => {
                                   >
                                     {/* Class Header */}
                                     <div className="flex items-start justify-between mb-2">
-                                      <div className="flex-1">
-                                        <h3 className="font-semibold text-gray-900 text-sm leading-tight mb-1">
+                                      <div className="flex-1 min-w-0">
+                                        <h3 className="font-semibold text-gray-900 text-sm leading-tight mb-1 line-clamp-2 break-words">
                                           {cls.course?.name}
                                         </h3>
-                                        <div className="flex items-center gap-2">
-                                          <span className="inline-block px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <span className="inline-block px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full whitespace-nowrap">
                                             {cls.course?.code}
                                           </span>
                                           <span className="text-xs text-gray-500">•</span>
-                                          <span className="text-xs text-gray-600">{cls.course?.units} units</span>
+                                          <span className="text-xs text-gray-600 whitespace-nowrap">{cls.course?.units} units</span>
                                           <span className="text-xs text-gray-500">•</span>
-                                          <span className="text-xs text-gray-600">Section {cls.section}</span>
+                                          <span className="text-xs text-gray-600 whitespace-nowrap">Section {cls.section}</span>
                                         </div>
                                       </div>
                                       <div className={`w-3 h-3 rounded-full ${
