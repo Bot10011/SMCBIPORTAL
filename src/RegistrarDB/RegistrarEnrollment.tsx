@@ -379,23 +379,52 @@ const RegistrarEnrollment: React.FC = () => {
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [selectedCourses, setSelectedCourses] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [coeModalOpen, setCOEModalOpen] = useState(false);
   const [coeLoading, setCOELoading] = useState(false);
   const [coeError, setCOEError] = useState<string | null>(null);
   const [coeData, setCOEData] = useState<COEData | null>(null);
+  const [showResetNotification, setShowResetNotification] = useState(false);
 
-  // Stats
-  const totalStudents = students.length;
+  // Stats - only count pending students (what's actually shown)
   const pendingStudents = students.filter(s => s.enrollment_status === 'pending').length;
+  const totalStudents = pendingStudents; // Only showing pending students now
   const enrolledStudents = students.filter(s => s.enrollment_status === 'enrolled').length;
 
   // Fetch students and courses on component mount
   useEffect(() => {
     fetchStudents();
     fetchCourses();
+    checkForEndSemesterEvent();
   }, []);
+
+  // Check for end semester events
+  const checkForEndSemesterEvent = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('system_events')
+        .select('*')
+        .eq('event_type', 'end_semester')
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        const event = data[0];
+        const eventDate = new Date(event.created_at);
+        const now = new Date();
+        const hoursDiff = (now.getTime() - eventDate.getTime()) / (1000 * 60 * 60);
+
+        // Show notification if event is within last 24 hours
+        if (hoursDiff <= 24) {
+          setShowResetNotification(true);
+        }
+      }
+    } catch (error) {
+      console.error('Error checking for end semester event:', error);
+    }
+  };
 
 
 
@@ -785,9 +814,10 @@ const RegistrarEnrollment: React.FC = () => {
       studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       studentId.toLowerCase().includes(searchTerm.toLowerCase());
     
-    const matchesStatus = filterStatus === 'all' || student.enrollment_status === filterStatus;
+    // Only show pending students (exclude active, enrolled, dropped, etc.)
+    const isPending = student.enrollment_status === 'pending';
     
-    return matchesSearch && matchesStatus;
+    return matchesSearch && isPending;
   });
 
   return (
@@ -809,6 +839,43 @@ const RegistrarEnrollment: React.FC = () => {
            
           </div>
         </div>
+
+        {/* End Semester Notification Banner */}
+        {showResetNotification && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-4 mb-6 shadow-lg"
+          >
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0">
+                <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center">
+                  <BookOpen className="w-4 h-4 text-amber-600" />
+                </div>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-sm font-semibold text-amber-800 mb-1">
+                  Semester Reset Notification
+                </h3>
+                <p className="text-sm text-amber-700 mb-2">
+                  The previous semester has ended. ALL students regardless of their previous status have been reset to active status and are no longer visible in this list. Only new pending enrollments will appear here.
+                </p>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-amber-600 bg-amber-100 px-2 py-1 rounded-full">
+                    All students reset to 'active' status and hidden
+                  </span>
+                  <button
+                    onClick={() => setShowResetNotification(false)}
+                    className="text-xs text-amber-600 hover:text-amber-800 underline"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-white/90 rounded-2xl p-6 shadow-lg border border-gray-100 flex items-center gap-4">
@@ -852,18 +919,6 @@ const RegistrarEnrollment: React.FC = () => {
               />
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-            >
-              <option value="all">All Status</option>
-              <option value="enrolled">Enrolled</option>
-              <option value="pending">Pending</option>
-              <option value="dropped">Dropped</option>
-            </select>
-          </div>
         </div>
         {loading ? (
           <div className="flex flex-col items-center justify-center h-64 gap-4">
@@ -875,9 +930,9 @@ const RegistrarEnrollment: React.FC = () => {
             <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-600 mb-2">No students found</h3>
             <p className="text-gray-500 mb-6">
-              {searchTerm || filterStatus !== 'all' 
-                ? 'Try adjusting your search or filter criteria.'
-                : 'No students available for enrollment.'
+              {searchTerm 
+                ? 'Try adjusting your search criteria.'
+                : 'No pending enrollments at this time. New student applications will appear here.'
               }
             </p>
           </div>
