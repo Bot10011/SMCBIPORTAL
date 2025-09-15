@@ -6842,7 +6842,7 @@ const ProgramHeadEnrollment: React.FC = () => {
               }}>
                 1
               </Box>
-              Set all students with status 'enrolled' to 'active'
+              Reset ALL students to 'active' status (regardless of current status)
             </Typography>
             <Typography sx={{ 
               color: '#7f1d1d',
@@ -6866,7 +6866,55 @@ const ProgramHeadEnrollment: React.FC = () => {
               }}>
                 2
               </Box>
-              This action cannot be undone
+              Archive current enrollments to preserve historical data
+            </Typography>
+            <Typography sx={{ 
+              color: '#7f1d1d',
+              fontSize: '0.95rem',
+              mb: 2,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              fontWeight: 500
+            }}>
+              <Box sx={{ 
+                width: 20, 
+                height: 20, 
+                borderRadius: '50%', 
+                background: '#ef4444',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '0.8rem',
+                color: 'white'
+              }}>
+                3
+              </Box>
+              Create subject trace records from teacher assignments
+            </Typography>
+            <Typography sx={{ 
+              color: '#7f1d1d',
+              fontSize: '0.95rem',
+              mb: 2,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              fontWeight: 500
+            }}>
+              <Box sx={{ 
+                width: 20, 
+                height: 20, 
+                borderRadius: '50%', 
+                background: '#ef4444',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '0.8rem',
+                color: 'white'
+              }}>
+                4
+              </Box>
+              Notify registrar about semester end and student reset
             </Typography>
             <Typography sx={{ 
               color: '#7f1d1d',
@@ -6887,9 +6935,9 @@ const ProgramHeadEnrollment: React.FC = () => {
                 fontSize: '0.8rem',
                 color: 'white'
               }}>
-                3
+                5
               </Box>
-              Please ensure all enrollments are complete
+              This action cannot be undone - please ensure all enrollments are complete
             </Typography>
           </Box>
           
