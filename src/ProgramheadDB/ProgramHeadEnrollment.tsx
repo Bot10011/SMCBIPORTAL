@@ -2165,14 +2165,23 @@ const ProgramHeadEnrollment: React.FC = () => {
   const handleEndSemester = async () => {
     setEndSemesterLoading(true);
     try {
-      // First, create subject trace records from current teacher assignments
+      // First, archive current enrollments before resetting
+      await archiveCurrentEnrollments();
+      
+      // Then create subject trace records from current teacher assignments
       await createSubjectTraceRecords();
       
-      // Then update enrollment status
-      const { error } = await supabase.from('user_profiles').update({ enrollment_status: 'active' }).eq('enrollment_status', 'enrolled');
-      if (error) throw error;
+      // Reset ALL students back to active status regardless of current status
+      const { error: resetError } = await supabase
+        .from('user_profiles')
+        .update({ enrollment_status: 'active' })
+        .eq('role', 'student');
+      if (resetError) throw resetError;
+
+      // Create a system event to notify registrar of semester end
+      await createEndSemesterEvent();
       
-      toast.success('Semester ended successfully! Subject trace records have been created for all instructor assignments.');
+      toast.success('Semester ended successfully! All students have been reset to active status, enrollments archived, and subject trace records created.');
       setEndSemesterOpen(false);
       setEndSemesterConfirmation('');
       setEndSemesterConfirmationError(false);
@@ -2182,6 +2191,164 @@ const ProgramHeadEnrollment: React.FC = () => {
       toast.error(errorMessage);
     } finally {
       setEndSemesterLoading(false);
+    }
+  };
+
+  // Function to archive current enrollments before ending semester
+  const archiveCurrentEnrollments = async () => {
+    try {
+      // Get current academic year and semester
+      const currentAcademicYear = getDefaultSchoolYear();
+      
+      // Determine current semester based on date
+      const now = new Date();
+      const month = now.getMonth() + 1; // 1-12
+      let currentSemester = 'First Semester';
+      
+      if (month >= 6 && month <= 8) {
+        currentSemester = 'Summer';
+      } else if (month >= 9 || month <= 2) {
+        currentSemester = 'First Semester';
+      } else if (month >= 3 && month <= 5) {
+        currentSemester = 'Second Semester';
+      }
+
+      // Fetch all current active enrollments with course and teacher information
+      const { data: enrollments, error: enrollmentsError } = await supabase
+        .from('enrollcourse')
+        .select(`
+          id,
+          student_id,
+          subject_id,
+          status,
+          enrollment_date,
+          course:courses(
+            id,
+            code,
+            name,
+            units
+          ),
+          student:user_profiles(
+            id,
+            year_level,
+            section
+          )
+        `)
+        .eq('status', 'active');
+
+      if (enrollmentsError) throw enrollmentsError;
+
+      if (!enrollments || enrollments.length === 0) {
+        console.log('No active enrollments found to archive');
+        return;
+      }
+
+      // Get teacher assignments for each course to find instructors
+      const courseIds = enrollments.map(e => e.subject_id);
+      const { data: teacherAssignments, error: teacherError } = await supabase
+        .from('teacher_subjects')
+        .select(`
+          subject_id,
+          teacher_id,
+          section,
+          teacher:user_profiles(
+            id,
+            first_name,
+            last_name,
+            middle_name,
+            email
+          )
+        `)
+        .in('subject_id', courseIds)
+        .eq('academic_year', currentAcademicYear)
+        .eq('is_active', true);
+
+      if (teacherError) throw teacherError;
+
+      // Create a map of course_id to teacher assignment for quick lookup
+      const teacherMap = new Map();
+      if (teacherAssignments) {
+        teacherAssignments.forEach(assignment => {
+          teacherMap.set(assignment.subject_id, assignment);
+        });
+      }
+
+      // Transform enrollments to archived format
+      const archivedEnrollments = enrollments.map((enrollment: any) => {
+        const course = Array.isArray(enrollment.course) ? enrollment.course[0] : enrollment.course;
+        const student = Array.isArray(enrollment.student) ? enrollment.student[0] : enrollment.student;
+        const teacherAssignment = teacherMap.get(enrollment.subject_id);
+        
+        return {
+          student_id: enrollment.student_id,
+          subject_id: enrollment.subject_id,
+          course_code: course?.code || 'Unknown',
+          course_name: course?.name || 'Unknown',
+          course_units: course?.units || 0,
+          teacher_id: teacherAssignment?.teacher_id || null,
+          teacher_name: teacherAssignment?.teacher 
+            ? `${teacherAssignment.teacher.first_name} ${teacherAssignment.teacher.middle_name ? teacherAssignment.teacher.middle_name + ' ' : ''}${teacherAssignment.teacher.last_name}`
+            : null,
+          teacher_email: teacherAssignment?.teacher?.email || null,
+          section: teacherAssignment?.section || student?.section || null,
+          year_level: student?.year_level || null,
+          semester: currentSemester,
+          academic_year: currentAcademicYear,
+          status: 'completed', // Default to completed when archiving
+          enrollment_date: enrollment.enrollment_date || new Date().toISOString(),
+          archived_date: new Date().toISOString()
+        };
+      });
+
+      // Insert archived enrollments
+      const { error: insertError } = await supabase
+        .from('student_enrollment_archive')
+        .insert(archivedEnrollments);
+
+      if (insertError) throw insertError;
+
+      // Now delete the current active enrollments
+      const { error: deleteError } = await supabase
+        .from('enrollcourse')
+        .delete()
+        .eq('status', 'active');
+
+      if (deleteError) throw deleteError;
+
+      console.log(`Archived ${archivedEnrollments.length} enrollments for ${currentSemester} ${currentAcademicYear}`);
+    } catch (error) {
+      console.error('Error archiving current enrollments:', error);
+      throw error;
+    }
+  };
+
+  // Function to create end semester event for registrar notification
+  const createEndSemesterEvent = async () => {
+    try {
+      // Create a system event to notify registrar
+      const { error } = await supabase
+        .from('system_events')
+        .insert({
+          event_type: 'end_semester',
+          description: 'Semester ended - ALL students have been reset to active status',
+          data: {
+            timestamp: new Date().toISOString(),
+            triggered_by: 'program_head',
+            action: 'reset_all_students',
+            message: 'ALL students regardless of status have been reset to active status. The registrar list is now empty and ready for new enrollments.'
+          },
+          created_at: new Date().toISOString()
+        });
+
+      if (error) {
+        console.error('Error creating system event:', error);
+        // Don't throw error here as it's not critical for the main flow
+      } else {
+        console.log('End semester event created successfully');
+      }
+    } catch (error) {
+      console.error('Error creating end semester event:', error);
+      // Don't throw error here as it's not critical for the main flow
     }
   };
 
