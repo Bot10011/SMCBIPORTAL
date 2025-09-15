@@ -7,9 +7,13 @@ import {
   Users, 
   ChevronRight,
   BookMarked,
-  Calendar
+  Calendar,
+  History,
+  Clock
 } from 'lucide-react';
 import ReactDOM from 'react-dom';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 
 interface Teacher {
   id: string;
@@ -30,6 +34,23 @@ interface Enrollment {
   teacher?: Teacher | null;
 }
 
+interface ArchivedEnrollment {
+  id: string;
+  course_code: string;
+  course_name: string;
+  course_units: number;
+  teacher_name?: string;
+  teacher_email?: string;
+  section?: string;
+  year_level?: number;
+  semester: string;
+  academic_year: string;
+  status: 'completed' | 'dropped' | 'failed';
+  final_grade?: number;
+  enrollment_date: string;
+  archived_date: string;
+}
+
 interface MyCourseProps {
   enrollments: Enrollment[];
   courseImages: { [subjectId: string]: string };
@@ -37,7 +58,11 @@ interface MyCourseProps {
 }
 
 const MyCourse: React.FC<MyCourseProps> = ({ enrollments, courseImages, loading }) => {
+  const { user } = useAuth();
   const [modalCourse, setModalCourse] = useState<Enrollment | null>(null);
+  const [activeTab, setActiveTab] = useState<'current' | 'previous'>('current');
+  const [archivedEnrollments, setArchivedEnrollments] = useState<ArchivedEnrollment[]>([]);
+  const [loadingArchived, setLoadingArchived] = useState(false);
 
   // Memoize stats calculation
   const stats = useMemo(() => {
@@ -71,6 +96,27 @@ const MyCourse: React.FC<MyCourseProps> = ({ enrollments, courseImages, loading 
     }));
   }, [enrollments, courseImages]);
 
+  // Function to fetch archived enrollments
+  const fetchArchivedEnrollments = useCallback(async () => {
+    if (!user?.id) return;
+    
+    setLoadingArchived(true);
+    try {
+      const { data, error } = await supabase
+        .from('student_enrollment_archive')
+        .select('*')
+        .eq('student_id', user.id)
+        .order('archived_date', { ascending: false });
+
+      if (error) throw error;
+      setArchivedEnrollments(data || []);
+    } catch (error) {
+      console.error('Error fetching archived enrollments:', error);
+    } finally {
+      setLoadingArchived(false);
+    }
+  }, [user?.id]);
+
   // Memoize handler
   const handleOpenModal = useCallback((enrollment: Enrollment) => setModalCourse(enrollment), []);
   const handleCloseModal = useCallback(() => setModalCourse(null), []);
@@ -85,6 +131,13 @@ const MyCourse: React.FC<MyCourseProps> = ({ enrollments, courseImages, loading 
     }
     
   }, [enrollments]);
+
+  // Fetch archived enrollments when previous tab is selected
+  useEffect(() => {
+    if (activeTab === 'previous') {
+      fetchArchivedEnrollments();
+    }
+  }, [activeTab, fetchArchivedEnrollments]);
 
   // Prevent background scroll when modal is open
   React.useEffect(() => {
@@ -129,176 +182,322 @@ const MyCourse: React.FC<MyCourseProps> = ({ enrollments, courseImages, loading 
               </div>
             </div>
           </div>
+          
+          {/* Tab Navigation */}
+          <div className="mt-4 flex space-x-1 bg-white/10 rounded-lg p-1">
+            <button
+              onClick={() => setActiveTab('current')}
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+                activeTab === 'current'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-white/80 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              <Clock className="w-4 h-4" />
+              Current Semester
+            </button>
+            <button
+              onClick={() => setActiveTab('previous')}
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+                activeTab === 'previous'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-white/80 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              <History className="w-4 h-4" />
+              Previous Semesters
+            </button>
+          </div>
         </div>
       </motion.div>
 
-      {/* Course Grid - Google Classroom style */}
-      {loading ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {[1,2,3,4,5,6].map(i => (
-            <div key={i} className="course-skeleton-item bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-              {/* Course Header Skeleton */}
-              <div className="relative h-24">
-                <div className="h-24 w-full bg-gradient-to-r from-gray-200 to-gray-300 animate-pulse relative overflow-hidden">
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" 
-                       style={{ animation: 'shimmer 2s infinite' }} />
-                </div>
-                {/* Teacher avatar skeleton */}
-                <div className="absolute -bottom-8 right-4 z-20">
-                  <div className="w-16 h-16 rounded-full bg-gray-200 border-2 border-white shadow-md animate-pulse">
+      {/* Tab Content */}
+      {activeTab === 'current' ? (
+        /* Current Semester Content */
+        loading ? (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {[1,2,3,4,5,6].map(i => (
+              <div key={i} className="course-skeleton-item bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+                {/* Course Header Skeleton */}
+                <div className="relative h-24">
+                  <div className="h-24 w-full bg-gradient-to-r from-gray-200 to-gray-300 animate-pulse relative overflow-hidden">
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" 
                          style={{ animation: 'shimmer 2s infinite' }} />
                   </div>
-                </div>
-                {/* Course code skeleton */}
-                <div className="absolute top-4 left-4">
-                  <div className="bg-gray-200 rounded px-3 py-2 animate-pulse w-16 h-8"></div>
-                </div>
-                {/* Status skeleton */}
-                <div className="absolute top-4 right-4">
-                  <div className="bg-gray-200 rounded-full px-3 py-1 animate-pulse w-16 h-6"></div>
-                </div>
-              </div>
-              
-              {/* Course Content Skeleton */}
-              <div className="p-4">
-                <div className="h-5 bg-gray-200 rounded mb-3 animate-pulse w-3/4"></div>
-                <div className="space-y-2 mb-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-gray-200 rounded animate-pulse"></div>
-                    <div className="h-4 bg-gray-200 rounded animate-pulse w-20"></div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-gray-200 rounded animate-pulse"></div>
-                    <div className="h-4 bg-gray-200 rounded animate-pulse w-32"></div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-gray-200 rounded animate-pulse"></div>
-                    <div className="h-4 bg-gray-200 rounded animate-pulse w-28"></div>
-                  </div>
-                </div>
-                {/* Button skeleton */}
-                <div className="w-full h-10 bg-gray-200 rounded-lg animate-pulse"></div>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <AnimatePresence>
-          {enrollments.length === 0 ? (
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="flex flex-col items-center justify-center py-16 px-4 bg-white rounded-lg border border-gray-200"
-            >
-              <div className="p-4 rounded-full bg-gray-50 mb-4">
-                <AlertCircle className="w-12 h-12 text-gray-400" />
-              </div>
-              <h3 className="text-xl font-normal text-gray-900 mb-2">No Active Courses</h3>
-              <p className="text-gray-600 text-center max-w-md">
-                You are not currently enrolled in any courses. Check back later for updates or contact your advisor.
-              </p>
-            </motion.div>
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {processedEnrollments.map((enrollment) => (
-                <motion.div
-                  key={enrollment.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  whileHover={{ y: -4 }}
-                  className={`course-card group relative bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden ${
-                    modalCourse?.id === enrollment.id ? "ring-2 ring-[#1a73e8]" : ""
-                  }`}
-                >
-                  {/* Course Header */}
-                  <div className="relative h-24">
-                    {enrollment.courseImage ? (
-                      <img
-                        src={enrollment.courseImage}
-                        alt={enrollment.course.name}
-                        className="course-image h-24 w-full object-cover"
-                        style={{ borderTopLeftRadius: '0.5rem', borderTopRightRadius: '0.5rem' }}
-                        loading="lazy"
-                        width={400}
-                        height={96}
-                      />
-                    ) : (
-                      <div className="h-24 w-full bg-gradient-to-r from-[#1a73e8] to-[#4285f4]" style={{ borderTopLeftRadius: '0.5rem', borderTopRightRadius: '0.5rem' }} />
-                    )}
-                    {/* Teacher avatar absolutely positioned in the bottom right, overlapping the image and card */}
-                    {enrollment.teacher && (
-                      <div className="absolute -bottom-8 right-4 z-20">
-                        <div className="teacher-avatar w-16 h-16 rounded-full bg-white border-2 border-white shadow-md flex items-center justify-center text-2xl font-bold text-[#1a73e8] select-none" style={{ boxShadow: "rgba(60, 64, 67, 0.1) 0px 2px 8px 0px" }}>
-                          {enrollment.teacherImage ? (
-                            <img
-                              src={enrollment.teacherImage}
-                              alt="Teacher"
-                              className="w-full h-full object-cover rounded-full"
-                              loading="lazy"
-                              width={64}
-                              height={64}
-                              onError={(e) => {
-                                (e.currentTarget as HTMLImageElement).style.display = 'none';
-                              }}
-                            />
-                          ) : (
-                            enrollment.teacherInitials
-                          )}
-                        </div>
-                      </div>
-                    )}
-                    <div className="absolute top-0 left-0 w-full h-full flex justify-between items-start p-4">
-                      <div className="bg-white rounded px-2 py-1" style={{ boxShadow: 'inset 0 1px 4px 0 rgba(0,0,0,0.10), inset 0 -1px 4px 0 rgba(0,0,0,0.10)' }}>
-                        <h3 className="text-xl font-medium text-black drop-shadow">
-                          {enrollment.course.code}
-                        </h3>
-                      </div>
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full drop-shadow bg-black/60 ${enrollment.statusColor}`}>
-                        {enrollment.status.charAt(0).toUpperCase() + enrollment.status.slice(1)}
-                      </span>
+                  {/* Teacher avatar skeleton */}
+                  <div className="absolute -bottom-8 right-4 z-20">
+                    <div className="w-16 h-16 rounded-full bg-gray-200 border-2 border-white shadow-md animate-pulse">
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" 
+                           style={{ animation: 'shimmer 2s infinite' }} />
                     </div>
                   </div>
-
-                  {/* Course Content */}
-                  <div className="p-4">
-                    <h4 className="text-base font-medium text-gray-900 mb-3 line-clamp-2">
-                      {enrollment.course.name}
-                    </h4>
-                    
-                    <div className="space-y-2 mb-4">
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <GraduationCap className="w-4 h-4 text-[#1a73e8]" />
-                        <span>{enrollment.course.units} Units</span>
-                      </div>
+                  {/* Course code skeleton */}
+                  <div className="absolute top-4 left-4">
+                    <div className="bg-gray-200 rounded px-3 py-2 animate-pulse w-16 h-8"></div>
+                  </div>
+                  {/* Status skeleton */}
+                  <div className="absolute top-4 right-4">
+                    <div className="bg-gray-200 rounded-full px-3 py-1 animate-pulse w-16 h-6"></div>
+                  </div>
+                </div>
+                
+                {/* Course Content Skeleton */}
+                <div className="p-4">
+                  <div className="h-5 bg-gray-200 rounded mb-3 animate-pulse w-3/4"></div>
+                  <div className="space-y-2 mb-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-gray-200 rounded animate-pulse"></div>
+                      <div className="h-4 bg-gray-200 rounded animate-pulse w-20"></div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-gray-200 rounded animate-pulse"></div>
+                      <div className="h-4 bg-gray-200 rounded animate-pulse w-32"></div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-gray-200 rounded animate-pulse"></div>
+                      <div className="h-4 bg-gray-200 rounded animate-pulse w-28"></div>
+                    </div>
+                  </div>
+                  {/* Button skeleton */}
+                  <div className="w-full h-10 bg-gray-200 rounded-lg animate-pulse"></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <AnimatePresence>
+            {enrollments.length === 0 ? (
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="flex flex-col items-center justify-center py-16 px-4 bg-white rounded-lg border border-gray-200"
+              >
+                <div className="p-4 rounded-full bg-gray-50 mb-4">
+                  <AlertCircle className="w-12 h-12 text-gray-400" />
+                </div>
+                <h3 className="text-xl font-normal text-gray-900 mb-2">No Active Courses</h3>
+                <p className="text-gray-600 text-center max-w-md">
+                  You are not currently enrolled in any courses. Check back later for updates or contact your advisor.
+                </p>
+              </motion.div>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {processedEnrollments.map((enrollment) => (
+                  <motion.div
+                    key={enrollment.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    whileHover={{ y: -4 }}
+                    className={`course-card group relative bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden ${
+                      modalCourse?.id === enrollment.id ? "ring-2 ring-[#1a73e8]" : ""
+                    }`}
+                  >
+                    {/* Course Header */}
+                    <div className="relative h-24">
+                      {enrollment.courseImage ? (
+                        <img
+                          src={enrollment.courseImage}
+                          alt={enrollment.course.name}
+                          className="course-image h-24 w-full object-cover"
+                          style={{ borderTopLeftRadius: '0.5rem', borderTopRightRadius: '0.5rem' }}
+                          loading="lazy"
+                          width={400}
+                          height={96}
+                        />
+                      ) : (
+                        <div className="h-24 w-full bg-gradient-to-r from-[#1a73e8] to-[#4285f4]" style={{ borderTopLeftRadius: '0.5rem', borderTopRightRadius: '0.5rem' }} />
+                      )}
+                      {/* Teacher avatar absolutely positioned in the bottom right, overlapping the image and card */}
                       {enrollment.teacher && (
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
-                          <Users className="w-4 h-4 text-[#1a73e8]" />
-                          <span>Prof. {enrollment.teacher.display_name || 'TBA'}</span>
+                        <div className="absolute -bottom-8 right-4 z-20">
+                          <div className="teacher-avatar w-16 h-16 rounded-full bg-white border-2 border-white shadow-md flex items-center justify-center text-2xl font-bold text-[#1a73e8] select-none" style={{ boxShadow: "rgba(60, 64, 67, 0.1) 0px 2px 8px 0px" }}>
+                            {enrollment.teacherImage ? (
+                              <img
+                                src={enrollment.teacherImage}
+                                alt="Teacher"
+                                className="w-full h-full object-cover rounded-full"
+                                loading="lazy"
+                                width={64}
+                                height={64}
+                                onError={(e) => {
+                                  (e.currentTarget as HTMLImageElement).style.display = 'none';
+                                }}
+                              />
+                            ) : (
+                              enrollment.teacherInitials
+                            )}
+                          </div>
                         </div>
                       )}
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <Calendar className="w-4 h-4 text-[#1a73e8]" />
-                        <span>Current Semester</span>
+                      <div className="absolute top-0 left-0 w-full h-full flex justify-between items-start p-4">
+                        <div className="bg-white rounded px-2 py-1" style={{ boxShadow: 'inset 0 1px 4px 0 rgba(0,0,0,0.10), inset 0 -1px 4px 0 rgba(0,0,0,0.10)' }}>
+                          <h3 className="text-xl font-medium text-black drop-shadow">
+                            {enrollment.course.code}
+                          </h3>
+                        </div>
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full drop-shadow bg-black/60 ${enrollment.statusColor}`}>
+                          {enrollment.status.charAt(0).toUpperCase() + enrollment.status.slice(1)}
+                        </span>
                       </div>
                     </div>
 
-                    {/* View Details Button */}
-                    <button 
-                      onClick={() => handleOpenModal(enrollment)}
-                      className="course-button w-full mt-2 px-4 py-2 text-sm font-medium text-[#1a73e8] bg-[#e8f0fe] rounded-lg hover:bg-[#d2e3fc] transition-colors duration-200 flex items-center justify-center gap-2"
-                    >
-                      View Details
-                      <ChevronRight className="w-4 h-4" />
-                    </button>
+                    {/* Course Content */}
+                    <div className="p-4">
+                      <h4 className="text-base font-medium text-gray-900 mb-3 line-clamp-2">
+                        {enrollment.course.name}
+                      </h4>
+                      
+                      <div className="space-y-2 mb-4">
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <GraduationCap className="w-4 h-4 text-[#1a73e8]" />
+                          <span>{enrollment.course.units} Units</span>
+                        </div>
+                        {enrollment.teacher && (
+                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <Users className="w-4 h-4 text-[#1a73e8]" />
+                            <span>Prof. {enrollment.teacher.display_name || 'TBA'}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <Calendar className="w-4 h-4 text-[#1a73e8]" />
+                          <span>Current Semester</span>
+                        </div>
+                      </div>
+
+                      {/* View Details Button */}
+                      <button 
+                        onClick={() => handleOpenModal(enrollment)}
+                        className="course-button w-full mt-2 px-4 py-2 text-sm font-medium text-[#1a73e8] bg-[#e8f0fe] rounded-lg hover:bg-[#d2e3fc] transition-colors duration-200 flex items-center justify-center gap-2"
+                      >
+                        View Details
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+          </AnimatePresence>
+        )
+      ) : (
+        /* Previous Semesters Content */
+        loadingArchived ? (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {[1,2,3,4,5,6].map(i => (
+              <div key={i} className="course-skeleton-item bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+                <div className="p-4">
+                  <div className="h-5 bg-gray-200 rounded mb-3 animate-pulse w-3/4"></div>
+                  <div className="space-y-2 mb-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-gray-200 rounded animate-pulse"></div>
+                      <div className="h-4 bg-gray-200 rounded animate-pulse w-20"></div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-gray-200 rounded animate-pulse"></div>
+                      <div className="h-4 bg-gray-200 rounded animate-pulse w-32"></div>
+                    </div>
                   </div>
-                </motion.div>
-              ))}
-            </div>
-          )}
-        </AnimatePresence>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <AnimatePresence>
+            {archivedEnrollments.length === 0 ? (
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="flex flex-col items-center justify-center py-16 px-4 bg-white rounded-lg border border-gray-200"
+              >
+                <div className="p-4 rounded-full bg-gray-50 mb-4">
+                  <History className="w-12 h-12 text-gray-400" />
+                </div>
+                <h3 className="text-xl font-normal text-gray-900 mb-2">No Previous Enrollments</h3>
+                <p className="text-gray-600 text-center max-w-md">
+                  You don't have any previous semester enrollments yet. Completed courses will appear here after each semester ends.
+                </p>
+              </motion.div>
+            ) : (
+              <div className="space-y-4">
+                {/* Group by academic year and semester */}
+                {Object.entries(
+                  archivedEnrollments.reduce((groups, enrollment) => {
+                    const key = `${enrollment.academic_year} - ${enrollment.semester}`;
+                    if (!groups[key]) groups[key] = [];
+                    groups[key].push(enrollment);
+                    return groups;
+                  }, {} as Record<string, ArchivedEnrollment[]>)
+                ).map(([semesterKey, enrollments]) => (
+                  <div key={semesterKey} className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+                    <div className="bg-gray-50 px-6 py-3 border-b border-gray-200">
+                      <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                        <Calendar className="w-5 h-5 text-[#1a73e8]" />
+                        {semesterKey}
+                      </h3>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 p-6">
+                      {enrollments.map((enrollment) => (
+                        <motion.div
+                          key={enrollment.id}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="bg-gray-50 rounded-lg border border-gray-200 p-4 hover:shadow-md transition-all duration-200"
+                        >
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="bg-[#1a73e8] text-white px-3 py-1 rounded-full text-sm font-medium">
+                              {enrollment.course_code}
+                            </div>
+                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                              enrollment.status === 'completed' 
+                                ? 'bg-green-100 text-green-800'
+                                : enrollment.status === 'dropped'
+                                ? 'bg-red-100 text-red-800'
+                                : 'bg-gray-100 text-gray-800'
+                            }`}>
+                              {enrollment.status.charAt(0).toUpperCase() + enrollment.status.slice(1)}
+                            </span>
+                          </div>
+                          
+                          <h4 className="text-base font-medium text-gray-900 mb-3 line-clamp-2">
+                            {enrollment.course_name}
+                          </h4>
+                          
+                          <div className="space-y-2 mb-4">
+                            <div className="flex items-center gap-2 text-sm text-gray-600">
+                              <GraduationCap className="w-4 h-4 text-[#1a73e8]" />
+                              <span>{enrollment.course_units} Units</span>
+                            </div>
+                            {enrollment.teacher_name && (
+                              <div className="flex items-center gap-2 text-sm text-gray-600">
+                                <Users className="w-4 h-4 text-[#1a73e8]" />
+                                <span>Prof. {enrollment.teacher_name}</span>
+                              </div>
+                            )}
+                            {enrollment.section && (
+                              <div className="flex items-center gap-2 text-sm text-gray-600">
+                                <BookOpen className="w-4 h-4 text-[#1a73e8]" />
+                                <span>Section {enrollment.section}</span>
+                              </div>
+                            )}
+                            {enrollment.final_grade && (
+                              <div className="flex items-center gap-2 text-sm text-gray-600">
+                                <GraduationCap className="w-4 h-4 text-[#1a73e8]" />
+                                <span>Final Grade: {enrollment.final_grade}</span>
+                              </div>
+                            )}
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </AnimatePresence>
+        )
       )}
 
       {/* Modal - Google Classroom style */}
