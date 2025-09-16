@@ -163,7 +163,7 @@ const Login: React.FC<LoginProps> = ({ onClose }) => {
       }
       
       // Check if user is using default password
-      const isDefaultPassword = formData.password === 'TempPass@123';
+      const isDefaultPassword = formData.password === 'Admin123';
       
       // Sign in with Supabase
       try {
