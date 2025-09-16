@@ -1050,7 +1050,7 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
             )}
 
             {/* Assignment Details */}
-            <div className="bg-blue-50 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6 pb-20 sm:pb-6">
+            <div className="bg-blue-50 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6">
               <div className="space-y-2 sm:space-y-3 text-xs sm:text-sm">
                 {/* Teacher Information */}
                 <div className="bg-white rounded-lg p-2 sm:p-3 border border-blue-200">
@@ -1207,25 +1207,23 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
               </div>
             </div>
 
-            {/* Action Buttons - Sticky at bottom edge */}
-            <div className="sticky bottom-0 left-0 right-0 bg-white border-t border-gray-200 -mx-4 sm:-mx-6 -mb-4 sm:-mb-6 rounded-b-2xl shadow-lg">
-              <div className="flex flex-col sm:flex-row">
-                <button
-                  type="button"
-                  onClick={handleCancelConfirmation}
-                  className="flex-1 px-4 sm:px-6 py-3 sm:py-4 text-sm sm:text-base font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors border-r border-gray-200 sm:border-r-0 sm:border-b-0 border-b"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleConfirm}
-                  disabled={formSubmitting}
-                  className="flex-1 px-4 sm:px-6 py-3 sm:py-4 text-sm sm:text-base font-semibold text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  {formSubmitting ? 'Saving...' : 'Confirm Assignment'}
-                </button>
-              </div>
+            {/* Action Buttons */}
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+              <button
+                type="button"
+                onClick={handleCancelConfirmation}
+                className="flex-1 px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirm}
+                disabled={formSubmitting}
+                className="flex-1 px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {formSubmitting ? 'Saving...' : 'Confirm Assignment'}
+              </button>
             </div>
           </motion.div>
         </div>
