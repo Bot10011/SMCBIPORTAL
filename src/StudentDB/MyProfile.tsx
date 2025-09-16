@@ -4,7 +4,6 @@ import { supabase } from '../lib/supabase';
 import { Database } from '../types/supabase';
 import { motion } from 'framer-motion';
 import { 
-  UserCircle, 
   Hash,
   BookOpen,
   Calendar,
@@ -204,18 +203,28 @@ export const MyProfile: React.FC = () => {
           setProfile(data);
           logProfileDebug('Profile fetched', { profileId: data?.id, email: data?.email, avatar_url: data?.avatar_url, display_name: data?.display_name });
           
-          // Handle display name with fallback
+          // Handle display name with priority:
+          // 1) user_profiles.display_name
+          // 2) user_profiles.first_name/middle_name/last_name (concatenated)
+          // 3) Supabase Auth metadata (full_name/name/etc) or email
           let displayName = '';
-          if (data?.display_name) {
-            displayName = data.display_name;
-            setAuthDisplayName(displayName);
-          } else if (authData?.user) {
-            displayName = getAuthDisplayName(authData.user) || authData.user.email || '';
-            setAuthDisplayName(displayName);
+          const safeTrim = (val: unknown): string | undefined =>
+            typeof val === 'string' && val.trim().length > 0 ? val.trim() : undefined;
+
+          const fromProfileDisplay = safeTrim(data?.display_name);
+          const first = safeTrim((data as unknown as Record<string, unknown>)?.first_name);
+          const middle = safeTrim((data as unknown as Record<string, unknown>)?.middle_name);
+          const last = safeTrim((data as unknown as Record<string, unknown>)?.last_name);
+          const fromProfileParts = [first, middle, last].filter(Boolean).join(' ').trim();
+
+          if (fromProfileDisplay) {
+            displayName = fromProfileDisplay;
+          } else if (fromProfileParts.length > 0) {
+            displayName = fromProfileParts;
           } else {
-            displayName = user.email || '';
-            setAuthDisplayName(displayName);
+            displayName = 'Unknown';
           }
+          setAuthDisplayName(displayName);
 
           // Handle avatar with fallback
           let pictureUrl: string | null = null;
@@ -239,12 +248,10 @@ export const MyProfile: React.FC = () => {
             }
           }
 
-          // Final fallback: generated initials avatar so the UI always shows something
-          const seed = displayName || user?.email || 'User';
-          const generated = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(seed)}&backgroundType=gradientLinear&fontSize=42`;
-          setProfilePictureUrl(generated);
-          logProfileDebug('No avatar found; using generated initials avatar', { seed });
-          setImageDebug({ status: 'ok' });
+          // Final fallback: no URL; UI will render solid blue circle with initials
+          setProfilePictureUrl(null);
+          logProfileDebug('No avatar found; using initials fallback (no image URL)');
+          setImageDebug({ status: 'missing_url' });
         }
       } catch (error) {
         console.error('Error fetching profile:', error);
@@ -418,7 +425,7 @@ export const MyProfile: React.FC = () => {
   if (loading) {
     if (isOffline) {
       return (
-        <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-white via-blue-50 to-purple-50">
+        <div className="flex flex-col items-center justify-center min-h-screen bg-[#1c1c1d]">
           <svg xmlns="http://www.w3.org/2000/svg" className="w-16 h-16 text-blue-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657A8 8 0 1 0 7.05 7.05m10.607 9.607A8 8 0 0 1 7.05 7.05m9.9 9.9L7.05 7.05" />
           </svg>
@@ -428,7 +435,7 @@ export const MyProfile: React.FC = () => {
       );
     }
     return (
-      <div className="min-h-screen via-white to-purple-50 py-10 px-2 sm:px-0">
+      <div className="min-h-screen bg-[#1c1c1d] py-10 px-2 sm:px-0">
         <div className="max-w-3xl mx-auto space-y-10">
           {/* Enhanced Profile Card Skeleton */}
           <div className="relative overflow-visible rounded-3xl bg-gradient-to-br from-white via-blue-50 to-purple-50 shadow-xl border border-blue-100 p-0">
@@ -475,7 +482,7 @@ export const MyProfile: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen  via-white to-purple-50 py-10 px-2 sm:px-0">
+    <div className="min-h-screen bg-[#1c1c1d] py-10 px-2 sm:px-0">
       <div className="max-w-3xl mx-auto space-y-10">
         {/* Profile Card */}
         <motion.div
@@ -505,7 +512,29 @@ export const MyProfile: React.FC = () => {
                     }}
                   />
                 ) : (
-                  <UserCircle className="absolute inset-0 w-full h-full text-purple-200" style={{ zIndex: 0 }} />
+                  <div className="absolute inset-0 w-full h-full rounded-full bg-blue-600 flex items-center justify-center" style={{ zIndex: 0 }}>
+                    <span className="text-white font-extrabold text-5xl sm:text-6xl tracking-tight">
+                      {(() => {
+                        const first = (processedProfile?.fullName || '').trim();
+                        if (first) {
+                          const parts = first.split(/\s+/);
+                          const firstInitial = parts[0]?.[0] || '';
+                          const lastInitial = parts.length > 1 ? parts[parts.length - 1]?.[0] || '' : '';
+                          const initials = `${firstInitial}${lastInitial}` || 'U';
+                          return initials.toUpperCase();
+                        }
+                        const constructed = `${profile?.first_name || ''} ${profile?.middle_name || ''} ${profile?.last_name || ''}`.trim();
+                        if (constructed) {
+                          const parts = constructed.split(/\s+/);
+                          const firstInitial = parts[0]?.[0] || '';
+                          const lastInitial = parts.length > 1 ? parts[parts.length - 1]?.[0] || '' : '';
+                          const initials = `${firstInitial}${lastInitial}` || 'U';
+                          return initials.toUpperCase();
+                        }
+                        return 'U';
+                      })()}
+                    </span>
+                  </div>
                 )}
                 {/* Debug badge for image status */}
                 {imageDebug.status !== 'idle' && imageDebug.status !== 'ok' && (
