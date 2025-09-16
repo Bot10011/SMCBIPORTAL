@@ -1111,24 +1111,38 @@ const StudentDashboard: React.FC = () => {
           .from('teacher_subjects')
           .select(`
             subject_id,
-            teacher:user_profiles(id, display_name, avatar_url)
+            teacher:user_profiles(id, display_name, first_name, last_name, avatar_url)
           `)
-          .in('subject_id', subjectIds);
+          .in('subject_id', subjectIds)
+          .eq('is_active', true);
 
         if (teacherError) throw teacherError;
 
         // Step 3: Merge the data
-        const teacherAssignments = teacherAssignmentsRaw as unknown as TeacherAssignment[];
+        const teacherAssignments = teacherAssignmentsRaw as unknown as Array<{ subject_id: string; teacher: any }>; // we will normalize below
         const enrollmentsWithTeacherData: Enrollment[] = enrollmentsData.map((enrollment) => {
           const teacherAssignment = teacherAssignments.find(
             (t) => t.subject_id === enrollment.subject_id
           );
           let teacher: Teacher | null = null;
           if (teacherAssignment) {
-            if (Array.isArray(teacherAssignment.teacher)) {
-              teacher = teacherAssignment.teacher[0] || null;
-            } else {
-              teacher = teacherAssignment.teacher;
+            const raw = Array.isArray(teacherAssignment.teacher)
+              ? (teacherAssignment.teacher[0] || null)
+              : teacherAssignment.teacher;
+            if (raw) {
+              const fullName = (
+                (typeof raw.display_name === 'string' && raw.display_name.trim()) ||
+                [raw.first_name, raw.last_name]
+                  .map((p: unknown) => (typeof p === 'string' ? p.trim() : ''))
+                  .filter(Boolean)
+                  .join(' ')
+                  .trim()
+              ) as string | '';
+              teacher = {
+                id: raw.id,
+                display_name: fullName || undefined,
+                avatar_url: raw.avatar_url || undefined,
+              };
             }
           }
           return {
