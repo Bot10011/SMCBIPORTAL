@@ -672,6 +672,31 @@ const InstructorManagement: React.FC = () => {
     }
   }, [tabValue]);
 
+  // Add periodic refresh for subject trace records (every 30 seconds when tab is active)
+  useEffect(() => {
+    if (tabValue === 2) {
+      const interval = setInterval(() => {
+        fetchSubjectTraceRecords();
+      }, 30000); // Refresh every 30 seconds
+
+      return () => clearInterval(interval);
+    }
+  }, [tabValue]);
+
+  // Listen for custom events to refresh subject trace records
+  useEffect(() => {
+    const handleSubjectTraceRefresh = () => {
+      if (tabValue === 2) {
+        fetchSubjectTraceRecords();
+      }
+    };
+
+    window.addEventListener('subjectTraceRefresh', handleSubjectTraceRefresh);
+    return () => {
+      window.removeEventListener('subjectTraceRefresh', handleSubjectTraceRefresh);
+    };
+  }, [tabValue]);
+
 
 
 
@@ -1083,12 +1108,18 @@ const InstructorManagement: React.FC = () => {
   const fetchSubjectTraceRecords = async () => {
     try {
       setSubjectTraceLoading(true);
+      console.log('Fetching subject trace records...');
       const { data, error } = await supabase
         .from('subject_trace_records')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching subject trace records:', error);
+        throw error;
+      }
+      
+      console.log(`Fetched ${data?.length || 0} subject trace records:`, data);
       setSubjectTraceRecords(data || []);
     } catch (error) {
       console.error('Error fetching subject trace records:', error);
@@ -1099,7 +1130,10 @@ const InstructorManagement: React.FC = () => {
   };
 
   const handleViewSubjectTrace = (instructor: Instructor) => {
+    console.log('Viewing subject trace for instructor:', instructor);
+    console.log('All subject trace records:', subjectTraceRecords);
     const instructorRecords = subjectTraceRecords.filter(record => record.instructor_id === instructor.id);
+    console.log(`Found ${instructorRecords.length} records for instructor ${instructor.id}:`, instructorRecords);
     setSubjectTraceModal({
       isOpen: true,
       instructor,
