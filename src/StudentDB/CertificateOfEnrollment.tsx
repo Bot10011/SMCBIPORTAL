@@ -192,9 +192,18 @@ const COEModal = ({ coe, open, onClose }: { coe: COERecord, open: boolean, onClo
           ref={contentRef}
           onClick={(e) => e.stopPropagation()}
         >
+          {/* Global Close Button pinned to top-right */}
+          <button
+            onClick={onClose}
+            className="absolute top-2 right-2 sm:top-3 sm:right-3 w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors z-20"
+            aria-label="Close"
+          >
+            <span className="text-xl font-bold">&times;</span>
+          </button>
           {/* Sticky Header with Action Buttons */}
           <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 rounded-t-2xl z-10">
-            <div className="flex items-center justify-between">
+            {/* Desktop/Tablet layout */}
+            <div className="hidden sm:flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <img 
                   src="/img/logo.png" 
@@ -219,12 +228,34 @@ const COEModal = ({ coe, open, onClose }: { coe: COERecord, open: boolean, onClo
                 >
                   <Printer className="w-4 h-4" /> Print
                 </button>
+              </div>
+            </div>
+
+            {/* Mobile layout: logo, titles stacked, then actions below */}
+            <div className="sm:hidden">
+              <div className="flex flex-col items-center text-center gap-2">
+                <img 
+                  src="/img/logo.png" 
+                  alt="SMCBI Logo" 
+                  className="w-12 h-12 object-contain"
+                />
+                <div>
+                  <h1 className="text-lg font-bold text-gray-900">SMCBI</h1>
+                  <p className="text-sm text-gray-600 -mt-0.5">Certificate of Enrollment</p>
+                </div>
+              </div>
+              <div className="mt-3 flex items-center justify-center gap-2">
                 <button
-                  onClick={onClose}
-                  className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
-                  aria-label="Close"
+                  onClick={handleDownload}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm text-sm"
                 >
-                  <span className="text-xl font-bold">&times;</span>
+                  <Download className="w-4 h-4" /> Download
+                </button>
+                <button
+                  onClick={handlePrint}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors shadow-sm text-sm"
+                >
+                  <Printer className="w-4 h-4" /> Print
                 </button>
               </div>
             </div>
@@ -233,10 +264,11 @@ const COEModal = ({ coe, open, onClose }: { coe: COERecord, open: boolean, onClo
           {/* Scrollable Content */}
           <div className="flex-1 overflow-y-auto p-6">
             <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Two-column on mobile for compact info; unchanged on desktop */}
+              <div className="grid grid-cols-2 md:grid-cols-2 gap-4 sm:gap-6">
                 <div>
                   <p className="text-sm text-gray-500">Student ID</p>
-                  <p className="font-medium">{coe.student_number || coe.student_id}</p>
+                  <p className="font-medium break-all">{coe.student_number || coe.student_id}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Full Name</p>
@@ -258,15 +290,16 @@ const COEModal = ({ coe, open, onClose }: { coe: COERecord, open: boolean, onClo
                   <p className="text-sm text-gray-500">Program</p>
                   <p className="font-medium">{coe.department || 'N/A'}</p>
                 </div>
-                <div>
+                <div className="col-span-2 md:col-span-1">
                   <p className="text-sm text-gray-500">Email</p>
-                  <p className="font-medium">{coe.email || 'N/A'}</p>
+                  <p className="font-medium break-all">{coe.email || 'N/A'}</p>
                 </div>
               </div>
               <div className="mt-8">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Enrolled Courses</h3>
-                <div className="rounded-xl border border-gray-200 overflow-hidden w-full shadow-sm">
-                  <table className="coe-certificate-table min-w-full bg-white/90">
+                {/* Mobile: enable horizontal scroll so all columns remain visible */}
+                <div className="rounded-xl border border-gray-200 w-full shadow-sm overflow-x-auto sm:overflow-visible">
+                  <table className="coe-certificate-table min-w-[700px] sm:min-w-full bg-white/90">
                     <thead>
                       <tr className="bg-blue-600 rounded-t-xl">
                         <th className="px-4 py-2 text-left text-xs font-bold text-white rounded-tl-xl">Course Code</th>
@@ -516,9 +549,9 @@ export const CertificateOfEnrollment: React.FC = () => {
                         console.log('Assignment query for subject:', subject.code, 'result:', assignmentData, 'error:', assignmentError);
 
                         if (!assignmentError && assignmentData) {
-                          const teacher = assignmentData.teacher as any;
+                          const teacher = assignmentData.teacher as { first_name?: string | null; middle_name?: string | null; last_name?: string | null } | null | undefined;
                           const instructorName = teacher 
-                            ? `${teacher.first_name} ${teacher.middle_name ? teacher.middle_name + ' ' : ''}${teacher.last_name}`
+                            ? `${teacher.first_name || ''} ${teacher.middle_name ? teacher.middle_name + ' ' : ''}${teacher.last_name || ''}`.trim() || 'TBA'
                             : 'TBA';
                           
                           return {
