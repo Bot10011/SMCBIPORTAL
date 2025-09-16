@@ -2363,13 +2363,16 @@ const ProgramHeadEnrollment: React.FC = () => {
       const month = now.getMonth() + 1; // 1-12
       let currentSemester = 'First Semester';
       
+      // Fixed semester detection logic
       if (month >= 6 && month <= 8) {
         currentSemester = 'Summer';
-      } else if (month >= 9 || month <= 2) {
+      } else if (month >= 9 || month <= 1) { // Fixed: December (12) and January (1) should be First Semester
         currentSemester = 'First Semester';
-      } else if (month >= 3 && month <= 5) {
+      } else if (month >= 2 && month <= 5) { // Fixed: February to May should be Second Semester
         currentSemester = 'Second Semester';
       }
+      
+      console.log(`Creating subject trace records for ${currentSemester} ${currentAcademicYear}`);
       
       // Fetch all current teacher assignments
       const { data: assignments, error: assignmentsError } = await supabase
@@ -2395,12 +2398,19 @@ const ProgramHeadEnrollment: React.FC = () => {
         .eq('academic_year', currentAcademicYear)
         .eq('is_active', true);
 
-      if (assignmentsError) throw assignmentsError;
+      if (assignmentsError) {
+        console.error('Error fetching teacher assignments:', assignmentsError);
+        throw assignmentsError;
+      }
 
       if (!assignments || assignments.length === 0) {
         console.log('No active teacher assignments found to create trace records');
+        toast.error('No active teacher assignments found. Subject trace records will not be created.');
         return;
       }
+
+      console.log(`Found ${assignments.length} active teacher assignments`);
+      console.log('Sample assignment data:', assignments[0]);
 
       // Check if subject trace records already exist for this semester and academic year
       const { data: existingRecords, error: checkError } = await supabase
@@ -2418,33 +2428,60 @@ const ProgramHeadEnrollment: React.FC = () => {
       }
 
       // Transform assignments to subject trace records
-      const subjectTraceRecords = assignments.map((assignment: any) => ({
-        instructor_id: assignment.teacher_id,
-        instructor_name: assignment.teacher 
+      const subjectTraceRecords = assignments.map((assignment: any) => {
+        const instructorName = assignment.teacher 
           ? `${assignment.teacher.first_name} ${assignment.teacher.middle_name ? assignment.teacher.middle_name + ' ' : ''}${assignment.teacher.last_name}`
-          : 'Unknown Instructor',
-        instructor_email: assignment.teacher?.email || 'unknown@smcbi.edu.ph',
-        instructor_department: assignment.teacher?.department || 'Unknown',
-        subject_code: assignment.subject?.code || 'Unknown',
-        subject_name: assignment.subject?.name || 'Unknown',
-        subject_units: assignment.subject?.units || 0,
-        section: assignment.section,
-        semester: currentSemester, // Use the detected current semester
-        academic_year: assignment.academic_year,
-        year_level: assignment.year_level,
-        status: 'Confirmed by Program Head',
-        confirmed_at: new Date().toISOString()
-      }));
+          : 'Unknown Instructor';
+        
+        return {
+          instructor_id: assignment.teacher_id,
+          instructor_name: instructorName,
+          instructor_email: assignment.teacher?.email || 'unknown@smcbi.edu.ph',
+          instructor_department: assignment.teacher?.department || 'Unknown',
+          subject_code: assignment.subject?.code || 'Unknown',
+          subject_name: assignment.subject?.name || 'Unknown',
+          subject_units: assignment.subject?.units || 0,
+          section: assignment.section,
+          semester: currentSemester, // Use the detected current semester
+          academic_year: assignment.academic_year,
+          year_level: assignment.year_level,
+          status: 'Confirmed by Program Head',
+          confirmed_at: new Date().toISOString()
+        };
+      });
+
+      console.log('Sample subject trace record to be created:', subjectTraceRecords[0]);
 
       // Insert subject trace records
       const { error: insertError } = await supabase
         .from('subject_trace_records')
         .insert(subjectTraceRecords);
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        console.error('Error inserting subject trace records:', insertError);
+        throw insertError;
+      }
 
-      console.log(`Created ${subjectTraceRecords.length} subject trace records for ${currentSemester} ${currentAcademicYear}`);
-      console.log('Sample trace record:', subjectTraceRecords[0]);
+      console.log(`Successfully created ${subjectTraceRecords.length} subject trace records for ${currentSemester} ${currentAcademicYear}`);
+      toast.success(`Created ${subjectTraceRecords.length} subject trace records for ${currentSemester} ${currentAcademicYear}`);
+      
+      // Verify the records were created by fetching them back
+      const { data: createdRecords, error: verifyError } = await supabase
+        .from('subject_trace_records')
+        .select('id, instructor_id, instructor_name, subject_code')
+        .eq('academic_year', currentAcademicYear)
+        .eq('semester', currentSemester)
+        .order('created_at', { ascending: false })
+        .limit(5);
+      
+      if (verifyError) {
+        console.error('Error verifying created records:', verifyError);
+      } else {
+        console.log('Verification - Created records:', createdRecords);
+      }
+      
+      // Dispatch custom event to refresh subject trace records in InstructorManagement
+      window.dispatchEvent(new CustomEvent('subjectTraceRefresh'));
     } catch (error) {
       console.error('Error creating subject trace records:', error);
       throw error;
