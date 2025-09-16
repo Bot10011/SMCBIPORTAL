@@ -977,23 +977,23 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.95, opacity: 0, y: 20 }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl border border-gray-100 relative z-10"
+            className="bg-white rounded-2xl p-4 sm:p-6 max-w-sm sm:max-w-md md:max-w-lg lg:max-w-xl w-full mx-2 sm:mx-4 shadow-2xl border border-gray-100 relative z-10 max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div className="flex items-center gap-3 mb-6">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <svg className="w-6 h-6 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+            <div className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-6">
+              <div className="p-1.5 sm:p-2 bg-blue-100 rounded-lg flex-shrink-0">
+                <svg className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                 </svg>
               </div>
-              <div className="flex-1">
-                <h3 className="text-xl font-bold text-gray-900">Confirm Assignment</h3>
-                <p className="text-sm text-gray-600">Please review the details below</p>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-lg sm:text-xl font-bold text-gray-900 truncate">Confirm Assignment</h3>
+                <p className="text-xs sm:text-sm text-gray-600">Please review the details below</p>
               </div>
               <button 
                 onClick={handleCancelConfirmation}
-                className="absolute w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center text-lg sm:text-xl font-bold text-white bg-red-500 hover:bg-red-600 rounded-full shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 hover:scale-110 hover:rotate-90 top-2 right-2 sm:top-3 sm:right-3"
+                className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center text-base sm:text-lg font-bold text-white bg-red-500 hover:bg-red-600 rounded-full shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 hover:scale-110 hover:rotate-90 flex-shrink-0"
                 aria-label="Close confirmation"
                 style={{ backgroundColor: 'rgb(239, 68, 68)', boxShadow: 'rgba(239, 68, 68, 0.3) 0px 2px 8px', zIndex: 50 }}
               >
@@ -1050,97 +1050,99 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
             )}
 
             {/* Assignment Details */}
-            <div className="bg-blue-50 rounded-lg p-4 mb-6">
-              <div className="space-y-3 text-sm">
+            <div className="bg-blue-50 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6 pb-20 sm:pb-6">
+              <div className="space-y-2 sm:space-y-3 text-xs sm:text-sm">
                 {/* Teacher Information */}
-                <div className="bg-white rounded-lg p-3 border border-blue-200">
+                <div className="bg-white rounded-lg p-2 sm:p-3 border border-blue-200">
                   <div className="flex items-center gap-2 mb-2">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                    <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
                     <span className="font-semibold text-blue-900 text-xs uppercase tracking-wide">Teacher Information</span>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span className="font-medium text-gray-700">Name:</span>
-                    <span className="text-gray-900 font-semibold">{selectedTeacher?.full_name}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="font-medium text-gray-700">Department:</span>
-                    <span className="text-gray-900">{selectedTeacher?.department || 'N/A'}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="font-medium text-gray-700">Role:</span>
-                    <span className="text-gray-900 capitalize">{selectedTeacher?.role}</span>
+                  <div className="space-y-1">
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 sm:gap-2">
+                      <span className="font-medium text-gray-700 text-xs sm:text-sm">Name:</span>
+                      <span className="text-gray-900 font-semibold text-xs sm:text-sm truncate">{selectedTeacher?.full_name}</span>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 sm:gap-2">
+                      <span className="font-medium text-gray-700 text-xs sm:text-sm">Department:</span>
+                      <span className="text-gray-900 text-xs sm:text-sm truncate">{selectedTeacher?.department || 'N/A'}</span>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 sm:gap-2">
+                      <span className="font-medium text-gray-700 text-xs sm:text-sm">Role:</span>
+                      <span className="text-gray-900 capitalize text-xs sm:text-sm">{selectedTeacher?.role}</span>
+                    </div>
                   </div>
                 </div>
 
                 {/* Assignment Details */}
-                <div className="bg-white rounded-lg p-3 border border-blue-200">
+                <div className="bg-white rounded-lg p-2 sm:p-3 border border-blue-200">
                   <div className="flex items-center gap-2 mb-2">
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
                     <span className="font-semibold text-green-900 text-xs uppercase tracking-wide">Assignment Details</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div className="flex justify-between">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-2">
                       <span className="font-medium text-gray-700">Section:</span>
-                      <span className="text-gray-900 font-semibold">Section {assignment.section}</span>
+                      <span className="text-gray-900 font-semibold truncate">Section {assignment.section}</span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-2">
                       <span className="font-medium text-gray-700">Year Level:</span>
-                      <span className="text-gray-900 font-semibold">{assignment.year_level}</span>
+                      <span className="text-gray-900 font-semibold truncate">{assignment.year_level}</span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-2">
                       <span className="font-medium text-gray-700">Semester:</span>
-                      <span className="text-gray-900 font-semibold">{assignment.semester}</span>
+                      <span className="text-gray-900 font-semibold truncate">{assignment.semester}</span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-2">
                       <span className="font-medium text-gray-700">Academic Year:</span>
-                      <span className="text-gray-900 font-semibold">{assignment.academic_year}</span>
+                      <span className="text-gray-900 font-semibold truncate">{assignment.academic_year}</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Schedule Information */}
-                <div className="bg-white rounded-lg p-3 border border-blue-200">
+                <div className="bg-white rounded-lg p-2 sm:p-3 border border-blue-200">
                   <div className="flex items-center gap-2 mb-2">
-                    <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                    <div className="w-2 h-2 bg-purple-500 rounded-full flex-shrink-0"></div>
                     <span className="font-semibold text-purple-900 text-xs uppercase tracking-wide">Schedule</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div className="flex justify-between">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-2">
                       <span className="font-medium text-gray-700">Day(s):</span>
-                      <span className="text-gray-900 font-semibold">
+                      <span className="text-gray-900 font-semibold truncate">
                         {selectedDay && selectedDay.length > 0 ? selectedDay.join(', ') : 'Not specified'}
                       </span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-2">
                       <span className="font-medium text-gray-700">Time:</span>
-                      <span className="text-gray-900 font-semibold">{assignment.time || 'Not specified'}</span>
+                      <span className="text-gray-900 font-semibold truncate">{assignment.time || 'Not specified'}</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Subjects Summary */}
-                <div className="bg-white rounded-lg p-3 border border-blue-200">
+                <div className="bg-white rounded-lg p-2 sm:p-3 border border-blue-200">
                   <div className="flex items-center gap-2 mb-2">
-                    <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                    <div className="w-2 h-2 bg-orange-500 rounded-full flex-shrink-0"></div>
                     <span className="font-semibold text-orange-900 text-xs uppercase tracking-wide">Subjects to be Assigned</span>
-                    <span className="ml-auto text-xs font-bold bg-orange-100 text-orange-800 px-2 py-1 rounded-full">
+                    <span className="ml-auto text-xs font-bold bg-orange-100 text-orange-800 px-2 py-1 rounded-full flex-shrink-0">
                       {selectedSubjects.length} subject{selectedSubjects.length !== 1 ? 's' : ''}
                     </span>
                   </div>
                   
                   {/* Subject List */}
-                  <div className="max-h-32 overflow-y-auto space-y-1">
+                  <div className="max-h-24 sm:max-h-32 overflow-y-auto space-y-1">
                     {selectedSubjects.map((subjectId, index) => {
                       const subject = courses.find(c => c.id === subjectId);
                       return (
-                        <div key={subjectId} className="flex items-center justify-between text-xs bg-gray-50 rounded px-2 py-1.5 border border-gray-200">
-                          <div className="flex items-center gap-2">
-                            <span className="text-gray-500 font-mono">#{index + 1}</span>
-                            <span className="font-medium text-gray-800">{subject?.code || 'N/A'}</span>
-                            <span className="text-gray-600">-</span>
-                            <span className="text-gray-700 truncate max-w-24">{subject?.name || subjectId}</span>
+                        <div key={subjectId} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2 text-xs bg-gray-50 rounded px-2 py-1.5 border border-gray-200">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-gray-500 font-mono flex-shrink-0">#{index + 1}</span>
+                            <span className="font-medium text-gray-800 truncate">{subject?.code || 'N/A'}</span>
+                            <span className="text-gray-600 hidden sm:inline">-</span>
+                            <span className="text-gray-700 truncate max-w-20 sm:max-w-24">{subject?.name || subjectId}</span>
                           </div>
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-1 flex-wrap">
                             <span className="text-xs text-gray-500">({subject?.units || 0} units)</span>
                             {subject?.semester && (
                               <span className={`inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full ${
@@ -1163,8 +1165,8 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
                   
                   {/* Summary Stats */}
                   <div className="mt-2 pt-2 border-t border-gray-200">
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="flex justify-between">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                      <div className="flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-2">
                         <span className="font-medium text-gray-600">Total Units:</span>
                         <span className="font-semibold text-gray-800">
                           {selectedSubjects.reduce((total, subjectId) => {
@@ -1173,7 +1175,7 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
                           }, 0)} units
                         </span>
                       </div>
-                      <div className="flex justify-between">
+                      <div className="flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-2">
                         <span className="font-medium text-gray-600">Average per Subject:</span>
                         <span className="font-semibold text-gray-800">
                           {selectedSubjects.length > 0 ? 
@@ -1189,39 +1191,41 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
                 </div>
 
                 {/* Warning/Info Box */}
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-2 sm:p-3">
                   <div className="flex items-start gap-2">
-                    <div className="w-5 h-5 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <svg className="w-3 h-3 text-amber-600" fill="currentColor" viewBox="0 0 20 20">
+                    <div className="w-4 h-4 sm:w-5 sm:h-5 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <svg className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-amber-600" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                       </svg>
                     </div>
-                    <div className="text-xs text-amber-800">
+                    <div className="text-xs text-amber-800 min-w-0">
                       <p className="font-medium mb-1">Please verify all information above is correct.</p>
-                      <p>This will create {selectedSubjects.length} separate subject assignment{selectedSubjects.length !== 1 ? 's' : ''} for the selected instructor.</p>
+                      <p className="break-words">This will create {selectedSubjects.length} separate subject assignment{selectedSubjects.length !== 1 ? 's' : ''} for the selected instructor.</p>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Action Buttons */}
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={handleCancelConfirmation}
-                className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirm}
-                disabled={formSubmitting}
-                className="flex-1 px-4 py-2 text-sm font-semibold text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {formSubmitting ? 'Saving...' : 'Confirm Assignment'}
-              </button>
+            {/* Action Buttons - Sticky at bottom edge */}
+            <div className="sticky bottom-0 left-0 right-0 bg-white border-t border-gray-200 -mx-4 sm:-mx-6 -mb-4 sm:-mb-6 rounded-b-2xl shadow-lg">
+              <div className="flex flex-col sm:flex-row">
+                <button
+                  type="button"
+                  onClick={handleCancelConfirmation}
+                  className="flex-1 px-4 sm:px-6 py-3 sm:py-4 text-sm sm:text-base font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors border-r border-gray-200 sm:border-r-0 sm:border-b-0 border-b"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirm}
+                  disabled={formSubmitting}
+                  className="flex-1 px-4 sm:px-6 py-3 sm:py-4 text-sm sm:text-base font-semibold text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {formSubmitting ? 'Saving...' : 'Confirm Assignment'}
+                </button>
+              </div>
             </div>
           </motion.div>
         </div>
