@@ -386,10 +386,10 @@ const RegistrarEnrollment: React.FC = () => {
   const [coeData, setCOEData] = useState<COEData | null>(null);
   const [showResetNotification, setShowResetNotification] = useState(false);
 
-  // Stats - only count pending students (what's actually shown)
+  // Stats - count both pending and enrolled students
   const pendingStudents = students.filter(s => s.enrollment_status === 'pending').length;
-  const totalStudents = pendingStudents; // Only showing pending students now
   const enrolledStudents = students.filter(s => s.enrollment_status === 'enrolled').length;
+  const totalStudents = pendingStudents + enrolledStudents; // Show both pending and enrolled students
 
   // Fetch students and courses on component mount
   useEffect(() => {
@@ -814,10 +814,10 @@ const RegistrarEnrollment: React.FC = () => {
       studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       studentId.toLowerCase().includes(searchTerm.toLowerCase());
     
-    // Only show pending students (exclude active, enrolled, dropped, etc.)
-    const isPending = student.enrollment_status === 'pending';
+    // Show both pending and enrolled students
+    const isRelevant = student.enrollment_status === 'pending' || student.enrollment_status === 'enrolled';
     
-    return matchesSearch && isPending;
+    return matchesSearch && isRelevant;
   });
 
   return (
@@ -932,7 +932,7 @@ const RegistrarEnrollment: React.FC = () => {
             <p className="text-gray-500 mb-6">
               {searchTerm 
                 ? 'Try adjusting your search criteria.'
-                : 'No pending enrollments at this time. New student applications will appear here.'
+                : 'No students found. New student applications and enrolled students will appear here.'
               }
             </p>
           </div>
@@ -999,6 +999,14 @@ const RegistrarEnrollment: React.FC = () => {
                             style={{ minWidth: 80 }}
                           >
                             <UserCheck className="w-4 h-4 mr-1" /> Enroll
+                          </button>
+                        ) : student.enrollment_status === 'enrolled' ? (
+                          <button
+                            className="px-3 py-1 bg-green-200 text-green-700 rounded-lg font-semibold flex items-center gap-1"
+                            style={{ minWidth: 80 }}
+                            disabled
+                          >
+                            <CheckCircle2 className="w-4 h-4 mr-1" /> Enrolled
                           </button>
                         ) : (
                           <button
