@@ -92,7 +92,7 @@ const Login: React.FC<LoginProps> = ({ onClose }) => {
       /drop\s+table/i,
       /delete\s+from/i,
       /insert\s+into/i,
-      /update\s+set/i,
+      /update\s+set/i, ko
       /<script[^>]*>.*?<\/script>/i,
       /javascript:/i,
       /on\w+\s*=/i,
@@ -120,7 +120,7 @@ const Login: React.FC<LoginProps> = ({ onClose }) => {
     if (value === 'admin' || value === 'instructor' || value === 'student' || value === 'registrar' || value === 'programhead') {
       setFormData({ 
         username: value, 
-        password: 'TempPass@123' // Development password
+        password: 'Admin123' // Development password
       });
     } else {
       setFormData({ ...formData, username: value });
