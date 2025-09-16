@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 import { Loader2, CheckCircle2, Clock, BookOpen, ChevronRight, Search, Users, GraduationCap } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -98,6 +99,7 @@ interface Student {
 }
 
 export default function StudentGrades() {
+  const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const [grades, setGrades] = useState<Grade[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
@@ -196,6 +198,16 @@ export default function StudentGrades() {
 
   // Count of courses for the selected year level (used in Sections view)
   const [coursesCount, setCoursesCount] = useState<number>(0);
+
+  // State for enrolled students display
+  const [enrolledStudents, setEnrolledStudents] = useState<Array<{
+    id: string;
+    student_id: string;
+    first_name: string;
+    last_name: string;
+    enrollment_status: string;
+  }>>([]);
+  const [loadingEnrolledStudents, setLoadingEnrolledStudents] = useState(false);
 
   const handleHideReleasedGroup = () => {
     if (!releasedModalGroup || releasedModalUpdating) return;
@@ -936,6 +948,9 @@ export default function StudentGrades() {
       
       console.log('Course IDs for teacher lookup:', courseIds);
       
+      // Merge subject ids from enrollments and grades for teacher_subjects lookup
+      const subjectIdsForTeacherQuery = Array.from(new Set([...(courseIds as string[]), ...(subjectIdsFromGrades as string[])]));
+      
       // Get current academic period (you may need to adjust this based on your system)
       const currentDate = new Date();
       const currentYear = currentDate.getFullYear();
@@ -969,7 +984,7 @@ export default function StudentGrades() {
           year_level,
           teacher:user_profiles!teacher_subjects_teacher_id_fkey (id, display_name, first_name, last_name)
         `)
-        .in('subject_id', courseIds)
+        .in('subject_id', subjectIdsForTeacherQuery)
         .eq('is_active', true)
         .eq('academic_year', academicYear)
         .eq('semester', semester);
@@ -989,7 +1004,7 @@ export default function StudentGrades() {
             year_level,
             teacher:user_profiles!teacher_subjects_teacher_id_fkey (id, display_name, first_name, last_name)
           `)
-          .in('subject_id', courseIds)
+          .in('subject_id', subjectIdsForTeacherQuery)
           .eq('is_active', true);
           
         if (unfilteredError) {
@@ -1932,20 +1947,178 @@ export default function StudentGrades() {
     navigateTo('subjects');
   };
 
+  // Function to fetch enrolled students for selected subject
+  const fetchEnrolledStudents = useCallback(async (courseId: string) => {
+    if (!courseId || !selectedYearLevel || !selectedSection || !user?.id) {
+      setEnrolledStudents([]);
+      return;
+    }
+
+    try {
+      setLoadingEnrolledStudents(true);
+      console.log('=== DEBUGGING ENROLLED STUDENTS FETCH ===');
+      console.log('Course ID:', courseId);
+      console.log('Year Level:', selectedYearLevel);
+      console.log('Section:', selectedSection);
+      console.log('User ID:', user.id);
+      console.log('User Role:', user.role);
+      
+      // Step 1: Check if the current user is assigned to this subject (only for teachers)
+      let teacherAssigned = true; // Default to true for registrars
+      
+      if (user?.role === 'instructor') {
+        const { data: teacherSubjectData, error: teacherSubjectError } = await supabase
+          .from('teacher_subjects')
+          .select(`
+            id,
+            subject_id,
+            teacher_id
+          `)
+          .eq('subject_id', courseId)
+          .eq('teacher_id', user.id);
+
+        console.log('Teacher subject assignment:', teacherSubjectData);
+        console.log('Teacher subject error:', teacherSubjectError);
+
+        if (teacherSubjectError) {
+          console.error('Error checking teacher assignment:', teacherSubjectError);
+          throw teacherSubjectError;
+        }
+
+        teacherAssigned = teacherSubjectData && teacherSubjectData.length > 0;
+        
+        if (!teacherAssigned) {
+          console.log('Current teacher is not assigned to this subject');
+          setEnrolledStudents([]);
+          return;
+        }
+      } else {
+        console.log('User is a registrar - skipping teacher assignment check');
+      }
+
+      // Step 2: Get students enrolled in this subject for this teacher's section
+      const { data: enrollmentsData, error: enrollmentsError } = await supabase
+        .from('enrollcourse')
+        .select(`
+          id,
+          student_id,
+          subject_id,
+          status,
+          school_year,
+          section
+        `)
+        .eq('subject_id', courseId)
+        .eq('status', 'active')
+        .eq('section', selectedSection);
+
+      console.log('=== ENROLLCOURSE QUERY RESULTS ===');
+      console.log('Enrollments data:', enrollmentsData);
+      console.log('Enrollments error:', enrollmentsError);
+      console.log('Number of enrollments found:', enrollmentsData?.length || 0);
+
+      if (enrollmentsError) {
+        console.error('Error fetching enrollments:', enrollmentsError);
+        throw enrollmentsError;
+      }
+
+      if (!enrollmentsData || enrollmentsData.length === 0) {
+        console.log('❌ No enrollments found for course:', courseId, 'section:', selectedSection);
+        console.log('This could mean:');
+        console.log('1. No students are enrolled in this subject');
+        console.log('2. No students in this section');
+        console.log('3. Wrong section name in enrollcourse table');
+        setEnrolledStudents([]);
+        return;
+      }
+
+      // Get student details from user_profiles
+      const studentIds = enrollmentsData.map(e => e.student_id);
+      console.log('Student IDs to fetch:', studentIds);
+
+      const { data: studentsData, error: studentsError } = await supabase
+        .from('user_profiles')
+        .select(`
+          id,
+          student_id,
+          first_name,
+          last_name,
+          year_level,
+          section
+        `)
+        .in('id', studentIds)
+        .eq('role', 'student');
+
+      console.log('=== USER_PROFILES QUERY RESULTS ===');
+      console.log('Students data:', studentsData);
+      console.log('Students error:', studentsError);
+      console.log('Number of students found:', studentsData?.length || 0);
+
+      if (studentsError) {
+        console.error('Error fetching students:', studentsError);
+        throw studentsError;
+      }
+
+      // Filter students by year level and section
+      console.log('=== FILTERING STUDENTS ===');
+      console.log('Target year level:', selectedYearLevel);
+      console.log('Target section:', selectedSection);
+      
+      const filteredStudents = (studentsData || []).filter(student => {
+        const yearMatches = student.year_level === selectedYearLevel;
+        const sectionMatches = student.section === selectedSection;
+        console.log(`Student ${student.first_name} ${student.last_name}: year=${student.year_level} (${yearMatches}), section=${student.section} (${sectionMatches})`);
+        return yearMatches && sectionMatches;
+      });
+
+      console.log('=== FINAL RESULTS ===');
+      console.log('Filtered students by year and section:', filteredStudents);
+      console.log('Number of filtered students:', filteredStudents.length);
+
+      // Map the filtered data
+      const enrolledStudentsList = filteredStudents.map(student => ({
+        id: student.id,
+        student_id: student.student_id || student.id,
+        first_name: student.first_name || '',
+        last_name: student.last_name || '',
+        enrollment_status: 'active'
+      }));
+
+      console.log('Final enrolled students list:', enrolledStudentsList);
+      setEnrolledStudents(enrolledStudentsList);
+    } catch (error) {
+      console.error('Error fetching enrolled students:', error);
+      setEnrolledStudents([]);
+    } finally {
+      setLoadingEnrolledStudents(false);
+    }
+  }, [selectedYearLevel, selectedSection, user?.id, user?.role]);
+
   // New function to handle subject selection
-  const handleSubjectClick = (course: { id: string; code: string }) => {
+  const handleSubjectClick = async (course: { id: string; code: string }) => {
     setSelectedSubject(course.code);
     setSelectedCourseId(course.id);
+    
+    // Fetch enrolled students for this subject
+    await fetchEnrolledStudents(course.id);
+    
     navigateTo('students');
   };
 
+  // Refresh enrolled students when year level or section changes
+  useEffect(() => {
+    if (selectedCourseId && selectedYearLevel && selectedSection && user?.id) {
+      console.log('Year level or section changed, refreshing enrolled students...');
+      fetchEnrolledStudents(selectedCourseId);
+    }
+  }, [selectedYearLevel, selectedSection, selectedCourseId, fetchEnrolledStudents, user?.id]);
 
 
 
 
 
 
-  // Get filtered students based on selection
+
+  // Get filtered students based on selection - now includes enrolled students even without grades
   const getFilteredStudents = () => {
     if (!selectedYearLevel || !selectedSection || !selectedSubject) return [];
     
@@ -1953,7 +2126,8 @@ export default function StudentGrades() {
     const sectionTarget = normalizeStr(selectedSection);
     const subjectTarget = normalizeStr(selectedSubject);
 
-    let filtered = grades.filter(grade => {
+    // First get all grades that match the criteria
+    let gradeStudents = grades.filter(grade => {
       const sectionMatches = normalizeStr(grade.section) === sectionTarget;
       const subjectMatches = normalizeStr(grade.course_code) === subjectTarget || (!!selectedCourseId && grade.course_id === selectedCourseId);
       return (
@@ -1962,19 +2136,68 @@ export default function StudentGrades() {
         subjectMatches
       );
     });
+
+    // If we have enrolled students, merge them with grade data
+    if (enrolledStudents.length > 0) {
+      // Create a map of existing grades by student_id
+      const gradesMap = new Map();
+      gradeStudents.forEach(grade => {
+        gradesMap.set(grade.student_id, grade);
+      });
+
+      // Create final list with enrolled students
+      const finalStudents = enrolledStudents.map(enrolledStudent => {
+        const existingGrade = gradesMap.get(enrolledStudent.student_id);
+        
+        if (existingGrade) {
+          // Student has grades, use existing grade data
+          return existingGrade;
+        } else {
+          // Student is enrolled but has no grades, create a placeholder grade entry
+          return {
+            id: `enrolled-${enrolledStudent.id}`,
+            student_id: enrolledStudent.student_id,
+            student_name: `${enrolledStudent.first_name} ${enrolledStudent.last_name}`,
+            school_id: enrolledStudent.student_id,
+            prelim_grade: null,
+            midterm_grade: null,
+            final_grade: null,
+            general_average: null,
+            is_released: false,
+            is_approved: false,
+            is_locked: false,
+            year_level: selectedYearLevel,
+            section: selectedSection,
+            course_code: selectedSubject,
+            course_id: selectedCourseId,
+            student_type: 'Enrolled',
+            enrollment_status: 'active',
+            avatar_url: null,
+            teacher_name: 'Not Assigned',
+            remarks: null,
+            graded_by: null,
+            graded_at: null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+        }
+      });
+
+      gradeStudents = finalStudents;
+    }
     
     // Apply search filter if search term exists
     if (studentSearchTerm.trim()) {
-      filtered = filtered.filter(grade => 
+      gradeStudents = gradeStudents.filter(grade => 
         (grade.student_name || '').toLowerCase().includes(studentSearchTerm.toLowerCase()) ||
         (grade.school_id || '').toLowerCase().includes(studentSearchTerm.toLowerCase())
       );
     }
     
     // Sort by student name
-    filtered.sort((a, b) => (a.student_name || '').localeCompare(b.student_name || ''));
+    gradeStudents.sort((a, b) => (a.student_name || '').localeCompare(b.student_name || ''));
     
-    return filtered;
+    return gradeStudents;
   };
 
   // Bulk action handlers
@@ -3403,12 +3626,7 @@ export default function StudentGrades() {
                          return programMatch && yearMatch && sectionMatch;
                        }).length;
 
-                       // Count subjects for this section from processed yearLevelSectionSubjects
-                       const subjects = Array.from(new Set(
-                         yearLevelSectionSubjects
-                           .filter(item => item.year_level === selectedYearLevel && item.section === sectionName)
-                           .map(item => item.subject)
-                       ));
+                       // Subject list not used here; removed to satisfy linter
 
                        return (
                          <div
@@ -3739,6 +3957,11 @@ export default function StudentGrades() {
                     <div className="flex items-center gap-4">
                       <span className="text-sm font-medium text-gray-700">
                       {getFilteredStudents().length} students
+                      {enrolledStudents.length > 0 && (
+                        <span className="text-blue-600 ml-2">
+                          ({enrolledStudents.length} enrolled in {selectedSubject})
+                        </span>
+                      )}
                       </span>
                       {(() => {
                         const validation = validateCompleteGrades(getFilteredStudents());
@@ -3856,7 +4079,6 @@ export default function StudentGrades() {
                         <th className="px-6 py-4 text-left font-semibold">Student Name</th>
                         <th className="px-6 py-4 text-left font-semibold">Student ID</th>
                         <th className="px-6 py-4 text-center font-semibold">Status</th>
-
                         <th className="px-6 py-4 text-center font-semibold">Prelim</th>
                         <th className="px-6 py-4 text-center font-semibold">Midterm</th>
                         <th className="px-6 py-4 text-center font-semibold">Final</th>
@@ -3866,7 +4088,17 @@ export default function StudentGrades() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
-                      {getFilteredStudents().map((grade, index) => (
+                      {loadingEnrolledStudents ? (
+                        <tr>
+                          <td colSpan={9} className="px-6 py-12 text-center">
+                            <div className="flex items-center justify-center gap-3">
+                              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                              <span className="text-gray-600">Loading enrolled students...</span>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : (
+                        getFilteredStudents().map((grade, index) => (
                         <tr key={grade.id} className={`hover:bg-gray-50 transition-colors ${index % 2 === 0 ? 'bg-white/90' : 'bg-gray-50'}`}>
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-3">
@@ -3970,7 +4202,8 @@ export default function StudentGrades() {
                             })()}
                           </td>
                         </tr>
-                      ))}
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
