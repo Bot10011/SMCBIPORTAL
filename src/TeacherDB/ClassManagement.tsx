@@ -877,6 +877,19 @@ const ClassManagement: React.FC = () => {
         return;
       }
 
+      // Normalize year level to numeric (1..4) based on the student's current year level
+      const normalizeYearLevelToNumber = (value?: string): number | null => {
+        if (!value) return null;
+        const s = String(value).toLowerCase();
+        if (s.includes('1')) return 1;
+        if (s.includes('2')) return 2;
+        if (s.includes('3')) return 3;
+        if (s.includes('4')) return 4;
+        const n = parseInt(s, 10);
+        return [1, 2, 3, 4].includes(n) ? n : null;
+      };
+      const resolvedYearNumber = normalizeYearLevelToNumber((student.year_level as string) || (selectedClass?.year_level as string));
+
       // Avoid duplicate grade rows: find existing record for (student, subject, section)
       const key = {
         student_id: student.id,
@@ -906,6 +919,8 @@ const ClassManagement: React.FC = () => {
             prelim_grade: prelimGrade,
             midterm_grade: midtermGrade,
             final_grade: finalGrade,
+            year_level: resolvedYearNumber, // ensure correct year level is stored
+            academic_year: selectedClass?.academic_year || null,
             updated_at: new Date().toISOString()
           })
           .eq('id', existingGrade.id);
@@ -922,6 +937,8 @@ const ClassManagement: React.FC = () => {
             prelim_grade: prelimGrade,
             midterm_grade: midtermGrade,
             final_grade: finalGrade,
+            year_level: resolvedYearNumber, // ensure correct year level is stored
+            academic_year: selectedClass?.academic_year || null,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           });
