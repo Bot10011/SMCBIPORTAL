@@ -68,6 +68,7 @@ interface EnrollmentRow {
   status: string;
   subject_id: string;
   enrollment_date: string;
+  section?: string; // Add section property
   student: {
     id: string;
     email: string;
@@ -103,7 +104,6 @@ interface GradeRow {
   id: string;
   student_id: string;
   subject_id: string;
-  academic_year?: string | null;
   section?: string | null;
   prelim_grade?: number;
   midterm_grade?: number;
@@ -259,12 +259,6 @@ const ClassManagement: React.FC = () => {
       if (user?.id) {
         subjectQuery = subjectQuery.eq('teacher_id', user.id);
       }
-      if (selectedClass?.section) {
-        subjectQuery = subjectQuery.eq('section', selectedClass.section);
-      }
-      if (selectedClass?.academic_year) {
-        subjectQuery = subjectQuery.eq('academic_year', selectedClass.academic_year);
-      }
 
       const { data: subjectData, error: subjectError } = await subjectQuery.maybeSingle();
 
@@ -284,7 +278,7 @@ const ClassManagement: React.FC = () => {
         throw new Error('Subject not found in teacher_subjects table');
       }
 
-      // 2. Check raw enrollments
+      // 2. Check raw enrollments and their structure
       const { data: rawEnrollments, error: enrollError } = await supabase
         .from('enrollcourse')
         .select(`
@@ -296,7 +290,17 @@ const ClassManagement: React.FC = () => {
       console.log('📊 Raw Enrollments Check:', {
         count: rawEnrollments?.length || 0,
         enrollments: rawEnrollments,
-        error: enrollError?.message
+        error: enrollError?.message,
+        sampleEnrollment: rawEnrollments?.[0] ? {
+          id: rawEnrollments[0].id,
+          student_id: rawEnrollments[0].student_id,
+          subject_id: rawEnrollments[0].subject_id,
+          status: rawEnrollments[0].status,
+          section: rawEnrollments[0].section,
+          academic_year: rawEnrollments[0].academic_year,
+          semester: rawEnrollments[0].semester,
+          availableFields: Object.keys(rawEnrollments[0])
+        } : null
       });
 
       if (enrollError) {
@@ -305,7 +309,7 @@ const ClassManagement: React.FC = () => {
       }
 
       // 3. Get active enrollments with student details
-      const { data, error } = await supabase
+      let enrollmentQuery = supabase
         .from('enrollcourse')
         .select(`
           id,
@@ -313,6 +317,8 @@ const ClassManagement: React.FC = () => {
           status,
           subject_id,
           enrollment_date,
+          section,
+          semester,
           student:user_profiles(
             id,
             email,
@@ -334,10 +340,25 @@ const ClassManagement: React.FC = () => {
         .eq('subject_id', subjectId)
         .eq('status', 'active');
 
+      // Add section filtering if we have a selected class with section info
+      if (selectedClass?.section) {
+        enrollmentQuery = enrollmentQuery.eq('section', selectedClass.section);
+        console.log('🔍 Filtering enrollments by section:', selectedClass.section);
+      }
+
+      const { data, error } = await enrollmentQuery;
+
       console.log('👥 Active Enrollments Query:', {
         count: data?.length || 0,
         data,
-        error: error?.message
+        error: error?.message,
+        expectedSection: selectedClass?.section || 'No section filter',
+        expectedYearLevel: selectedClass?.year_level || 'No year level filter',
+        enrollmentSections: data?.map(e => e.section) || [],
+        enrollmentYearLevels: data?.map(e => {
+          const student = Array.isArray(e.student) ? e.student[0] : e.student;
+          return student?.year_level;
+        }) || []
       });
 
       if (error) {
@@ -365,20 +386,34 @@ const ClassManagement: React.FC = () => {
         return student?.id;
       }).filter(Boolean);
 
-      const { data: grades, error: gradesError } = await supabase
+      // Build grades query with proper section filtering
+      let gradesQuery = supabase
         .from('grades')
-        .select('id, student_id, subject_id, academic_year, section, prelim_grade, midterm_grade, final_grade, edit_status, edit_requested')
+        .select('id, student_id, subject_id, section, prelim_grade, midterm_grade, final_grade, edit_status, edit_requested')
         .in('student_id', studentIds)
-        .eq('subject_id', subjectId)
-        .eq('academic_year', selectedClass?.academic_year || null)
-        .eq('section', selectedClass?.section || null);
+        .eq('subject_id', subjectId);
+
+      // Add section filtering if available
+      if (selectedClass?.section) {
+        gradesQuery = gradesQuery.eq('section', selectedClass.section);
+        console.log('🔍 Filtering grades by section:', selectedClass.section);
+      }
+
+      // Note: Year level filtering will be done after fetching grades since year_level is in user_profiles table
+
+      const { data: grades, error: gradesError } = await gradesQuery;
 
       if (gradesError) {
         console.error('❌ Grades Error:', gradesError);
         throw new Error(`Failed to fetch grades: ${gradesError.message}`);
       }
 
-      console.log('📊 Fetched grades:', grades);
+      console.log('📊 Fetched grades:', {
+        count: grades?.length || 0,
+        grades,
+        sectionFilter: selectedClass?.section || 'No section filter',
+        yearLevelFilter: selectedClass?.year_level || 'No year level filter'
+      });
 
       // Note: Removed Google OAuth helper functions since we're only using database fields for student names
 
@@ -399,20 +434,85 @@ const ClassManagement: React.FC = () => {
           console.log(`⏭️ Skipping inactive student:`, student?.id, student?.email);
           continue;
         }
+
+        // Additional filtering to ensure we only show students from the correct section and year level
+        if (selectedClass?.section) {
+          // Check if enrollment has section data
+          if (row.section && row.section !== selectedClass.section) {
+            console.log(`⏭️ Skipping student from different section:`, {
+              studentId: student.id,
+              studentSection: row.section,
+              expectedSection: selectedClass.section
+            });
+            continue;
+          }
+          
+          // If no section in enrollment, try to get it from student profile
+          if (!row.section) {
+            console.log(`⚠️ No section data in enrollment for student ${student.id}, checking student profile...`);
+            // For now, we'll include the student but log this for debugging
+            console.log(`📝 Student ${student.id} has no section in enrollment data`);
+          }
+        }
+
+        // Filter by year level if available
+        if (selectedClass?.year_level) {
+          const studentYearLevel = String(student.year_level || '');
+          const expectedYearLevel = String(selectedClass.year_level || '');
+          
+          // Normalize year levels for comparison
+          const normalizeYearLevel = (year: string | number) => {
+            if (typeof year === 'number') return year.toString();
+            const normalized = String(year).toLowerCase()
+              .replace(/\s+/g, '')
+              .replace('st', '')
+              .replace('nd', '')
+              .replace('rd', '')
+              .replace('th', '')
+              .replace('year', '');
+            return normalized;
+          };
+          
+          const normalizedStudentYear = normalizeYearLevel(studentYearLevel);
+          const normalizedExpectedYear = normalizeYearLevel(expectedYearLevel);
+          
+          console.log(`🔍 Year level comparison:`, {
+            studentId: student.id,
+            studentYearLevel: studentYearLevel,
+            expectedYearLevel: expectedYearLevel,
+            normalizedStudentYear: normalizedStudentYear,
+            normalizedExpectedYear: normalizedExpectedYear,
+            match: normalizedStudentYear === normalizedExpectedYear
+          });
+          
+          if (normalizedStudentYear !== normalizedExpectedYear) {
+            console.log(`⏭️ Skipping student from different year level:`, {
+              studentId: student.id,
+              studentYearLevel: studentYearLevel,
+              expectedYearLevel: expectedYearLevel,
+              normalizedStudentYear: normalizedStudentYear,
+              normalizedExpectedYear: normalizedExpectedYear
+            });
+            continue;
+          }
+        }
         
         console.log(`\n🚀 Processing student ${student.id}:`, {
           email: student.email,
           first_name: student.first_name,
           last_name: student.last_name,
           role: student.role,
-          is_active: student.is_active
+          is_active: student.is_active,
+          studentYearLevel: student.year_level,
+          enrollmentSection: row.section,
+          selectedClassSection: selectedClass?.section,
+          selectedClassYearLevel: selectedClass?.year_level
         });
         
         // Find the grade for this student
         const gradeRow = grades?.find((g: GradeRow) => (
           g.student_id === student.id &&
           g.subject_id === row.subject_id &&
-          (g.academic_year ?? null) === (selectedClass?.academic_year ?? null) &&
           (g.section ?? null) === (selectedClass?.section ?? null)
         )) || null;
         
@@ -581,7 +681,7 @@ const ClassManagement: React.FC = () => {
       console.groupEnd();
       setLoading(false);
     }
-  }, [user?.id, selectedClass?.section, selectedClass?.academic_year]);
+  }, [user?.id, selectedClass?.section, selectedClass?.year_level]);
 
   // Handle URL parameters for direct navigation to specific student
   const autoSelectedForSubject = useRef<string | null>(null);
@@ -596,7 +696,6 @@ const ClassManagement: React.FC = () => {
       if (targetClass) {
         // Set the selected class and load students
         setSelectedClass(targetClass);
-        fetchStudents(targetClass.subject_id, { showEmptyToast: false });
         autoSelectedForSubject.current = subjectId;
         
         // If studentId is present, highlight it
@@ -610,6 +709,13 @@ const ClassManagement: React.FC = () => {
       }
     }
   }, [searchParams, classes, fetchStudents]);
+
+  // Load students whenever selectedClass changes (avoids race with stale filters)
+  useEffect(() => {
+    if (selectedClass?.subject_id) {
+      void fetchStudents(selectedClass.subject_id, { showEmptyToast: true });
+    }
+  }, [selectedClass, fetchStudents]);
 
   // Calculate GA (General Average) - only used variant below
 
@@ -771,11 +877,10 @@ const ClassManagement: React.FC = () => {
         return;
       }
 
-      // Avoid duplicate grade rows: find existing record for (student, subject, AY, section)
+      // Avoid duplicate grade rows: find existing record for (student, subject, section)
       const key = {
         student_id: student.id,
         subject_id: selectedClass?.subject_id || null,
-        academic_year: selectedClass?.academic_year || null,
         section: selectedClass?.section || null,
       };
 
@@ -784,7 +889,6 @@ const ClassManagement: React.FC = () => {
         .select('id, graded_by')
         .eq('student_id', key.student_id)
         .eq('subject_id', key.subject_id)
-        .eq('academic_year', key.academic_year)
         .eq('section', key.section)
         .maybeSingle();
 
@@ -813,7 +917,6 @@ const ClassManagement: React.FC = () => {
           .insert({
             student_id: key.student_id,
             subject_id: key.subject_id,
-            academic_year: key.academic_year,
             section: key.section,
             graded_by: user?.id || null,
             prelim_grade: prelimGrade,
@@ -844,7 +947,6 @@ const ClassManagement: React.FC = () => {
               .select('id')
               .eq('student_id', key.student_id)
               .eq('subject_id', key.subject_id)
-              .eq('academic_year', key.academic_year)
               .eq('section', key.section)
               .maybeSingle();
             const gradeIdToLock = gradeAfterSave?.id as string | undefined;
@@ -1006,7 +1108,6 @@ const ClassManagement: React.FC = () => {
       const key = {
         student_id: student.id,
         subject_id: selectedClass.subject_id,
-        academic_year: selectedClass.academic_year || null,
         section: selectedClass.section || null,
       };
 
@@ -1015,7 +1116,6 @@ const ClassManagement: React.FC = () => {
         .select('id')
         .eq('student_id', key.student_id)
         .eq('subject_id', key.subject_id)
-        .eq('academic_year', key.academic_year)
         .eq('section', key.section)
         .maybeSingle();
       if (findErr && findErr.code !== 'PGRST116') throw findErr;
@@ -1430,7 +1530,6 @@ const ClassManagement: React.FC = () => {
                                     }`}
                                     onClick={() => {
                                       setSelectedClass(cls);
-                                      if (cls.subject_id) fetchStudents(cls.subject_id);
                                     }}
                                   >
                                     {/* Class Header */}
