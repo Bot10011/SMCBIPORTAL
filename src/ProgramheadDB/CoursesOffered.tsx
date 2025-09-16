@@ -1546,7 +1546,6 @@ export default function CourseManagement() {
                             <table className="min-w-full">
                               <thead className="bg-gray-50">
                                 <tr>
-                                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Image</th>
                                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subject Code</th>
                                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subject Name</th>
                                   
@@ -1568,48 +1567,6 @@ export default function CourseManagement() {
                                     transition={{ delay: (yearIdx * 0.1) + (semesterIdx * 0.05) + (courseIdx * 0.02) }}
                                     className="hover:bg-gray-50 transition-colors duration-200 group"
                 >
-                    {/* Subject Image */}
-                                    <td className="px-4 py-3">
-                                      <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center relative">
-                      {/* Loading Skeleton */}
-                      {imageLoading[String(course.id)] && (
-                        <div className="w-full h-full relative">
-                          <div className="absolute inset-0 enhanced-shimmer">
-                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
-                          </div>
-                        </div>
-                      )}
-                      
-                      {/* Actual Image */}
-                      {!imageLoading[String(course.id)] && courseImages[String(course.id)] && (
-                        <img
-                          src={courseImages[String(course.id)]}
-                          alt={course.name}
-                          className="w-full h-full object-cover transition-opacity duration-300"
-                          onError={() => setImageError(prev => ({ ...prev, [String(course.id)]: true }))}
-                        />
-                      )}
-                      
-                                        {/* No Image Placeholder */}
-                      {!imageLoading[String(course.id)] && !courseImages[String(course.id)] && !imageError[String(course.id)] && (
-                                          <div className="flex flex-col items-center justify-center w-full h-full gap-1 bg-gray-50/80">
-                                            <BookOpen className="w-4 h-4 text-gray-400" />
-                                            <span className="text-[8px] text-gray-500 font-medium">No Image</span>
-                        </div>
-                      )}
-                      
-                                        {/* Error State */}
-                      {!imageLoading[String(course.id)] && imageError[String(course.id)] && (
-                                          <div className="flex flex-col items-center justify-center w-full h-full gap-1 bg-red-50/80">
-                                            <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                            </svg>
-                                            <span className="text-[8px] text-red-500 font-medium">Error</span>
-                          </div>
-                                        )}
-                        </div>
-                                    </td>
-                                    
                                     {/* Subject Code */}
                                     <td className="px-4 py-3">
                                       <span className="text-sm font-semibold text-blue-600">{course.code}</span>
@@ -1796,7 +1753,6 @@ export default function CourseManagement() {
                                 <tr>
                                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Units</th>
                                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subject Name</th>
-                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subject Image</th>
                                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
@@ -1813,47 +1769,6 @@ export default function CourseManagement() {
                           {/* Subject Name with Code */}
                           <td className="px-6 py-4 font-semibold text-gray-900">
                             <span className="text-blue-600">{course.code}</span> - {course.name}
-                          </td>
-                          {/* Subject Image */}
-                          <td className="px-6 py-4">
-                            <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center relative">
-                              {/* Loading Skeleton */}
-                              {imageLoading[String(course.id)] && (
-                                <div className="w-full h-full relative">
-                                  <div className="absolute inset-0 enhanced-shimmer">
-                                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
-                                  </div>
-                                </div>
-                              )}
-                              
-                              {/* Actual Image */}
-                              {!imageLoading[String(course.id)] && courseImages[String(course.id)] && (
-                                <img 
-                                  src={courseImages[String(course.id)]} 
-                                  alt={course.name} 
-                                  className="w-full h-full object-cover transition-opacity duration-300"
-                                  onError={() => setImageError(prev => ({ ...prev, [String(course.id)]: true }))}
-                                />
-                              )}
-                              
-                                        {/* No Image Placeholder */}
-                              {!imageLoading[String(course.id)] && !courseImages[String(course.id)] && !imageError[String(course.id)] && (
-                                <div className="flex flex-col items-center justify-center w-full h-full gap-1 bg-gray-50/80">
-                                  <BookOpen className="w-4 h-4 text-gray-400" />
-                                  <span className="text-[8px] text-gray-500 font-medium">No Image</span>
-                                </div>
-                              )}
-                              
-                                        {/* Error State */}
-                              {!imageLoading[String(course.id)] && imageError[String(course.id)] && (
-                                          <div className="flex flex-col items-center justify-center w-full h-full gap-1 bg-red-50/80">
-                                  <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                                  </svg>
-                                  <span className="text-[8px] text-red-500 font-medium">Error</span>
-                                </div>
-                              )}
-                            </div>
                           </td>
                                     {/* Type */}
                           <td className="px-6 py-4">
