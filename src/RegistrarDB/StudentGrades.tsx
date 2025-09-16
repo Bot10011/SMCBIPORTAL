@@ -209,6 +209,52 @@ export default function StudentGrades() {
   }>>([]);
   const [loadingEnrolledStudents, setLoadingEnrolledStudents] = useState(false);
 
+  // State for instructor and subject information
+  const [instructorInfo, setInstructorInfo] = useState<{
+    instructor_name: string;
+    subject_name: string;
+    course_code: string;
+  } | null>(null);
+
+  // State for instructor error tracking
+  const [instructorErrors, setInstructorErrors] = useState<{
+    duplicateInstructors: Array<{
+      instructorId: string;
+      instructorName: string;
+      sections: string[];
+      yearLevels: string[];
+      courseId: string;
+      courseCode: string;
+    }>;
+    missingInstructors: Array<{
+      courseId: string;
+      courseCode: string;
+      section: string;
+      yearLevel: string;
+    }>;
+    mappingErrors: Array<{
+      teacherId: string;
+      instructorId: string;
+      section: string;
+      yearLevel: string;
+      error: string;
+    }>;
+    fallbackInstructors: Array<{
+      instructorId: string;
+      instructorName: string;
+      sections: string[];
+      yearLevels: string[];
+      courseId: string;
+      courseCode: string;
+      reason: string;
+    }>;
+  }>({
+    duplicateInstructors: [],
+    missingInstructors: [],
+    mappingErrors: [],
+    fallbackInstructors: []
+  });
+
   const handleHideReleasedGroup = () => {
     if (!releasedModalGroup || releasedModalUpdating) return;
     setHideConfirmationOpen(true);
@@ -1936,6 +1982,13 @@ export default function StudentGrades() {
     setSelectedYearLevel(yearLevel);
     setSelectedSection('');
     setSelectedSubject('');
+    // Clear instructor errors when changing year levels
+    setInstructorErrors({
+      duplicateInstructors: [],
+      missingInstructors: [],
+      mappingErrors: [],
+      fallbackInstructors: []
+    });
     navigateTo('sections');
   };
 
@@ -1944,8 +1997,374 @@ export default function StudentGrades() {
     setSelectedSection(section);
     setSelectedSubject('');
     setSelectedCourseId('');
+    // Clear instructor errors when changing sections
+    setInstructorErrors({
+      duplicateInstructors: [],
+      missingInstructors: [],
+      mappingErrors: [],
+      fallbackInstructors: []
+    });
     navigateTo('subjects');
   };
+
+  // Function to track instructor errors and duplicates
+  const trackInstructorErrors = useCallback(async (courseId: string, courseCode: string, courseName: string) => {
+    try {
+      console.log('=== INSTRUCTOR ERROR TRACKING START ===');
+      
+      // Get all teacher_subjects for this course across all sections and year levels
+      const { data: allTeacherSubjects, error: allTeacherError } = await supabase
+        .from('teacher_subjects')
+        .select(`
+          id,
+          teacher_id,
+          subject_id,
+          section,
+          year_level,
+          teacher:user_profiles!teacher_subjects_teacher_id_fkey (id, display_name, first_name, last_name)
+        `)
+        .eq('subject_id', courseId)
+        .eq('is_active', true);
+
+      if (allTeacherError) {
+        console.error('Error fetching all teacher subjects for tracking:', allTeacherError);
+        return;
+      }
+
+      if (!allTeacherSubjects || allTeacherSubjects.length === 0) {
+        console.log('No teacher subjects found for course:', courseId);
+        return;
+      }
+
+      // Group by instructor ID to find duplicates
+      const instructorMap = new Map<string, Array<{
+        section: string;
+        yearLevel: string;
+        teacherId: string;
+        instructorName: string;
+      }>>();
+
+      const duplicateInstructors: Array<{
+        instructorId: string;
+        instructorName: string;
+        sections: string[];
+        yearLevels: string[];
+        courseId: string;
+        courseCode: string;
+      }> = [];
+
+      const missingInstructors: Array<{
+        courseId: string;
+        courseCode: string;
+        section: string;
+        yearLevel: string;
+      }> = [];
+
+      const mappingErrors: Array<{
+        teacherId: string;
+        instructorId: string;
+        section: string;
+        yearLevel: string;
+        error: string;
+      }> = [];
+
+      const fallbackInstructors: Array<{
+        instructorId: string;
+        instructorName: string;
+        sections: string[];
+        yearLevels: string[];
+        courseId: string;
+        courseCode: string;
+        reason: string;
+      }> = [];
+
+      // Process each teacher subject entry
+      allTeacherSubjects.forEach(ts => {
+        const instructorId = ts.teacher_id;
+        const teacher = Array.isArray(ts.teacher) ? ts.teacher[0] : (ts.teacher as { id?: string; display_name?: string; first_name?: string; last_name?: string } | null);
+        const instructorName = teacher?.display_name || 
+          `${teacher?.first_name || ''} ${teacher?.last_name || ''}`.trim() || 
+          'Unknown Instructor';
+
+        if (!instructorId) {
+          missingInstructors.push({
+            courseId,
+            courseCode,
+            section: ts.section,
+            yearLevel: ts.year_level
+          });
+          return;
+        }
+
+        if (!instructorMap.has(instructorId)) {
+          instructorMap.set(instructorId, []);
+        }
+
+        instructorMap.get(instructorId)!.push({
+          section: ts.section,
+          yearLevel: ts.year_level,
+          teacherId: instructorId,
+          instructorName
+        });
+      });
+
+      // Check for duplicates (same instructor in different sections)
+      instructorMap.forEach((assignments, instructorId) => {
+        if (assignments.length > 1) {
+          const uniqueSections = [...new Set(assignments.map(a => a.section))];
+          const uniqueYearLevels = [...new Set(assignments.map(a => a.yearLevel))];
+          
+          if (uniqueSections.length > 1 || uniqueYearLevels.length > 1) {
+            duplicateInstructors.push({
+              instructorId,
+              instructorName: assignments[0].instructorName,
+              sections: uniqueSections,
+              yearLevels: uniqueYearLevels,
+              courseId,
+              courseCode
+            });
+
+            console.error('DUPLICATE INSTRUCTOR DETECTED:', {
+              instructorId,
+              instructorName: assignments[0].instructorName,
+              courseCode,
+              courseName,
+              assignments: assignments.map(a => ({
+                section: a.section,
+                yearLevel: a.yearLevel
+              }))
+            });
+          }
+        }
+      });
+
+      // Check for mapping errors
+      allTeacherSubjects.forEach(ts => {
+        if (ts.teacher_id && !ts.teacher) {
+          mappingErrors.push({
+            teacherId: ts.teacher_id,
+            instructorId: ts.teacher_id,
+            section: ts.section,
+            yearLevel: ts.year_level,
+            error: 'Teacher profile not found in user_profiles table'
+          });
+        }
+      });
+
+      // Update error state
+      setInstructorErrors({
+        duplicateInstructors,
+        missingInstructors,
+        mappingErrors,
+        fallbackInstructors
+      });
+
+      console.log('=== INSTRUCTOR ERROR TRACKING RESULTS ===');
+      console.log('Duplicate Instructors:', duplicateInstructors);
+      console.log('Missing Instructors:', missingInstructors);
+      console.log('Mapping Errors:', mappingErrors);
+      console.log('Fallback Instructors:', fallbackInstructors);
+      console.log('=== INSTRUCTOR ERROR TRACKING END ===');
+
+    } catch (error) {
+      console.error('Error in instructor error tracking:', error);
+    }
+  }, []);
+
+  // Function to fetch instructor and subject information
+  const fetchInstructorInfo = useCallback(async (courseId: string) => {
+    if (!courseId || !selectedYearLevel || !selectedSection) {
+      setInstructorInfo(null);
+      return;
+    }
+
+    try {
+      console.log('Fetching instructor info for course:', courseId, 'year:', selectedYearLevel, 'section:', selectedSection);
+
+      // Get instructor assignment from teacher_subjects (first get all for this subject)
+      const { data: allTeacherSubjectData, error: teacherSubjectError } = await supabase
+        .from('teacher_subjects')
+        .select(`
+          id,
+          subject_id,
+          teacher_id,
+          section,
+          year_level
+        `)
+        .eq('subject_id', courseId);
+
+      console.log('All teacher subject data for this course:', allTeacherSubjectData);
+      console.log('Looking for section:', selectedSection, 'year level:', selectedYearLevel);
+
+      if (teacherSubjectError) {
+        console.error('Error fetching teacher subject:', teacherSubjectError);
+        throw teacherSubjectError;
+      }
+
+      if (!allTeacherSubjectData || allTeacherSubjectData.length === 0) {
+        console.log('No instructor assigned to this subject');
+        setInstructorInfo(null);
+        return;
+      }
+
+      // Filter by section and year level (handle text matching)
+      let teacherSubjectData = allTeacherSubjectData.filter(ts => {
+        const sectionMatch = ts.section === selectedSection;
+        
+        // Handle different year level formats
+        const normalizeYear = (year: string | number) => {
+          if (typeof year === 'number') return year.toString();
+          const normalized = year.toLowerCase()
+            .replace(/\s+/g, '')
+            .replace('st', '')
+            .replace('nd', '')
+            .replace('rd', '')
+            .replace('th', '')
+            .replace('year', '');
+          console.log(`Normalizing year: "${year}" -> "${normalized}"`);
+          return normalized;
+        };
+        
+        const normalizedSelectedYear = normalizeYear(selectedYearLevel);
+        const normalizedDbYear = normalizeYear(ts.year_level);
+        const yearMatch = normalizedSelectedYear === normalizedDbYear;
+        
+        console.log(`Teacher subject: section="${ts.section}" (${sectionMatch}), year="${ts.year_level}" (${yearMatch})`);
+        console.log(`Year comparison: "${normalizedSelectedYear}" vs "${normalizedDbYear}"`);
+        return sectionMatch && yearMatch;
+      });
+
+      console.log('Filtered teacher subject data:', teacherSubjectData);
+
+      if (teacherSubjectData.length === 0) {
+        console.log('No instructor assigned to this subject for this section and year level');
+        console.log('Available sections and years:', allTeacherSubjectData.map(ts => ({ section: ts.section, year: ts.year_level })));
+        console.log('Search criteria:', { courseId, selectedSection, selectedYearLevel });
+        
+        // Fallback: use first available instructor if no exact match
+        if (allTeacherSubjectData.length > 0) {
+          console.warn('⚠️ USING FALLBACK INSTRUCTOR - No exact match found for section/year combination');
+          console.warn('This may cause the same instructor to appear in different sections!');
+          console.warn('Available teacher_subjects:', allTeacherSubjectData.map(ts => ({
+            section: ts.section,
+            year: ts.year_level,
+            teacher_id: ts.teacher_id
+          })));
+          console.warn('Search criteria:', { courseId, selectedSection, selectedYearLevel });
+          teacherSubjectData = allTeacherSubjectData.slice(0, 1);
+        } else {
+          setInstructorInfo(null);
+          return;
+        }
+      }
+
+      // Get instructor details and course details
+      const teacherIds = teacherSubjectData.map(ts => ts.teacher_id);
+      console.log('Teacher IDs to fetch:', teacherIds);
+      
+      const { data: instructorData, error: instructorError } = await supabase
+        .from('user_profiles')
+        .select(`
+          id,
+          first_name,
+          last_name,
+          display_name,
+          role
+        `)
+        .in('id', teacherIds);
+
+      console.log('Raw instructor data from user_profiles:', instructorData);
+      console.log('Instructor error:', instructorError);
+
+      // Filter for instructors only
+      const filteredInstructorData = instructorData?.filter(instructor => instructor.role === 'instructor') || [];
+      console.log('Filtered instructor data (role=instructor):', filteredInstructorData);
+
+      const { data: courseData, error: courseError } = await supabase
+        .from('courses')
+        .select(`
+          id,
+          code,
+          name
+        `)
+        .eq('id', courseId);
+
+      console.log('Instructor data:', instructorData);
+      console.log('Course data:', courseData);
+
+      if (instructorError || courseError) {
+        console.error('Error fetching instructor or course data:', instructorError, courseError);
+        throw instructorError || courseError;
+      }
+
+      if (filteredInstructorData && filteredInstructorData.length > 0 && courseData && courseData.length > 0) {
+        // If we have multiple instructors, show all of them or the specific one for this section/year
+        let selectedInstructor;
+        
+        if (filteredInstructorData.length === 1) {
+          selectedInstructor = filteredInstructorData[0];
+        } else {
+          // Multiple instructors - find the one that matches our filtered teacherSubjectData
+          console.log('Multiple instructors found, looking for correct one...');
+          console.log('Filtered teacherSubjectData:', teacherSubjectData);
+          
+          if (teacherSubjectData.length > 0) {
+            // Since teacherSubjectData is already filtered by section/year, use its teacher_id
+            const correctTeacherId = teacherSubjectData[0]?.teacher_id;
+            console.log('Correct teacher ID from filtered data:', correctTeacherId);
+            
+            selectedInstructor = filteredInstructorData.find(instructor => 
+              instructor.id === correctTeacherId
+            );
+            
+            console.log('Found instructor by teacher_id:', selectedInstructor);
+          } else {
+            console.log('No teacherSubjectData found, using first instructor');
+            selectedInstructor = filteredInstructorData[0];
+          }
+          
+          // If still no match, use the first one
+          if (!selectedInstructor) {
+            selectedInstructor = filteredInstructorData[0];
+            console.log('Warning: Could not find instructor for specific section/year, using first available');
+          }
+        }
+        
+        const course = courseData[0];
+        
+        // Track instructor errors for this course
+        await trackInstructorErrors(courseId, course.code, course.name);
+        
+        console.log('Selected instructor:', selectedInstructor);
+        console.log('Teacher subject data used for filtering:', teacherSubjectData);
+        console.log('Available instructors:', filteredInstructorData.map(i => ({ 
+          id: i.id, 
+          name: i.display_name || `${i.first_name} ${i.last_name}` 
+        })));
+        
+        // Debug: Show mapping between teacher_subjects and instructors
+        console.log('=== TEACHER MAPPING DEBUG ===');
+        teacherSubjectData.forEach(ts => {
+          const instructor = filteredInstructorData.find(i => i.id === ts.teacher_id);
+          console.log(`Section: ${ts.section}, Year: ${ts.year_level}, Teacher ID: ${ts.teacher_id}, Instructor: ${instructor?.display_name || instructor?.first_name + ' ' + instructor?.last_name || 'NOT FOUND'}`);
+        });
+        
+        setInstructorInfo({
+          instructor_name: selectedInstructor.display_name || `${selectedInstructor.first_name} ${selectedInstructor.last_name}`,
+          subject_name: course.name,
+          course_code: course.code
+        });
+      } else {
+        console.log('No instructor or course data found');
+        console.log('Filtered instructor data length:', filteredInstructorData?.length || 0);
+        console.log('Course data length:', courseData?.length || 0);
+        setInstructorInfo(null);
+      }
+    } catch (error) {
+      console.error('Error fetching instructor info:', error);
+      setInstructorInfo(null);
+    }
+  }, [selectedYearLevel, selectedSection, trackInstructorErrors]);
 
   // Function to fetch enrolled students for selected subject
   const fetchEnrolledStudents = useCallback(async (courseId: string) => {
@@ -1997,6 +2416,25 @@ export default function StudentGrades() {
       }
 
       // Step 2: Get students enrolled in this subject for this teacher's section
+      // First, let's check what sections are available for this subject
+      const { data: allEnrollmentsData } = await supabase
+        .from('enrollcourse')
+        .select(`
+          id,
+          student_id,
+          subject_id,
+          status,
+          school_year,
+          section
+        `)
+        .eq('subject_id', courseId)
+        .eq('status', 'active');
+
+      console.log('=== ALL ENROLLMENTS FOR THIS SUBJECT ===');
+      console.log('All enrollments data:', allEnrollmentsData);
+      console.log('Available sections:', allEnrollmentsData?.map(e => e.section) || []);
+
+      // Now get the specific section
       const { data: enrollmentsData, error: enrollmentsError } = await supabase
         .from('enrollcourse')
         .select(`
@@ -2098,8 +2536,11 @@ export default function StudentGrades() {
     setSelectedSubject(course.code);
     setSelectedCourseId(course.id);
     
-    // Fetch enrolled students for this subject
-    await fetchEnrolledStudents(course.id);
+    // Fetch instructor info and enrolled students for this subject
+    await Promise.all([
+      fetchInstructorInfo(course.id),
+      fetchEnrolledStudents(course.id)
+    ]);
     
     navigateTo('students');
   };
@@ -2112,6 +2553,14 @@ export default function StudentGrades() {
     }
   }, [selectedYearLevel, selectedSection, selectedCourseId, fetchEnrolledStudents, user?.id]);
 
+  // Refresh instructor info when year level or section changes
+  useEffect(() => {
+    if (selectedCourseId && selectedYearLevel && selectedSection) {
+      console.log('Year level or section changed, refreshing instructor info...');
+      fetchInstructorInfo(selectedCourseId);
+    }
+  }, [selectedYearLevel, selectedSection, selectedCourseId, fetchInstructorInfo]);
+
 
 
 
@@ -2121,6 +2570,14 @@ export default function StudentGrades() {
   // Get filtered students based on selection - now includes enrolled students even without grades
   const getFilteredStudents = () => {
     if (!selectedYearLevel || !selectedSection || !selectedSubject) return [];
+    
+    console.log('=== GETFILTEREDSTUDENTS DEBUG ===');
+    console.log('Selected year level:', selectedYearLevel);
+    console.log('Selected section:', selectedSection);
+    console.log('Selected subject:', selectedSubject);
+    console.log('Selected course ID:', selectedCourseId);
+    console.log('Enrolled students count:', enrolledStudents.length);
+    console.log('Grades count:', grades.length);
     
     const normalizeStr = (v?: string | null) => (v || '').toString().trim().toLowerCase();
     const sectionTarget = normalizeStr(selectedSection);
@@ -2137,8 +2594,11 @@ export default function StudentGrades() {
       );
     });
 
+    console.log('Grade students found:', gradeStudents.length);
+
     // If we have enrolled students, merge them with grade data
     if (enrolledStudents.length > 0) {
+      console.log('Processing enrolled students...');
       // Create a map of existing grades by student_id
       const gradesMap = new Map();
       gradeStudents.forEach(grade => {
@@ -2184,7 +2644,11 @@ export default function StudentGrades() {
       });
 
       gradeStudents = finalStudents;
+    } else {
+      console.log('No enrolled students found, showing only students with grades');
     }
+    
+    console.log('Final gradeStudents before search:', gradeStudents.length);
     
     // Apply search filter if search term exists
     if (studentSearchTerm.trim()) {
@@ -2196,6 +2660,10 @@ export default function StudentGrades() {
     
     // Sort by student name
     gradeStudents.sort((a, b) => (a.student_name || '').localeCompare(b.student_name || ''));
+    
+    console.log('=== FINAL RESULT ===');
+    console.log('Final students to display:', gradeStudents.length);
+    console.log('Students:', gradeStudents.map(s => ({ name: s.student_name, id: s.student_id, hasGrades: s.prelim_grade !== null })));
     
     return gradeStudents;
   };
@@ -3919,34 +4387,88 @@ export default function StudentGrades() {
                   <h2 className="text-2xl font-bold">
                     {selectedProgram ? programs.find(p => p.id === selectedProgram)?.name || 'Unknown Program' : 'Select a Program'} -{selectedYearLevel} Section {getSectionDisplayName(selectedSection, sectionMap)}
                   </h2>
-                  {getFilteredStudents().length > 0 && (
+                  {selectedSubject && (
                     <div className="mt-3 text-base font-medium">
-                      <span className="mr-6">Subject: {selectedSubject || getFilteredStudents()[0]?.course_code || 'Unknown'}</span>
-                      <span>
-                        Instructor: {(() => {
-                          const student = getFilteredStudents()[0];
-                          const teacherName = student?.teacher_name;
-                          if (teacherName && teacherName !== 'Not Assigned') {
-                            return teacherName;
-                          }
-                          
-                          // Debug: Show why teacher_name is missing
-                          console.log('Header Debug - Teacher lookup:', {
-                            student_id: student?.student_id,
-                            year_level: student?.year_level,
-                            section: student?.section,
-                            teacher_name: student?.teacher_name
-                          });
-                          
-                          return teacherName || 'Not Assigned (Check console for debug info)';
-                        })()}
+                      <span className="mr-6">
+                        Subject: {instructorInfo?.course_code || selectedSubject}
                       </span>
+                      <span>
+                        Instructor: {instructorInfo?.instructor_name || 'Loading...'}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Instructor Error Tracking Display */}
+                  {(instructorErrors.duplicateInstructors.length > 0 || 
+                    instructorErrors.missingInstructors.length > 0 || 
+                    instructorErrors.mappingErrors.length > 0 ||
+                    instructorErrors.fallbackInstructors.length > 0) && (
+                    <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <h4 className="text-sm font-semibold text-yellow-800 mb-2">
+                        ⚠️ Instructor Assignment Issues Detected
+                      </h4>
+                      
+                      {/* Duplicate Instructors */}
+                      {instructorErrors.duplicateInstructors.length > 0 && (
+                        <div className="mb-3">
+                          <h5 className="text-xs font-medium text-red-700 mb-1">Duplicate Instructors:</h5>
+                          {instructorErrors.duplicateInstructors.map((dup, index) => (
+                            <div key={index} className="text-xs text-red-600 ml-2">
+                              <strong>{dup.instructorName}</strong> (ID: {dup.instructorId}) 
+                              is assigned to multiple sections: {dup.sections.join(', ')} 
+                              in year levels: {dup.yearLevels.join(', ')}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Missing Instructors */}
+                      {instructorErrors.missingInstructors.length > 0 && (
+                        <div className="mb-3">
+                          <h5 className="text-xs font-medium text-orange-700 mb-1">Missing Instructor Assignments:</h5>
+                          {instructorErrors.missingInstructors.map((missing, index) => (
+                            <div key={index} className="text-xs text-orange-600 ml-2">
+                              Section {missing.section}, Year {missing.yearLevel} - No instructor assigned
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Mapping Errors */}
+                      {instructorErrors.mappingErrors.length > 0 && (
+                        <div className="mb-3">
+                          <h5 className="text-xs font-medium text-purple-700 mb-1">Database Mapping Errors:</h5>
+                          {instructorErrors.mappingErrors.map((error, index) => (
+                            <div key={index} className="text-xs text-purple-600 ml-2">
+                              Teacher ID {error.teacherId} in Section {error.section}, Year {error.yearLevel}: {error.error}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Fallback Instructors */}
+                      {instructorErrors.fallbackInstructors.length > 0 && (
+                        <div className="mb-3">
+                          <h5 className="text-xs font-medium text-blue-700 mb-1">⚠️ Fallback Instructor Usage:</h5>
+                          {instructorErrors.fallbackInstructors.map((fallback, index) => (
+                            <div key={index} className="text-xs text-blue-600 ml-2">
+                              <strong>{fallback.instructorName}</strong> is being used as fallback for sections: {fallback.sections.join(', ')} 
+                              in year levels: {fallback.yearLevels.join(', ')} - {fallback.reason}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="text-xs text-gray-600 mt-2">
+                        Check the browser console for detailed logs. These issues may cause incorrect instructor assignments.
+                      </div>
                     </div>
                   )}
                 </div>
               </div>
               <div className="w-32"></div> {/* Spacer to balance the layout */}
             </div>
+
 
             {/* Students Table - Only show when both year level and section are selected */}
             {selectedYearLevel && selectedSection ? (
