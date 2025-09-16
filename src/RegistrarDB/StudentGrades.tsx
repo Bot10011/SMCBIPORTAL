@@ -106,6 +106,43 @@ export default function StudentGrades() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
+  // Silence non-error console output while this component is mounted
+  useEffect(() => {
+    const originalConsole = {
+      log: console.log,
+      info: console.info,
+      debug: console.debug,
+      warn: console.warn,
+      group: console.group,
+      groupEnd: console.groupEnd,
+      table: console.table,
+    } as const;
+
+    const noop = () => {};
+
+    const originalGroup = console.group;
+    const originalGroupEnd = console.groupEnd;
+    const originalTable = console.table;
+
+    console.log = noop as typeof console.log;
+    console.info = noop as typeof console.info;
+    console.debug = noop as typeof console.debug;
+    console.warn = noop as typeof console.warn;
+    console.group = noop as typeof console.group;
+    console.groupEnd = noop as typeof console.groupEnd;
+    console.table = noop as typeof console.table;
+
+    return () => {
+      console.log = originalConsole.log;
+      console.info = originalConsole.info;
+      console.debug = originalConsole.debug;
+      console.warn = originalConsole.warn;
+      console.group = originalGroup;
+      console.groupEnd = originalGroupEnd;
+      console.table = originalTable;
+    };
+  }, []);
+  
   // State for selection interface
   const [selectedProgram, setSelectedProgram] = useState<string>('');
   const [selectedYearLevel, setSelectedYearLevel] = useState<string>('');
@@ -216,8 +253,8 @@ export default function StudentGrades() {
     course_code: string;
   } | null>(null);
 
-  // State for instructor error tracking
-  const [instructorErrors, setInstructorErrors] = useState<{
+  // State for instructor error tracking (value not used, only setter)
+  const [, setInstructorErrors] = useState<{
     duplicateInstructors: Array<{
       instructorId: string;
       instructorName: string;
@@ -876,73 +913,82 @@ export default function StudentGrades() {
       
       // Fetch grades for students who have year level and section
       const studentIds = (studentsData || []).map(s => s.id);
-      const { data: gradesData, error: gradesError } = await supabase
-        .from('grades')
-        .select(`
-          *,
-          student:user_profiles!grades_student_id_fkey (
-            id, 
-            student_id, 
-            display_name, 
-            first_name,
-            last_name,
-            middle_name,
-            avatar_url, 
-            department, 
-            student_status, 
-            enrollment_status, 
-            student_type,
-            program_id
-          )
-        `)
-        .in('student_id', studentIds)
-        .order('created_at', { ascending: false });
-        
+      // Run grades and enrollments queries in parallel for speed
+      const [gradesRes, enrollRes] = await Promise.all([
+        supabase
+          .from('grades')
+          .select(`
+            *,
+            student:user_profiles!grades_student_id_fkey (
+              id, 
+              student_id, 
+              display_name, 
+              first_name,
+              last_name,
+              middle_name,
+              avatar_url, 
+              department, 
+              student_status, 
+              enrollment_status, 
+              student_type,
+              program_id
+            )
+          `)
+          .in('student_id', studentIds)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('enrollcourse')
+          .select(`
+            id,
+            student_id,
+            subject_id,
+            status,
+            course:courses (id, code, name)
+          `)
+          .in('student_id', studentIds)
+      ]);
+
+      const gradesData = gradesRes.data as typeof gradesRes.data;
+      const gradesError = gradesRes.error;
+      const enrollmentsData = enrollRes.data as typeof enrollRes.data;
+      const enrollmentsError = enrollRes.error;
+
       if (gradesError) {
         console.error('Grades error:', gradesError);
         setError('Failed to load grades');
         setLoading(false);
         return;
       }
-      
+
       console.log('Grades data:', gradesData?.length || 0, 'records');
       
       // Build lookup maps for graded_by (teacher) and subject_id (course)
       const gradedByIds = Array.from(new Set((gradesData || []).map(g => g.graded_by).filter(Boolean)));
       const subjectIdsFromGrades = Array.from(new Set((gradesData || []).map(g => g.subject_id).filter(Boolean)));
 
-      // Fetch teacher display names
+      // Fetch teacher display names and course codes concurrently
       const teachersById = new Map<string, { display_name?: string; first_name?: string; last_name?: string }>();
-      if (gradedByIds.length > 0) {
-        const { data: teachersData } = await supabase
-          .from('user_profiles')
-          .select('id, display_name, first_name, last_name')
-          .in('id', gradedByIds as string[]);
-        (teachersData || []).forEach(t => teachersById.set(t.id, { display_name: t.display_name, first_name: t.first_name, last_name: t.last_name }));
-      }
-
-      // Fetch course codes for subject ids
       const coursesById = new Map<string, { code?: string; name?: string }>();
-      if (subjectIdsFromGrades.length > 0) {
-        const { data: coursesData } = await supabase
-          .from('courses')
-          .select('id, code, name')
-          .in('id', subjectIdsFromGrades as string[]);
-        (coursesData || []).forEach(c => coursesById.set(c.id, { code: c.code, name: c.name }));
+      if (gradedByIds.length > 0 || subjectIdsFromGrades.length > 0) {
+        const [teachersRes, coursesRes] = await Promise.all([
+          gradedByIds.length > 0
+            ? supabase
+                .from('user_profiles')
+                .select('id, display_name, first_name, last_name')
+                .in('id', gradedByIds as string[])
+            : Promise.resolve({ data: [], error: null } as { data: Array<{ id: string; display_name?: string; first_name?: string; last_name?: string }>; error: null }),
+          subjectIdsFromGrades.length > 0
+            ? supabase
+                .from('courses')
+                .select('id, code, name')
+                .in('id', subjectIdsFromGrades as string[])
+            : Promise.resolve({ data: [], error: null } as { data: Array<{ id: string; code?: string; name?: string }>; error: null })
+        ]);
+
+        (teachersRes.data || []).forEach(t => teachersById.set(t.id, { display_name: t.display_name, first_name: t.first_name, last_name: t.last_name }));
+        (coursesRes.data || []).forEach(c => coursesById.set(c.id, { code: c.code, name: c.name }));
       }
       
-      // Fetch enrollments to get course information
-      const { data: enrollmentsData, error: enrollmentsError } = await supabase
-        .from('enrollcourse')
-        .select(`
-          id,
-          student_id,
-          subject_id,
-          status,
-          course:courses (id, code, name)
-        `)
-        .in('student_id', studentIds);
-        
       if (enrollmentsError) {
         console.error('Enrollments error:', enrollmentsError);
       }
@@ -1170,7 +1216,7 @@ export default function StudentGrades() {
         const { data: allTeachers, error: teachersError } = await supabase
           .from('user_profiles')
           .select('id, first_name, last_name, role')
-          .eq('role', 'teacher');
+          .eq('role', 'instructor');
           
         if (teachersError) {
           console.error('Fallback teachers fetch error:', teachersError);
@@ -2008,7 +2054,7 @@ export default function StudentGrades() {
   };
 
   // Function to track instructor errors and duplicates
-  const trackInstructorErrors = useCallback(async (courseId: string, courseCode: string, courseName: string) => {
+  const trackInstructorErrors = useCallback(async (courseId: string, courseCode: string) => {
     try {
       console.log('=== INSTRUCTOR ERROR TRACKING START ===');
       
@@ -2108,35 +2154,9 @@ export default function StudentGrades() {
         });
       });
 
-      // Check for duplicates (same instructor in different sections)
-      instructorMap.forEach((assignments, instructorId) => {
-        if (assignments.length > 1) {
-          const uniqueSections = [...new Set(assignments.map(a => a.section))];
-          const uniqueYearLevels = [...new Set(assignments.map(a => a.yearLevel))];
-          
-          if (uniqueSections.length > 1 || uniqueYearLevels.length > 1) {
-            duplicateInstructors.push({
-              instructorId,
-              instructorName: assignments[0].instructorName,
-              sections: uniqueSections,
-              yearLevels: uniqueYearLevels,
-              courseId,
-              courseCode
-            });
-
-            console.error('DUPLICATE INSTRUCTOR DETECTED:', {
-              instructorId,
-              instructorName: assignments[0].instructorName,
-              courseCode,
-              courseName,
-              assignments: assignments.map(a => ({
-                section: a.section,
-                yearLevel: a.yearLevel
-              }))
-            });
-          }
-        }
-      });
+      // Teaching multiple sections/year levels is valid. No duplicate error flagged.
+      // If you want to detect real conflicts (e.g., multiple distinct instructors for the same subject+section+year),
+      // implement a separate check grouping by (section, yearLevel) and counting distinct instructor IDs.
 
       // Check for mapping errors
       allTeacherSubjects.forEach(ts => {
@@ -2276,9 +2296,11 @@ export default function StudentGrades() {
       console.log('Raw instructor data from user_profiles:', instructorData);
       console.log('Instructor error:', instructorError);
 
-      // Filter for instructors only
-      const filteredInstructorData = instructorData?.filter(instructor => instructor.role === 'instructor') || [];
-      console.log('Filtered instructor data (role=instructor):', filteredInstructorData);
+      // Filter for instructor/teacher roles (systems may use either)
+      const filteredInstructorData = (instructorData || []).filter(instructor =>
+        ['instructor', 'teacher'].includes((instructor.role || '').toLowerCase())
+      );
+      console.log('Filtered instructor data (role in instructor/teacher):', filteredInstructorData);
 
       const { data: courseData, error: courseError } = await supabase
         .from('courses')
@@ -2333,7 +2355,7 @@ export default function StudentGrades() {
         const course = courseData[0];
         
         // Track instructor errors for this course
-        await trackInstructorErrors(courseId, course.code, course.name);
+        await trackInstructorErrors(courseId, course.code);
         
         console.log('Selected instructor:', selectedInstructor);
         console.log('Teacher subject data used for filtering:', teacherSubjectData);
@@ -2920,7 +2942,7 @@ export default function StudentGrades() {
     }
   };
 
-  const openRequestDetails = (request: {
+  const openRequestDetails = async (request: {
     id: string;
     student_id: string;
     student_name?: string | null;
@@ -2933,7 +2955,22 @@ export default function StudentGrades() {
     edit_status?: string | null;
     created_at?: string | null;
   }) => {
-    setSelectedRequest(request);
+    let resolvedName = request.instructor_name;
+    try {
+      if (!resolvedName || resolvedName.trim() === '') {
+        const name = await resolveInstructorName(
+          request.instructor_id,
+          request.subject_id || undefined,
+          request.section || undefined,
+          request.academic_year || undefined
+        );
+        if (name) resolvedName = name;
+      }
+    } catch {
+      // ignore and fall back
+    }
+
+    setSelectedRequest({ ...request, instructor_name: resolvedName || 'Unknown Instructor' });
     setRequestModalOpen(true);
   };
 
@@ -3006,6 +3043,65 @@ export default function StudentGrades() {
     fetchCoursesCount();
   }, [showSections, selectedYearLevel]);
 
+  // Helper: resolve instructor display name consistently (user_profiles → teacher_subjects fallbacks)
+  const resolveInstructorName = useCallback(async (
+    instructorId?: string | null,
+    subjectId?: string | null,
+    section?: string | null,
+    academicYear?: string | null
+  ): Promise<string | null> => {
+    try {
+      // 1) Direct by instructorId
+      if (instructorId) {
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('display_name, first_name, last_name')
+          .eq('id', instructorId)
+          .maybeSingle();
+        const display = (profile?.display_name || '').trim();
+        if (display) return display;
+        const full = `${(profile?.first_name || '').trim()} ${(profile?.last_name || '').trim()}`.trim();
+        if (full) return full;
+      }
+
+      // 2) Via teacher_subjects using subject + section (+ AY)
+      if (subjectId) {
+        let tsQuery = supabase
+          .from('teacher_subjects')
+          .select('teacher:user_profiles!teacher_subjects_teacher_id_fkey(display_name, first_name, last_name)')
+          .eq('subject_id', subjectId)
+          .eq('is_active', true)
+          .limit(1);
+        if (section) tsQuery = tsQuery.eq('section', section);
+        if (academicYear) tsQuery = tsQuery.eq('academic_year', academicYear);
+        let { data: tsRow } = await tsQuery.maybeSingle();
+
+        // Final fallback: any active teacher for the subject
+        if (!tsRow) {
+          const { data: tsAny } = await supabase
+            .from('teacher_subjects')
+            .select('teacher:user_profiles!teacher_subjects_teacher_id_fkey(display_name, first_name, last_name)')
+            .eq('subject_id', subjectId)
+            .eq('is_active', true)
+            .limit(1)
+            .maybeSingle();
+          tsRow = tsAny ?? null;
+        }
+
+        const teacher = Array.isArray(tsRow?.teacher) ? tsRow?.teacher?.[0] : tsRow?.teacher;
+        const display = (teacher?.display_name || '').trim();
+        if (display) return display;
+        if (teacher) {
+          const full = `${(teacher.first_name || '').trim()} ${(teacher.last_name || '').trim()}`.trim();
+          if (full) return full;
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return null;
+  }, []);
+
   return (
     <>
       {/* Request Details Modal - Outside main container */}
@@ -3030,7 +3126,7 @@ export default function StudentGrades() {
                 <div className="space-y-4">
                   <div>
                     <label className="text-sm font-medium text-gray-600">Instructor</label>
-                    <div className="text-lg font-semibold text-gray-800">{selectedRequest.instructor_name || 'Unknown Instructor'}</div>
+                    <div className="text-lg font-semibold text-gray-800">{selectedRequest.instructor_name || instructorInfo?.instructor_name || 'Unknown Instructor'}</div>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-600">Student</label>
@@ -3991,25 +4087,7 @@ export default function StudentGrades() {
                  })()}
               </div>
               
-              {(() => {
-                 const programYearLevels = Array.from(new Set(
-                   yearLevelSectionSubjects.map(item => item.year_level)
-                 ));
-                 
-                 if (programYearLevels.length === 0) {
-                   return (
-                     <div className="text-center py-12">
-                       <div className="text-gray-400 mb-4">
-                         <BookOpen className="w-16 h-16 mx-auto" />
-                       </div>
-                       <h3 className="text-lg font-semibold text-gray-600 mb-2">No Data Available</h3>
-                       <p className="text-gray-500">No year levels found for this program.</p>
-                     </div>
-                   );
-                 }
-                 
-                 return null;
-               })()}
+              {/* Year Levels are always shown (1–4) so no empty-state needed here */}
              </div>
            </div>
                   </div>
@@ -4164,29 +4242,35 @@ export default function StudentGrades() {
                    })()}
                  </div>
                  
-
-                 
                  {(() => {
-                   const yearLevelSections = Array.from(new Set(
-                     yearLevelSectionSubjects
-                       .filter(item => item.year_level === selectedYearLevel)
-                       .map(item => item.section)
-                   ));
-                   
-                   if (yearLevelSections.length === 0) {
-                     return (
-                  <div className="text-center py-12">
-                    <div className="text-gray-400 mb-4">
-                           <Users className="w-16 h-16 mx-auto" />
-                    </div>
-                         <h3 className="text-lg font-semibold text-gray-600 mb-2">No Data Available</h3>
-                         <p className="text-gray-500">No sections found for this year level.</p>
-                  </div>
-                     );
-                   }
-                   
+  if (!showSections || loading || !selectedYearLevel) return null;
 
-              })()}
+  const normalize = (v: string | number | null | undefined) => {
+    if (v === null || v === undefined) return '';
+    const s = String(v).toLowerCase();
+    if (s.startsWith('1')) return '1';
+    if (s.startsWith('2')) return '2';
+    if (s.startsWith('3')) return '3';
+    if (s.startsWith('4')) return '4';
+    if (['1', '2', '3', '4'].includes(s)) return s;
+    return s;
+  };
+
+  const sectionsForYear = sectionsList.filter(s => normalize(s.year_level) === selectedYearLevel);
+
+  if (sectionsForYear.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <div className="text-gray-400 mb-4">
+          <Users className="w-16 h-16 mx-auto" />
+        </div>
+        <h3 className="text-lg font-semibold text-gray-600 mb-2">No Data Available</h3>
+        <p className="text-gray-500">No sections found for this year level.</p>
+      </div>
+    );
+  }
+  return null;
+})()}
                </div>
             </div>
           </div>
@@ -4393,77 +4477,12 @@ export default function StudentGrades() {
                         Subject: {instructorInfo?.course_code || selectedSubject}
                       </span>
                       <span>
-                        Instructor: {instructorInfo?.instructor_name || 'Loading...'}
+                        Instructor: {instructorInfo?.instructor_name || 'No Instructor...'}
                       </span>
                     </div>
                   )}
 
-                  {/* Instructor Error Tracking Display */}
-                  {(instructorErrors.duplicateInstructors.length > 0 || 
-                    instructorErrors.missingInstructors.length > 0 || 
-                    instructorErrors.mappingErrors.length > 0 ||
-                    instructorErrors.fallbackInstructors.length > 0) && (
-                    <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                      <h4 className="text-sm font-semibold text-yellow-800 mb-2">
-                        ⚠️ Instructor Assignment Issues Detected
-                      </h4>
-                      
-                      {/* Duplicate Instructors */}
-                      {instructorErrors.duplicateInstructors.length > 0 && (
-                        <div className="mb-3">
-                          <h5 className="text-xs font-medium text-red-700 mb-1">Duplicate Instructors:</h5>
-                          {instructorErrors.duplicateInstructors.map((dup, index) => (
-                            <div key={index} className="text-xs text-red-600 ml-2">
-                              <strong>{dup.instructorName}</strong> (ID: {dup.instructorId}) 
-                              is assigned to multiple sections: {dup.sections.join(', ')} 
-                              in year levels: {dup.yearLevels.join(', ')}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Missing Instructors */}
-                      {instructorErrors.missingInstructors.length > 0 && (
-                        <div className="mb-3">
-                          <h5 className="text-xs font-medium text-orange-700 mb-1">Missing Instructor Assignments:</h5>
-                          {instructorErrors.missingInstructors.map((missing, index) => (
-                            <div key={index} className="text-xs text-orange-600 ml-2">
-                              Section {missing.section}, Year {missing.yearLevel} - No instructor assigned
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Mapping Errors */}
-                      {instructorErrors.mappingErrors.length > 0 && (
-                        <div className="mb-3">
-                          <h5 className="text-xs font-medium text-purple-700 mb-1">Database Mapping Errors:</h5>
-                          {instructorErrors.mappingErrors.map((error, index) => (
-                            <div key={index} className="text-xs text-purple-600 ml-2">
-                              Teacher ID {error.teacherId} in Section {error.section}, Year {error.yearLevel}: {error.error}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Fallback Instructors */}
-                      {instructorErrors.fallbackInstructors.length > 0 && (
-                        <div className="mb-3">
-                          <h5 className="text-xs font-medium text-blue-700 mb-1">⚠️ Fallback Instructor Usage:</h5>
-                          {instructorErrors.fallbackInstructors.map((fallback, index) => (
-                            <div key={index} className="text-xs text-blue-600 ml-2">
-                              <strong>{fallback.instructorName}</strong> is being used as fallback for sections: {fallback.sections.join(', ')} 
-                              in year levels: {fallback.yearLevels.join(', ')} - {fallback.reason}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      <div className="text-xs text-gray-600 mt-2">
-                        Check the browser console for detailed logs. These issues may cause incorrect instructor assignments.
-                      </div>
-                    </div>
-                  )}
+                  {/* Instructor Error Tracking Display - removed per request */}
                 </div>
               </div>
               <div className="w-32"></div> {/* Spacer to balance the layout */}
