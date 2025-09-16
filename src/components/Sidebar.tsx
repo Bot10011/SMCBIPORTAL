@@ -225,12 +225,6 @@ const sidebarItems: SidebarItem[] = [
     roles: ['registrar'],
   },
   {
-    label: 'List of Subjects',
-    path: '/dashboard/subjects',
-    icon: <ClipboardList className="w-5 h-5" />,
-    roles: ['registrar'],
-  },
-  {
     label: 'Profile',
     path: '/dashboard/profile',
     icon: <Settings className="w-5 h-5" />,
