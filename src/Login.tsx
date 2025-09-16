@@ -88,19 +88,19 @@ const Login: React.FC<LoginProps> = ({ onClose }) => {
 
   const detectSuspiciousInput = (input: string): boolean => {
     const suspiciousPatterns = [
-      /union\s+select/i,
-      /drop\s+table/i,
-      /delete\s+from/i,
-      /insert\s+into/i,
-      /update\s+set/i, ko
-      /<script[^>]*>.*?<\/script>/i,
-      /javascript:/i,
-      /on\w+\s*=/i,
-      /eval\s*\(/i,
-      /document\.cookie/i,
-      /alert\s*\(/i,
-      /confirm\s*\(/i,
-      /prompt\s*\(/i
+      new RegExp('union\\s+select', 'i'),
+      new RegExp('drop\\s+table', 'i'),
+      new RegExp('delete\\s+from', 'i'),
+      new RegExp('insert\\s+into', 'i'),
+      new RegExp('update\\s+set', 'i'),
+      new RegExp('<script[^>]*>[\\s\\S]*?<\\/script>', 'i'),
+      new RegExp('javascript:', 'i'),
+      new RegExp('on\\w+\\s*=', 'i'),
+      new RegExp('eval\\s*\\(', 'i'),
+      new RegExp('document\\.cookie', 'i'),
+      new RegExp('alert\\s*\\(', 'i'),
+      new RegExp('confirm\\s*\\(', 'i'),
+      new RegExp('prompt\\s*\\(', 'i'),
     ];
     
     return suspiciousPatterns.some(pattern => pattern.test(input));
@@ -120,7 +120,7 @@ const Login: React.FC<LoginProps> = ({ onClose }) => {
     if (value === 'admin' || value === 'instructor' || value === 'student' || value === 'registrar' || value === 'programhead') {
       setFormData({ 
         username: value, 
-        password: 'Admin123' // Development password
+        password: 'TempPass@123' // Development password
       });
     } else {
       setFormData({ ...formData, username: value });
@@ -163,7 +163,7 @@ const Login: React.FC<LoginProps> = ({ onClose }) => {
       }
       
       // Check if user is using default password
-      const isDefaultPassword = formData.password === 'Admin123';
+      const isDefaultPassword = formData.password === 'TempPass@123';
       
       // Sign in with Supabase
       try {
