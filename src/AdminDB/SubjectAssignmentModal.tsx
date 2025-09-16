@@ -127,6 +127,8 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>(assignment.subject_id ? [assignment.subject_id] : []);
   // Multi-select state for day
   const [selectedDay, setSelectedDay] = useState<string[]>(assignment.day ? assignment.day.split(',') : []);
+  // Search state for subjects
+  const [subjectSearchTerm, setSubjectSearchTerm] = useState<string>('');
 
   // Ensure edit mode correctly shows days checked when parent expands abbreviations later
   React.useEffect(() => {
@@ -135,97 +137,26 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
     }
   }, [isEditMode, assignment.day]);
 
-  // Filter courses by both year level and semester
-  const filteredCourses = (assignment.year_level && assignment.semester)
-    ? courses.filter(subject => {
-        // Extract the numeric year from the assignment year level (e.g., "1st Year" -> 1)
-        const yearNumber = assignment.year_level.match(/(\d+)/)?.[1];
-        if (!yearNumber) return false;
+  // Filter courses by search term only (no year level or semester restrictions)
+  const filteredCourses = React.useMemo(() => {
+    let filtered = courses;
+    
+    // Apply search filter only
+    if (subjectSearchTerm.trim()) {
+      const searchLower = subjectSearchTerm.toLowerCase().trim();
+      filtered = filtered.filter(subject => {
+        const code = (subject.code || '').toLowerCase();
+        const name = (subject.name || '').toLowerCase();
+        const displayName = (subject.display_name || '').toLowerCase();
         
-        // Compare with subject's year level (handle both string and number formats)
-        const subjectYear = String(subject.year_level || '');
-        
-        // Check year level match
-        let yearMatch = false;
-        if (subjectYear === yearNumber) yearMatch = true;
-        if (subjectYear === assignment.year_level) yearMatch = true;
-        
-        const yearMappings: Record<string, string> = {
-          '1st Year': '1',
-          '2nd Year': '2', 
-          '3rd Year': '3',
-          '4th Year': '4'
-        };
-        
-        if (yearMappings[assignment.year_level] === subjectYear) yearMatch = true;
-        
-        if (!yearMatch) return false;
-        
-        // Check semester match with more flexible matching
-        const subjectSemester = String(subject.semester || '').toLowerCase().trim();
-        const assignmentSemester = String(assignment.semester || '').toLowerCase().trim();
-        
-        // Handle different semester formats
-        const semesterMappings: Record<string, string[]> = {
-          'first semester': ['first semester', '1st semester', '1st sem', 'first sem', 'first'],
-          'second semester': ['second semester', '2nd semester', '2nd sem', 'second sem', 'second'],
-          'summer': ['summer', 'summer semester', 'summer sem', 'su', 'sm', 'sum']
-        };
-        
-        // Check if assignment semester matches any of the mapped values
-        const assignmentSemesterKey = Object.keys(semesterMappings).find(key => 
-          semesterMappings[key].includes(assignmentSemester)
-        );
-        
-        if (assignmentSemesterKey) {
-          // Check if subject semester matches any of the mapped values for the assignment semester
-          const subjectMatches = semesterMappings[assignmentSemesterKey].some(mappedValue => 
-            subjectSemester.includes(mappedValue) || mappedValue.includes(subjectSemester) ||
-            subjectSemester === mappedValue
-          );
-          
-          console.log(`Semester matching for ${assignment.semester}:`, {
-            subjectSemester,
-            assignmentSemester,
-            assignmentSemesterKey,
-            mappedValues: semesterMappings[assignmentSemesterKey],
-            subjectMatches
-          });
-          
-          return subjectMatches;
-        }
-        
-        // Fallback to exact match
-        return subjectSemester === assignmentSemester;
-      })
-    : assignment.year_level
-      ? courses.filter(subject => {
-          // Extract the numeric year from the assignment year level (e.g., "1st Year" -> 1)
-          const yearNumber = assignment.year_level.match(/(\d+)/)?.[1];
-          if (!yearNumber) return false;
-          
-          // Compare with subject's year level (handle both string and number formats)
-          const subjectYear = String(subject.year_level || '');
-          
-          // Direct match with the extracted number
-          if (subjectYear === yearNumber) return true;
-          
-          // Try to match with the full year level string
-          if (subjectYear === assignment.year_level) return true;
-          
-          // Try to match with common year level formats
-          const yearMappings: Record<string, string> = {
-            '1st Year': '1',
-            '2nd Year': '2', 
-            '3rd Year': '3',
-            '4th Year': '4'
-          };
-          
-          if (yearMappings[assignment.year_level] === subjectYear) return true;
-          
-          return false;
-        })
-      : [];
+        return code.includes(searchLower) || 
+               name.includes(searchLower) || 
+               displayName.includes(searchLower);
+      });
+    }
+    
+    return filtered;
+  }, [courses, subjectSearchTerm]);
 
   // Debug logging
   console.log('Assignment year level:', assignment.year_level);
@@ -326,7 +257,7 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
    console.log('=== END MISLABELING CHECK ===');
   }
 
-  // Reset selected subjects only when the user changes year level or semester (not on initial mount)
+  // Reset selected subjects when the user changes year level or semester (not on initial mount)
   const prevYearLevelRef = useRef<string>(assignment.year_level);
   const prevSemesterRef = useRef<string>(assignment.semester);
   React.useEffect(() => {
@@ -852,128 +783,141 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
                   </div>
                 </div>
               )}
-              {/* Show all subjects for selected year level as cards/list, right after year level selection */}
-              {assignment.year_level && assignment.semester && (
-                <div className="mt-2">
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="font-semibold text-gray-700">
-                      Subjects for {yearLevels.find(l => l.value === assignment.year_level)?.label || assignment.year_level} - {semesterTypes.find(s => s.value === assignment.semester)?.label || assignment.semester}:
-                    </h4>
-                    {selectedSubjects.length > 0 && (
-                      <span className="text-xs font-medium bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
-                        {selectedSubjects.length} selected
-                      </span>
+              {/* Show all available subjects */}
+              <div className="mt-2">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-semibold text-gray-700">
+                    Available Subjects:
+                  </h4>
+                  {selectedSubjects.length > 0 && (
+                    <span className="text-xs font-medium bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                      {selectedSubjects.length} selected
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 mb-2">
+                  Select one or more subjects to assign to the instructor
+                </p>
+                  
+                  {/* Search Bar for Subjects */}
+                  <div className="mb-3">
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Search subjects by code or name..."
+                        value={subjectSearchTerm}
+                        onChange={(e) => setSubjectSearchTerm(e.target.value)}
+                        className="w-full px-3 py-2 pl-10 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white/80 backdrop-blur-sm shadow-sm"
+                      />
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                      </div>
+                      {subjectSearchTerm && (
+                        <button
+                          onClick={() => setSubjectSearchTerm('')}
+                          className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                        >
+                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                    {subjectSearchTerm && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Showing {filteredCourses.length} subject{filteredCourses.length !== 1 ? 's' : ''} matching "{subjectSearchTerm}"
+                      </p>
                     )}
                   </div>
-                  <p className="text-xs text-gray-500 mb-2">
-                    Select one or more subjects for this year level, semester, and section
-                  </p>
-                  {filteredCourses.length > 0 ? (
-                    <div className="overflow-y-auto max-h-48 sm:max-h-64 md:max-h-72 lg:max-h-96 rounded-lg border border-blue-100 bg-white/60">
-                      {/* Select All Checkbox */}
-                      <div className="sticky top-0 bg-blue-100 border-b border-blue-200 p-3">
-                        <label className="flex items-center gap-3 cursor-pointer select-none">
+                {filteredCourses.length > 0 ? (
+                  <div className="overflow-y-auto max-h-48 sm:max-h-64 md:max-h-72 lg:max-h-96 rounded-lg border border-blue-100 bg-white/60">
+                    {/* Select All Checkbox */}
+                    <div className="sticky top-0 bg-blue-100 border-b border-blue-200 p-3">
+                      <label className="flex items-center gap-3 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={allSubjectsSelected}
+                          ref={(input) => {
+                            if (input) {
+                              input.indeterminate = someSubjectsSelected;
+                            }
+                          }}
+                          onChange={handleSelectAllSubjects}
+                          className="accent-blue-600 w-5 h-5"
+                        />
+                        <span className="font-semibold text-blue-900 text-sm">
+                          {allSubjectsSelected ? 'Deselect All' : 'Select All'} Subjects
+                        </span>
+                        <span className="text-xs text-blue-700 bg-blue-200 px-2 py-1 rounded-full">
+                          {selectedSubjects.length} of {filteredCourses.length} selected
+                        </span>
+                      </label>
+                    </div>
+                    
+                    <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 p-2">
+                      {filteredCourses.map(subject => (
+                        <li
+                          key={subject.id}
+                          className={`flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-sm text-gray-800 transition-all duration-150 ${selectedSubjects.includes(subject.id) ? 'ring-2 ring-blue-400 bg-blue-100' : ''}`}
+                        >
                           <input
                             type="checkbox"
-                            checked={allSubjectsSelected}
-                            ref={(input) => {
-                              if (input) {
-                                input.indeterminate = someSubjectsSelected;
-                              }
-                            }}
-                            onChange={handleSelectAllSubjects}
-                            className="accent-blue-600 w-5 h-5"
+                            checked={selectedSubjects.includes(subject.id)}
+                            onChange={() => handleSubjectCheckbox(subject.id)}
+                            className="accent-blue-600 w-4 h-4"
+                            id={`subject-checkbox-${subject.id}`}
                           />
-                          <span className="font-semibold text-blue-900 text-sm">
-                            {allSubjectsSelected ? 'Deselect All' : 'Select All'} Subjects
-                          </span>
-                          <span className="text-xs text-blue-700 bg-blue-200 px-2 py-1 rounded-full">
-                            {selectedSubjects.length} of {filteredCourses.length} selected
-                          </span>
-                        </label>
-                      </div>
-                      
-                      <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 p-2">
-                        {filteredCourses.map(subject => (
-                          <li
-                            key={subject.id}
-                            className={`flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-sm text-gray-800 transition-all duration-150 ${selectedSubjects.includes(subject.id) ? 'ring-2 ring-blue-400 bg-blue-100' : ''}`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selectedSubjects.includes(subject.id)}
-                              onChange={() => handleSubjectCheckbox(subject.id)}
-                              className="accent-blue-600 w-4 h-4"
-                              id={`subject-checkbox-${subject.id}`}
-                            />
-                            <label htmlFor={`subject-checkbox-${subject.id}`} className="cursor-pointer select-none w-full flex items-center gap-2">
-                              {subject.display_name || subject.name || subject.code}
-                              {/* Semester Badge */}
-                              {subject.semester === 'First Semester' && (
-                                <span className="ml-2 inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-xs font-bold px-2 py-0.5 rounded-full">1st Sem</span>
-                              )}
-                              {subject.semester === 'Second Semester' && (
-                                <span className="ml-2 inline-flex items-center gap-1 bg-green-100 text-green-800 text-xs font-bold px-2 py-0.5 rounded-full">2nd Sem</span>
-                              )}
-                              {subject.semester === 'Summer' && (
-                                <span className="ml-2 inline-flex items-center gap-1 bg-yellow-100 text-yellow-800 text-xs font-bold px-2 py-0.5 rounded-full">Summer</span>
-                              )}
-                            </label>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-gray-500">No subjects available for this year level.</p>
-                  )}
-                  {assignment.year_level && filteredCourses.length === 0 && (
-                    <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                      <p className="text-sm text-yellow-800 font-medium">Debug Information:</p>
-                      <p className="text-xs text-yellow-700">Selected Year Level: {assignment.year_level}</p>
-                      <p className="text-xs text-yellow-700">Selected Semester: {assignment.semester}</p>
-                      <p className="text-xs text-yellow-700">Total Courses: {courses.length}</p>
-                      <p className="text-xs text-yellow-700">Available Year Levels: {Array.from(new Set(courses.map(c => c.year_level))).join(', ')}</p>
-                      <p className="text-xs text-yellow-700">Available Semesters: {Array.from(new Set(courses.map(c => c.semester))).join(', ')}</p>
-                      <p className="text-xs text-yellow-700">Filtered Courses: {filteredCourses.length}</p>
-                    </div>
-                  )}
-                </div>
-              )}
-              {(!assignment.year_level || !assignment.semester) && (
-                <div className="mt-2">
-                  <h4 className="font-semibold text-gray-700 mb-2">Subjects:</h4>
-                  <p className="text-sm text-gray-500">
-                    {!assignment.year_level && !assignment.semester 
-                      ? 'Please select a year level and semester to view available subjects.'
-                      : !assignment.year_level 
-                      ? 'Please select a year level to view available subjects.'
-                      : 'Please select a semester to view available subjects.'
-                    }
-                  </p>
-                  <p className="text-xs text-gray-400 mt-1">Total courses available: {courses.length}</p>
-                  <p className="text-xs text-gray-400">Total sections available: {sections.length}</p>
-                  {sections.length > 0 && (
-                    <div className="text-xs text-gray-400 mt-1">
-                      <p>Sample sections:</p>
-                      <ul className="ml-2">
-                        {sections.slice(0, 3).map(section => (
-                          <li key={section.id}>ID: {section.id}, Name: {section.name}, Year: {section.year_level}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {courses.length > 0 && (
-                    <div className="text-xs text-gray-400 mt-1">
-                      <p>Sample courses:</p>
-                      <ul className="ml-2">
-                        {courses.slice(0, 3).map(course => (
-                          <li key={course.id}>ID: {course.id}, Name: {course.display_name}, Year: {course.year_level}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              )}
+                          <label htmlFor={`subject-checkbox-${subject.id}`} className="cursor-pointer select-none w-full flex items-center gap-2">
+                            <div className="flex flex-col">
+                              <span className="font-medium">{subject.display_name || subject.name || subject.code}</span>
+                              <div className="flex items-center gap-1 mt-1">
+                                {/* Year Level Badge */}
+                                {subject.year_level && (
+                                  <span className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 text-xs font-medium px-2 py-0.5 rounded-full">
+                                    {subject.year_level}
+                                  </span>
+                                )}
+                                {/* Semester Badge */}
+                                {subject.semester === 'First Semester' && (
+                                  <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-xs font-bold px-2 py-0.5 rounded-full">1st Sem</span>
+                                )}
+                                {subject.semester === 'Second Semester' && (
+                                  <span className="inline-flex items-center gap-1 bg-green-100 text-green-800 text-xs font-bold px-2 py-0.5 rounded-full">2nd Sem</span>
+                                )}
+                                {subject.semester === 'Summer' && (
+                                  <span className="inline-flex items-center gap-1 bg-yellow-100 text-yellow-800 text-xs font-bold px-2 py-0.5 rounded-full">Summer</span>
+                                )}
+                                {/* Units Badge */}
+                                {subject.units && (
+                                  <span className="inline-flex items-center gap-1 bg-purple-100 text-purple-800 text-xs font-medium px-2 py-0.5 rounded-full">
+                                    {subject.units} unit{subject.units !== 1 ? 's' : ''}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </label>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-sm text-gray-500 mb-2">
+                      {subjectSearchTerm ? `No subjects found matching "${subjectSearchTerm}"` : 'No subjects available'}
+                    </p>
+                    {subjectSearchTerm && (
+                      <button
+                        onClick={() => setSubjectSearchTerm('')}
+                        className="text-xs text-blue-600 hover:text-blue-800 underline"
+                      >
+                        Clear search
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
               
               {/* Subject validation message */}
               {(formErrors.subject_id || selectedSubjects.length === 0) && (
