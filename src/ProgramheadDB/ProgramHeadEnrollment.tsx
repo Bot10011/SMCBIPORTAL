@@ -150,6 +150,9 @@ const ProgramHeadEnrollment: React.FC = () => {
   const [selectedExistingStudent, setSelectedExistingStudent] = useState<Student | null>(null);
   const [existingFilterYear, setExistingFilterYear] = useState('');
   const [existingFilterSection, setExistingFilterSection] = useState('');
+  const [existingFilterSearch, setExistingFilterSearch] = useState('');
+  const [existingFilterType, setExistingFilterType] = useState('');
+  const [existingFilterStatus, setExistingFilterStatus] = useState('');
   const [endSemesterOpen, setEndSemesterOpen] = useState(false);
   const [endSemesterLoading, setEndSemesterLoading] = useState(false);
   const [endSemesterConfirmation, setEndSemesterConfirmation] = useState('');
@@ -1336,41 +1339,47 @@ const ProgramHeadEnrollment: React.FC = () => {
     const currentAcademicYear = createForm.schoolYear || getDefaultSchoolYear();
     const currentSemester = createForm.semester || '1st Semester';
 
-    const normalizedYearLabel = (() => {
-      if (!studentYearLevel) return undefined;
-      return getYearLabel(String(studentYearLevel)); // '1' -> '1st Year'
-    })();
-
-    const sectionName = studentSection ? getSectionName(studentSection) : undefined;
-
-    const assignments = instructorAssignments.filter(assignment =>
-      assignment.subject_id === courseId &&
+    const normalizeSemester = (sem?: string) => {
+      if (!sem) return '';
+      const s = String(sem).toLowerCase();
+      if (s.includes('summer')) return 'Summer';
+      if (s.includes('2')) return 'Second Semester';
+      if (s.includes('second')) return 'Second Semester';
+      if (s.includes('1')) return 'First Semester';
+      if (s.includes('first')) return 'First Semester';
+      return sem;
+    };
+    
+    const assignments = instructorAssignments.filter(assignment => 
+      assignment.subject_id === courseId && 
       assignment.academic_year === currentAcademicYear &&
-      assignment.semester === currentSemester &&
+      normalizeSemester(assignment.semester) === normalizeSemester(currentSemester) &&
       assignment.is_active
     );
 
-    // 1) Prefer exact section + year match
-    if (sectionName && normalizedYearLabel) {
-      const exact = assignments.find(a => a.section === sectionName && a.year_level === normalizedYearLabel);
-      if (exact) return { ...exact, isExactMatch: true };
+    // If we have student year level and section, try to find exact match first
+    if (studentYearLevel && studentSection) {
+      // Convert section ID to section name for comparison
+      const sectionName = getSectionName(studentSection);
+      
+      const exactMatch = assignments.find(assignment => 
+        assignment.year_level === studentYearLevel && 
+        assignment.section === sectionName
+      );
+      if (exactMatch) {
+        return {
+          ...exactMatch,
+          isExactMatch: true
+        };
+      }
     }
 
-    // 2) If section is selected, prefer same section regardless of year label
-    if (sectionName) {
-      const sameSection = assignments.find(a => a.section === sectionName);
-      if (sameSection) return { ...sameSection, isExactMatch: true };
-    }
-
-    // 3) If year is known, prefer same year
-    if (normalizedYearLabel) {
-      const sameYear = assignments.find(a => a.year_level === normalizedYearLabel);
-      if (sameYear) return { ...sameYear, isExactMatch: false };
-    }
-
-    // 4) Fallback: first available
+    // If no exact match, return the first available assignment
     if (assignments.length > 0) {
-      return { ...assignments[0], isExactMatch: false };
+      return {
+        ...assignments[0],
+        isExactMatch: false
+      };
     }
 
     return null;
@@ -1382,13 +1391,21 @@ const ProgramHeadEnrollment: React.FC = () => {
     
     const currentAcademicYear = createForm.schoolYear || getDefaultSchoolYear();
     const currentSemester = createForm.semester || '1st Semester';
+    const normalizeSemester = (sem?: string) => {
+      if (!sem) return '';
+      const s = String(sem).toLowerCase();
+      if (s.includes('summer')) return 'Summer';
+      if (s.includes('2') || s.includes('second')) return 'Second Semester';
+      if (s.includes('1') || s.includes('first')) return 'First Semester';
+      return sem;
+    };
     const sectionName = getSectionName(studentSection);
     
     return instructorAssignments.some(assignment => 
       assignment.subject_id === courseId && 
       assignment.section === sectionName &&
       assignment.academic_year === currentAcademicYear &&
-      assignment.semester === currentSemester &&
+      normalizeSemester(assignment.semester) === normalizeSemester(currentSemester) &&
       assignment.is_active
     );
   };
@@ -1733,11 +1750,18 @@ const ProgramHeadEnrollment: React.FC = () => {
       // has been resolved by removing the problematic signInWithPassword calls in ProtectedRoute
       // and StudentDashboard components. The password change modal will only appear for actual students.
       if (selectedExistingStudent) {
-        // Look up the UUID for the existing student_id
+        // Look up the UUID for the existing student either by formatted student_id (e.g., C-25xxxx) or by UUID id
+        const orClauses: string[] = [];
+        if (selectedExistingStudent.studentId) {
+          orClauses.push(`student_id.eq.${selectedExistingStudent.studentId}`);
+        }
+        if (selectedExistingStudent.id) {
+          orClauses.push(`id.eq.${selectedExistingStudent.id}`);
+        }
         const { data: userProfile, error: lookupError } = await supabase
           .from('user_profiles')
           .select('id, student_id')
-          .eq('student_id', selectedExistingStudent.studentId || selectedExistingStudent.id)
+          .or(orClauses.join(','))
           .single();
         if (lookupError || !userProfile) throw new Error('Could not find user UUID for this student');
         const userId = userProfile.id;
@@ -2288,7 +2312,7 @@ const ProgramHeadEnrollment: React.FC = () => {
       
       console.log(`Creating subject trace records for ${currentSemester} ${currentAcademicYear}`);
       
-      // Fetch all current teacher assignments (do not filter by AY; use assignment's own AY)
+      // Fetch all current teacher assignments
       const { data: assignments, error: assignmentsError } = await supabase
         .from('teacher_subjects')
         .select(`
@@ -2309,6 +2333,7 @@ const ProgramHeadEnrollment: React.FC = () => {
             units
           )
         `)
+        .eq('academic_year', currentAcademicYear)
         .eq('is_active', true);
 
       if (assignmentsError) {
@@ -2319,13 +2344,26 @@ const ProgramHeadEnrollment: React.FC = () => {
       if (!assignments || assignments.length === 0) {
         console.log('No active teacher assignments found to create trace records');
         toast.error('No active teacher assignments found. Subject trace records will not be created.');
-        return false;
+        return;
       }
 
       console.log(`Found ${assignments.length} active teacher assignments`);
       console.log('Sample assignment data:', assignments[0]);
 
-      // We'll upsert later to avoid duplicates; skip the coarse pre-check
+      // Check if subject trace records already exist for this semester and academic year
+      const { data: existingRecords, error: checkError } = await supabase
+        .from('subject_trace_records')
+        .select('id')
+        .eq('academic_year', currentAcademicYear)
+        .eq('semester', currentSemester)
+        .limit(1);
+
+      if (checkError) throw checkError;
+
+      if (existingRecords && existingRecords.length > 0) {
+        console.log(`Subject trace records already exist for ${currentSemester} ${currentAcademicYear}`);
+        return;
+      }
 
       // Transform assignments to subject trace records
       const subjectTraceRecords = assignments.map((assignment: any) => {
@@ -2333,22 +2371,17 @@ const ProgramHeadEnrollment: React.FC = () => {
           ? `${assignment.teacher.first_name} ${assignment.teacher.middle_name ? assignment.teacher.middle_name + ' ' : ''}${assignment.teacher.last_name}`
           : 'Unknown Instructor';
         
-        // Fallbacks to ensure essential fields are populated even if joins fail
-        const subjectCode = assignment.subject?.code || assignment.subject_code || 'Unknown';
-        const subjectName = assignment.subject?.name || assignment.subject_name || 'Unknown';
-        const subjectUnits = assignment.subject?.units ?? assignment.subject_units ?? 0;
-
         return {
           instructor_id: assignment.teacher_id,
           instructor_name: instructorName,
           instructor_email: assignment.teacher?.email || 'unknown@smcbi.edu.ph',
           instructor_department: assignment.teacher?.department || 'Unknown',
-          subject_code: subjectCode,
-          subject_name: subjectName,
-          subject_units: subjectUnits,
+          subject_code: assignment.subject?.code || 'Unknown',
+          subject_name: assignment.subject?.name || 'Unknown',
+          subject_units: assignment.subject?.units || 0,
           section: assignment.section,
-          semester: assignment.semester || currentSemester, // Prefer assignment's semester
-          academic_year: assignment.academic_year, // Prefer assignment's AY
+          semester: currentSemester, // Use the detected current semester
+          academic_year: assignment.academic_year,
           year_level: assignment.year_level,
           status: 'Confirmed by Program Head',
           confirmed_at: new Date().toISOString()
@@ -2357,10 +2390,10 @@ const ProgramHeadEnrollment: React.FC = () => {
 
       console.log('Sample subject trace record to be created:', subjectTraceRecords[0]);
 
-      // Upsert subject trace records to avoid duplicates across repeated runs
+      // Insert subject trace records
       const { error: insertError } = await supabase
         .from('subject_trace_records')
-        .upsert(subjectTraceRecords, { onConflict: 'instructor_id,subject_code,section,academic_year,semester' });
+        .insert(subjectTraceRecords);
 
       if (insertError) {
         console.error('Error inserting subject trace records:', insertError);
@@ -2378,7 +2411,8 @@ const ProgramHeadEnrollment: React.FC = () => {
       const { data: createdRecords, error: verifyError } = await supabase
         .from('subject_trace_records')
         .select('id, instructor_id, instructor_name, subject_code')
-        .order('created_at', { ascending: false })
+        .eq('academic_year', currentAcademicYear)
+        .eq('semester', currentSemester)
         .order('created_at', { ascending: false })
         .limit(5);
       
@@ -5155,7 +5189,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                                     />
                                   }
                                   label={
-                                    <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                                    <Box sx={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
                                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                         <Typography variant="body2" sx={{ fontWeight: 500 }}>
                                           {course.code}
@@ -5190,6 +5224,70 @@ const ProgramHeadEnrollment: React.FC = () => {
                                       <Typography variant="body2" sx={{ color: '#6b7280', fontSize: '0.875rem' }}>
                                         {course.name}
                                       </Typography>
+                                      {(() => {
+                                        const instructor = getInstructorForCourse(course.id, createForm.yearLevel?.toString(), createForm.section);
+                                        if (instructor) {
+                                          return (
+                                            <Box sx={{ 
+                                              display: 'flex', 
+                                              flexDirection: 'column', 
+                                              gap: 0.5,
+                                              p: 1,
+                                              borderRadius: 1,
+                                              background: instructor.isExactMatch ? '#f0fdf4' : '#fef3c7',
+                                              border: `1px solid ${instructor.isExactMatch ? '#bbf7d0' : '#fde68a'}`,
+                                              mt: 0.5
+                                            }}>
+                                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                <Typography variant="body2" sx={{ 
+                                                  fontSize: '0.75rem',
+                                                  fontWeight: 500,
+                                                  color: instructor.isExactMatch ? '#166534' : '#92400e'
+                                                }}>
+                                                  👨‍🏫 Instructor: {instructor.teacher_name}
+                                                </Typography>
+                                                {instructor.isExactMatch && (
+                                                  <Box sx={{
+                                                    px: 1,
+                                                    py: 0.25,
+                                                    borderRadius: 0.5,
+                                                    background: '#10b981',
+                                                    color: 'white',
+                                                    fontSize: '0.65rem',
+                                                    fontWeight: 600
+                                                  }}>
+                                                    MATCH
+                                                  </Box>
+                                                )}
+                                              </Box>
+                                              <Typography variant="body2" sx={{ 
+                                                fontSize: '0.7rem',
+                                                color: instructor.isExactMatch ? '#166534' : '#92400e'
+                                              }}>
+                                                Section: {instructor.section} • {instructor.teacher_role}
+                                              </Typography>
+                                            </Box>
+                                          );
+                                        } else {
+                                          return (
+                                            <Box sx={{ 
+                                              p: 1,
+                                              borderRadius: 1,
+                                              background: '#f3f4f6',
+                                              border: '1px solid #e5e7eb',
+                                              mt: 0.5
+                                            }}>
+                                              <Typography variant="body2" sx={{ 
+                                                fontSize: '0.75rem',
+                                                color: '#6b7280',
+                                                fontStyle: 'italic'
+                                              }}>
+                                                No instructor assigned
+                                              </Typography>
+                                            </Box>
+                                          );
+                                        }
+                                      })()}
                                     </Box>
                                   }
                                   sx={{
@@ -6388,6 +6486,20 @@ const ProgramHeadEnrollment: React.FC = () => {
             </Typography>
           </Box>
           <Box mb={3} display="flex" alignItems="center" gap={2}>
+            <TextField
+              label="Search by Name or Student ID"
+              value={existingFilterSearch}
+              onChange={e => setExistingFilterSearch(e.target.value)}
+              size="small"
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  '& fieldset': { borderColor: '#d1d5db' },
+                  '&:hover fieldset': { borderColor: '#9ca3af' },
+                  '&.Mui-focused fieldset': { borderColor: '#667eea' }
+                },
+                minWidth: 240
+              }}
+            />
             <FormControl size="small" sx={{ minWidth: 180 }}>
               <InputLabel>Filter by Year Level</InputLabel>
               <Select
@@ -6413,6 +6525,47 @@ const ProgramHeadEnrollment: React.FC = () => {
                 <MenuItem value="2">2nd Year</MenuItem>
                 <MenuItem value="3">3rd Year</MenuItem>
                 <MenuItem value="4">4th Year</MenuItem>
+              </Select>
+            </FormControl>
+            <FormControl size="small" sx={{ minWidth: 180 }}>
+              <InputLabel>Filter by Type</InputLabel>
+              <Select
+                value={existingFilterType}
+                label="Filter by Type"
+                onChange={e => setExistingFilterType(e.target.value)}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    '& fieldset': { borderColor: '#d1d5db' },
+                    '&:hover fieldset': { borderColor: '#9ca3af' },
+                    '&.Mui-focused fieldset': { borderColor: '#667eea' }
+                  }
+                }}
+              >
+                <MenuItem value="">All Types</MenuItem>
+                <MenuItem value="Freshman">Freshman</MenuItem>
+                <MenuItem value="Regular">Regular</MenuItem>
+                <MenuItem value="Irregular">Irregular</MenuItem>
+                <MenuItem value="Transferee">Transferee</MenuItem>
+              </Select>
+            </FormControl>
+            <FormControl size="small" sx={{ minWidth: 180 }}>
+              <InputLabel>Filter by Status</InputLabel>
+              <Select
+                value={existingFilterStatus}
+                label="Filter by Status"
+                onChange={e => setExistingFilterStatus(e.target.value)}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    '& fieldset': { borderColor: '#d1d5db' },
+                    '&:hover fieldset': { borderColor: '#9ca3af' },
+                    '&.Mui-focused fieldset': { borderColor: '#667eea' }
+                  }
+                }}
+              >
+                <MenuItem value="">All Statuses</MenuItem>
+                <MenuItem value="pending">Pending</MenuItem>
+                <MenuItem value="approved">Approved</MenuItem>
+                <MenuItem value="returned">Returned</MenuItem>
               </Select>
             </FormControl>
             <FormControl size="small" sx={{ minWidth: 180 }}>
@@ -6447,10 +6600,17 @@ const ProgramHeadEnrollment: React.FC = () => {
             </FormControl>
           </Box>
           {Object.keys(existingStudentsByYear).sort().filter(year => !existingFilterYear || year === existingFilterYear).map(year => {
-            // Filter students by section if section filter is applied
-            const filteredStudents = existingStudentsByYear[year].filter(student => 
-              !existingFilterSection || student.section === existingFilterSection
-            );
+            // Apply filters: search, type, status, section
+            const filteredStudents = existingStudentsByYear[year].filter(student => {
+              const matchesSection = !existingFilterSection || student.section === existingFilterSection;
+              const matchesType = !existingFilterType || student.studentType === existingFilterType;
+              const matchesStatus = !existingFilterStatus || (student.status && student.status.toLowerCase() === existingFilterStatus.toLowerCase());
+              const search = existingFilterSearch.trim().toLowerCase();
+              const matchesSearch = search === '' ||
+                student.name.toLowerCase().includes(search) ||
+                (student.studentId && student.studentId.toLowerCase().includes(search));
+              return matchesSection && matchesType && matchesStatus && matchesSearch;
+            });
             
             // Only show year if there are students after filtering
             if (filteredStudents.length === 0) return null;
