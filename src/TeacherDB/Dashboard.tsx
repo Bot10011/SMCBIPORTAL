@@ -250,62 +250,9 @@ const TeacherDashboardOverview: React.FC = () => {
         
         if (error) throw error;
         
-        // 1) Try Google avatar from Supabase auth metadata/identities
-        let pictureUrl: string | null = null;
-        try {
-          const { data: authUserData } = await supabase.auth.getUser();
-          const authUserUnknown = authUserData?.user;
-          const authUserObj = authUserUnknown && typeof authUserUnknown === 'object'
-            ? (authUserUnknown as {
-                user_metadata?: Record<string, unknown> | null;
-                identities?: Array<{ provider?: string; identity_data?: Record<string, unknown> | null }> | null;
-              })
-            : undefined;
-
-          const identities = Array.isArray(authUserObj?.identities) ? authUserObj?.identities : [];
-          const googleIdentity = identities.find(i => i?.provider === 'google');
-          const identityData = googleIdentity?.identity_data || undefined;
-          const metadata = authUserObj?.user_metadata || undefined;
-
-          const avatarFromIdentity = (identityData?.['avatar_url'] as string | undefined) || (identityData?.['picture'] as string | undefined);
-          const avatarFromMetadata = (metadata?.['avatar_url'] as string | undefined) || (metadata?.['picture'] as string | undefined) || (metadata?.['profile_picture'] as string | undefined);
-          pictureUrl = avatarFromMetadata || avatarFromIdentity || null;
-        } catch {
-          // ignore
-        }
-
-        // 2) If still missing, call Google userinfo with provider_token
-        if (!pictureUrl) {
-          try {
-            const { data: sessionData } = await supabase.auth.getSession();
-            const providerToken = sessionData?.session?.provider_token;
-            if (providerToken) {
-              const resp = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-                headers: { Authorization: `Bearer ${providerToken}` },
-              });
-              if (resp.ok) {
-                const json = (await resp.json()) as Record<string, unknown>;
-                pictureUrl = (json['picture'] as string | undefined) || null;
-              }
-            }
-          } catch {
-            // ignore network errors
-          }
-        }
-
-        // 3) Fallback to stored profile picture in storage bucket
-        if (!pictureUrl && data?.profile_picture_url) {
-          const { data: signedUrlData, error: signedUrlError } = await supabase
-            .storage
-            .from('avatar')
-            .createSignedUrl(data.profile_picture_url, 60 * 60);
-          if (!signedUrlError && signedUrlData?.signedUrl) {
-            pictureUrl = signedUrlData.signedUrl;
-          }
-        }
-        
-        // Normalize empty/invalid URLs to null so UI falls back to placeholder
-        if (!pictureUrl || (typeof pictureUrl === 'string' && pictureUrl.trim() === '')) {
+        // Use davatar_url from user_profiles, fallback to placeholder in UI
+        let pictureUrl: string | null = (data as unknown as { avatar_url?: string | null })?.avatar_url || null;
+        if (typeof pictureUrl === 'string' && pictureUrl.trim() === '') {
           pictureUrl = null;
         }
         setProfilePictureUrl(pictureUrl);
