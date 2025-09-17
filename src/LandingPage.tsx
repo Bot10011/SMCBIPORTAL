@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Login from './Login';
 import { motion, useMotionValue, useTransform, useSpring, AnimatePresence } from 'framer-motion';
 import AnnouncementModal from './components/AnnouncementModal';
@@ -1034,32 +1035,35 @@ const LandingPage = () => {
 
 
 
-      {/* Floating Developer Button - Optimized */}
-      {!showFeedback && (
-        <button
-          onClick={() => setShowDevModal(true)}
-          className="fixed z-50 bottom-6 right-6 bg-gradient-to-br from-[#2C3E50] to-[#34495E] text-white p-3 sm:p-4 rounded-full shadow-lg hover:scale-110 transition-all duration-300 flex items-center justify-center group"
-          aria-label="Show Developer Info"
-          style={{ 
-            boxShadow: '0 4px 16px 0 rgba(44, 62, 80, 0.25)',
-            willChange: 'transform'
-          }}
-        >
-          {/* Code/Developer Icon */}
-          <svg 
-            xmlns="http://www.w3.org/2000/svg" 
-            width="24" 
-            height="24" 
-            fill="none" 
-            viewBox="0 0 24 24" 
-            stroke="currentColor" 
-            strokeWidth="2" 
-            className="w-6 h-6 sm:w-7 sm:h-7 group-hover:rotate-12 transition-transform duration-300"
-            style={{ willChange: 'transform' }}
+      {/* Floating Developer Button via portal - fixed and above overlays */}
+      {!showFeedback && !showDevModal && typeof window !== 'undefined' && createPortal(
+        (
+          <button
+            onClick={() => setShowDevModal(true)}
+            className="fixed bottom-6 right-6 z-[60] bg-gradient-to-br from-[#2C3E50] to-[#34495E] text-white p-3 sm:p-4 rounded-full shadow-lg hover:scale-110 transition-all duration-300 flex items-center justify-center group"
+            aria-label="Show Developer Info"
+            style={{ 
+              boxShadow: '0 4px 16px 0 rgba(44, 62, 80, 0.25)',
+              willChange: 'transform'
+            }}
           >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-        </button>
+            {/* Code/Developer Icon */}
+            <svg 
+              xmlns="http://www.w3.org/2000/svg" 
+              width="24" 
+              height="24" 
+              fill="none" 
+              viewBox="0 0 24 24" 
+              stroke="currentColor" 
+              strokeWidth="2" 
+              className="w-6 h-6 sm:w-7 sm:h-7 group-hover:rotate-12 transition-transform duration-300"
+              style={{ willChange: 'transform' }}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </button>
+        ),
+        document.body
       )}
 
       {/* Developer Modal */}
