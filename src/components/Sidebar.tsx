@@ -19,6 +19,8 @@ import {
   MessageSquare,
   GraduationCap,
   UserPlus,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { PiCertificateBold  } from "react-icons/pi";
 import { PiBookOpenTextBold } from "react-icons/pi";
@@ -355,6 +357,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(null);
   const [authDisplayName, setAuthDisplayName] = useState<string>('');
+  const [showThemeMenu, setShowThemeMenu] = useState(false);
 
   // Ref for the Logout button
   const logoutButtonRef = useRef<HTMLButtonElement>(null);
@@ -858,6 +861,55 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
       {/* Render sidebar as a portal to body to guarantee fixed position */}
       {typeof window !== 'undefined' && createPortal(sidebarJSX, document.body)}
 
+      {/* Global Hamburger Button - fixed at top-left, always visible via portal */}
+      {isMobile && typeof window !== 'undefined' && createPortal(
+        <button
+          onClick={handleHamburgerClick}
+          aria-label="Toggle sidebar"
+          className="fixed top-4 right-4 z-[60] w-12 h-12 rounded-lg bg-white text-gray-700 shadow-lg border border-gray-300 hover:bg-white active:scale-95 flex items-center justify-center"
+        >
+          <div className="w-7 h-7 flex flex-col justify-center items-center">
+            <div className="w-6 h-0.5 bg-gray-600 rounded-sm mb-1"></div>
+            <div className="w-6 h-0.5 bg-gray-600 rounded-sm mb-1"></div>
+            <div className="w-6 h-0.5 bg-gray-600 rounded-sm"></div>
+          </div>
+        </button>,
+        document.body
+      )}
+
+      {/* Theme toggle button and WIP menu (fixed under hamburger) */}
+      {isMobile && typeof window !== 'undefined' && createPortal(
+        <div className="fixed bottom-4 right-4 z-[60] flex flex-col-reverse items-end gap-2">
+          <button
+            onClick={() => setShowThemeMenu(v => !v)}
+            aria-label="Theme options (WIP)"
+            title="Theme (WIP)"
+            className="w-12 h-12 rounded-full bg-white text-gray-700 shadow-lg border border-gray-300 hover:bg-white active:scale-95 flex items-center justify-center"
+          >
+            <Sun className="w-6 h-6 spin-slow" />
+          </button>
+
+          {showThemeMenu && (
+            <div className="w-44 rounded-lg bg-white border border-gray-200 shadow-xl overflow-hidden">
+              <div className="px-3 py-2 text-[11px] uppercase tracking-wide text-gray-500 bg-gray-50 border-b">Feature in progress</div>
+              <button
+                disabled
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-400 cursor-not-allowed"
+              >
+                <Sun className="w-4 h-4" /> Light Mode
+              </button>
+              <button
+                disabled
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-400 cursor-not-allowed border-t"
+              >
+                <Moon className="w-4 h-4" /> Dark Mode
+              </button>
+            </div>
+          )}
+        </div>,
+        document.body
+      )}
+
       {/* Main Content (scrolls independently, margin for sidebar) */}
       <main
         style={{
@@ -880,19 +932,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
               backgroundColor: '#1c1c1d'
             }}
           >
-            {/* Hamburger button for mobile/tablet */}
-            {isMobile && isCollapsed && (
-              <button
-                onClick={handleHamburgerClick}
-                className="absolute top-3 right-3 z-30 p-2 rounded-lg bg-[#ffffff] text-gray-300 shadow-lg border border-gray-600 hover:bg-[#ffffff] active:scale-95"
-              >
-                                  <div className="w-5 h-5 flex flex-col justify-center items-center">
-                    <div className="w-4 h-0.5 bg-gray-400 rounded-sm mb-1"></div>
-                    <div className="w-4 h-0.5 bg-gray-400 rounded-sm mb-1"></div>
-                    <div className="w-4 h-0.5 bg-gray-400 rounded-sm"></div>
-                  </div>
-              </button>
-            )}
+            {/* In-content hamburger removed in favor of global fixed button */}
             <div className="h-full" style={{ width: 'auto', minWidth: 'none', maxWidth: 'none' }}>
               {children}
             </div>
