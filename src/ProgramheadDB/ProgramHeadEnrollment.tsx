@@ -1335,37 +1335,42 @@ const ProgramHeadEnrollment: React.FC = () => {
   const getInstructorForCourse = (courseId: string, studentYearLevel?: string, studentSection?: string) => {
     const currentAcademicYear = createForm.schoolYear || getDefaultSchoolYear();
     const currentSemester = createForm.semester || '1st Semester';
-    
-    const assignments = instructorAssignments.filter(assignment => 
-      assignment.subject_id === courseId && 
+
+    const normalizedYearLabel = (() => {
+      if (!studentYearLevel) return undefined;
+      return getYearLabel(String(studentYearLevel)); // '1' -> '1st Year'
+    })();
+
+    const sectionName = studentSection ? getSectionName(studentSection) : undefined;
+
+    const assignments = instructorAssignments.filter(assignment =>
+      assignment.subject_id === courseId &&
       assignment.academic_year === currentAcademicYear &&
       assignment.semester === currentSemester &&
       assignment.is_active
     );
 
-    // If we have student year level and section, try to find exact match first
-    if (studentYearLevel && studentSection) {
-      // Convert section ID to section name for comparison
-      const sectionName = getSectionName(studentSection);
-      
-      const exactMatch = assignments.find(assignment => 
-        assignment.year_level === studentYearLevel && 
-        assignment.section === sectionName
-      );
-      if (exactMatch) {
-        return {
-          ...exactMatch,
-          isExactMatch: true
-        };
-      }
+    // 1) Prefer exact section + year match
+    if (sectionName && normalizedYearLabel) {
+      const exact = assignments.find(a => a.section === sectionName && a.year_level === normalizedYearLabel);
+      if (exact) return { ...exact, isExactMatch: true };
     }
 
-    // If no exact match, return the first available assignment
+    // 2) If section is selected, prefer same section regardless of year label
+    if (sectionName) {
+      const sameSection = assignments.find(a => a.section === sectionName);
+      if (sameSection) return { ...sameSection, isExactMatch: true };
+    }
+
+    // 3) If year is known, prefer same year
+    if (normalizedYearLabel) {
+      const sameYear = assignments.find(a => a.year_level === normalizedYearLabel);
+      if (sameYear) return { ...sameYear, isExactMatch: false };
+    }
+
+    // 4) Fallback: first available
     if (assignments.length > 0) {
-      return {
-        ...assignments[0],
-        isExactMatch: false
-      };
+      return { ...assignments[0], isExactMatch: false };
     }
 
     return null;
@@ -1878,22 +1883,38 @@ const ProgramHeadEnrollment: React.FC = () => {
       units: number;
       year_level?: string;
     }>>> = {};
-    
+
     // Debug logging for course categorization
     console.log('=== COURSE CATEGORIZATION DEBUG ===');
     console.log('Total courses to categorize:', courses.length);
     console.log('Course codes:', courses.map(c => c.code));
-    
+
+    const normalizeYearLabel = (course: { code: string; year_level?: string }) => {
+      // Prefer using explicit year_level if present
+      if (course.year_level) {
+        const yl = String(course.year_level).toLowerCase();
+        if (yl.includes('1')) return '1st Year';
+        if (yl.includes('2')) return '2nd Year';
+        if (yl.includes('3')) return '3rd Year';
+        if (yl.includes('4')) return '4th Year';
+      }
+      // Fallback to code-based heuristic (legacy)
+      if (course.code && course.code.toUpperCase().startsWith('IT')) {
+        const rest = course.code.toUpperCase().replace('IT', '').trim();
+        const firstDigit = (rest.match(/[1-4]/)?.[0]) || '';
+        if (firstDigit === '1') return '1st Year';
+        if (firstDigit === '2') return '2nd Year';
+        if (firstDigit === '3') return '3rd Year';
+        if (firstDigit === '4') return '4th Year';
+      }
+      return 'Other Year';
+    };
+
     courses.forEach((course) => {
-      if (course.code.startsWith('IT')) {
-        // Major
-        const yearDigit = course.code.replace('IT', '').trim()[0];
-        let yearLabel = '';
-        if (yearDigit === '1') yearLabel = '1st Year';
-        else if (yearDigit === '2') yearLabel = '2nd Year';
-        else if (yearDigit === '3') yearLabel = '3rd Year';
-        else if (yearDigit === '4') yearLabel = '4th Year';
-        else yearLabel = 'Other Year';
+      const isMajor = course.code?.toUpperCase().startsWith('IT');
+      const yearLabel = normalizeYearLabel(course);
+
+      if (isMajor) {
         if (!categories['Major']) categories['Major'] = {};
         if (!categories['Major'][yearLabel]) categories['Major'][yearLabel] = [];
         categories['Major'][yearLabel].push(course);
@@ -1906,7 +1927,7 @@ const ProgramHeadEnrollment: React.FC = () => {
         console.log(`Categorized ${course.code} as Minor`);
       }
     });
-    
+
     console.log('Final categories:', categories);
     return categories;
   };
@@ -2267,7 +2288,7 @@ const ProgramHeadEnrollment: React.FC = () => {
       
       console.log(`Creating subject trace records for ${currentSemester} ${currentAcademicYear}`);
       
-      // Fetch all current teacher assignments
+      // Fetch all current teacher assignments (do not filter by AY; use assignment's own AY)
       const { data: assignments, error: assignmentsError } = await supabase
         .from('teacher_subjects')
         .select(`
@@ -2288,7 +2309,6 @@ const ProgramHeadEnrollment: React.FC = () => {
             units
           )
         `)
-        .eq('academic_year', currentAcademicYear)
         .eq('is_active', true);
 
       if (assignmentsError) {
@@ -2299,26 +2319,13 @@ const ProgramHeadEnrollment: React.FC = () => {
       if (!assignments || assignments.length === 0) {
         console.log('No active teacher assignments found to create trace records');
         toast.error('No active teacher assignments found. Subject trace records will not be created.');
-        return;
+        return false;
       }
 
       console.log(`Found ${assignments.length} active teacher assignments`);
       console.log('Sample assignment data:', assignments[0]);
 
-      // Check if subject trace records already exist for this semester and academic year
-      const { data: existingRecords, error: checkError } = await supabase
-        .from('subject_trace_records')
-        .select('id')
-        .eq('academic_year', currentAcademicYear)
-        .eq('semester', currentSemester)
-        .limit(1);
-
-      if (checkError) throw checkError;
-
-      if (existingRecords && existingRecords.length > 0) {
-        console.log(`Subject trace records already exist for ${currentSemester} ${currentAcademicYear}`);
-        return;
-      }
+      // We'll upsert later to avoid duplicates; skip the coarse pre-check
 
       // Transform assignments to subject trace records
       const subjectTraceRecords = assignments.map((assignment: any) => {
@@ -2326,17 +2333,22 @@ const ProgramHeadEnrollment: React.FC = () => {
           ? `${assignment.teacher.first_name} ${assignment.teacher.middle_name ? assignment.teacher.middle_name + ' ' : ''}${assignment.teacher.last_name}`
           : 'Unknown Instructor';
         
+        // Fallbacks to ensure essential fields are populated even if joins fail
+        const subjectCode = assignment.subject?.code || assignment.subject_code || 'Unknown';
+        const subjectName = assignment.subject?.name || assignment.subject_name || 'Unknown';
+        const subjectUnits = assignment.subject?.units ?? assignment.subject_units ?? 0;
+
         return {
           instructor_id: assignment.teacher_id,
           instructor_name: instructorName,
           instructor_email: assignment.teacher?.email || 'unknown@smcbi.edu.ph',
           instructor_department: assignment.teacher?.department || 'Unknown',
-          subject_code: assignment.subject?.code || 'Unknown',
-          subject_name: assignment.subject?.name || 'Unknown',
-          subject_units: assignment.subject?.units || 0,
+          subject_code: subjectCode,
+          subject_name: subjectName,
+          subject_units: subjectUnits,
           section: assignment.section,
-          semester: currentSemester, // Use the detected current semester
-          academic_year: assignment.academic_year,
+          semester: assignment.semester || currentSemester, // Prefer assignment's semester
+          academic_year: assignment.academic_year, // Prefer assignment's AY
           year_level: assignment.year_level,
           status: 'Confirmed by Program Head',
           confirmed_at: new Date().toISOString()
@@ -2345,10 +2357,10 @@ const ProgramHeadEnrollment: React.FC = () => {
 
       console.log('Sample subject trace record to be created:', subjectTraceRecords[0]);
 
-      // Insert subject trace records
+      // Upsert subject trace records to avoid duplicates across repeated runs
       const { error: insertError } = await supabase
         .from('subject_trace_records')
-        .insert(subjectTraceRecords);
+        .upsert(subjectTraceRecords, { onConflict: 'instructor_id,subject_code,section,academic_year,semester' });
 
       if (insertError) {
         console.error('Error inserting subject trace records:', insertError);
@@ -2366,8 +2378,7 @@ const ProgramHeadEnrollment: React.FC = () => {
       const { data: createdRecords, error: verifyError } = await supabase
         .from('subject_trace_records')
         .select('id, instructor_id, instructor_name, subject_code')
-        .eq('academic_year', currentAcademicYear)
-        .eq('semester', currentSemester)
+        .order('created_at', { ascending: false })
         .order('created_at', { ascending: false })
         .limit(5);
       
