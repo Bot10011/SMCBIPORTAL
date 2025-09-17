@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Loader2, CheckCircle2, Clock, BookOpen, ChevronRight, Search, Users, GraduationCap } from 'lucide-react';
+import { Loader2, CheckCircle2, Clock, BookOpen, ChevronRight, Search, Users, GraduationCap, Bell } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface Grade {
@@ -159,7 +159,7 @@ export default function StudentGrades() {
   const [navigationStack, setNavigationStack] = useState<string[]>(['programs']);
   const [currentStackIndex, setCurrentStackIndex] = useState(0);
 
-  const [yearLevelSectionSubjects, setYearLevelSectionSubjects] = useState<YearLevelSectionSubject[]>([]);
+  const [, setYearLevelSectionSubjects] = useState<YearLevelSectionSubject[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
   
   // State for search and filtering - separate states for different views
@@ -214,6 +214,10 @@ export default function StudentGrades() {
     created_at?: string | null;
   } | null>(null);
   
+  // Additional modal data
+  const [modalStudentCustomId, setModalStudentCustomId] = useState<string | null>(null);
+  const [modalSubjectName, setModalSubjectName] = useState<string | null>(null);
+  
   // Confirmation modal state
   const [confirmationModalOpen, setConfirmationModalOpen] = useState(false);
   const [confirmationAction, setConfirmationAction] = useState<'approve' | 'deny' | 'hide' | null>(null);
@@ -236,6 +240,12 @@ export default function StudentGrades() {
   // Count of courses for the selected year level (used in Sections view)
   const [coursesCount, setCoursesCount] = useState<number>(0);
 
+  // State for instructor assignments
+  const [instructorAssignments, setInstructorAssignments] = useState<Map<string, { hasInstructor: boolean; instructorName: string }>>(new Map());
+
+  // State for instructor assignment filter
+  const [instructorFilter, setInstructorFilter] = useState<'all' | 'assigned' | 'unassigned'>('all');
+
   // State for enrolled students display
   const [enrolledStudents, setEnrolledStudents] = useState<Array<{
     id: string;
@@ -248,6 +258,7 @@ export default function StudentGrades() {
 
   // State for instructor and subject information
   const [instructorInfo, setInstructorInfo] = useState<{
+    instructor_id: string;
     instructor_name: string;
     subject_name: string;
     course_code: string;
@@ -786,23 +797,23 @@ export default function StudentGrades() {
     setLoading(true);
     setError(null);
     
-    console.log('Fetching grades and student data...');
+    console.log('🔄 Fetching grades and student data...');
     
     try {
       // Test database connectivity first
-      console.log('Testing database connectivity...');
+      console.log('🔍 Testing database connectivity...');
       const { error: testError } = await supabase
         .from('programs')
         .select('count')
         .limit(1);
         
       if (testError) {
-        console.error('Database connectivity test failed:', testError);
+        console.error('❌ Database connectivity test failed:', testError);
         setError(`Database connection failed: ${testError.message}`);
         setLoading(false);
         return;
       } else {
-        console.log('Database connectivity test passed');
+        console.log('✅ Database connectivity test passed');
       }
       
       // Test fetching a single program to see the actual data structure
@@ -911,8 +922,17 @@ export default function StudentGrades() {
       
 
       
-      // Fetch grades for students who have year level and section
+      // Fetch ALL grades first, then filter by students - this ensures we don't miss any grades
       const studentIds = (studentsData || []).map(s => s.id);
+      console.log('🔍 Fetching grades for student IDs:', studentIds);
+      console.log('🔍 Students data sample:', studentsData?.slice(0, 3).map(s => ({
+        id: s.id,
+        student_id: s.student_id,
+        year_level: s.year_level,
+        section: s.section,
+        program_id: s.program_id
+      })));
+      
       // Run grades and enrollments queries in parallel for speed
       const [gradesRes, enrollRes] = await Promise.all([
         supabase
@@ -931,11 +951,13 @@ export default function StudentGrades() {
             student_status, 
             enrollment_status, 
             student_type,
-            program_id
+            program_id,
+            year_level,
+            section
           )
         `)
         .in('student_id', studentIds)
-          .order('created_at', { ascending: false }),
+        .order('created_at', { ascending: false }),
         supabase
           .from('enrollcourse')
           .select(`
@@ -960,7 +982,95 @@ export default function StudentGrades() {
         return;
       }
       
-      console.log('Grades data:', gradesData?.length || 0, 'records');
+      console.log('📊 Grades data:', gradesData?.length || 0, 'records');
+      
+      // ERROR HANDLING: Check if grades query returned any results
+      if (!gradesData || gradesData.length === 0) {
+        console.warn('⚠️ NO GRADES FOUND in grades table!', {
+          queryUsed: {
+            studentIds: studentIds,
+            query: 'grades WHERE student_id IN (studentIds)'
+          },
+          possibleReasons: [
+            'No grades have been entered yet for any students',
+            'Student IDs in user_profiles do not match student IDs in grades table',
+            'Grades table is empty or has different column names',
+            'Grades table has no records for the selected students'
+          ],
+          debugInfo: {
+            totalStudents: studentIds.length,
+            studentIds: studentIds
+          }
+        });
+      } else {
+        console.log('✅ GRADES FOUND!', {
+          totalGrades: gradesData.length,
+          gradeDetails: gradesData.map(g => ({
+            gradeId: g.id,
+            studentId: g.student_id,
+            subjectId: g.subject_id,
+            hasPrelim: g.prelim_grade !== null,
+            hasMidterm: g.midterm_grade !== null,
+            hasFinal: g.final_grade !== null
+          }))
+        });
+      }
+      
+      // Debug: Show sample raw grades data from database
+      if (gradesData && gradesData.length > 0) {
+        console.log('🔍 Sample raw grades from database:', gradesData.slice(0, 2).map(g => ({
+          id: g.id,
+          student_id: g.student_id,
+          prelim_grade: g.prelim_grade,
+          midterm_grade: g.midterm_grade,
+          final_grade: g.final_grade,
+          subject_id: g.subject_id,
+          year_level: g.year_level,
+          section: g.section,
+          course_code: g.course_code,
+          course_name: g.course_name,
+          student: g.student
+        })));
+        
+        // Check for grades with actual values in raw data
+        const rawGradesWithValues = gradesData.filter(g => 
+          g.prelim_grade !== null || g.midterm_grade !== null || g.final_grade !== null
+        );
+        console.log(`📊 Raw grades with values: ${rawGradesWithValues.length} out of ${gradesData.length}`);
+        
+        // Debug: Show all unique combinations of year_level, section, and course
+        const uniqueCombinations = [...new Set(gradesData.map(g => 
+          `${g.year_level}-${g.section}-${g.course_code || g.course_name}`
+        ))];
+        console.log('🔍 Unique grade combinations (year-section-course):', uniqueCombinations);
+        
+        // Debug: Show student information from grades
+        const studentsFromGrades = [...new Set(gradesData.map(g => g.student_id))];
+        console.log('🔍 Students found in grades:', studentsFromGrades.length);
+        console.log('🔍 Sample student data from grades:', gradesData.slice(0, 3).map(g => ({
+          student_id: g.student_id,
+          student_name: g.student?.display_name || `${g.student?.first_name || ''} ${g.student?.last_name || ''}`.trim(),
+          student_data: g.student
+        })));
+      }
+      
+      // Validate grades data
+      if (!gradesData || gradesData.length === 0) {
+        console.warn('⚠️ No grades data found');
+        toast.error('No grades found for the selected criteria');
+      } else {
+        // Validate grade data integrity
+        const invalidGrades = gradesData.filter(grade => 
+          !grade.student_id || 
+          (!grade.prelim_grade && !grade.midterm_grade && !grade.final_grade)
+        );
+        
+        if (invalidGrades.length > 0) {
+          console.warn(`⚠️ Found ${invalidGrades.length} grades with missing data:`, invalidGrades);
+        }
+        
+        console.log('✅ Grade data validation completed');
+      }
       
       // Build lookup maps for graded_by (teacher) and subject_id (course)
       const gradedByIds = Array.from(new Set((gradesData || []).map(g => g.graded_by).filter(Boolean)));
@@ -996,6 +1106,37 @@ export default function StudentGrades() {
       console.log('Enrollments data:', enrollmentsData?.length || 0, 'records');
       if (enrollmentsData && enrollmentsData.length > 0) {
         console.log('Sample enrollment:', enrollmentsData[0]);
+      }
+      
+      // ERROR HANDLING: Check if enrollments query returned any results
+      if (!enrollmentsData || enrollmentsData.length === 0) {
+        console.warn('⚠️ NO ENROLLMENTS FOUND in enrollcourse table!', {
+          queryUsed: {
+            studentIds: studentIds,
+            query: 'enrollcourse WHERE student_id IN (studentIds)'
+          },
+          possibleReasons: [
+            'No students are enrolled in any courses',
+            'Student IDs in user_profiles do not match student IDs in enrollcourse table',
+            'Enrollcourse table is empty or has different column names',
+            'All enrollments have inactive status'
+          ],
+          debugInfo: {
+            totalStudents: studentIds.length,
+            studentIds: studentIds
+          }
+        });
+      } else {
+        console.log('✅ ENROLLMENTS FOUND!', {
+          totalEnrollments: enrollmentsData.length,
+          enrollmentDetails: enrollmentsData.map(e => ({
+            enrollmentId: e.id,
+            studentId: e.student_id,
+            subjectId: e.subject_id,
+            status: e.status,
+            courseCode: Array.isArray(e.course) ? (e.course[0] as { code?: string })?.code : (e.course as { code?: string })?.code
+          }))
+        });
       }
       
       // Create enrollment map for quick lookup keyed by student_id+subject_id
@@ -1283,6 +1424,31 @@ export default function StudentGrades() {
       
       const processedGrades = (gradesData || []).map(g => {
         const student = Array.isArray(g.student) ? g.student[0] : g.student;
+        
+        // Debug: Log grade values before processing
+        console.log(`🔍 Processing grade ${g.id}:`, {
+          prelim_grade: g.prelim_grade,
+          midterm_grade: g.midterm_grade,
+          final_grade: g.final_grade,
+          student_id: g.student_id,
+          subject_id: g.subject_id,
+          year_level: g.year_level,
+          section: g.section,
+          course_code: g.course_code,
+          course_name: g.course_name,
+          student_name: student?.display_name || `${student?.first_name || ''} ${student?.last_name || ''}`.trim(),
+          student_data: student ? {
+            id: student.id,
+            student_id: student.student_id,
+            year_level: student.year_level,
+            section: student.section,
+            program_id: student.program_id
+          } : null,
+          // ENROLLMENT MATCHING DEBUG
+          enrollmentKey: `${g.student_id}-${g.subject_id || ''}`,
+          hasEnrollment: enrollmentMap.has(`${g.student_id}-${g.subject_id || ''}`)
+        });
+        
         const mapYearLevelToNumericString = (num?: number | null): string => {
           if (num === 1) return '1';
           if (num === 2) return '2';
@@ -1420,6 +1586,73 @@ export default function StudentGrades() {
 
       console.log('Processed grades:', processedGrades.length, 'records');
       console.log('Sample processed grade:', processedGrades[0]);
+      
+      // ERROR HANDLING: Enhanced analysis of processed grades
+      if (processedGrades.length > 0) {
+        const processedGradesWithValues = processedGrades.filter(g => 
+          g.prelim_grade !== null || g.midterm_grade !== null || g.final_grade !== null
+        );
+        const processedGradesWithoutValues = processedGrades.filter(g => 
+          g.prelim_grade === null && g.midterm_grade === null && g.final_grade === null
+        );
+        
+        console.log(`📊 Processed grades with values: ${processedGradesWithValues.length} out of ${processedGrades.length}`);
+        
+        // ERROR HANDLING: Detailed analysis of why grades might not be showing
+        if (processedGradesWithValues.length === 0) {
+          console.warn('\n⚠️ GRADES NOT SHOWING - ERROR ANALYSIS:', {
+            totalProcessedGrades: processedGrades.length,
+            gradesWithValues: processedGradesWithValues.length,
+            gradesWithoutValues: processedGradesWithoutValues.length,
+            possibleIssues: [
+              'All grades have null values (no actual grades entered)',
+              'Grades exist but are not being displayed due to filtering',
+              'Enrollment matching is failing',
+              'UI filtering is hiding all grades'
+            ],
+            debugInfo: {
+              sampleGradesWithoutValues: processedGradesWithoutValues.slice(0, 3).map(g => ({
+                gradeId: g.id,
+                studentId: g.student_id,
+                subjectId: g.subject_id,
+                prelim: g.prelim_grade,
+                midterm: g.midterm_grade,
+                final: g.final_grade
+              })),
+              totalEnrollments: enrollmentMap.size,
+              totalGradesFromDB: gradesData?.length || 0
+            },
+            troubleshootingSteps: [
+              '1. Check if grades table has actual grade values (not null)',
+              '2. Verify enrollment matching is working correctly',
+              '3. Check if UI filters are hiding grades',
+              '4. Ensure grades are being processed correctly'
+            ]
+          });
+        } else {
+          console.log('✅ SUCCESS: Grades with values found!', {
+            totalGradesWithValues: processedGradesWithValues.length,
+            sampleGrades: processedGradesWithValues.slice(0, 3).map(g => ({
+              gradeId: g.id,
+              studentId: g.student_id,
+              prelim: g.prelim_grade,
+              midterm: g.midterm_grade,
+              final: g.final_grade
+            }))
+          });
+          
+          console.log('✅ Sample processed grade with values:', {
+            student_name: processedGradesWithValues[0].student_name,
+            student_id: processedGradesWithValues[0].student_id,
+            prelim_grade: processedGradesWithValues[0].prelim_grade,
+            midterm_grade: processedGradesWithValues[0].midterm_grade,
+            final_grade: processedGradesWithValues[0].final_grade,
+            course_code: processedGradesWithValues[0].course_code,
+            year_level: processedGradesWithValues[0].year_level,
+            section: processedGradesWithValues[0].section
+          });
+        }
+      }
       console.log('Enrollment map size:', enrollmentMap.size);
       console.log('Teacher map size:', teacherMap.size);
       
@@ -1924,11 +2157,15 @@ export default function StudentGrades() {
       console.log('=== END SUMMARY ===');
       
     } catch (error) {
-      console.error('Error fetching data:', error);
-      setError('Failed to load data');
+      console.error('❌ Error fetching data:', error);
+      setError(`Failed to load data: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      
+      // Show user-friendly error message
+      toast.error('Failed to load grades data. Please try refreshing.');
+    } finally {
+      setLoading(false);
+      console.log('🏁 Grade fetching completed');
     }
-    
-    setLoading(false);
   };
 
 
@@ -2372,6 +2609,7 @@ export default function StudentGrades() {
         });
         
         setInstructorInfo({
+          instructor_id: selectedInstructor.id,
           instructor_name: selectedInstructor.display_name || `${selectedInstructor.first_name} ${selectedInstructor.last_name}`,
           subject_name: course.name,
           course_code: course.code
@@ -2591,38 +2829,169 @@ export default function StudentGrades() {
     console.log('Enrolled students count:', enrolledStudents.length);
     console.log('Grades count:', grades.length);
     
+    // Debug: Show sample grade data structure
+    if (grades.length > 0) {
+      console.log('Sample grade data structure:', {
+        firstGrade: grades[0],
+        gradeKeys: Object.keys(grades[0]),
+        yearLevels: [...new Set(grades.map(g => g.year_level))],
+        sections: [...new Set(grades.map(g => g.section))],
+        courseCodes: [...new Set(grades.map(g => g.course_code))],
+        courseIds: [...new Set(grades.map(g => g.course_id))]
+      });
+    }
+    
     const normalizeStr = (v?: string | null) => (v || '').toString().trim().toLowerCase();
     const sectionTarget = normalizeStr(selectedSection);
     const subjectTarget = normalizeStr(selectedSubject);
 
-    // First get all grades that match the criteria
+    // First get all grades that match the criteria - improved filtering with better matching
     let gradeStudents = grades.filter(grade => {
-      const sectionMatches = normalizeStr(grade.section) === sectionTarget;
-      const subjectMatches = normalizeStr(grade.course_code) === subjectTarget || (!!selectedCourseId && grade.course_id === selectedCourseId);
-      return (
-        grade.year_level === selectedYearLevel &&
-        sectionMatches &&
-        subjectMatches
-      );
+      // More flexible year level matching
+      const yearMatches = grade.year_level === selectedYearLevel || 
+                         grade.year_level?.toString() === selectedYearLevel ||
+                         normalizeStr(grade.year_level) === normalizeStr(selectedYearLevel);
+      
+      // More flexible section matching - be more permissive
+      let sectionMatches = false;
+      if (grade.section && selectedSection) {
+        // Both have sections - try multiple matching strategies
+        sectionMatches = normalizeStr(grade.section) === sectionTarget ||
+                        grade.section === selectedSection ||
+                        sectionMap.get(grade.section || '') === selectedSection;
+      } else if (!grade.section && !selectedSection) {
+        // Neither has section - consider it a match
+        sectionMatches = true;
+      } else if (!grade.section) {
+        // Grade has no section but selection does - still match (grade might be for any section)
+        sectionMatches = true;
+      }
+      
+      // More flexible subject matching
+      const subjectMatches = normalizeStr(grade.course_code) === subjectTarget || 
+                           normalizeStr(grade.course_name) === subjectTarget ||
+                           (!!selectedCourseId && grade.course_id === selectedCourseId) ||
+                           grade.subject_id === selectedCourseId;
+      
+      console.log(`Grade ${grade.id} filtering:`, {
+        yearLevel: grade.year_level,
+        yearMatches,
+        section: grade.section,
+        sectionMatches,
+        courseCode: grade.course_code,
+        courseName: grade.course_name,
+        courseId: grade.course_id,
+        subjectId: grade.subject_id,
+        subjectMatches,
+        selectedCourseId,
+        selectedSection,
+        sectionTarget,
+        prelim_grade: grade.prelim_grade,
+        midterm_grade: grade.midterm_grade,
+        final_grade: grade.final_grade,
+        finalMatch: yearMatches && sectionMatches && subjectMatches
+      });
+      
+      return yearMatches && sectionMatches && subjectMatches;
     });
 
     console.log('Grade students found:', gradeStudents.length);
+    
+    // If no grades found with strict filtering, try more permissive filtering
+    if (gradeStudents.length === 0 && grades.length > 0) {
+      console.log('⚠️ No grades found with strict filtering, trying permissive approach...');
+      
+      // Try to find grades by just matching the subject/course
+      gradeStudents = grades.filter(grade => {
+        const subjectMatches = normalizeStr(grade.course_code) === subjectTarget || 
+                             normalizeStr(grade.course_name) === subjectTarget ||
+                             (!!selectedCourseId && grade.course_id === selectedCourseId) ||
+                             grade.subject_id === selectedCourseId;
+        
+        console.log(`Permissive filtering for grade ${grade.id}:`, {
+          courseCode: grade.course_code,
+          courseName: grade.course_name,
+          courseId: grade.course_id,
+          subjectId: grade.subject_id,
+          subjectMatches,
+          prelim_grade: grade.prelim_grade,
+          midterm_grade: grade.midterm_grade,
+          final_grade: grade.final_grade
+        });
+        
+        return subjectMatches;
+      });
+      
+      console.log('Permissive filtering found:', gradeStudents.length, 'grades');
+    }
+    
+    // Debug: Check if grades have actual grade values
+    if (gradeStudents.length > 0) {
+      console.log('🔍 Sample grade data with actual values:', gradeStudents.slice(0, 3).map(g => ({
+        student_name: g.student_name,
+        student_id: g.student_id,
+        prelim_grade: g.prelim_grade,
+        midterm_grade: g.midterm_grade,
+        final_grade: g.final_grade,
+        course_code: g.course_code,
+        course_name: g.course_name,
+        year_level: g.year_level,
+        section: g.section
+      })));
+      
+      // Check for grades with actual values
+      const gradesWithValues = gradeStudents.filter(g => 
+        g.prelim_grade !== null || g.midterm_grade !== null || g.final_grade !== null
+      );
+      console.log(`📊 Grades with actual values: ${gradesWithValues.length} out of ${gradeStudents.length}`);
+      
+      if (gradesWithValues.length > 0) {
+        console.log('✅ Sample grade with values:', gradesWithValues[0]);
+      } else {
+        console.log('❌ No grades have actual values - all are null/undefined');
+      }
+    }
 
     // If we have enrolled students, merge them with grade data
     if (enrolledStudents.length > 0) {
       console.log('Processing enrolled students...');
-      // Create a map of existing grades by student_id
+      // Create a map of existing grades by student_id (UUID from user_profiles.id)
       const gradesMap = new Map();
       gradeStudents.forEach(grade => {
         gradesMap.set(grade.student_id, grade);
       });
+      
+      console.log('🔍 Grades map created:', {
+        totalGrades: gradeStudents.length,
+        gradesMapKeys: Array.from(gradesMap.keys()),
+        sampleGrades: gradeStudents.slice(0, 3).map(g => ({
+          student_id: g.student_id,
+          student_name: g.student_name,
+          prelim: g.prelim_grade,
+          midterm: g.midterm_grade,
+          final: g.final_grade
+        }))
+      });
 
       // Create final list with enrolled students
       const finalStudents = enrolledStudents.map(enrolledStudent => {
-        const existingGrade = gradesMap.get(enrolledStudent.student_id);
+        // Try to match by both student_id (UUID) and custom student_id
+        const existingGrade = gradesMap.get(enrolledStudent.id) || gradesMap.get(enrolledStudent.student_id);
+        
+        console.log(`🔍 Matching student ${enrolledStudent.first_name} ${enrolledStudent.last_name}:`, {
+          enrolledStudentId: enrolledStudent.id,
+          enrolledStudentCustomId: enrolledStudent.student_id,
+          foundGrade: !!existingGrade,
+          gradeStudentId: existingGrade?.student_id,
+          gradeStudentName: existingGrade?.student_name,
+          prelim: existingGrade?.prelim_grade,
+          midterm: existingGrade?.midterm_grade,
+          final: existingGrade?.final_grade
+        });
         
         if (existingGrade) {
           // Student has grades, use existing grade data
+          console.log(`✅ Found grades for ${enrolledStudent.first_name} ${enrolledStudent.last_name}`);
           return existingGrade;
         } else {
           // Student is enrolled but has no grades, create a placeholder grade entry
@@ -2683,6 +3052,15 @@ export default function StudentGrades() {
   // Bulk action handlers
   // Function to validate if all students have complete grades
   const validateCompleteGrades = (students: Grade[]) => {
+    // If no students are enrolled, grades are not complete
+    if (students.length === 0) {
+      return {
+        isValid: false,
+        incompleteStudents: [],
+        reason: 'No students enrolled'
+      };
+    }
+    
     const incompleteStudents = students.filter(student => {
       const hasPrelim = student.prelim_grade !== null && student.prelim_grade !== undefined;
       const hasMidterm = student.midterm_grade !== null && student.midterm_grade !== undefined;
@@ -2692,14 +3070,28 @@ export default function StudentGrades() {
     });
     
     return {
-      isValid: incompleteStudents.length === 0,
-      incompleteStudents: incompleteStudents
+      isValid: incompleteStudents.length === 0 && students.length > 0,
+      incompleteStudents: incompleteStudents,
+      reason: incompleteStudents.length === 0 ? 'All students have complete grades' : `${incompleteStudents.length} students have incomplete grades`
     };
   };
 
   const handleBulkRelease = async () => {
     const filteredStudents = getFilteredStudents();
     if (filteredStudents.length === 0) return;
+    
+    // Check if there are any pending grade change requests for the current subject
+    const currentSubjectRequests = instructorRequests.filter(req => 
+      req.subject_id === selectedCourseId && 
+      req.edit_status === 'pending'
+    );
+    
+    if (currentSubjectRequests.length > 0) {
+      toast.error(`${currentSubjectRequests.length} pending grade change requests must be resolved before releasing grades`, {
+        duration: 5000
+      });
+      return;
+    }
     
     // Validate that all students have complete grades
     const validation = validateCompleteGrades(filteredStudents);
@@ -2718,6 +3110,7 @@ export default function StudentGrades() {
     setBulkUpdating(true);
     
     try {
+      // Release grades for all students (no pending requests)
       const { error } = await supabase
         .from('grades')
         .update({ is_released: true })
@@ -2736,6 +3129,73 @@ export default function StudentGrades() {
       }
     } catch {
       toast.error('Failed to release grades');
+    }
+    
+    setBulkUpdating(false);
+  };
+
+  const handleNotifyInstructorForGrades = async () => {
+    const filteredStudents = getFilteredStudents();
+    if (filteredStudents.length === 0) return;
+    
+    // Find students who don't have grades yet
+    const studentsWithoutGrades = filteredStudents.filter(student => 
+      student.prelim_grade === null && 
+      student.midterm_grade === null && 
+      student.final_grade === null
+    );
+    
+    if (studentsWithoutGrades.length === 0) {
+      toast.success('All students already have grades entered', {
+        duration: 3000
+      });
+      return;
+    }
+    
+    // Get instructor info for this subject
+    if (!instructorInfo?.instructor_id) {
+      toast.error('No instructor assigned to this subject', {
+        duration: 4000
+      });
+      return;
+    }
+    
+    setBulkUpdating(true);
+    
+    try {
+      // Create notification records for the instructor
+      const notifications = studentsWithoutGrades.map(student => ({
+        recipient_id: instructorInfo.instructor_id,
+        sender_id: user?.id,
+        type: 'grade_request',
+        title: 'Grade Entry Required',
+        message: `Please enter grades for student ${student.student_name || student.student_id} in ${selectedSubject}`,
+        data: {
+          student_id: student.student_id,
+          student_name: student.student_name,
+          subject_id: selectedCourseId,
+          subject_name: selectedSubject,
+          year_level: selectedYearLevel,
+          section: selectedSection
+        },
+        is_read: false,
+        created_at: new Date().toISOString()
+      }));
+      
+      const { error } = await supabase
+        .from('notifications')
+        .insert(notifications);
+      
+      if (!error) {
+        toast.success(`Notification sent to instructor for ${studentsWithoutGrades.length} students without grades`, {
+          duration: 5000
+        });
+      } else {
+        toast.error('Failed to send notification to instructor');
+      }
+    } catch (error) {
+      console.error('Error sending notification:', error);
+      toast.error('Failed to send notification to instructor');
     }
     
     setBulkUpdating(false);
@@ -2784,7 +3244,7 @@ export default function StudentGrades() {
     try {
       // Create a CSV report
       const csvData = [
-        ['Student Name', 'Student ID', 'Subject', 'Prelim', 'Midterm', 'Final', 'GA', 'Status'],
+        ['Student Name', 'Student ID', 'Subject', 'Prelim', 'Midterm', 'Final', 'GA'],
         ...filteredStudents.map(student => [
           student.student_name || 'Unknown',
           student.school_id || student.student_id,
@@ -2792,8 +3252,7 @@ export default function StudentGrades() {
           student.prelim_grade?.toString() || '-',
           student.midterm_grade?.toString() || '-',
           student.final_grade?.toString() || '-',
-          student.general_average?.toFixed(2) || '-',
-          student.is_approved ? 'Approved' : 'Pending'
+          student.general_average?.toFixed(2) || '-'
         ])
       ];
 
@@ -2830,7 +3289,8 @@ export default function StudentGrades() {
         .eq('edit_status', 'pending')
         .order('created_at', { ascending: false });
       if (error) throw error;
-      const mapped = (data || []).map((g: {
+      
+      const base = (data || []).map((g: {
         id: string;
         student_id: string;
         subject_id: string | null;
@@ -2846,8 +3306,8 @@ export default function StudentGrades() {
         id: g.id,
         student_id: g.student_id,
         student_name: g.edit_student_name,
-        instructor_id: g.edit_requested_by,
-        instructor_name: g.edit_requested_by_name,
+        instructor_id: g.edit_requested_by, // temporary; will override from teacher_subjects if available
+        instructor_name: g.edit_requested_by_name, // temporary; will override from user_profiles
         subject_id: g.subject_id,
         section: g.section,
         academic_year: g.academic_year,
@@ -2855,6 +3315,49 @@ export default function StudentGrades() {
         edit_status: g.edit_status,
         created_at: g.created_at
       }));
+
+      // Enhance with teacher_subjects.teacher_id and user_profiles.display_name
+      const subjectIds = Array.from(new Set(base.map(r => r.subject_id).filter(Boolean))) as string[];
+      const subjectToTeacherId = new Map<string, string>();
+      if (subjectIds.length > 0) {
+        const { data: tsRows } = await supabase
+          .from('teacher_subjects')
+          .select('subject_id, teacher_id')
+          .in('subject_id', subjectIds);
+        if (tsRows) {
+          tsRows.forEach((row: { subject_id: string; teacher_id: string }) => {
+            if (row?.subject_id && row?.teacher_id) subjectToTeacherId.set(row.subject_id, row.teacher_id);
+          });
+        }
+      }
+
+      const teacherIds = Array.from(new Set(Array.from(subjectToTeacherId.values())));
+      const teacherIdToName = new Map<string, string>();
+      if (teacherIds.length > 0) {
+        const { data: teachers } = await supabase
+          .from('user_profiles')
+          .select('id, display_name, first_name, last_name')
+          .in('id', teacherIds);
+        if (teachers) {
+          teachers.forEach((t: { id: string; display_name?: string | null; first_name?: string | null; last_name?: string | null; }) => {
+            const full = (t.display_name && t.display_name.trim()) || [t.first_name, t.last_name].filter(Boolean).join(' ').trim();
+            if (t.id && full) teacherIdToName.set(t.id, full);
+          });
+        }
+      }
+
+      const mapped = base.map(req => {
+        const teacherId = req.subject_id ? subjectToTeacherId.get(req.subject_id) : undefined;
+        if (teacherId) {
+          return {
+            ...req,
+            instructor_id: teacherId,
+            instructor_name: teacherIdToName.get(teacherId) || req.instructor_name || 'Unknown Instructor',
+          };
+        }
+        return req;
+      });
+
       setInstructorRequests(mapped);
     } catch (e) {
       console.error('Failed to load instructor requests:', e);
@@ -2871,7 +3374,8 @@ export default function StudentGrades() {
         .eq('edit_status', 'pending')
         .order('created_at', { ascending: false });
       if (error) throw error;
-      const mapped = (data || []).map((g: {
+      
+      const base = (data || []).map((g: {
         id: string;
         student_id: string;
         subject_id: string | null;
@@ -2887,8 +3391,8 @@ export default function StudentGrades() {
         id: g.id,
         student_id: g.student_id,
         student_name: g.edit_student_name,
-        instructor_id: g.edit_requested_by,
-        instructor_name: g.edit_requested_by_name,
+        instructor_id: g.edit_requested_by, // temporary; will override from teacher_subjects if available
+        instructor_name: g.edit_requested_by_name, // temporary; will override from user_profiles
         subject_id: g.subject_id,
         section: g.section,
         academic_year: g.academic_year,
@@ -2896,9 +3400,53 @@ export default function StudentGrades() {
         edit_status: g.edit_status,
         created_at: g.created_at
       }));
+
+      // Enhance with teacher_subjects.teacher_id and user_profiles.display_name
+      const subjectIds = Array.from(new Set(base.map(r => r.subject_id).filter(Boolean))) as string[];
+      const subjectToTeacherId = new Map<string, string>();
+      if (subjectIds.length > 0) {
+        const { data: tsRows } = await supabase
+          .from('teacher_subjects')
+          .select('subject_id, teacher_id')
+          .in('subject_id', subjectIds);
+        if (tsRows) {
+          tsRows.forEach((row: { subject_id: string; teacher_id: string }) => {
+            if (row?.subject_id && row?.teacher_id) subjectToTeacherId.set(row.subject_id, row.teacher_id);
+          });
+        }
+      }
+
+      const teacherIds = Array.from(new Set(Array.from(subjectToTeacherId.values())));
+      const teacherIdToName = new Map<string, string>();
+      if (teacherIds.length > 0) {
+        const { data: teachers } = await supabase
+          .from('user_profiles')
+          .select('id, display_name, first_name, last_name')
+          .in('id', teacherIds);
+        if (teachers) {
+          teachers.forEach((t: { id: string; display_name?: string | null; first_name?: string | null; last_name?: string | null; }) => {
+            const full = (t.display_name && t.display_name.trim()) || [t.first_name, t.last_name].filter(Boolean).join(' ').trim();
+            if (t.id && full) teacherIdToName.set(t.id, full);
+          });
+        }
+      }
+
+      const mapped = base.map(req => {
+        const teacherId = req.subject_id ? subjectToTeacherId.get(req.subject_id) : undefined;
+        if (teacherId) {
+          return {
+            ...req,
+            instructor_id: teacherId,
+            instructor_name: teacherIdToName.get(teacherId) || req.instructor_name || 'Unknown Instructor',
+          };
+        }
+        return req;
+      });
+
       setInstructorRequests(mapped);
     } catch (e) {
-      console.error('Failed to refresh requests:', e);
+      console.error('Failed to refresh instructor requests:', e);
+      setInstructorRequests([]);
     }
   };
 
@@ -2946,7 +3494,11 @@ export default function StudentGrades() {
     created_at?: string | null;
   }) => {
     let resolvedName = request.instructor_name;
+    let studentCustomId = null;
+    let subjectName = null;
+    
     try {
+      // Resolve instructor name
       if (!resolvedName || resolvedName.trim() === '') {
         const name = await resolveInstructorName(
           request.instructor_id,
@@ -2956,11 +3508,33 @@ export default function StudentGrades() {
         );
         if (name) resolvedName = name;
       }
+
+      // Fetch student's custom ID
+      if (request.student_id) {
+        const { data: studentProfile } = await supabase
+          .from('user_profiles')
+          .select('student_id')
+          .eq('id', request.student_id)
+          .maybeSingle();
+        studentCustomId = studentProfile?.student_id || null;
+      }
+
+      // Fetch subject name
+      if (request.subject_id) {
+        const { data: subjectData } = await supabase
+          .from('courses')
+          .select('name')
+          .eq('id', request.subject_id)
+          .maybeSingle();
+        subjectName = subjectData?.name || null;
+      }
     } catch {
       // ignore and fall back
     }
 
     setSelectedRequest({ ...request, instructor_name: resolvedName || 'Unknown Instructor' });
+    setModalStudentCustomId(studentCustomId);
+    setModalSubjectName(subjectName);
     setRequestModalOpen(true);
   };
 
@@ -3012,6 +3586,160 @@ export default function StudentGrades() {
     };
     fetchCoursesForYear();
   }, [showSubjects, selectedYearLevel]);
+
+  // Fetch instructor assignments for subjects
+  const fetchInstructorAssignments = useCallback(async () => {
+    if (!selectedYearLevel || !selectedSection || courseSubjects.length === 0) {
+      console.log('⚠️ Skipping instructor assignment fetch - missing required data:', {
+        selectedYearLevel,
+        selectedSection,
+        courseSubjectsLength: courseSubjects.length
+      });
+      return;
+    }
+    
+    try {
+      // Get all subject IDs from the current course subjects
+      const subjectIds = courseSubjects.map(course => course.id);
+      
+      console.log('🔍 Debug - Subject IDs to check:', subjectIds);
+      console.log('🔍 Debug - Selected year level:', selectedYearLevel);
+      console.log('🔍 Debug - Selected section:', selectedSection);
+      
+      // First, let's check what's actually in teacher_subjects for these subjects
+      const { data: allAssignments, error: allError } = await supabase
+        .from('teacher_subjects')
+        .select(`
+          subject_id,
+          year_level,
+          section,
+          is_active,
+          teacher:user_profiles!teacher_subjects_teacher_id_fkey(
+            id,
+            first_name,
+            last_name,
+            display_name
+          )
+        `)
+        .in('subject_id', subjectIds);
+
+      console.log('🔍 Debug - All assignments found:', allAssignments);
+      console.log('🔍 Debug - All assignments error:', allError);
+
+      if (allError) {
+        console.error('❌ Database error fetching teacher_subjects:', allError);
+        throw allError;
+      }
+
+      // Check if we got any data at all
+      if (!allAssignments || allAssignments.length === 0) {
+        console.log('⚠️ No assignments found in teacher_subjects table for any of the subjects');
+        console.log('📋 This could mean:');
+        console.log('   1. No instructors are assigned to any subjects');
+        console.log('   2. The subject IDs don\'t match what\'s in teacher_subjects');
+        console.log('   3. All assignments are inactive (is_active = false)');
+      }
+
+      // Let's see what the actual data looks like
+      console.log('🔍 Debug - Raw assignment data structure:', allAssignments);
+      
+      // Check if assignments exist but don't match our filters
+      const assignmentsWithDifferentYear = (allAssignments || []).filter(a => a.year_level !== selectedYearLevel);
+      const assignmentsWithDifferentSection = (allAssignments || []).filter(a => a.section !== selectedSection);
+      const inactiveAssignments = (allAssignments || []).filter(a => a.is_active !== true);
+      
+      console.log('🔍 Debug - Assignments with different year level:', assignmentsWithDifferentYear);
+      console.log('🔍 Debug - Assignments with different section:', assignmentsWithDifferentSection);
+      console.log('🔍 Debug - Inactive assignments:', inactiveAssignments);
+
+      // Try a more flexible approach - if we have assignments for the subjects, use them regardless of year/section
+      // This matches what the existing instructor display logic does
+      const flexibleAssignments = (allAssignments || []).filter(assignment => 
+        assignment.is_active === true
+      );
+
+      console.log('🔍 Debug - Flexible assignments (only is_active filter):', flexibleAssignments);
+
+      // Now filter by our criteria
+      const filteredAssignments = (allAssignments || []).filter(assignment => 
+        assignment.year_level === selectedYearLevel &&
+        assignment.section === selectedSection &&
+        assignment.is_active === true
+      );
+
+      console.log('🔍 Debug - Strict filtered assignments:', filteredAssignments);
+      console.log('📊 Assignment Statistics:', {
+        totalAssignments: allAssignments?.length || 0,
+        flexibleAssignments: flexibleAssignments.length,
+        strictFilteredAssignments: filteredAssignments.length,
+        totalSubjects: courseSubjects.length,
+        assignedSubjects: filteredAssignments.length,
+        unassignedSubjects: courseSubjects.length - filteredAssignments.length
+      });
+
+      // Use flexible assignments if strict filtering returns nothing but flexible does
+      const finalAssignments = filteredAssignments.length > 0 ? filteredAssignments : flexibleAssignments;
+      console.log('🔍 Debug - Final assignments to use:', finalAssignments);
+
+      // Create a map of subject_id to instructor info
+      const assignmentsMap = new Map<string, { hasInstructor: boolean; instructorName: string }>();
+      
+      // Initialize all subjects as unassigned
+      courseSubjects.forEach(course => {
+        assignmentsMap.set(course.id, {
+          hasInstructor: false,
+          instructorName: 'No Assigned'
+        });
+      });
+      
+      // Update with actual assignments
+      finalAssignments.forEach((assignment: { subject_id: string; teacher: { display_name?: string; first_name?: string; last_name?: string }[] }) => {
+        const teacher = assignment.teacher[0];
+        const instructorName = teacher?.display_name || 
+          `${teacher?.first_name || ''} ${teacher?.last_name || ''}`.trim() || 
+          'Unknown';
+        assignmentsMap.set(assignment.subject_id, {
+          hasInstructor: true,
+          instructorName
+        });
+        console.log(`✅ Found instructor for subject ${assignment.subject_id}: ${instructorName}`);
+      });
+
+      console.log('🔍 Debug - Final assignments map:', assignmentsMap);
+      console.log('📈 Summary:', {
+        totalSubjects: courseSubjects.length,
+        assignedSubjects: Array.from(assignmentsMap.values()).filter(a => a.hasInstructor).length,
+        unassignedSubjects: Array.from(assignmentsMap.values()).filter(a => !a.hasInstructor).length
+      });
+      
+      setInstructorAssignments(assignmentsMap);
+    } catch (error) {
+      console.error('❌ Error fetching instructor assignments:', error);
+      console.log('🔄 Setting all subjects as unassigned due to error');
+      
+      // Fallback: Set all subjects as unassigned
+      const fallbackMap = new Map<string, { hasInstructor: boolean; instructorName: string }>();
+      courseSubjects.forEach(course => {
+        fallbackMap.set(course.id, {
+          hasInstructor: false,
+          instructorName: 'No Assigned'
+        });
+      });
+      setInstructorAssignments(fallbackMap);
+    }
+  }, [selectedYearLevel, selectedSection, courseSubjects]);
+
+  // Fetch instructor assignments when year level, section, or course subjects change
+  useEffect(() => {
+    fetchInstructorAssignments();
+  }, [fetchInstructorAssignments]);
+
+  // Also fetch instructor assignments when course subjects are loaded
+  useEffect(() => {
+    if (courseSubjects.length > 0 && selectedYearLevel && selectedSection) {
+      fetchInstructorAssignments();
+    }
+  }, [courseSubjects, selectedYearLevel, selectedSection, fetchInstructorAssignments]);
 
   // Fetch course count for the selected year level to show in Sections view
   useEffect(() => {
@@ -3097,14 +3825,22 @@ export default function StudentGrades() {
       {/* Request Details Modal - Outside main container */}
       {requestModalOpen && selectedRequest && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
-          <div className="fixed inset-0 bg-black/50" onClick={() => setRequestModalOpen(false)}></div>
+          <div className="fixed inset-0 bg-black/50" onClick={() => {
+            setRequestModalOpen(false);
+            setModalStudentCustomId(null);
+            setModalSubjectName(null);
+          }}></div>
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden z-10">
             <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
               <div>
                 <div className="text-lg font-semibold text-gray-800">Grade Change Request Details</div>
                 <div className="text-xs text-gray-500">Request ID: {selectedRequest.id}</div>
               </div>
-              <button onClick={() => setRequestModalOpen(false)} className="p-2 rounded-lg hover:bg-gray-100">
+              <button onClick={() => {
+                setRequestModalOpen(false);
+                setModalStudentCustomId(null);
+                setModalSubjectName(null);
+              }} className="p-2 rounded-lg hover:bg-gray-100">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5 text-gray-600">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -3124,13 +3860,13 @@ export default function StudentGrades() {
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-600">Student ID</label>
-                    <div className="text-lg font-semibold text-gray-800">{selectedRequest.student_id}</div>
+                    <div className="text-lg font-semibold text-gray-800">{modalStudentCustomId || selectedRequest.student_id}</div>
                   </div>
                 </div>
                 <div className="space-y-4">
                   <div>
-                    <label className="text-sm font-medium text-gray-600">Section</label>
-                    <div className="text-lg font-semibold text-gray-800">{selectedRequest.section || 'N/A'}</div>
+                    <label className="text-sm font-medium text-gray-600">Subject</label>
+                    <div className="text-lg font-semibold text-gray-800">{modalSubjectName || selectedRequest.section || 'N/A'}</div>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-600">Academic Year</label>
@@ -4322,10 +5058,31 @@ export default function StudentGrades() {
                     <Search className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 transform -translate-y-1/2" />
                   </div>
 
+                  {/* Instructor Assignment Filter */}
+                  <div className="relative">
+                    <select
+                      value={instructorFilter}
+                      onChange={(e) => setInstructorFilter(e.target.value as 'all' | 'assigned' | 'unassigned')}
+                      className="h-12 px-4 pr-8 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white/90 appearance-none cursor-pointer min-w-[140px]"
+                    >
+                      <option value="all">All Subjects</option>
+                      <option value="assigned">Assigned Only</option>
+                      <option value="unassigned">Unassigned Only</option>
+                    </select>
+                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                  </div>
+
                   {/* Clear Filters Button */}
-                  {subjectSearchTerm && (
+                  {(subjectSearchTerm || instructorFilter !== 'all') && (
                     <button
-                      onClick={() => setSubjectSearchTerm('')}
+                      onClick={() => {
+                        setSubjectSearchTerm('');
+                        setInstructorFilter('all');
+                      }}
                       className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors"
                     >
                       Clear Filters
@@ -4334,61 +5091,113 @@ export default function StudentGrades() {
                 </div>
                 
                 {/* Search Results Counter */}
-                {subjectSearchTerm && (
+                {(subjectSearchTerm || instructorFilter !== 'all') && (
                   <div className="text-sm text-gray-600 mt-2">
                     Showing {(() => {
-                      const filteredSubjects = yearLevelSectionSubjects
-                        .filter(item => 
-                          item.year_level === selectedYearLevel && 
-                          item.section === selectedSection &&
-                          (item.subject.toLowerCase().includes(subjectSearchTerm.toLowerCase()) ||
-                           (item.subject_name && item.subject_name.toLowerCase().includes(subjectSearchTerm.toLowerCase())))
-                        );
+                      const filteredSubjects = courseSubjects.filter(course => {
+                        // Text search filter
+                        const matchesSearch = !subjectSearchTerm ||
+                          course.code.toLowerCase().includes(subjectSearchTerm.toLowerCase()) ||
+                          (course.name && course.name.toLowerCase().includes(subjectSearchTerm.toLowerCase()));
+                        
+                        // Instructor assignment filter
+                        const assignment = instructorAssignments.get(course.id);
+                        const hasInstructor = assignment?.hasInstructor || false;
+                        const matchesInstructorFilter = 
+                          instructorFilter === 'all' ||
+                          (instructorFilter === 'assigned' && hasInstructor) ||
+                          (instructorFilter === 'unassigned' && !hasInstructor);
+                        
+                        return matchesSearch && matchesInstructorFilter;
+                      });
                       return filteredSubjects.length;
-                    })()} of {yearLevelSectionSubjects.filter(item => 
-                      item.year_level === selectedYearLevel && 
-                      item.section === selectedSection
-                    ).length} subjects
+                    })()} of {courseSubjects.length} subjects
+                    {instructorFilter !== 'all' && (
+                      <span className="ml-2 text-blue-600">
+                  
+                      </span>
+                    )}
                   </div>
                 )}
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {courseSubjects
-                  .filter(course =>
-                    (!subjectSearchTerm ||
+                  .filter(course => {
+                    // Text search filter
+                    const matchesSearch = !subjectSearchTerm ||
                       course.code.toLowerCase().includes(subjectSearchTerm.toLowerCase()) ||
-                      (course.name && course.name.toLowerCase().includes(subjectSearchTerm.toLowerCase())))
-                  )
-                  .map((course) => (
-                    <div
-                      key={course.id}
-                      onClick={() => handleSubjectClick({ id: course.id, code: course.code })}
-                      className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 border border-green-200 hover:border-green-400 hover:shadow-lg transition-all duration-200 cursor-pointer transform hover:scale-105"
-                    >
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                          <span className="text-sm font-medium text-green-700">
-                            {course.code}
-                          </span>
+                      (course.name && course.name.toLowerCase().includes(subjectSearchTerm.toLowerCase()));
+                    
+                    // Instructor assignment filter
+                    const assignment = instructorAssignments.get(course.id);
+                    const hasInstructor = assignment?.hasInstructor || false;
+                    const matchesInstructorFilter = 
+                      instructorFilter === 'all' ||
+                      (instructorFilter === 'assigned' && hasInstructor) ||
+                      (instructorFilter === 'unassigned' && !hasInstructor);
+                    
+                    return matchesSearch && matchesInstructorFilter;
+                  })
+                  .map((course) => {
+                    const assignment = instructorAssignments.get(course.id);
+                    const hasInstructor = assignment?.hasInstructor || false;
+                    
+                    // Dynamic styling based on instructor assignment
+                    const cardClasses = hasInstructor 
+                      ? "bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200 hover:border-blue-400 hover:shadow-lg transition-all duration-200 cursor-pointer transform hover:scale-105"
+                      : "bg-gradient-to-br from-gray-50 to-slate-50 rounded-xl p-6 border border-gray-200 hover:border-gray-400 hover:shadow-lg transition-all duration-200 cursor-pointer transform hover:scale-105";
+                    
+                    const dotClasses = hasInstructor 
+                      ? "w-3 h-3 bg-blue-500 rounded-full"
+                      : "w-3 h-3 bg-gray-400 rounded-full";
+                    
+                    const codeClasses = hasInstructor 
+                      ? "text-sm font-medium text-blue-700"
+                      : "text-sm font-medium text-gray-600";
+                    
+                    const borderClasses = hasInstructor 
+                      ? "border-t border-blue-200"
+                      : "border-t border-gray-200";
+                    
+                    return (
+                      <div
+                        key={course.id}
+                        onClick={() => handleSubjectClick({ id: course.id, code: course.code })}
+                        className={cardClasses}
+                      >
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <div className={dotClasses}></div>
+                            <span className={codeClasses}>
+                              {course.code}
+                            </span>
+                          </div>
+                          {hasInstructor ? (
+                            <div className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded-full">
+                              Assigned
+                            </div>
+                          ) : (
+                            <div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                              No Assigned
+                            </div>
+                          )}
                         </div>
-            
+                        
+                        <div className="space-y-2">
+                          <div className="text-lg font-bold text-gray-800">
+                            {course.name}
+                          </div>
+                        </div>
+                        <div className={`mt-4 pt-3 ${borderClasses}`}>
+                          <div className="flex items-center justify-between text-xs text-gray-500">
+                            <span>Click to view students</span>
+                            <Users className="w-4 h-4" />
+                          </div>
+                        </div>
                       </div>
-                      
-                      <div className="space-y-2">
-                        <div className="text-lg font-bold text-gray-800">
-                          {course.name}
-                        </div>
-                        </div>
-                      <div className="mt-4 pt-3 border-t border-green-200">
-                        <div className="flex items-center justify-between text-xs text-gray-500">
-                          <span>Click to view students</span>
-                          <Users className="w-4 h-4" />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
               </div>
               
               {(() => {
@@ -4496,6 +5305,48 @@ export default function StudentGrades() {
                       </span>
                       {(() => {
                         const validation = validateCompleteGrades(getFilteredStudents());
+                        const filteredStudents = getFilteredStudents();
+                        const currentSubjectRequests = instructorRequests.filter(req => 
+                          req.subject_id === selectedCourseId && 
+                          req.edit_status === 'pending'
+                        );
+                        
+                        // If no students are enrolled, show different status
+                        if (filteredStudents.length === 0) {
+                          return (
+                            <div className="flex items-center gap-2 px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-xs font-medium">
+                              <Clock className="w-3 h-3" />
+                              No students enrolled
+                            </div>
+                          );
+                        }
+                        
+                        // Show pending requests count if there are any
+                        if (currentSubjectRequests.length > 0) {
+                          return (
+                            <div className="flex items-center gap-2 px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs font-medium">
+                              <Clock className="w-3 h-3" />
+                              {currentSubjectRequests.length} pending requests
+                            </div>
+                          );
+                        }
+                        
+                        // Show students without grades count if there are any
+                        const studentsWithoutGrades = filteredStudents.filter(student => 
+                          student.prelim_grade === null && 
+                          student.midterm_grade === null && 
+                          student.final_grade === null
+                        );
+                        
+                        if (studentsWithoutGrades.length > 0) {
+                          return (
+                            <div className="flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                              <Clock className="w-3 h-3" />
+                              {studentsWithoutGrades.length} students need grades
+                            </div>
+                          );
+                        }
+                        
                         if (!validation.isValid) {
                           return (
                             <div className="flex items-center gap-2 px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-xs font-medium">
@@ -4514,17 +5365,129 @@ export default function StudentGrades() {
                     </div>
                     <div className="flex items-center gap-3">
                       <button
-                        onClick={handleBulkRelease}
-                        disabled={bulkUpdating || !validateCompleteGrades(getFilteredStudents()).isValid}
+                        onClick={handleNotifyInstructorForGrades}
+                        disabled={(() => {
+                          const filteredStudents = getFilteredStudents();
+                          const studentsWithoutGrades = filteredStudents.filter(student => 
+                            student.prelim_grade === null && 
+                            student.midterm_grade === null && 
+                            student.final_grade === null
+                          );
+                          
+                          return bulkUpdating || 
+                                 filteredStudents.length === 0 ||
+                                 studentsWithoutGrades.length === 0 ||
+                                 !instructorInfo?.instructor_id;
+                        })()}
                         className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 ${
-                          bulkUpdating || !validateCompleteGrades(getFilteredStudents()).isValid
+                          (() => {
+                            const filteredStudents = getFilteredStudents();
+                            const studentsWithoutGrades = filteredStudents.filter(student => 
+                              student.prelim_grade === null && 
+                              student.midterm_grade === null && 
+                              student.final_grade === null
+                            );
+                            
+                            return bulkUpdating || 
+                                   filteredStudents.length === 0 ||
+                                   studentsWithoutGrades.length === 0 ||
+                                   !instructorInfo?.instructor_id;
+                          })()
+                            ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                            : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-lg'
+                        }`}
+                        title={
+                          (() => {
+                            const filteredStudents = getFilteredStudents();
+                            const studentsWithoutGrades = filteredStudents.filter(student => 
+                              student.prelim_grade === null && 
+                              student.midterm_grade === null && 
+                              student.final_grade === null
+                            );
+                            
+                            if (filteredStudents.length === 0) {
+                              return 'Cannot notify: No students enrolled in this subject';
+                            }
+                            
+                            if (!instructorInfo?.instructor_id) {
+                              return 'Cannot notify: No instructor assigned to this subject';
+                            }
+                            
+                            if (studentsWithoutGrades.length === 0) {
+                              return 'All students already have grades entered';
+                            }
+                            
+                            return `Notify instructor to enter grades for ${studentsWithoutGrades.length} students`;
+                          })()
+                        }
+                      >
+                        {bulkUpdating ? (
+                          <div className="flex items-center gap-2">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Sending...
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <Bell className="w-4 h-4" />
+                            Notify Instructor
+                          </div>
+                        )}
+                      </button>
+                      <button
+                        onClick={handleBulkRelease}
+                        disabled={(() => {
+                          const validation = validateCompleteGrades(getFilteredStudents());
+                          const filteredStudents = getFilteredStudents();
+                          const currentSubjectRequests = instructorRequests.filter(req => 
+                            req.subject_id === selectedCourseId && 
+                            req.edit_status === 'pending'
+                          );
+                          
+                          return bulkUpdating || 
+                                 !validation.isValid || 
+                                 filteredStudents.length === 0 ||
+                                 currentSubjectRequests.length > 0; // Changed: disable if there ARE pending requests
+                        })()}
+                        className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 ${
+                          (() => {
+                            const validation = validateCompleteGrades(getFilteredStudents());
+                            const filteredStudents = getFilteredStudents();
+                            const currentSubjectRequests = instructorRequests.filter(req => 
+                              req.subject_id === selectedCourseId && 
+                              req.edit_status === 'pending'
+                            );
+                            
+                            return bulkUpdating || 
+                                   !validation.isValid || 
+                                   filteredStudents.length === 0 ||
+                                   currentSubjectRequests.length > 0; // Changed: disable if there ARE pending requests
+                          })()
                             ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
                             : 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:shadow-lg'
                         }`}
                         title={
-                          !validateCompleteGrades(getFilteredStudents()).isValid
-                            ? 'Cannot release: Some students have incomplete grades (missing Prelim, Midterm, or Final)'
-                            : 'Release all grades for selected students'
+                          (() => {
+                            const validation = validateCompleteGrades(getFilteredStudents());
+                            const filteredStudents = getFilteredStudents();
+                            const currentSubjectRequests = instructorRequests.filter(req => 
+                              req.subject_id === selectedCourseId && 
+                              req.edit_status === 'pending'
+                            );
+                            
+                            if (filteredStudents.length === 0) {
+                              return 'Cannot release: No students enrolled in this subject';
+                            }
+                            
+                            if (currentSubjectRequests.length > 0) {
+                              return `Cannot release: ${currentSubjectRequests.length} pending grade change requests must be resolved first`;
+                            }
+                            
+                            if (!validation.isValid) {
+                              return 'Cannot release: Some students have incomplete grades (missing Prelim, Midterm, or Final)';
+                            }
+                            
+                            return `Release grades for all ${filteredStudents.length} students (no pending requests)`;
+                          })()
                         }
                       >
                         {bulkUpdating ? (
@@ -4576,6 +5539,25 @@ export default function StudentGrades() {
                       />
                       <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
                     </div>
+                    
+                    {/* Refresh Button */}
+                    <button
+                      onClick={() => {
+                        setLoading(true);
+                        fetchGrades();
+                      }}
+                      disabled={loading}
+                      className="px-4 py-2 h-10 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                      {loading ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                      )}
+                      Refresh
+                    </button>
                     
                     {/* Clear Search Button */}
                     {studentSearchTerm && (
