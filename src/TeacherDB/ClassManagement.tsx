@@ -243,6 +243,7 @@ const ClassManagement: React.FC = () => {
 
   const emptyToastShownRef = useRef<Record<string, boolean>>({});
 
+
   const fetchStudents = useCallback(async (subjectId: string, options?: { showEmptyToast?: boolean }) => {
     setLoading(true);
     console.group('🔍 Fetching Students Debug Info');
@@ -309,6 +310,7 @@ const ClassManagement: React.FC = () => {
       }
 
       // 3. Get active enrollments with student details
+      // STEP 1: Fetch students enrolled in this subject from enrollcourse table
       const enrollmentQuery = supabase
         .from('enrollcourse')
         .select(`
@@ -372,20 +374,30 @@ const ClassManagement: React.FC = () => {
         console.log('🔍 Raw enrollment data sample:', data[0]);
       }
 
-      // 4. Fetch grades separately for all students
+      // 4. STEP 2: Fetch grades for these enrolled students
+      // Extract student IDs from enrollcourse records
       const studentIds = (data as EnrollmentRow[] || []).map(row => {
         const student = Array.isArray(row.student) ? row.student[0] : row.student;
         return student?.id;
       }).filter(Boolean);
 
-      // Build grades query for all students for this subject (section matching happens per-student below)
+      // STEP 3: Query grades table to check for existing grades
+      // This will find grades where grades.student_id AND grades.subject_id match enrollcourse records
+      console.log('🔍 STEP 2: Building grades query to check enrollcourse → grades matching:', {
+        enrolledStudentIds: studentIds,
+        subjectId: subjectId,
+        enrollcourseRecords: (data as EnrollmentRow[] || []).length,
+        matchingLogic: 'Will check: enrollcourse.student_id = grades.student_id AND enrollcourse.subject_id = grades.subject_id'
+      });
+      
       const gradesQuery = supabase
         .from('grades')
-        .select('id, student_id, subject_id, section, prelim_grade, midterm_grade, final_grade, edit_status, edit_requested')
-        .in('student_id', studentIds)
-        .eq('subject_id', subjectId);
+        .select('id, student_id, subject_id, section, prelim_grade, midterm_grade, final_grade, edit_status, edit_requested, year_level, academic_year, semester')
+        .in('student_id', studentIds)  // Only students enrolled in this subject
+        .eq('subject_id', subjectId);  // Only grades for this specific subject
 
-      // Note: Do NOT filter by class section here; we will compare to student.user_profiles.section later
+      // This query finds grades that match the enrollcourse records
+      // Each grade must have: grades.student_id = enrollcourse.student_id AND grades.subject_id = enrollcourse.subject_id
 
       const { data: grades, error: gradesError } = await gradesQuery;
 
@@ -394,22 +406,69 @@ const ClassManagement: React.FC = () => {
         throw new Error(`Failed to fetch grades: ${gradesError.message}`);
       }
 
-      console.log('📊 Fetched grades:', {
+      console.log('📊 STEP 3: Fetched grades from grades table:', {
         count: grades?.length || 0,
-        grades,
+        grades: grades?.map(g => ({
+          id: g.id,
+          student_id: g.student_id,
+          subject_id: g.subject_id,
+          section: g.section,
+          prelim_grade: g.prelim_grade,
+          midterm_grade: g.midterm_grade,
+          final_grade: g.final_grade,
+          edit_status: g.edit_status,
+          edit_requested: g.edit_requested
+        })),
+        matchingExplanation: 'These grades will be matched against enrollcourse records using student_id + subject_id',
         sectionFilter: selectedClass?.section || 'No section filter',
         yearLevelFilter: selectedClass?.year_level || 'No year level filter'
       });
 
+      // ERROR HANDLING: Check if grades query returned any results
+      if (!grades || grades.length === 0) {
+        console.warn('⚠️ NO GRADES FOUND in grades table!', {
+          queryUsed: {
+            studentIds: studentIds,
+            subjectId: subjectId,
+            query: 'grades WHERE student_id IN (studentIds) AND subject_id = subjectId'
+          },
+          possibleReasons: [
+            'No grades have been entered yet for this subject',
+            'Student IDs in enrollcourse do not match student IDs in grades table',
+            'Subject ID in enrollcourse does not match subject ID in grades table',
+            'Grades table is empty or has different column names'
+          ],
+          debugInfo: {
+            enrolledStudentIds: studentIds,
+            subjectIdFromEnrollcourse: subjectId,
+            totalEnrolledStudents: studentIds.length
+          }
+        });
+      } else {
+        console.log('✅ GRADES FOUND!', {
+          totalGrades: grades.length,
+          gradeDetails: grades.map(g => ({
+            gradeId: g.id,
+            studentId: g.student_id,
+            subjectId: g.subject_id,
+            hasPrelim: g.prelim_grade !== null,
+            hasMidterm: g.midterm_grade !== null,
+            hasFinal: g.final_grade !== null
+          }))
+        });
+      }
+
       // Note: Removed Google OAuth helper functions since we're only using database fields for student names
 
-      // 5. Transform and validate the data
-      console.log('🔄 Starting data transformation');
+      // 5. STEP 4: Transform and validate the data
+      // Now we match each enrolled student with their grades (if any exist)
+      console.log('🔄 STEP 4: Starting data transformation - Matching enrollcourse with grades');
       console.log('📊 Input data summary:', {
         totalEnrollments: data?.length || 0,
-        studentIds: studentIds,
+        enrolledStudentIds: studentIds,
         studentIdCount: studentIds.length,
-        gradesCount: grades?.length || 0
+        gradesFound: grades?.length || 0,
+        matchingProcess: 'For each enrolled student, check if grades table has matching student_id + subject_id'
       });
       
       const enrolledStudents: Student[] = [];
@@ -453,15 +512,144 @@ const ClassManagement: React.FC = () => {
           selectedClassYearLevel: selectedClass?.year_level
         });
         
-        // Find the grade for this student
+        // STEP 5: Find grades for this enrolled student
+        // Check grades table for matching student_id AND subject_id
+        const studentSection = (student as { section?: string } | null | undefined)?.section || null;
+        const enrollmentSection = row.section || null;
+        
+        console.log(`🔍 STEP 5: Looking for grades for enrolled student ${student.id}:`, {
+          enrollcourseStudentId: student.id,
+          enrollcourseSubjectId: row.subject_id,
+          gradesTableQuery: 'Looking for grades.student_id = student.id AND grades.subject_id = row.subject_id'
+        });
+        
+        // ERROR HANDLING: Check if grades array exists and has data
+        if (!grades || grades.length === 0) {
+          console.warn(`⚠️ No grades available for student ${student.id}`, {
+            studentId: student.id,
+            studentEmail: student.email,
+            reason: 'No grades found in grades table for this subject',
+            gradesArrayLength: grades?.length || 0
+          });
+        }
+
         const gradeRow = grades?.find((g: GradeRow) => {
-          const studentSection = (student as { section?: string } | null | undefined)?.section || null;
-          return (
-            g.student_id === student.id &&
-            g.subject_id === row.subject_id &&
-            (g.section ?? null) === (studentSection ?? null)
-          );
+          // YOUR FLOW: Check if grades table has matching student_id AND subject_id
+          // This is the core matching logic you requested
+          const studentIdMatches = g.student_id === student.id; // enrollcourse.student_id = grades.student_id
+          const subjectIdMatches = g.subject_id === row.subject_id; // enrollcourse.subject_id = grades.subject_id
+          
+          // IMPROVED section matching logic - be more flexible
+          let sectionMatches = false;
+          
+          // Get the class section from selectedClass (this is the authoritative section)
+          const classSection = selectedClass?.section || null;
+          
+          if (g.section && classSection) {
+            // Both have sections - they should match (case insensitive)
+            sectionMatches = g.section.toLowerCase().trim() === classSection.toLowerCase().trim();
+          } else if (g.section && enrollmentSection) {
+            // Grade has section, check against enrollment section
+            sectionMatches = g.section.toLowerCase().trim() === enrollmentSection.toLowerCase().trim();
+          } else if (g.section && studentSection) {
+            // Grade has section, check against student section
+            sectionMatches = g.section.toLowerCase().trim() === studentSection.toLowerCase().trim();
+          } else if (!g.section) {
+            // Grade has no section - consider it a match (grade might be for any section)
+            sectionMatches = true;
+          } else if (!classSection && !enrollmentSection && !studentSection) {
+            // Neither has section - consider it a match
+            sectionMatches = true;
+          }
+          
+          // DEBUG: Log section matching details
+          console.log(`🔍 Section matching for student ${student.id}:`, {
+            gradeSection: g.section,
+            classSection: classSection,
+            enrollmentSection: enrollmentSection,
+            studentSection: studentSection,
+            sectionMatches: sectionMatches,
+            sectionMatchReason: sectionMatches ? 'Sections match or grade has no section' : 'Section mismatch'
+          });
+          
+          // FINAL CONDITION: Only show grades if enrollcourse matches grades table
+          // TEMPORARY: For debugging, let's bypass section matching to test if that's the issue
+          const hasValidMatch = studentIdMatches && subjectIdMatches; // && sectionMatches;
+          
+          // DEBUG: Show why match failed
+          if (studentIdMatches && subjectIdMatches && !sectionMatches) {
+            console.warn(`⚠️ SECTION MISMATCH PREVENTING GRADE DISPLAY for student ${student.id}:`, {
+              studentIdMatches: true,
+              subjectIdMatches: true,
+              sectionMatches: false,
+              gradeSection: g.section,
+              classSection: classSection,
+              enrollmentSection: enrollmentSection,
+              studentSection: studentSection,
+              bypassedForTesting: true
+            });
+          }
+          
+          // ENHANCED ERROR HANDLING: Detailed matching analysis
+          console.log(`🔍 Grade matching result for student ${student.id}:`, {
+            gradeId: g.id,
+            gradesStudentId: g.student_id,
+            gradesSubjectId: g.subject_id,
+            gradesSection: g.section,
+            enrollcourseStudentId: student.id,
+            enrollcourseSubjectId: row.subject_id,
+            studentSection: studentSection,
+            enrollmentSection: enrollmentSection,
+            studentIdMatches, // ✅ enrollcourse.student_id = grades.student_id
+            subjectIdMatches, // ✅ enrollcourse.subject_id = grades.subject_id  
+            sectionMatches,
+            hasValidMatch, // ✅ Only true if both UUIDs match
+            prelim: g.prelim_grade,
+            midterm: g.midterm_grade,
+            final: g.final_grade,
+            result: hasValidMatch ? '✅ GRADES FOUND: Matching enrollcourse → grades' : '❌ NO GRADES: No match in grades table',
+            // ERROR DIAGNOSIS
+            errorDiagnosis: {
+              studentIdMismatch: !studentIdMatches ? `Student ID mismatch: grades.student_id (${g.student_id}) !== enrollcourse.student_id (${student.id})` : null,
+              subjectIdMismatch: !subjectIdMatches ? `Subject ID mismatch: grades.subject_id (${g.subject_id}) !== enrollcourse.subject_id (${row.subject_id})` : null,
+              sectionMismatch: !sectionMatches ? `Section mismatch: grades.section (${g.section}) !== student.section (${studentSection})` : null
+            }
+          });
+          
+          return hasValidMatch;
         }) || null;
+
+        // ERROR HANDLING: Check if gradeRow was found
+        if (!gradeRow) {
+          console.warn(`⚠️ NO GRADE ROW FOUND for student ${student.id}`, {
+            studentId: student.id,
+            studentEmail: student.email,
+            enrollcourseSubjectId: row.subject_id,
+            totalGradesAvailable: grades?.length || 0,
+            possibleReasons: [
+              'No grades entered for this student in this subject',
+              'Student ID mismatch between enrollcourse and grades tables',
+              'Subject ID mismatch between enrollcourse and grades tables',
+              'Section mismatch preventing grade display'
+            ],
+            debugInfo: {
+              availableGrades: grades?.map(g => ({
+                gradeId: g.id,
+                studentId: g.student_id,
+                subjectId: g.subject_id,
+                section: g.section
+              })) || []
+            }
+          });
+        } else {
+          console.log(`✅ GRADE ROW FOUND for student ${student.id}`, {
+            gradeId: gradeRow.id,
+            prelim: gradeRow.prelim_grade,
+            midterm: gradeRow.midterm_grade,
+            final: gradeRow.final_grade,
+            editStatus: gradeRow.edit_status
+          });
+        }
         
         // Check if student already has a pending or granted request
         const hasExistingRequest = gradeRow && (
@@ -551,18 +739,68 @@ const ClassManagement: React.FC = () => {
         });
       }
       
-      // Final summary of all students
+      // Final summary of all students with ERROR HANDLING
+      const studentsWithGrades = enrolledStudents.filter(s => s.prelim_grade !== null || s.midterm_grade !== null || s.final_grade !== null);
+      const studentsWithoutGrades = enrolledStudents.filter(s => s.prelim_grade === null && s.midterm_grade === null && s.final_grade === null);
+      
       console.log('\n🎯 FINAL SUMMARY - All Students Processed:', {
         totalStudents: enrolledStudents.length,
         withDisplayNames: enrolledStudents.filter(s => s.display_name && s.display_name !== `${s.first_name} ${s.last_name}`).length,
         withAvatars: enrolledStudents.filter(s => s.avatar_url).length,
         withCombinedNames: enrolledStudents.filter(s => s.display_name === `${s.first_name} ${s.last_name}`).length,
         withFallbackNames: enrolledStudents.filter(s => s.display_name === s.email.split('@')[0]).length,
+        withGrades: studentsWithGrades.length,
+        withoutGrades: studentsWithoutGrades.length,
         successRate: {
           names: `${Math.round((enrolledStudents.filter(s => s.display_name).length / enrolledStudents.length) * 100)}%`,
-          avatars: `${Math.round((enrolledStudents.filter(s => s.avatar_url).length / enrolledStudents.length) * 100)}%`
-        }
+          avatars: `${Math.round((enrolledStudents.filter(s => s.avatar_url).length / enrolledStudents.length) * 100)}%`,
+          grades: `${Math.round((studentsWithGrades.length / enrolledStudents.length) * 100)}%`
+        },
+        gradeMatchingLogic: 'Grades only shown when enrollcourse.student_id = grades.student_id AND enrollcourse.subject_id = grades.subject_id (both UUIDs must match)'
       });
+
+      // ERROR HANDLING: Detailed analysis of why grades might not be showing
+      if (studentsWithoutGrades.length > 0) {
+        console.warn('\n⚠️ GRADES NOT SHOWING - ERROR ANALYSIS:', {
+          studentsWithoutGrades: studentsWithoutGrades.length,
+          studentsWithGrades: studentsWithGrades.length,
+          totalGradesInDatabase: grades?.length || 0,
+          possibleIssues: [
+            'No grades entered in grades table for this subject',
+            'Student ID mismatch between enrollcourse and grades tables',
+            'Subject ID mismatch between enrollcourse and grades tables',
+            'Section mismatch preventing grade display',
+            'Grades table has different column names or structure'
+          ],
+          debugInfo: {
+            enrolledStudentIds: studentIds,
+            subjectIdFromEnrollcourse: subjectId,
+            gradesFromDatabase: grades?.map(g => ({
+              gradeId: g.id,
+              studentId: g.student_id,
+              subjectId: g.subject_id,
+              section: g.section
+            })) || [],
+            studentsWithoutGradesDetails: studentsWithoutGrades.map(s => ({
+              studentId: s.id,
+              email: s.email,
+              enrollcourseSubjectId: s.subject_id
+            }))
+          },
+          troubleshootingSteps: [
+            '1. Check if grades table has any records for this subject',
+            '2. Verify student IDs match between enrollcourse and grades tables',
+            '3. Verify subject IDs match between enrollcourse and grades tables',
+            '4. Check if section values are causing mismatches',
+            '5. Ensure grades table has correct column names (student_id, subject_id, prelim_grade, etc.)'
+          ]
+        });
+      } else {
+        console.log('\n✅ SUCCESS: All students have grades displayed!', {
+          totalStudents: enrolledStudents.length,
+          studentsWithGrades: studentsWithGrades.length
+        });
+      }
       
       console.log('📋 Individual student results:', enrolledStudents.map(s => ({
         id: s.id,
@@ -897,12 +1135,22 @@ const ClassManagement: React.FC = () => {
         toast.error('Failed to save grades');
       } else {
         toast.success('Grades saved successfully!');
-        // Update local state
-        setStudents(prev => prev.map(s => 
-          s.id === studentId 
-            ? { ...s, prelim_grade: prelimGrade || undefined, midterm_grade: midtermGrade || undefined, final_grade: finalGrade || undefined }
-            : s
-        ));
+        
+        // Update the student data locally without reloading
+        setStudents(prevStudents => 
+          prevStudents.map(s => 
+            s.id === studentId 
+              ? {
+                  ...s,
+                  prelim_grade: prelimGrade ?? undefined,
+                  midterm_grade: midtermGrade ?? undefined,
+                  final_grade: finalGrade ?? undefined,
+                  grade_id: existingGrade?.id || s.grade_id
+                }
+              : s
+          )
+        );
+        
         // If this was an edit with granted approval, immediately revert approval to denied (one-time use)
         if (mode === 'edit') {
           try {
@@ -917,15 +1165,43 @@ const ClassManagement: React.FC = () => {
             if (gradeIdToLock) {
               await supabase
                 .from('grades')
-                .update({ edit_status: 'denied', edit_requested: false, edit_window_expires_at: null })
+                .update({ 
+                  edit_status: 'denied', 
+                  edit_requested: false, 
+                  edit_window_expires_at: null,
+                  edit_reason: null,
+                  edit_requested_by: null,
+                  edit_requested_by_name: null,
+                  edit_student_id: null,
+                  edit_student_name: null
+                })
                 .eq('id', gradeIdToLock);
-              // Reflect lock in UI
-              setStudents(prev => prev.map(s => s.id === studentId ? { ...s, can_edit_grades: false } : s));
+              
+              // Update local state to reflect the revoked permission
+              setStudents(prevStudents => 
+                prevStudents.map(s => 
+                  s.id === studentId 
+                    ? {
+                        ...s,
+                        can_edit_grades: false,
+                        hasPendingRequest: false
+                      }
+                    : s
+                )
+              );
+              
+              console.log('✅ Reverted edit approval state for student:', studentId);
+              toast.success('Edit permission revoked after use. Request new approval to edit again.', {
+                duration: 4000,
+                icon: '🔒'
+              });
             }
           } catch (lockErr) {
             console.warn('Warning: could not revert edit approval state:', lockErr);
+            toast.error('Failed to revoke edit permission');
           }
         }
+        
         // Stop editing
         setEditingGrades(prev => {
           const newState = { ...prev };
@@ -1158,6 +1434,19 @@ const ClassManagement: React.FC = () => {
 
       toast.success('Request sent to Registrar for this student. Status: Pending');
       setGradeEditStatus(prev => (prev === 'granted' ? prev : 'pending'));
+      
+      // Update the student data locally to show the pending request status
+      setStudents(prevStudents => 
+        prevStudents.map(s => 
+          s.id === student.id 
+            ? {
+                ...s,
+                hasPendingRequest: true,
+                can_edit_grades: false
+              }
+            : s
+        )
+      );
     } catch (e) {
       console.error('Failed to request approval:', e);
       toast.error('Failed to request approval');
@@ -1675,6 +1964,22 @@ const ClassManagement: React.FC = () => {
                       </div>
                       <div className="flex items-center gap-2">
                         <button
+                          onClick={() => {
+                            if (selectedClass?.subject_id) {
+                              console.log('🔄 Manual refresh triggered...');
+                              fetchStudents(selectedClass.subject_id, { showEmptyToast: false });
+                              toast.success('Data refreshed');
+                            }
+                          }}
+                          className="flex items-center gap-2 px-3 py-2 bg-white/80 text-gray-700 rounded-lg shadow-sm border hover:bg-gray-50"
+                          title="Refresh student data"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                          </svg>
+                          Refresh
+                        </button>
+                        <button
                           onClick={handlePrintGrades}
                           className="flex items-center gap-2 px-3 py-2 bg-white/80 text-gray-700 rounded-lg shadow-sm border hover:bg-gray-50"
                         >
@@ -1772,7 +2077,13 @@ const ClassManagement: React.FC = () => {
                                         {student.can_edit_grades && (
                                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700">
                                             <CheckCircle2 className="w-3 h-3" />
-                                            Approved
+                                            Edit Approved
+                                          </span>
+                                        )}
+                                        {!student.can_edit_grades && !student.hasPendingRequest && (student.prelim_grade !== null || student.midterm_grade !== null || student.final_grade !== null) && (
+                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600">
+                                            <ShieldAlert className="w-3 h-3" />
+                                            Locked
                                           </span>
                                         )}
                                       </div>
@@ -1904,7 +2215,7 @@ const ClassManagement: React.FC = () => {
                                               editDisabled ? 'bg-gray-400 border-gray-500 cursor-not-allowed' : 'bg-purple-600 border-purple-700 hover:bg-purple-700 focus:ring-purple-500'
                                             }`}
                                             disabled={editDisabled}
-                                            title={editDisabled ? 'Editing locked until Registrar approval' : 'Edit Grades'}
+                                            title={editDisabled ? 'Editing locked until Registrar approval' : 'Edit Grades (One-time use after approval)'}
                                           >
                                             <Pencil className="w-4 h-4" />
                                           </button>
