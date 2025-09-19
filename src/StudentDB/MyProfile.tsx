@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { Database } from '../types/supabase';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Hash,
   BookOpen,
@@ -120,7 +120,11 @@ export const MyProfile: React.FC = () => {
   const [passwordSuccess, setPasswordSuccess] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [isGoogleUser, setIsGoogleUser] = useState(false);
+  const [hasEmailPassword, setHasEmailPassword] = useState(false);
   const [passwordRequirementsMet, setPasswordRequirementsMet] = useState(false);
+  const [hasVerifiedOld, setHasVerifiedOld] = useState(false);
+  const [isVerifyingOld, setIsVerifyingOld] = useState(false);
+  const requireOldPassword = useMemo(() => !isGoogleUser || hasEmailPassword, [isGoogleUser, hasEmailPassword]);
 
   useEffect(() => {
     const handleOnline = () => setIsOffline(false);
@@ -149,15 +153,19 @@ export const MyProfile: React.FC = () => {
           const name = getAuthDisplayName(data.user) || data.user.email || '';
           setAuthDisplayName(name);
           
-          // Check if user is Google OAuth user
+          // Check providers/identities
+          const identities = data.user.identities || [];
           const isGoogleOAuth = Boolean(data.user.app_metadata?.provider === 'google' || 
-                               data.user.identities?.some(identity => identity.provider === 'google'));
+                               identities.some(identity => identity.provider === 'google'));
           setIsGoogleUser(isGoogleOAuth);
+          const hasEmailId = identities.some(identity => identity.provider === 'email');
+          setHasEmailPassword(hasEmailId);
           logProfileDebug('User authentication method', { isGoogleOAuth, provider: data.user.app_metadata?.provider });
         } else {
           logProfileDebug('No auth user in getUser(), fallback to stored', { storedUserId: user?.id, storedEmail: user?.email });
           setAuthDisplayName(user?.email || '');
           setIsGoogleUser(false);
+          setHasEmailPassword(false);
         }
       } catch (err) {
         logProfileDebug('Error fetching auth user', { error: err instanceof Error ? err.message : String(err) });
@@ -323,17 +331,19 @@ export const MyProfile: React.FC = () => {
     setPasswordError(null);
     setPasswordSuccess(false);
 
-    // For Google OAuth users, skip current password validation
-    if (!isGoogleUser) {
-      // Validation for traditional email/password users
+    // Validation splits by whether old password is required
+    if (!requireOldPassword) {
+      if (!newPassword || !confirmPassword) {
+        setPasswordError('New password and confirmation are required');
+        return;
+      }
+    } else {
       if (!currentPassword || !newPassword || !confirmPassword) {
         setPasswordError('All fields are required');
         return;
       }
-    } else {
-      // For Google users, only validate new password fields
-      if (!newPassword || !confirmPassword) {
-        setPasswordError('New password and confirmation are required');
+      if (!hasVerifiedOld) {
+        setPasswordError('Please verify your current password first');
         return;
       }
     }
@@ -365,6 +375,8 @@ export const MyProfile: React.FC = () => {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
+      setHasEmailPassword(true);
+      setHasVerifiedOld(false);
       
       // Close modal after 2 seconds
       setTimeout(() => {
@@ -377,6 +389,38 @@ export const MyProfile: React.FC = () => {
       setPasswordError(error instanceof Error ? error.message : 'Failed to change password');
     } finally {
       setIsChangingPassword(false);
+    }
+  };
+
+  // Verify current password as an explicit step to avoid frequent requests
+  const verifyOldPassword = async () => {
+    setPasswordError(null);
+    if (!currentPassword) {
+      setPasswordError('Please enter your current password');
+      return;
+    }
+    const emailToUse = (profile?.email || user?.email || '').trim();
+    if (!emailToUse) {
+      setPasswordError('Unable to verify current password. Missing email.');
+      return;
+    }
+    setIsVerifyingOld(true);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: emailToUse,
+        password: currentPassword,
+      });
+      if (error) {
+        setHasVerifiedOld(false);
+        setPasswordError('Old password is incorrect');
+        return;
+      }
+      setHasVerifiedOld(true);
+    } catch {
+      setHasVerifiedOld(false);
+      setPasswordError('Failed to verify current password');
+    } finally {
+      setIsVerifyingOld(false);
     }
   };
 
@@ -394,22 +438,31 @@ export const MyProfile: React.FC = () => {
   // Update password requirements met state when password fields change
   useEffect(() => {
     const checkFormRequirements = (): boolean => {
-      if (isGoogleUser) {
-        return newPassword.length > 0 && 
-               confirmPassword.length > 0 && 
-               newPassword === confirmPassword && 
-               checkPasswordRequirements(newPassword);
-      } else {
-        return currentPassword.length > 0 && 
-               newPassword.length > 0 && 
-               confirmPassword.length > 0 && 
-               newPassword === confirmPassword && 
+      if (!requireOldPassword) {
+        return newPassword.length > 0 &&
+               confirmPassword.length > 0 &&
+               newPassword === confirmPassword &&
                checkPasswordRequirements(newPassword);
       }
+      return currentPassword.length > 0 && hasVerifiedOld &&
+             newPassword.length > 0 &&
+             confirmPassword.length > 0 &&
+             newPassword === confirmPassword &&
+             checkPasswordRequirements(newPassword);
     };
     
     setPasswordRequirementsMet(checkFormRequirements());
-  }, [currentPassword, newPassword, confirmPassword, isGoogleUser]);
+  }, [currentPassword, newPassword, confirmPassword, isGoogleUser, requireOldPassword, hasVerifiedOld]);
+
+  // Reset verification state when opening modal or switching requirement mode
+  useEffect(() => {
+    setHasVerifiedOld(!requireOldPassword);
+  }, [requireOldPassword, showPasswordModal]);
+
+  // No live verification; do not clear fields on each keystroke to reduce requests
+  useEffect(() => {}, [currentPassword, requireOldPassword]);
+
+  // Removed live old password verification effect
 
   // Memoized profile data processing
   const processedProfile = useMemo(() => {
@@ -647,7 +700,7 @@ export const MyProfile: React.FC = () => {
             className="inline-flex items-center gap-3 px-6 py-3 rounded-xl shadow bg-blue-600  border-blue-200 "
           >
             <Lock className="w-6 h-6 text-white" />
-            <span className="text-lg font-semibold text-white">Change Password</span>
+            <span className="text-lg font-semibold text-white">{requireOldPassword ? 'Change Password' : 'Set Password'}</span>
           </button>
         </motion.div>
       </div>
@@ -662,9 +715,7 @@ export const MyProfile: React.FC = () => {
             className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6"
           >
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-gray-900">
-                {isGoogleUser ? 'Set Password' : 'Change Password'}
-              </h2>
+              <h2 className="text-xl font-bold text-gray-900">{requireOldPassword ? 'Change Password' : 'Set Password'}</h2>
               <button
                 onClick={() => {
                   setShowPasswordModal(false);
@@ -677,116 +728,139 @@ export const MyProfile: React.FC = () => {
             </div>
 
             <div className="space-y-4">
-              {/* Current Password - Only show for non-Google users */}
-              {!isGoogleUser && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Current Password
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showCurrentPassword ? 'text' : 'password'}
-                      value={currentPassword}
-                      onChange={(e) => setCurrentPassword(e.target.value)}
-                      className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Enter current password"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      {showCurrentPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                    </button>
-                  </div>
-                </div>
-              )}
+              <AnimatePresence initial={false}>
+                {requireOldPassword && !hasVerifiedOld && (
+                  <motion.div
+                    key="old-password-field"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.25 }}
+                    className="overflow-hidden space-y-3"
+                  >
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Current Password
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showCurrentPassword ? 'text' : 'password'}
+                          value={currentPassword}
+                          onChange={(e) => setCurrentPassword(e.target.value)}
+                          className={`w-full px-3 py-2 pr-10 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 border-gray-300`}
+                          placeholder="Enter current password"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        >
+                          {showCurrentPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
-              {/* Google User Notice */}
-              {isGoogleUser && (
+              {/* Google User Notice (only for Google users without a Supabase password yet) */}
+              {isGoogleUser && !requireOldPassword && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <CheckCircle2 className="w-5 h-5 text-blue-600" />
                     <span className="text-sm font-medium text-blue-800">Google Account</span>
                   </div>
                   <p className="text-sm text-blue-700">
-                    You're signed in with Google. You can set a password for your account to enable email/password login in the future.
+                    You're signed in with Google. You can set a password for your account to enable email/password login in the future. No current password needed.
                   </p>
                 </div>
               )}
 
-              {/* New Password */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  New Password
-                </label>
-                <div className="relative">
-                  <input
-                    type={showNewPassword ? 'text' : 'password'}
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Enter new password"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowNewPassword(!showNewPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              <AnimatePresence initial={false}>
+                {(!requireOldPassword || hasVerifiedOld) && (
+                  <motion.div
+                    key="new-password-fields"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.25 }}
+                    className="space-y-4 overflow-hidden"
                   >
-                    {showNewPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
-                </div>
-              </div>
+                    {/* New Password */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        New Password
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showNewPassword ? 'text' : 'password'}
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="Enter new password"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNewPassword(!showNewPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        >
+                          {showNewPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                        </button>
+                      </div>
+                    </div>
 
-              {/* Confirm Password */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Confirm New Password
-                </label>
-                <div className="relative">
-                  <input
-                    type={showConfirmPassword ? 'text' : 'password'}
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Confirm new password"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
-                </div>
-              </div>
+                    {/* Confirm Password */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Confirm New Password
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showConfirmPassword ? 'text' : 'password'}
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="Confirm new password"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        >
+                          {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                        </button>
+                      </div>
+                    </div>
 
-              {/* Password Requirements */}
-              <div className="text-xs text-gray-500 bg-gray-50 p-3 rounded-lg">
-                <p className="font-medium mb-2">Password requirements:</p>
-                <ul className="space-y-1">
-                  <li className={`flex items-center gap-2 ${newPassword.length >= 8 ? 'text-green-600' : 'text-gray-500'}`}>
-                    <CheckCircle2 className={`w-3 h-3 ${newPassword.length >= 8 ? 'text-green-600' : 'text-gray-400'}`} />
-                    At least 8 characters long
-                  </li>
-                  <li className={`flex items-center gap-2 ${/(?=.*[a-z])/.test(newPassword) ? 'text-green-600' : 'text-gray-500'}`}>
-                    <CheckCircle2 className={`w-3 h-3 ${/(?=.*[a-z])/.test(newPassword) ? 'text-green-600' : 'text-gray-400'}`} />
-                    Contains lowercase letter
-                  </li>
-                  <li className={`flex items-center gap-2 ${/(?=.*[A-Z])/.test(newPassword) ? 'text-green-600' : 'text-gray-500'}`}>
-                    <CheckCircle2 className={`w-3 h-3 ${/(?=.*[A-Z])/.test(newPassword) ? 'text-green-600' : 'text-gray-400'}`} />
-                    Contains uppercase letter
-                  </li>
-                  <li className={`flex items-center gap-2 ${/(?=.*\d)/.test(newPassword) ? 'text-green-600' : 'text-gray-500'}`}>
-                    <CheckCircle2 className={`w-3 h-3 ${/(?=.*\d)/.test(newPassword) ? 'text-green-600' : 'text-gray-400'}`} />
-                    Contains at least one number
-                  </li>
-                  <li className={`flex items-center gap-2 ${newPassword === confirmPassword && confirmPassword.length > 0 ? 'text-green-600' : 'text-gray-500'}`}>
-                    <CheckCircle2 className={`w-3 h-3 ${newPassword === confirmPassword && confirmPassword.length > 0 ? 'text-green-600' : 'text-gray-400'}`} />
-                    Passwords match
-                  </li>
-                </ul>
-              </div>
+                    {/* Password Requirements */}
+                    <div className="text-xs text-gray-500 bg-gray-50 p-3 rounded-lg">
+                      <p className="font-medium mb-2">Password requirements:</p>
+                      <ul className="space-y-1">
+                        <li className={`flex items-center gap-2 ${newPassword.length >= 8 ? 'text-green-600' : 'text-gray-500'}`}>
+                          <CheckCircle2 className={`w-3 h-3 ${newPassword.length >= 8 ? 'text-green-600' : 'text-gray-400'}`} />
+                          At least 8 characters long
+                        </li>
+                        <li className={`flex items-center gap-2 ${/(?=.*[a-z])/.test(newPassword) ? 'text-green-600' : 'text-gray-500'}`}>
+                          <CheckCircle2 className={`w-3 h-3 ${/(?=.*[a-z])/.test(newPassword) ? 'text-green-600' : 'text-gray-400'}`} />
+                          Contains lowercase letter
+                        </li>
+                        <li className={`flex items-center gap-2 ${/(?=.*[A-Z])/.test(newPassword) ? 'text-green-600' : 'text-gray-500'}`}>
+                          <CheckCircle2 className={`w-3 h-3 ${/(?=.*[A-Z])/.test(newPassword) ? 'text-green-600' : 'text-gray-400'}`} />
+                          Contains uppercase letter
+                        </li>
+                        <li className={`flex items-center gap-2 ${/(?=.*\d)/.test(newPassword) ? 'text-green-600' : 'text-gray-500'}`}>
+                          <CheckCircle2 className={`w-3 h-3 ${/(?=.*\d)/.test(newPassword) ? 'text-green-600' : 'text-gray-400'}`} />
+                          Contains at least one number
+                        </li>
+                        <li className={`flex items-center gap-2 ${newPassword === confirmPassword && confirmPassword.length > 0 ? 'text-green-600' : 'text-gray-500'}`}>
+                          <CheckCircle2 className={`w-3 h-3 ${newPassword === confirmPassword && confirmPassword.length > 0 ? 'text-green-600' : 'text-gray-400'}`} />
+                          Passwords match
+                        </li>
+                      </ul>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {/* Error Message */}
               {passwordError && (
@@ -817,11 +891,25 @@ export const MyProfile: React.FC = () => {
                   Cancel
                 </button>
                 <button
-                  onClick={handlePasswordChange}
-                  disabled={isChangingPassword || !passwordRequirementsMet}
+                  onClick={() => {
+                    if (requireOldPassword && !hasVerifiedOld) {
+                      void verifyOldPassword();
+                    } else {
+                      void handlePasswordChange();
+                    }
+                  }}
+                  disabled={
+                    requireOldPassword && !hasVerifiedOld
+                      ? isVerifyingOld || currentPassword.length === 0
+                      : isChangingPassword || !passwordRequirementsMet
+                  }
                   className="flex-1 px-4 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {isChangingPassword ? (isGoogleUser ? 'Setting...' : 'Changing...') : (isGoogleUser ? 'Set Password' : 'Change Password')}
+                  {requireOldPassword && !hasVerifiedOld
+                    ? (isVerifyingOld ? 'Verifying…' : 'Verify')
+                    : (isChangingPassword
+                        ? (requireOldPassword ? 'Changing...' : 'Setting...')
+                        : (requireOldPassword ? 'Change Password' : 'Set Password'))}
                 </button>
               </div>
             </div>
