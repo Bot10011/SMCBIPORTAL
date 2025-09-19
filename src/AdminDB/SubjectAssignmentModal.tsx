@@ -129,6 +129,8 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
   const [selectedDay, setSelectedDay] = useState<string[]>(assignment.day ? assignment.day.split(',') : []);
   // Search state for subjects
   const [subjectSearchTerm, setSubjectSearchTerm] = useState<string>('');
+  // State for tracking current subject count for BSIT instructors
+  const [currentSubjectCount, setCurrentSubjectCount] = useState<number>(0);
 
   // Ensure edit mode correctly shows days checked when parent expands abbreviations later
   React.useEffect(() => {
@@ -258,22 +260,32 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
   }
 
   // Reset selected subjects when the user changes year level or semester (not on initial mount)
+  // But preserve the selected subject in edit mode
   const prevYearLevelRef = useRef<string>(assignment.year_level);
   const prevSemesterRef = useRef<string>(assignment.semester);
   React.useEffect(() => {
     const yearLevelChanged = assignment.year_level !== prevYearLevelRef.current;
     const semesterChanged = assignment.semester !== prevSemesterRef.current;
-    if (yearLevelChanged || semesterChanged) {
+    
+    // Only reset subjects if not in edit mode or if the current subject is not valid for the new filters
+    if ((yearLevelChanged || semesterChanged) && !isEditMode) {
       setSelectedSubjects([]);
     }
+    
     prevYearLevelRef.current = assignment.year_level;
     prevSemesterRef.current = assignment.semester;
-  }, [assignment.year_level, assignment.semester]);
+  }, [assignment.year_level, assignment.semester, isEditMode]);
 
   // Ensure the preselected subject is checked in edit mode
   React.useEffect(() => {
-    if (isEditMode && assignment.subject_id && selectedSubjects.length === 0) {
-      setSelectedSubjects([assignment.subject_id]);
+    if (isEditMode && assignment.subject_id) {
+      // Always ensure the subject is selected in edit mode, regardless of current selection
+      setSelectedSubjects(prev => {
+        if (!prev.includes(assignment.subject_id)) {
+          return [assignment.subject_id];
+        }
+        return prev;
+      });
     }
   }, [isEditMode, assignment.subject_id]);
 
@@ -323,11 +335,23 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
 
   // Handle subject checkbox change
   const handleSubjectCheckbox = (subjectId: string) => {
-    setSelectedSubjects(prev =>
-      prev.includes(subjectId)
-        ? prev.filter(id => id !== subjectId)
-        : [...prev, subjectId]
-    );
+    setSelectedSubjects(prev => {
+      if (prev.includes(subjectId)) {
+        // If unchecking, always allow
+        return prev.filter(id => id !== subjectId);
+      } else {
+        // If checking, check BSIT limit
+        if (isBSITTeacher) {
+          const currentTotal = currentSubjectCount + prev.length;
+          if (currentTotal >= BSIT_SUBJECT_LIMIT) {
+            // Show error message
+            setModalError(`BSIT instructors are limited to ${BSIT_SUBJECT_LIMIT} subjects. Current count: ${currentSubjectCount}, Selected: ${prev.length}`);
+            return prev; // Don't add the subject
+          }
+        }
+        return [...prev, subjectId];
+      }
+    });
   };
 
   // Handle select all subjects
@@ -336,8 +360,23 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
       // If all are selected, unselect all
       setSelectedSubjects([]);
     } else {
-      // Select all filtered courses
-      setSelectedSubjects(filteredCourses.map(course => course.id));
+      // Check BSIT limit before selecting all
+      if (isBSITTeacher) {
+        const maxAllowed = BSIT_SUBJECT_LIMIT - currentSubjectCount;
+        if (maxAllowed <= 0) {
+          setModalError(`BSIT instructors are limited to ${BSIT_SUBJECT_LIMIT} subjects. Current count: ${currentSubjectCount}`);
+          return;
+        }
+        // Select only up to the limit
+        const subjectsToSelect = filteredCourses.slice(0, maxAllowed).map(course => course.id);
+        setSelectedSubjects(subjectsToSelect);
+        if (filteredCourses.length > maxAllowed) {
+          setModalError(`BSIT instructors are limited to ${BSIT_SUBJECT_LIMIT} subjects. Only ${maxAllowed} subjects can be selected.`);
+        }
+      } else {
+        // Select all filtered courses for non-BSIT teachers
+        setSelectedSubjects(filteredCourses.map(course => course.id));
+      }
     }
   };
 
@@ -367,6 +406,14 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
   // Get selected teacher name
   const selectedTeacher = teachers.find(t => t.id === assignment.teacher_id);
 
+  // Check if selected teacher is from BSIT department
+  const isBSITTeacher = selectedTeacher?.department?.toLowerCase().includes('bsit') || 
+                       selectedTeacher?.department?.toLowerCase().includes('information technology') ||
+                       selectedTeacher?.department?.toLowerCase() === 'bsit';
+
+  // BSIT subject limit
+  const BSIT_SUBJECT_LIMIT = 4;
+
   // Check if all subjects are selected
   const allSubjectsSelected = filteredCourses.length > 0 && selectedSubjects.length === filteredCourses.length;
   const someSubjectsSelected = selectedSubjects.length > 0 && selectedSubjects.length < filteredCourses.length;
@@ -395,6 +442,37 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
       } as React.ChangeEvent<HTMLSelectElement>);
     }
   }, [selectedSubjects]);
+
+  // Fetch current subject count for BSIT teachers
+  React.useEffect(() => {
+    const fetchCurrentSubjectCount = async () => {
+      if (isBSITTeacher && assignment.teacher_id) {
+        try {
+          // Import supabase dynamically to avoid SSR issues
+          const { supabase } = await import('../lib/supabase');
+          const { data, error } = await supabase
+            .from('teacher_subjects')
+            .select('id')
+            .eq('teacher_id', assignment.teacher_id)
+            .eq('is_active', true);
+
+          if (error) {
+            console.error('Error fetching current subject count:', error);
+            setCurrentSubjectCount(0);
+          } else {
+            setCurrentSubjectCount(data?.length || 0);
+          }
+        } catch (error) {
+          console.error('Error importing supabase:', error);
+          setCurrentSubjectCount(0);
+        }
+      } else {
+        setCurrentSubjectCount(0);
+      }
+    };
+
+    fetchCurrentSubjectCount();
+  }, [isBSITTeacher, assignment.teacher_id]);
 
   // Check if columns need scroll indicators
   React.useEffect(() => {
@@ -469,7 +547,7 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
         section: assignment.section,
         academic_year: assignment.academic_year,
         year_level: assignment.year_level,
-        semester: subject?.semester || '',
+        semester: assignment.semester || '', // Use the assignment's semester, not the course's semester
         day: abbr.length === 1 ? abbr[0] : abbr.join(','),
         time: assignment.time,
         is_active: true
@@ -789,14 +867,24 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
                   <h4 className="font-semibold text-gray-700">
                     Available Subjects:
                   </h4>
-                  {selectedSubjects.length > 0 && (
-                    <span className="text-xs font-medium bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
-                      {selectedSubjects.length} selected
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {isBSITTeacher && (
+                      <span className="text-xs font-medium bg-orange-100 text-orange-800 px-2 py-1 rounded-full">
+                        {currentSubjectCount + selectedSubjects.length}/{BSIT_SUBJECT_LIMIT} subjects
+                      </span>
+                    )}
+                    {selectedSubjects.length > 0 && (
+                      <span className="text-xs font-medium bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                        {selectedSubjects.length} selected
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <p className="text-xs text-gray-500 mb-2">
-                  Select one or more subjects to assign to the instructor
+                  {isBSITTeacher 
+                    ? `Select subjects to assign to the instructor (BSIT limit: ${BSIT_SUBJECT_LIMIT} subjects total)`
+                    : 'Select one or more subjects to assign to the instructor'
+                  }
                 </p>
                   
                   {/* Search Bar for Subjects */}
@@ -835,7 +923,7 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
                   <div className="overflow-y-auto max-h-48 sm:max-h-64 md:max-h-72 lg:max-h-96 rounded-lg border border-blue-100 bg-white/60">
                     {/* Select All Checkbox */}
                     <div className="sticky top-0 bg-blue-100 border-b border-blue-200 p-3">
-                      <label className="flex items-center gap-3 cursor-pointer select-none">
+                      <label className={`flex items-center gap-3 select-none ${isBSITTeacher && (currentSubjectCount + selectedSubjects.length) >= BSIT_SUBJECT_LIMIT ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
                         <input
                           type="checkbox"
                           checked={allSubjectsSelected}
@@ -845,7 +933,8 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
                             }
                           }}
                           onChange={handleSelectAllSubjects}
-                          className="accent-blue-600 w-5 h-5"
+                          disabled={isBSITTeacher && (currentSubjectCount + selectedSubjects.length) >= BSIT_SUBJECT_LIMIT}
+                          className="accent-blue-600 w-5 h-5 disabled:opacity-50 disabled:cursor-not-allowed"
                         />
                         <span className="font-semibold text-blue-900 text-sm">
                           {allSubjectsSelected ? 'Deselect All' : 'Select All'} Subjects
@@ -857,49 +946,61 @@ const SubjectAssignmentModal: React.FC<SubjectAssignmentModalProps> = ({
                     </div>
                     
                     <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 p-2">
-                      {filteredCourses.map(subject => (
-                        <li
-                          key={subject.id}
-                          className={`flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-sm text-gray-800 transition-all duration-150 ${selectedSubjects.includes(subject.id) ? 'ring-2 ring-blue-400 bg-blue-100' : ''}`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedSubjects.includes(subject.id)}
-                            onChange={() => handleSubjectCheckbox(subject.id)}
-                            className="accent-blue-600 w-4 h-4"
-                            id={`subject-checkbox-${subject.id}`}
-                          />
-                          <label htmlFor={`subject-checkbox-${subject.id}`} className="cursor-pointer select-none w-full flex items-center gap-2">
-                            <div className="flex flex-col">
-                              <span className="font-medium">{subject.display_name || subject.name || subject.code}</span>
-                              <div className="flex items-center gap-1 mt-1">
-                                {/* Year Level Badge */}
-                                {subject.year_level && (
-                                  <span className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 text-xs font-medium px-2 py-0.5 rounded-full">
-                                    {subject.year_level}
-                                  </span>
-                                )}
-                                {/* Semester Badge */}
-                                {subject.semester === 'First Semester' && (
-                                  <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-xs font-bold px-2 py-0.5 rounded-full">1st Sem</span>
-                                )}
-                                {subject.semester === 'Second Semester' && (
-                                  <span className="inline-flex items-center gap-1 bg-green-100 text-green-800 text-xs font-bold px-2 py-0.5 rounded-full">2nd Sem</span>
-                                )}
-                                {subject.semester === 'Summer' && (
-                                  <span className="inline-flex items-center gap-1 bg-yellow-100 text-yellow-800 text-xs font-bold px-2 py-0.5 rounded-full">Summer</span>
-                                )}
-                                {/* Units Badge */}
-                                {subject.units && (
-                                  <span className="inline-flex items-center gap-1 bg-purple-100 text-purple-800 text-xs font-medium px-2 py-0.5 rounded-full">
-                                    {subject.units} unit{subject.units !== 1 ? 's' : ''}
-                                  </span>
-                                )}
+                      {filteredCourses.map(subject => {
+                        const isSelected = selectedSubjects.includes(subject.id);
+                        const isDisabled = isBSITTeacher && !isSelected && (currentSubjectCount + selectedSubjects.length) >= BSIT_SUBJECT_LIMIT;
+                        
+                        return (
+                          <li
+                            key={subject.id}
+                            className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-800 transition-all duration-150 ${
+                              isSelected 
+                                ? 'ring-2 ring-blue-400 bg-blue-100 border border-blue-200' 
+                                : isDisabled
+                                ? 'bg-gray-100 border border-gray-200 opacity-60'
+                                : 'bg-blue-50 border border-blue-200 hover:bg-blue-100'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => handleSubjectCheckbox(subject.id)}
+                              disabled={isDisabled}
+                              className="accent-blue-600 w-4 h-4 disabled:opacity-50 disabled:cursor-not-allowed"
+                              id={`subject-checkbox-${subject.id}`}
+                            />
+                            <label htmlFor={`subject-checkbox-${subject.id}`} className={`select-none w-full flex items-center gap-2 ${isDisabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+                              <div className="flex flex-col">
+                                <span className="font-medium">{subject.display_name || subject.name || subject.code}</span>
+                                <div className="flex items-center gap-1 mt-1">
+                                  {/* Year Level Badge */}
+                                  {subject.year_level && (
+                                    <span className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 text-xs font-medium px-2 py-0.5 rounded-full">
+                                      {subject.year_level}
+                                    </span>
+                                  )}
+                                  {/* Semester Badge */}
+                                  {subject.semester === 'First Semester' && (
+                                    <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-xs font-bold px-2 py-0.5 rounded-full">1st Sem</span>
+                                  )}
+                                  {subject.semester === 'Second Semester' && (
+                                    <span className="inline-flex items-center gap-1 bg-green-100 text-green-800 text-xs font-bold px-2 py-0.5 rounded-full">2nd Sem</span>
+                                  )}
+                                  {subject.semester === 'Summer' && (
+                                    <span className="inline-flex items-center gap-1 bg-yellow-100 text-yellow-800 text-xs font-bold px-2 py-0.5 rounded-full">Summer</span>
+                                  )}
+                                  {/* Units Badge */}
+                                  {subject.units && (
+                                    <span className="inline-flex items-center gap-1 bg-purple-100 text-purple-800 text-xs font-medium px-2 py-0.5 rounded-full">
+                                      {subject.units} unit{subject.units !== 1 ? 's' : ''}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          </label>
-                        </li>
-                      ))}
+                            </label>
+                          </li>
+                        );
+                      })}
                     </ul>
                   </div>
                 ) : (
