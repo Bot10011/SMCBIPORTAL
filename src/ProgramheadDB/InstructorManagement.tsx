@@ -222,6 +222,7 @@ const InstructorManagement: React.FC = () => {
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [selectedYearLevel, setSelectedYearLevel] = useState<string>('all');
   const [selectedSections, setSelectedSections] = useState<Record<string, string>>({});
+  const [assignmentSearchTerm, setAssignmentSearchTerm] = useState<string>('');
   
   // Assignment Detail Modal State
   const [assignmentDetailModal, setAssignmentDetailModal] = useState<{
@@ -970,6 +971,29 @@ const InstructorManagement: React.FC = () => {
     });
   };
 
+  // Delete assignment function
+  const handleDeleteAssignment = async (assignment: TeacherSubject) => {
+    if (!assignment.id) {
+      toast.error('Cannot delete assignment: Missing assignment ID');
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('teacher_subjects')
+        .delete()
+        .eq('id', assignment.id);
+
+      if (error) throw error;
+
+      toast.success('Assignment deleted successfully!');
+      fetchAssignments(); // Refresh the assignments list
+    } catch (error) {
+      console.error('Error deleting assignment:', error);
+      toast.error('Failed to delete assignment');
+    }
+  };
+
   const closeEditAssignment = () => {
     setEditAssignmentModal({
       isOpen: false,
@@ -1424,10 +1448,10 @@ const InstructorManagement: React.FC = () => {
               Year Level Assigned Subjects
             </Typography>
             
-            {/* Year Level Filter */}
+            {/* Year Level Filter and Search */}
             <Card sx={{ mb: 3, p: 2, background: 'rgba(255, 255, 255, 0.8)' }}>
               <Grid container spacing={2} alignItems="center">
-                <Grid item xs={12} sm={4}>
+                <Grid item xs={12} sm={3}>
                   <FormControl fullWidth size="small">
                     <InputLabel>Filter by Year Level</InputLabel>
                     <Select
@@ -1443,15 +1467,56 @@ const InstructorManagement: React.FC = () => {
                     </Select>
                   </FormControl>
                 </Grid>
-                <Grid item xs={12} sm={4}>
+                <Grid item xs={12} sm={3}>
+                  <TextField
+                    fullWidth
+                    placeholder="Search assignments..."
+                    value={assignmentSearchTerm}
+                    onChange={(e) => setAssignmentSearchTerm(e.target.value)}
+                    InputProps={{
+                      startAdornment: <Search className="w-4 h-4 text-gray-400 mr-2" />
+                    }}
+                    size="small"
+                  />
+                </Grid>
+                <Grid item xs={12} sm={3}>
                   <Typography variant="body2" color="textSecondary">
-                    {selectedYearLevel === 'all' 
-                      ? `${assignments.length} total assigned`
-                      : `${assignments.filter(a => a.year_level === selectedYearLevel).length} assignments in ${selectedYearLevel}`
-                    }
+                    {(() => {
+                      const filteredCount = assignments.filter(assignment => {
+                        if (!assignmentSearchTerm.trim()) return true;
+                        const searchTerm = assignmentSearchTerm.toLowerCase();
+                        return (
+                          assignment.teacher_name?.toLowerCase().includes(searchTerm) ||
+                          assignment.subject_code?.toLowerCase().includes(searchTerm) ||
+                          assignment.subject_name?.toLowerCase().includes(searchTerm) ||
+                          assignment.section?.toLowerCase().includes(searchTerm) ||
+                          assignment.semester?.toLowerCase().includes(searchTerm) ||
+                          assignment.academic_year?.toLowerCase().includes(searchTerm)
+                        );
+                      }).length;
+                      
+                      if (selectedYearLevel === 'all') {
+                        return `${filteredCount} ${assignmentSearchTerm.trim() ? 'filtered' : 'total'} assigned`;
+                      } else {
+                        const yearLevelFiltered = assignments.filter(a => a.year_level === selectedYearLevel);
+                        const yearLevelFilteredCount = yearLevelFiltered.filter(assignment => {
+                          if (!assignmentSearchTerm.trim()) return true;
+                          const searchTerm = assignmentSearchTerm.toLowerCase();
+                          return (
+                            assignment.teacher_name?.toLowerCase().includes(searchTerm) ||
+                            assignment.subject_code?.toLowerCase().includes(searchTerm) ||
+                            assignment.subject_name?.toLowerCase().includes(searchTerm) ||
+                            assignment.section?.toLowerCase().includes(searchTerm) ||
+                            assignment.semester?.toLowerCase().includes(searchTerm) ||
+                            assignment.academic_year?.toLowerCase().includes(searchTerm)
+                          );
+                        }).length;
+                        return `${yearLevelFilteredCount} ${assignmentSearchTerm.trim() ? 'filtered' : ''} assignments in ${selectedYearLevel}`;
+                      }
+                    })()}
                   </Typography>
                 </Grid>
-                <Grid item xs={12} sm={4} sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <Grid item xs={12} sm={3} sx={{ display: 'flex', justifyContent: 'flex-end' }}>
                   <Button
                     variant="contained"
                     onClick={() => handleOpenSubjectAssignmentForYear(selectedYearLevel === 'all' ? '' : selectedYearLevel)}
@@ -1469,27 +1534,49 @@ const InstructorManagement: React.FC = () => {
               </Grid>
             </Card>
 
-            {/* Assignments Display */}
-            {assignmentsLoading ? (
+            {/* Filtered Assignments */}
+            {(() => {
+              // Apply search filter to assignments
+              const filteredAssignments = assignments.filter(assignment => {
+                if (!assignmentSearchTerm.trim()) return true;
+                
+                const searchTerm = assignmentSearchTerm.toLowerCase();
+                return (
+                  assignment.teacher_name?.toLowerCase().includes(searchTerm) ||
+                  assignment.subject_code?.toLowerCase().includes(searchTerm) ||
+                  assignment.subject_name?.toLowerCase().includes(searchTerm) ||
+                  assignment.section?.toLowerCase().includes(searchTerm) ||
+                  assignment.semester?.toLowerCase().includes(searchTerm) ||
+                  assignment.academic_year?.toLowerCase().includes(searchTerm)
+                );
+              });
+
+              return (
+                <>
+                  {/* Assignments Display */}
+                  {assignmentsLoading ? (
               <Box sx={{ textAlign: 'center', py: 8 }}>
                 <CircularProgress />
                 <Typography sx={{ mt: 2 }}>Loading assignments...</Typography>
               </Box>
-            ) : assignments.length === 0 ? (
+            ) : filteredAssignments.length === 0 ? (
               <Box sx={{ textAlign: 'center', py: 8 }}>
                 <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                 <Typography variant="h6" color="textSecondary" sx={{ mb: 2 }}>
-                  No Subject Assignments
+                  {assignmentSearchTerm.trim() ? 'No Assignments Found' : 'No Subject Assignments'}
                 </Typography>
                 <Typography variant="body2" color="textSecondary">
-                  No subjects have been assigned to instructors yet.
+                  {assignmentSearchTerm.trim() 
+                    ? `No assignments match "${assignmentSearchTerm}". Try adjusting your search.`
+                    : 'No subjects have been assigned to instructors yet.'
+                  }
                 </Typography>
               </Box>
             ) : selectedYearLevel === 'all' ? (
               // Show collapsible sections for "All Year Levels"
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                 {(() => {
-                  const groupedAssignments = assignments.reduce((groups, assignment) => {
+                  const groupedAssignments = filteredAssignments.reduce((groups, assignment) => {
                     const yearLevel = assignment.year_level || 'Unknown';
                     if (!groups[yearLevel]) {
                       groups[yearLevel] = [];
@@ -1747,8 +1834,29 @@ const InstructorManagement: React.FC = () => {
                                                  bg: 'rgba(59, 130, 246, 0.1)'
                                                }
                                              }}
+                                             title="Edit Assignment"
                                            >
                                              <Edit className="w-4 h-4" />
+                                           </IconButton>
+                                           <IconButton
+                                             size="small"
+                                             onClick={(e) => {
+                                               e.stopPropagation();
+                                               if (window.confirm(`Are you sure you want to delete this assignment for ${assignment.teacher_name} - ${assignment.subject_code}?`)) {
+                                                 handleDeleteAssignment(assignment);
+                                               }
+                                             }}
+                                             sx={{ 
+                                               p: 1,
+                                               color: '#6b7280',
+                                               '&:hover': { 
+                                                 color: '#dc2626',
+                                                 bg: 'rgba(220, 38, 38, 0.1)'
+                                               }
+                                             }}
+                                             title="Delete Assignment"
+                                           >
+                                             <Trash2 className="w-4 h-4" />
                                            </IconButton>
                                            <Box sx={{ 
                                              color: '#6b7280',
@@ -1848,7 +1956,7 @@ const InstructorManagement: React.FC = () => {
                     Assign Instructor
                   </Button>
                 </Box>
-                {assignments
+                {filteredAssignments
                   .filter(a => a.year_level === selectedYearLevel)
                   .map((assignment) => (
                     <Card key={assignment.id} sx={{ p: 2, bg: '#f9fafb', border: '1px solid #e5e7eb' }}>
@@ -1875,6 +1983,9 @@ const InstructorManagement: React.FC = () => {
                   ))}
               </Box>
             )}
+                </>
+              );
+            })()}
           </Box>
         </TabPanel>
 
@@ -2193,13 +2304,34 @@ const InstructorManagement: React.FC = () => {
                     }
                   }}
                   size="small"
+                  title="Edit Assignment"
                 >
                   <Edit className="w-4 h-4 sm:w-5 sm:h-5" />
+                </IconButton>
+                <IconButton
+                  onClick={() => {
+                    if (window.confirm(`Are you sure you want to delete this assignment for ${assignmentDetailModal.assignment?.teacher_name} - ${assignmentDetailModal.assignment?.subject_code}?`)) {
+                      handleDeleteAssignment(assignmentDetailModal.assignment!);
+                      closeAssignmentDetail();
+                    }
+                  }}
+                  sx={{ 
+                    color: 'white', 
+                    p: { xs: 0.5, sm: 1 },
+                    '&:hover': { 
+                      bg: 'rgba(220, 38, 38, 0.2)'
+                    }
+                  }}
+                  size="small"
+                  title="Delete Assignment"
+                >
+                  <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
                 </IconButton>
                 <IconButton
                   onClick={closeAssignmentDetail}
                   sx={{ color: 'white', p: { xs: 0.5, sm: 1 } }}
                   size="small"
+                  title="Close"
                 >
                   <X className="w-4 h-4 sm:w-5 sm:h-5" />
                 </IconButton>
