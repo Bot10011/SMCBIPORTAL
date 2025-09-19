@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
+import { syncGoogleProfileData } from '../lib/googleProfileSync';
+import { enhanceGoogleAvatarUrl } from '../lib/googleProfileSync';
 import { Database } from '../types/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -125,6 +127,7 @@ export const MyProfile: React.FC = () => {
   const [hasVerifiedOld, setHasVerifiedOld] = useState(false);
   const [isVerifyingOld, setIsVerifyingOld] = useState(false);
   const requireOldPassword = useMemo(() => !isGoogleUser || hasEmailPassword, [isGoogleUser, hasEmailPassword]);
+  const [showPostChangeModal, setShowPostChangeModal] = useState(false);
 
   useEffect(() => {
     const handleOnline = () => setIsOffline(false);
@@ -182,6 +185,25 @@ export const MyProfile: React.FC = () => {
         if (user?.id) {
           logProfileDebug('Begin profile fetch', { authUserId: user.id, authEmail: user.email });
           
+          // Check cache first
+          const cacheKey = `myprofile_${user.id}`;
+          const cachedProfile = localStorage.getItem(cacheKey);
+          const cachedAvatar = localStorage.getItem(`myprofile_avatar_${user.id}`);
+          
+          if (cachedProfile && cachedAvatar) {
+            try {
+              const parsedProfile = JSON.parse(cachedProfile);
+              setProfile(parsedProfile);
+              setAuthDisplayName(parsedProfile.display_name || user.email || '');
+              setProfilePictureUrl(cachedAvatar);
+              setImageDebug({ status: 'ok' });
+              setLoading(false);
+              return;
+            } catch {
+              // Invalid cache, continue with fresh fetch
+            }
+          }
+          
           // Get auth data for fallbacks
           const { data: authData } = await supabase.auth.getUser();
           
@@ -234,6 +256,18 @@ export const MyProfile: React.FC = () => {
           }
           setAuthDisplayName(displayName);
 
+          // Persist Google display_name and avatar_url into user_profiles if missing/outdated
+          try {
+            const identities = authData?.user?.identities || [];
+            const isGoogle = Boolean(authData?.user?.app_metadata?.provider === 'google' ||
+              identities.some((id: { provider?: string }) => id?.provider === 'google'));
+            
+            if (isGoogle && authData?.user) {
+              console.log('🔄 Google user detected in MyProfile, syncing profile data...');
+              await syncGoogleProfileData(user.id, user.email || '', authData.user);
+            }
+          } catch { /* ignore sync errors */ }
+
           // Handle avatar with fallback
           let pictureUrl: string | null = null;
           
@@ -247,12 +281,15 @@ export const MyProfile: React.FC = () => {
           } 
           // Priority 2: Fallback to Google metadata if no avatar_url
           else if (authData?.user) {
-            pictureUrl = getAuthAvatarUrl(authData.user);
-            if (pictureUrl) {
-              setProfilePictureUrl(pictureUrl);
-              logProfileDebug('Using Google avatar from auth metadata', { avatarUrl: pictureUrl });
-              setImageDebug({ status: 'ok' });
-              return;
+            const authAvatar = getAuthAvatarUrl(authData.user);
+            if (authAvatar) {
+              pictureUrl = enhanceGoogleAvatarUrl(authAvatar);
+              if (pictureUrl) {
+                setProfilePictureUrl(pictureUrl);
+                logProfileDebug('Using Google avatar from auth metadata', { avatarUrl: pictureUrl });
+                setImageDebug({ status: 'ok' });
+                return;
+              }
             }
           }
 
@@ -260,6 +297,16 @@ export const MyProfile: React.FC = () => {
           setProfilePictureUrl(null);
           logProfileDebug('No avatar found; using initials fallback (no image URL)');
           setImageDebug({ status: 'missing_url' });
+          
+          // Cache the profile data
+          try {
+            localStorage.setItem(cacheKey, JSON.stringify(data));
+            if (pictureUrl) {
+              localStorage.setItem(`myprofile_avatar_${user.id}`, pictureUrl);
+            }
+          } catch {
+            // ignore cache errors
+          }
         }
       } catch (error) {
         console.error('Error fetching profile:', error);
@@ -378,11 +425,11 @@ export const MyProfile: React.FC = () => {
       setHasEmailPassword(true);
       setHasVerifiedOld(false);
       
-      // Close modal after 2 seconds
-      setTimeout(() => {
-        setShowPasswordModal(false);
-        setPasswordSuccess(false);
-      }, 2000);
+      // Show post-change modal to allow logout or stay
+      setShowPostChangeModal(true);
+      
+      // Close old change modal
+      setShowPasswordModal(false);
 
     } catch (error) {
       console.error('Error changing password:', error);
@@ -910,6 +957,49 @@ export const MyProfile: React.FC = () => {
                     : (isChangingPassword
                         ? (requireOldPassword ? 'Changing...' : 'Setting...')
                         : (requireOldPassword ? 'Change Password' : 'Set Password'))}
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Post-change modal: offer Stay or Logout to test new password */}
+      {showPostChangeModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6"
+          >
+            <div className="text-center">
+              <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
+                <CheckCircle2 className="w-8 h-8 text-green-600" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Password changed</h3>
+              <p className="text-gray-600 mb-6">Do you want to stay, or log out now to test your new password?</p>
+              <div className="flex gap-3 justify-center">
+                <button
+                  onClick={() => setShowPostChangeModal(false)}
+                  className="px-6 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                >
+                  Stay
+                </button>
+                <button
+                  onClick={async () => {
+                    try {
+                      await supabase.auth.signOut();
+                      // Clear local user storage if present
+                      try { localStorage.removeItem('user'); } catch { /* ignore */ }
+                      window.location.href = '/';
+                    } catch {
+                      setShowPostChangeModal(false);
+                    }
+                  }}
+                  className="px-6 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                >
+                  Logout to test
                 </button>
               </div>
             </div>
