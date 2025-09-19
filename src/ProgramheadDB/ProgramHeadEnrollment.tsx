@@ -72,6 +72,32 @@ const ProgramHeadEnrollment: React.FC = () => {
   };
 
   // Function to download student list as CSV
+  // Helper function to generate org unit path
+  const generateOrgUnitPath = (student: Student): string => {
+    if (!programInfo) {
+      return 'College Students/Program Information Not Available';
+    }
+    
+    const yearLevelText = `${student.yearLevel}${getOrdinalSuffix(student.yearLevel)} Year`;
+    return `College Students/${programInfo.description}/${programInfo.major} - ${yearLevelText}`;
+  };
+
+  // Helper function to get ordinal suffix for year level
+  const getOrdinalSuffix = (num: number): string => {
+    const j = num % 10;
+    const k = num % 100;
+    if (j === 1 && k !== 11) {
+      return 'st';
+    }
+    if (j === 2 && k !== 12) {
+      return 'nd';
+    }
+    if (j === 3 && k !== 13) {
+      return 'rd';
+    }
+    return 'th';
+  };
+
   const downloadStudentListCSV = () => {
     const csvData = filteredStudents.map(student => ({
       'Student ID': student.studentId || 'N/A',
@@ -79,7 +105,8 @@ const ProgramHeadEnrollment: React.FC = () => {
       'Email': student.email ? `${student.email}@smcbi.edu.ph` : 'N/A',
       'Password': 'TempPass@123', // Default password for all students
       'Year Level': student.yearLevel,
-      'Section': getSectionName(student.section)
+      'Section': getSectionName(student.section),
+      'Org Unit Path': generateOrgUnitPath(student)
     }));
 
     // Convert to CSV format
@@ -1174,6 +1201,45 @@ const ProgramHeadEnrollment: React.FC = () => {
   // Track current user role and department to default and lock department for program heads
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [programHeadDepartment, setProgramHeadDepartment] = useState<string | null>(null);
+  
+  // Store program information for org unit path generation
+  const [programInfo, setProgramInfo] = useState<{
+    description: string;
+    major: string;
+  } | null>(null);
+
+  // Function to fetch program information based on department
+  const fetchProgramInfo = async (department: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('programs')
+        .select('description, major, name')
+        .eq('name', department)
+        .eq('is_active', true)
+        .single();
+      
+      if (error) {
+        console.warn('Failed to fetch program info:', error);
+        // Set default values if program not found
+        setProgramInfo({
+          description: `Bachelor of Science in ${department}`,
+          major: department
+        });
+      } else {
+        setProgramInfo({
+          description: data?.description || `Bachelor of Science in ${department}`,
+          major: data?.major || data?.name || department
+        });
+      }
+    } catch (err) {
+      console.warn('Error fetching program info:', err);
+      // Set default values on error
+      setProgramInfo({
+        description: `Bachelor of Science in ${department}`,
+        major: department
+      });
+    }
+  };
 
   useEffect(() => {
     const loadCurrentUserDepartment = async () => {
@@ -1191,6 +1257,8 @@ const ProgramHeadEnrollment: React.FC = () => {
         setProgramHeadDepartment(dept);
         if (role === 'program_head' && typeof dept === 'string' && dept.trim() !== '') {
           setCreateForm(prev => ({ ...prev, department: dept }));
+          // Fetch program information for org unit path
+          await fetchProgramInfo(dept);
         }
       } catch (err) {
         console.warn('Failed to load current user department/role', err);
