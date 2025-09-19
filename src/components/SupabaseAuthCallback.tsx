@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { syncGoogleProfileData } from '../lib/googleProfileSync';
 
 const SupabaseAuthCallback: React.FC = () => {
   const navigate = useNavigate();
@@ -49,11 +50,17 @@ const SupabaseAuthCallback: React.FC = () => {
           return;
         }
 
-        // Registered: continue (minimal work, then route away)
+        // Registered: continue with profile setup
         try {
           // Pass the user object directly to preserve Google metadata
           const userData = await db.users.getOrCreateProfile(user.id, user.email, 'student', user);
           if (userData) {
+            // Sync Google profile data (display_name and avatar_url) if this is a Google user
+            if (user.app_metadata?.provider === 'google') {
+              console.log('🔄 Google user detected, syncing profile data...');
+              await syncGoogleProfileData(user.id, user.email, user);
+            }
+            
             const userDataToStore = {
               id: user.id,
               email: user.email,
@@ -65,15 +72,11 @@ const SupabaseAuthCallback: React.FC = () => {
             login(userDataToStore);
             localStorage.setItem('user', JSON.stringify(userDataToStore));
             
-            // Google users will have their avatars refreshed automatically by AuthContext
-            if (user.app_metadata?.provider === 'google') {
-              console.log('🔄 Google user logged in, avatar refresh will be triggered automatically by AuthContext');
-            }
-            
             navigate('/dashboard', { replace: true });
             return;
           }
-        } catch {
+        } catch (error) {
+          console.error('Profile setup error:', error);
           // Non-critical profile setup error; continue to dashboard
         }
 
