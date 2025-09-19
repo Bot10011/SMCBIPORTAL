@@ -1336,7 +1336,21 @@ const ProgramHeadEnrollment: React.FC = () => {
   const getSectionName = (sectionId: string | null | undefined): string => {
     if (!sectionId) return 'Unassigned';
     const section = sections.find(s => s.id === sectionId);
-    return section ? section.name : 'Unknown Section';
+    console.log('getSectionName debug:', {
+      sectionId,
+      sectionsCount: sections.length,
+      sections: sections.map(s => ({ id: s.id, name: s.name })),
+      foundSection: section
+    });
+    
+    if (section) {
+      // Clean up the section name to remove any extra formatting
+      const cleanName = section.name.replace(/\s*\([^)]*\)\s*$/, '').trim();
+      console.log('Cleaned section name:', { original: section.name, cleaned: cleanName });
+      return cleanName;
+    }
+    
+    return 'Unknown Section';
   };
 
   // Helper function to get section ID by name
@@ -1398,6 +1412,10 @@ const ProgramHeadEnrollment: React.FC = () => {
 
       console.log('Fetched instructor assignments:', transformedAssignments);
       console.log('Sample assignment:', transformedAssignments[0]);
+      console.log('GE 107 assignments:', transformedAssignments.filter(a => a.subject_code === 'GE 107'));
+      console.log('All GE assignments:', transformedAssignments.filter(a => a.subject_code?.startsWith('GE')));
+      console.log('Assignments for 2nd Year:', transformedAssignments.filter(a => a.year_level === '2nd Year'));
+      console.log('Assignments for IT 2B section:', transformedAssignments.filter(a => a.section?.includes('IT 2B')));
       setInstructorAssignments(transformedAssignments);
     } catch (error) {
       console.error('Error fetching instructor assignments:', error);
@@ -1646,9 +1664,12 @@ const ProgramHeadEnrollment: React.FC = () => {
         .select('id, code, name, units, lec_units, lab_units, hours_per_week, year_level, prerequisites, summer, semester')
         .order('code', { ascending: true });
       if (!error && data) {
-        console.log('Initial fetchCourses success:', data);
-        console.log('Initial courses count:', data.length);
-        setCourses(data);
+      console.log('Initial fetchCourses success:', data);
+      console.log('Initial courses count:', data.length);
+      console.log('GE 107 in courses:', data.find(c => c.code === 'GE 107'));
+      console.log('All GE courses:', data.filter(c => c.code?.startsWith('GE')));
+      console.log('Courses with year_level 2nd Year:', data.filter(c => c.year_level === '2nd Year'));
+      setCourses(data);
       } else if (error) {
         console.error('Initial fetchCourses error:', error);
         console.error('Initial error details:', {
@@ -2061,122 +2082,213 @@ const ProgramHeadEnrollment: React.FC = () => {
 
   // Helper to filter courses by student type, year level, and search
   const getVisibleCourses = () => {
-    // If Irregular or Transferee, show all
-    let filteredCourses = courses;
-    
+    // Base course selection entirely on instructor management assignments
+    console.log('=== COURSE SELECTION BASED ON INSTRUCTOR MANAGEMENT ===');
+    console.log('Total instructor assignments:', instructorAssignments.length);
+    console.log('All instructor assignments:', instructorAssignments.map(a => ({
+      id: a.id,
+      subject_code: a.subject_code,
+      subject_name: a.subject_name,
+      section: a.section,
+      year_level: a.year_level,
+      academic_year: a.academic_year,
+      semester: a.semester,
+      is_active: a.is_active
+    })));
+
+    if (!instructorAssignments.length) {
+      console.log('No instructor assignments found - returning empty courses');
+      return { firstSemester: [], secondSemester: [], summer: [] };
+    }
+
     const yearMap: Record<string, string> = {
       '1': '1st Year',
       '2': '2nd Year',
       '3': '3rd Year',
       '4': '4th Year',
     };
+
+    // Get current academic year and semester
+    const currentAcademicYear = createForm.schoolYear || getDefaultSchoolYear();
+    const currentSemester = createForm.semester || '1st Semester';
     
-    // Apply search filter
+    // Determine year levels to check based on student type and allowMixedCourses setting
+    let yearLevelsToCheck: string[];
+    if (createForm.studentType === "Freshman") {
+      yearLevelsToCheck = ['1st Year'];
+    } else if (allowMixedCourses) {
+      yearLevelsToCheck = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
+    } else {
+      yearLevelsToCheck = [yearMap[String(createForm.yearLevel)] || '1st Year'];
+    }
+
+    console.log('Filtering parameters:', {
+      currentAcademicYear,
+      currentSemester,
+      yearLevelsToCheck,
+      studentType: createForm.studentType,
+      yearLevel: createForm.yearLevel,
+      section: createForm.section
+    });
+
+    // Helper function to normalize semester names for comparison
+    const normalizeSemester = (sem?: string) => {
+      if (!sem) return '';
+      const s = String(sem).toLowerCase().trim();
+      if (s.includes('summer')) return 'Summer';
+      if (s.includes('2') || s.includes('second')) return 'Second Semester';
+      if (s.includes('1') || s.includes('first')) return 'First Semester';
+      return sem;
+    };
+
+    // Filter assignments based on academic year, semester, year level, and active status
+    let filteredAssignments = instructorAssignments.filter(assignment => {
+      const yearLevelMatch = yearLevelsToCheck.includes(assignment.year_level);
+      const academicYearMatch = assignment.academic_year === currentAcademicYear;
+      const semesterMatch = normalizeSemester(assignment.semester) === normalizeSemester(currentSemester);
+      const isActive = assignment.is_active;
+      
+      console.log('Assignment filter check:', {
+        assignment: {
+          subject_code: assignment.subject_code,
+          section: assignment.section,
+          year_level: assignment.year_level,
+          academic_year: assignment.academic_year,
+          semester: assignment.semester,
+          normalized_semester: normalizeSemester(assignment.semester),
+          is_active: assignment.is_active
+        },
+        filters: {
+          currentSemester,
+          normalized_current_semester: normalizeSemester(currentSemester)
+        },
+        matches: {
+          yearLevelMatch,
+          academicYearMatch,
+          semesterMatch,
+          isActive
+        },
+        overallMatch: yearLevelMatch && academicYearMatch && semesterMatch && isActive
+      });
+      
+      return yearLevelMatch && academicYearMatch && semesterMatch && isActive;
+    });
+
+    console.log('Assignments after year level/academic year/semester filtering:', {
+      count: filteredAssignments.length,
+      assignments: filteredAssignments.map(a => ({
+        subject_code: a.subject_code,
+        subject_name: a.subject_name,
+        section: a.section,
+        year_level: a.year_level
+      }))
+    });
+
+    // If a specific section is selected, filter by section
+    if (createForm.section && createForm.section !== '') {
+      const selectedSectionName = getSectionName(createForm.section);
+      console.log('Filtering by section:', selectedSectionName);
+      
+      const sectionFilteredAssignments = filteredAssignments.filter(assignment => {
+        // Normalize section names for comparison
+        const normalizeSectionName = (name: string) => {
+          return name.replace(/\s*\([^)]*\)\s*$/, '').trim().toLowerCase();
+        };
+        
+        const normalizedSelectedSection = normalizeSectionName(selectedSectionName);
+        const normalizedAssignmentSection = normalizeSectionName(assignment.section || '');
+        
+        const sectionMatch = assignment.section === selectedSectionName || 
+                            normalizedAssignmentSection === normalizedSelectedSection ||
+                            assignment.section?.includes(selectedSectionName) ||
+                            selectedSectionName.includes(assignment.section || '') ||
+                            normalizedAssignmentSection.includes(normalizedSelectedSection) ||
+                            normalizedSelectedSection.includes(normalizedAssignmentSection);
+        
+        console.log('Section matching check:', {
+          assignment: {
+            subject_code: assignment.subject_code,
+            section: assignment.section,
+            normalizedSection: normalizedAssignmentSection
+          },
+          selectedSection: {
+            name: selectedSectionName,
+            normalized: normalizedSelectedSection
+          },
+          sectionMatch
+        });
+        
+        return sectionMatch;
+      });
+
+      console.log('Assignments after section filtering:', {
+        count: sectionFilteredAssignments.length,
+        assignments: sectionFilteredAssignments.map(a => ({
+          subject_code: a.subject_code,
+          subject_name: a.subject_name,
+          section: a.section,
+          year_level: a.year_level
+        }))
+      });
+
+      // If no assignments found for the specific section, fall back to showing assignments for any section
+      if (sectionFilteredAssignments.length === 0) {
+        console.log('No assignments found for specific section, falling back to any section');
+        // Keep the original filteredAssignments (filtered by year level, academic year, semester)
+      } else {
+        filteredAssignments = sectionFilteredAssignments;
+      }
+    }
+
+    // Convert assignments to course objects for display
+    const courseMap = new Map();
+    
+    filteredAssignments.forEach(assignment => {
+      const courseId = assignment.subject_id;
+      if (!courseMap.has(courseId)) {
+        courseMap.set(courseId, {
+          id: courseId,
+          code: assignment.subject_code,
+          name: assignment.subject_name,
+          units: assignment.subject_units || 0,
+          year_level: assignment.year_level,
+          // Add semester information from the assignment
+          semester: assignment.semester,
+          // Add instructor information
+          instructor: {
+            id: assignment.teacher_id,
+            name: assignment.teacher_name,
+            section: assignment.section
+          }
+        });
+      }
+    });
+
+    const coursesFromAssignments = Array.from(courseMap.values());
+    
+    console.log('Final courses from instructor assignments:', {
+      count: coursesFromAssignments.length,
+      courses: coursesFromAssignments.map(c => ({
+        code: c.code,
+        name: c.name,
+        year_level: c.year_level,
+        instructor: c.instructor
+      }))
+    });
+
+    // Apply search filter if provided
+    let filteredCourses = coursesFromAssignments;
     if (courseSearch.trim() !== '') {
       const search = courseSearch.trim().toLowerCase();
-      filteredCourses = courses.filter(
+      filteredCourses = coursesFromAssignments.filter(
         (c: { id: string; code: string; name: string; units: number; year_level?: string; status?: string }) =>
           c.code.toLowerCase().includes(search) || c.name.toLowerCase().includes(search)
       );
     }
 
-    // Filter courses based on instructor assignments for the selected section
-    if (createForm.section && createForm.section !== '') {
-      
-      // Convert section ID to section name for comparison
-      const selectedSectionName = getSectionName(createForm.section);
-      
-      // Get course IDs that have instructors assigned to the selected section
-      const currentAcademicYear = createForm.schoolYear || getDefaultSchoolYear();
-      const currentSemester = createForm.semester || '1st Semester';
-      
-      // If allowMixedCourses is enabled, get all year levels (1st-4th year)
-      // Otherwise, only get the student's current year level
-      const yearLevelsToCheck = allowMixedCourses 
-        ? ['1st Year', '2nd Year', '3rd Year', '4th Year']
-        : [yearMap[String(createForm.yearLevel)] || '1st Year'];
-      
-      const availableCourseIds = instructorAssignments
-        .filter(assignment => 
-          assignment.section === selectedSectionName &&
-          yearLevelsToCheck.includes(assignment.year_level) &&
-          assignment.academic_year === currentAcademicYear &&
-          assignment.semester === currentSemester &&
-          assignment.is_active
-        )
-        .map(assignment => assignment.subject_id);
-
-      // For Freshman students, show all courses for their year level regardless of instructor assignments
-      // For other student types, filter courses to only show those with instructor assignments
-      if (createForm.studentType === "Freshman") {
-        // Don't filter by instructor assignments for freshmen - show all courses for their year level
-        console.log('Freshman student - showing all courses for year level without instructor filtering');
-      } else {
-        // Filter courses to only show those with instructor assignments for the selected section
-        filteredCourses = filteredCourses.filter(course => 
-          availableCourseIds.includes(course.id)
-        );
-      }
-      
-      // If no courses are available for the selected section, log this for debugging
-      if (availableCourseIds.length === 0) {
-        console.log(`No instructor assignments found for section: ${selectedSectionName}, year level: ${yearLevelsToCheck.join(', ')}, academic year: ${currentAcademicYear}, semester: ${currentSemester}`);
-      }
-    }
-
     const categorized = categorizeCourses(filteredCourses);
     
-    // Debug logging for Freshman students
-    if (createForm.studentType === "Freshman") {
-      console.log('=== FRESHMAN COURSE DEBUG ===');
-      console.log('Total filtered courses:', filteredCourses.length);
-      console.log('Categorized courses:', categorized);
-      console.log('Year level:', createForm.yearLevel);
-      console.log('Year label:', yearMap[String(createForm.yearLevel)] || '1st Year');
-    }
-    
-    if (["Irregular", "Transferee"].includes(createForm.studentType)) {
-      return categorized;
-    }
-    if (createForm.studentType === "Regular" && allowMixedCourses) {
-      return categorized;
-    }
-    const yearLabel = yearMap[String(createForm.yearLevel)] || '1st Year';
-    const filtered: Record<string, Record<string, Array<{
-      id: string;
-      code: string;
-      name: string;
-      units: number;
-      year_level?: string;
-    }>>> = {};
-    
-    // For Freshman students, show both Major and Minor courses for their year level
-    if (createForm.studentType === "Freshman") {
-      // Include Major courses for the student's year level
-      if (categorized['Major'] && categorized['Major'][yearLabel]) {
-        filtered['Major'] = { [yearLabel]: categorized['Major'][yearLabel] };
-        console.log('Added Major courses for Freshman:', categorized['Major'][yearLabel].length);
-      } else {
-        console.log('No Major courses found for Freshman year level:', yearLabel);
-        console.log('Available Major categories:', Object.keys(categorized['Major'] || {}));
-      }
-      // Include all Minor courses
-      if (categorized['Minor']) {
-        filtered['Minor'] = categorized['Minor'];
-        console.log('Added Minor courses for Freshman:', Object.values(categorized['Minor']).flat().length);
-      }
-    } else {
-      // For Regular students, show Major courses for their year level and all Minor courses
-      if (categorized['Major'] && categorized['Major'][yearLabel]) {
-        filtered['Major'] = { [yearLabel]: categorized['Major'][yearLabel] };
-      }
-      if (categorized['Minor']) {
-        filtered['Minor'] = categorized['Minor'];
-      }
-    }
-    
-    console.log('Final filtered courses for Freshman:', filtered);
-    return filtered;
+    return categorized;
   };
 
   const visibleCourses = useMemo(() => getVisibleCourses(), [courses, createForm, courseSearch, allowMixedCourses, instructorAssignments]);
