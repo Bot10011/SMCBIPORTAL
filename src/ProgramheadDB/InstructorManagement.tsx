@@ -377,19 +377,19 @@ const InstructorManagement: React.FC = () => {
           // Default to 1st Year if no pattern found
           return '1st Year';
         })(),
-        // Assign semester based on summer field first, then fallback to existing logic
+        // Preserve original semester value and only use fallback logic if semester is not set
         semester: (() => {
-          // Check if course is marked as summer in the database
-          if (course.summer === true) {
-            return 'Summer';
-          }
-          
-          // If semester is already set, use it
+          // If semester is already set in the database, use it (don't override based on summer field)
           if (course.semester) {
             return course.semester;
           }
           
-          // Try to extract semester from course code or name
+          // Only use summer field as fallback if semester is not set
+          if (course.summer === true) {
+            return 'Summer';
+          }
+          
+          // Try to extract semester from course code or name as last resort
           const code = String(course.code || '').toLowerCase();
           const name = String(course.name || '').toLowerCase();
           
@@ -956,15 +956,14 @@ const InstructorManagement: React.FC = () => {
       editingAssignmentId: assignment.id || ''
     });
 
-    // Prefer course-derived year_level/semester to guarantee subject appears in filtered list
-    const courseForAssignment = courses.find(c => c.id === assignment.subject_id);
+    // Use the actual assignment data to ensure consistency
     setNewAssignment({
       teacher_id: assignment.teacher_id,
       subject_id: assignment.subject_id,
       section: assignment.section,
       academic_year: assignment.academic_year,
-      semester: normalizeSemester(courseForAssignment?.semester || assignment.semester),
-      year_level: normalizeYearLevel((courseForAssignment?.year_level as string) || assignment.year_level),
+      semester: normalizeSemester(assignment.semester),
+      year_level: normalizeYearLevel(assignment.year_level),
       is_active: assignment.is_active,
       day: expandDayAbbreviations(assignment.day) || '',
       time: assignment.time || ''
