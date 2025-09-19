@@ -1396,6 +1396,8 @@ const ProgramHeadEnrollment: React.FC = () => {
         subject_units: assignment.subject?.units || 0
       }));
 
+      console.log('Fetched instructor assignments:', transformedAssignments);
+      console.log('Sample assignment:', transformedAssignments[0]);
       setInstructorAssignments(transformedAssignments);
     } catch (error) {
       console.error('Error fetching instructor assignments:', error);
@@ -1425,31 +1427,64 @@ const ProgramHeadEnrollment: React.FC = () => {
       assignment.is_active
     );
 
+    // Debug logging
+    console.log(`getInstructorForCourse debug for courseId: ${courseId}`, {
+      studentYearLevel,
+      studentSection,
+      currentAcademicYear,
+      currentSemester,
+      totalAssignments: instructorAssignments.length,
+      filteredAssignments: assignments.length,
+      assignments: assignments.map(a => ({
+        id: a.id,
+        section: a.section,
+        year_level: a.year_level,
+        teacher_name: a.teacher_name,
+        subject_code: a.subject_code
+      }))
+    });
+
     // If we have student year level and section, try to find exact match first
     if (studentYearLevel && studentSection) {
       // Convert section ID to section name for comparison
       const sectionName = getSectionName(studentSection);
+      
+      console.log(`Looking for exact match - sectionName: ${sectionName}, studentYearLevel: ${studentYearLevel}`);
       
       const exactMatch = assignments.find(assignment => 
         assignment.year_level === studentYearLevel && 
         assignment.section === sectionName
       );
       if (exactMatch) {
+        console.log('Found exact match:', exactMatch);
         return {
           ...exactMatch,
           isExactMatch: true
+        };
+      }
+      
+      // If no exact match found for the selected section, 
+      // return the first available assignment for this course (from any section)
+      // This ensures courses are still shown even if no instructor is assigned to the specific section
+      if (assignments.length > 0) {
+        console.log('No exact match, returning first available assignment:', assignments[0]);
+        return {
+          ...assignments[0],
+          isExactMatch: false
         };
       }
     }
 
     // If no exact match, return the first available assignment
     if (assignments.length > 0) {
+      console.log('Returning first available assignment (no section filter):', assignments[0]);
       return {
         ...assignments[0],
         isExactMatch: false
       };
     }
 
+    console.log('No assignments found for course:', courseId);
     return null;
   };
 
@@ -2071,17 +2106,21 @@ const ProgramHeadEnrollment: React.FC = () => {
         )
         .map(assignment => assignment.subject_id);
 
-      // For Freshman students, if no instructor assignments are found for their year level,
-      // show all courses for that year level to ensure they can see available courses
-      if (createForm.studentType === "Freshman" && availableCourseIds.length === 0) {
-        console.log('No instructor assignments found for Freshman, showing all courses for year level');
-        // Don't filter by instructor assignments for freshmen if none are found
-        // This ensures freshmen can see all available courses for their year level
+      // For Freshman students, show all courses for their year level regardless of instructor assignments
+      // For other student types, filter courses to only show those with instructor assignments
+      if (createForm.studentType === "Freshman") {
+        // Don't filter by instructor assignments for freshmen - show all courses for their year level
+        console.log('Freshman student - showing all courses for year level without instructor filtering');
       } else {
-        // Filter courses to only show those with instructor assignments
+        // Filter courses to only show those with instructor assignments for the selected section
         filteredCourses = filteredCourses.filter(course => 
           availableCourseIds.includes(course.id)
         );
+      }
+      
+      // If no courses are available for the selected section, log this for debugging
+      if (availableCourseIds.length === 0) {
+        console.log(`No instructor assignments found for section: ${selectedSectionName}, year level: ${yearLevelsToCheck.join(', ')}, academic year: ${currentAcademicYear}, semester: ${currentSemester}`);
       }
     }
 
@@ -5293,7 +5332,8 @@ const ProgramHeadEnrollment: React.FC = () => {
                                         {course.name}
                                       </Typography>
                                       {(() => {
-                                        const instructor = getInstructorForCourse(course.id, createForm.yearLevel?.toString(), createForm.section);
+                                        const yearLevelString = createForm.yearLevel ? `${createForm.yearLevel}${createForm.yearLevel === 1 ? 'st' : createForm.yearLevel === 2 ? 'nd' : createForm.yearLevel === 3 ? 'rd' : 'th'} Year` : '';
+                                        const instructor = getInstructorForCourse(course.id, yearLevelString, createForm.section);
                                         if (instructor) {
                                           return (
                                             <Box sx={{ 
@@ -6069,7 +6109,8 @@ const ProgramHeadEnrollment: React.FC = () => {
                                         {course.name}
                                       </Typography>
                                       {(() => {
-                                        const instructor = getInstructorForCourse(course.id, createForm.yearLevel?.toString(), createForm.section);
+                                        const yearLevelString = createForm.yearLevel ? `${createForm.yearLevel}${createForm.yearLevel === 1 ? 'st' : createForm.yearLevel === 2 ? 'nd' : createForm.yearLevel === 3 ? 'rd' : 'th'} Year` : '';
+                                        const instructor = getInstructorForCourse(course.id, yearLevelString, createForm.section);
                                         const isMatch = isSectionMatch(course.id, createForm.section);
                                         
                                         if (instructor) {
