@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useModal } from '../contexts/ModalContext';
 import { UserRole } from '../types/auth';
 import { supabase } from '../lib/supabase';
+import { enhanceGoogleAvatarUrl } from '../lib/googleProfileSync';
 import {
   Users,
   Settings,
@@ -357,6 +358,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(null);
   const [authDisplayName, setAuthDisplayName] = useState<string>('');
+  const [isProfileLoading, setIsProfileLoading] = useState(true);
   const [showThemeMenu, setShowThemeMenu] = useState(false);
 
   // Ref for the Logout button
@@ -508,86 +510,125 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
     }
   }, [isMobile]);
 
-  // useEffect for fetching profile (not conditional)
+  // useEffect for fetching profile with loading state and caching
   useEffect(() => {
     const fetchProfile = async () => {
       if (user?.id) {
-        const { data, error } = await supabase
-          .from('user_profiles')
-          .select('first_name, middle_name, last_name, profile_picture_url, display_name, avatar_url')
-          .eq('id', user.id)
-          .single();
-        if (!error && data) {
-          setProfile(data);
+        setIsProfileLoading(true);
+        try {
+          // Check cache first
+          const cacheKey = `sidebar_profile_${user.id}`;
+          const cachedProfile = localStorage.getItem(cacheKey);
+          const cachedAvatar = localStorage.getItem(`sidebar_avatar_${user.id}`);
           
-          // Priority 1: Use display_name from database profile
-          if (data.display_name && data.display_name.trim()) {
-            setAuthDisplayName(data.display_name);
-          } else {
-            // Fallback to constructed name from first/middle/last names
-            const constructedName = `${data.first_name || ''} ${data.middle_name ? data.middle_name + ' ' : ''}${data.last_name || ''}`.trim();
-            if (constructedName) {
-              setAuthDisplayName(constructedName);
-            } else {
-              setAuthDisplayName(user.email || '');
-            }
-          }
-          
-          // Priority 1: Use avatar_url from database profile
-          let pictureUrl: string | null = data.avatar_url || null;
-          
-          // Priority 2: Fallback to profile_picture_url from storage bucket
-          if (!pictureUrl && data.profile_picture_url) {
-            const { data: signedUrlData } = await supabase
-              .storage
-              .from('avatar')
-              .createSignedUrl(data.profile_picture_url, 60 * 60);
-            if (signedUrlData?.signedUrl) {
-              pictureUrl = signedUrlData.signedUrl;
-            }
-          }
-          
-          // Priority 3: Fallback to Google metadata if database fields are empty
-          if (!pictureUrl) {
+          if (cachedProfile && cachedAvatar) {
             try {
-              const { data: authData } = await supabase.auth.getUser();
-              const authUser = authData?.user;
-              const authAvatar = authUser ? getAuthAvatarUrl(authUser) : null;
-              if (authAvatar) {
-                pictureUrl = authAvatar;
-              }
+              const parsedProfile = JSON.parse(cachedProfile);
+              setProfile(parsedProfile);
+              setAuthDisplayName(parsedProfile.display_name || user.email || '');
+              setProfilePictureUrl(cachedAvatar);
+              setIsProfileLoading(false);
             } catch {
-              // ignore; try next strategy
+              // Invalid cache, continue with fresh fetch
             }
           }
+
+          const { data, error } = await supabase
+            .from('user_profiles')
+            .select('first_name, middle_name, last_name, profile_picture_url, display_name, avatar_url')
+            .eq('id', user.id)
+            .single();
           
-          // Priority 4: Final fallback to Google API if still no avatar
-          if (!pictureUrl) {
-            try {
-              const { data: sessionData } = await supabase.auth.getSession();
-              const token = sessionData?.session?.provider_token as string | undefined;
-              if (token) {
-                const resp = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-                  headers: { Authorization: `Bearer ${token}` }
-                });
-                if (resp.ok) {
-                  const json = await resp.json();
-                  if (typeof json?.picture === 'string') {
-                    pictureUrl = json.picture;
+          if (!error && data) {
+            setProfile(data);
+            
+            // Priority 1: Use display_name from database profile
+            if (data.display_name && data.display_name.trim()) {
+              setAuthDisplayName(data.display_name);
+            } else {
+              // Fallback to constructed name from first/middle/last names
+              const constructedName = `${data.first_name || ''} ${data.middle_name ? data.middle_name + ' ' : ''}${data.last_name || ''}`.trim();
+              if (constructedName) {
+                setAuthDisplayName(constructedName);
+              } else {
+                setAuthDisplayName(user.email || '');
+              }
+            }
+            
+            // Priority 1: Use avatar_url from database
+            let pictureUrl: string | null = data.avatar_url || null;
+            
+            // Priority 2: Fallback to profile_picture_url from storage bucket
+            if (!pictureUrl && data.profile_picture_url) {
+              const { data: signedUrlData } = await supabase
+                .storage
+                .from('avatar')
+                .createSignedUrl(data.profile_picture_url, 60 * 60);
+              if (signedUrlData?.signedUrl) {
+                pictureUrl = signedUrlData.signedUrl;
+              }
+            }
+            
+            // Priority 3: Fallback to Google metadata if database fields are empty
+            if (!pictureUrl) {
+              try {
+                const { data: authData } = await supabase.auth.getUser();
+                const authUser = authData?.user;
+                const fromAuth = authUser ? getAuthAvatarUrl(authUser) : null;
+                if (fromAuth) {
+                  pictureUrl = enhanceGoogleAvatarUrl(fromAuth);
+                }
+              } catch {
+                // ignore; try next strategy
+              }
+            }
+            
+            // Priority 4: Final fallback to Google API if still no avatar
+            if (!pictureUrl) {
+              try {
+                const { data: sessionData } = await supabase.auth.getSession();
+                const token = sessionData?.session?.provider_token as string | undefined;
+                if (token) {
+                  const resp = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                    headers: { Authorization: `Bearer ${token}` }
+                  });
+                  if (resp.ok) {
+                    const json = await resp.json();
+                    if (typeof json?.picture === 'string') {
+                      pictureUrl = enhanceGoogleAvatarUrl(json.picture);
+                    }
                   }
                 }
+              } catch {
+                // ignore; final fallback
+              }
+            }
+            
+            // Cache the profile data and avatar URL
+            try {
+              localStorage.setItem(cacheKey, JSON.stringify(data));
+              if (pictureUrl) {
+                localStorage.setItem(`sidebar_avatar_${user.id}`, pictureUrl);
               }
             } catch {
-              // ignore; final fallback
+              // ignore cache errors
             }
+            
+            setProfilePictureUrl(pictureUrl);
           }
-          
-          setProfilePictureUrl(pictureUrl);
+        } catch (error) {
+          console.error('Error fetching sidebar profile:', error);
+          setProfile(null);
+          setProfilePictureUrl(null);
+          setAuthDisplayName(user?.email || '');
+        } finally {
+          setIsProfileLoading(false);
         }
       } else {
         setProfile(null);
         setProfilePictureUrl(null);
         setAuthDisplayName(user?.email || '');
+        setIsProfileLoading(false);
       }
     };
     fetchProfile();
@@ -747,7 +788,11 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                 }}
               >
                 <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center overflow-hidden">
-                  {profilePictureUrl ? (
+                  {isProfileLoading ? (
+                    <div className="w-full h-full bg-gray-300 animate-pulse rounded-full flex items-center justify-center">
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                  ) : profilePictureUrl ? (
                     <img src={profilePictureUrl} alt="Profile" className="w-full h-full object-cover" />
                   ) : profile ? (
                     <span className="text-white font-bold text-lg">
@@ -761,7 +806,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                   <p className="text-sm font-medium text-white truncate">
                     {authDisplayName || user.email?.split('@')[0]}
                   </p>
-                
+               
                 </div>
               </div>
             )}
