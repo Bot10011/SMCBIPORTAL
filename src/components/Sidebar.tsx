@@ -761,9 +761,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                   <p className="text-sm font-medium text-white truncate">
                     {authDisplayName || user.email?.split('@')[0]}
                   </p>
-                  <p className="text-xs text-gray-400 truncate">
-                    {user.email}
-                  </p>
+                
                 </div>
               </div>
             )}
