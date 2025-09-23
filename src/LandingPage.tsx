@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import Login from './Login';
 import { motion, useMotionValue, useTransform, useSpring, AnimatePresence } from 'framer-motion';
@@ -39,6 +39,45 @@ const LandingPage = () => {
   const [verificationCode, setVerificationCode] = useState('');
   const [verifyingCode, setVerifyingCode] = useState(false);
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
+  const [logoLoaded, setLogoLoaded] = useState(false);
+  const logoRef = useRef<HTMLImageElement | null>(null);
+  const [loadedDevs, setLoadedDevs] = useState<Record<string, boolean>>({});
+  const visibleDevImgRef = useRef<HTMLImageElement | null>(null);
+  const devs = useMemo(() => ([
+    {
+      img: '/img/1.jpg',
+      name: 'Retchel Cabaron ',
+      role: 'Team Lead',
+      fb: 'https://www.facebook.com/retchel.cabaron.1',
+    },
+    {
+      img: '/img/2.jpg',
+      name: 'Jesson Mondejar',
+      role: 'Lead Full-Stack Developer & UX/UI Designer',
+      fb: 'https://www.facebook.com/code.write.debug.learn.build.repeat.improve.grow',
+      gh: 'https://github.com/Bot10011',
+      
+    },
+    {
+      img: '/img/3.jpg',
+      name: 'Larecion Rams',
+      role: 'Co Full-Stack Developer & UX Designer',
+      fb: 'https://www.facebook.com/larecion.rams.2024',
+      gh: 'https://github.com/midastouch79',
+    },
+    {
+      img: '/img/4.jpg',
+      name: 'Jay Ayop',
+      role: 'Documentation Specialist',
+      fb: 'https://www.facebook.com/jay.ayop.56',
+    },
+    {
+      img: '/img/5.jpg',
+      name: 'Manilyn  Matanggo',
+      role: 'Documentation Specialist',
+      fb: 'https://www.facebook.com/manilyn.bayoga.matanggo',
+    },
+  ]), []);
 
 
   // Add motion values for 3D effect with performance optimization
@@ -53,6 +92,14 @@ const LandingPage = () => {
   const springConfig = { damping: 20, stiffness: 100 };
   const springRotateX = useSpring(rotateX, springConfig);
   const springRotateY = useSpring(rotateY, springConfig);
+
+  // Direction-aware swipe variants for mobile developer carousel
+  const swipeVariants = {
+    enter: (dir: number) => ({ x: dir === 1 ? '100%' : '-100%', opacity: 0.7 }),
+    center: { x: 0, opacity: 1 },
+    exit: (dir: number) => ({ x: dir === 1 ? '-100%' : '100%', opacity: 0.7 })
+  } as const;
+  // Removed prevDevIndex since preview card is no longer shown
 
   // Handle mouse movement with throttling for better performance
   const handleMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
@@ -92,6 +139,74 @@ const LandingPage = () => {
     }, 100); // Small delay to ensure smooth loading
     
     return () => clearTimeout(timer);
+  }, []);
+
+  // Preload logo image for faster first paint
+  useEffect(() => {
+    try {
+      const href = '/img/logo3.png';
+      const link = document.createElement('link');
+      link.rel = 'preload';
+      link.as = 'image';
+      link.href = href;
+      link.setAttribute('fetchpriority', 'high');
+      document.head.appendChild(link);
+
+      return () => {
+        if (link && link.parentNode) link.parentNode.removeChild(link);
+      };
+    } catch {
+      // no-op if document/head not available
+    }
+  }, []);
+
+  // Preload currently visible developer image on modal open; prefetch others on idle
+  useEffect(() => {
+    if (!showDevModal) return;
+    try {
+      const current = devs[currentDevIndex];
+      if (current?.img) {
+        const link = document.createElement('link');
+        link.rel = 'preload';
+        link.as = 'image';
+        link.href = current.img;
+        link.setAttribute('fetchpriority', 'high');
+        document.head.appendChild(link);
+        // Cleanup
+        setTimeout(() => { if (link.parentNode) link.parentNode.removeChild(link); }, 3000);
+      }
+
+      const idle = (cb: () => void) => {
+        const w = window as unknown as { requestIdleCallback?: (cb: () => void, opts?: { timeout?: number }) => number };
+        if (typeof w.requestIdleCallback === 'function') {
+          w.requestIdleCallback(cb, { timeout: 1500 });
+        } else {
+          setTimeout(cb, 0);
+        }
+      };
+      idle(() => {
+        // Hint CDNs/browsers without forcing immediate fetches
+        const link = document.createElement('link');
+        link.rel = 'preconnect';
+        link.href = location.origin;
+        document.head.appendChild(link);
+        setTimeout(() => { if (link.parentNode) link.parentNode.removeChild(link); }, 5000);
+      });
+    } catch { /* noop */ }
+  }, [showDevModal, currentDevIndex, devs, isMobile]);
+
+  // Apply high fetchpriority to currently visible dev image
+  useEffect(() => {
+    if (visibleDevImgRef.current) {
+      try { visibleDevImgRef.current.setAttribute('fetchpriority', 'high'); } catch { /* noop */ }
+    }
+  }, [currentDevIndex, showDevModal]);
+
+  // Ensure fetchpriority is applied to the logo element without React prop warning
+  useEffect(() => {
+    if (logoRef.current) {
+      try { logoRef.current.setAttribute('fetchpriority', 'high'); } catch { void 0; }
+    }
   }, []);
 
   // Show Google OAuth error immediately on landing if present
@@ -171,41 +286,7 @@ const LandingPage = () => {
     };
   }, []);
 
-  const devs = [
-    {
-      img: '/img/1.jpg',
-      name: 'Retchel Cabaron ',
-      role: 'Team Lead',
-      fb: 'https://www.facebook.com/retchel.cabaron.1',
-    },
-    {
-      img: '/img/2.jpg',
-      name: 'Jesson Mondejar',
-      role: 'Lead Full-Stack Developer & UX/UI Designer',
-      fb: 'https://www.facebook.com/code.write.debug.learn.build.repeat.improve.grow',
-      gh: 'https://github.com/Bot10011',
-      
-    },
-    {
-      img: '/img/3.jpg',
-      name: 'Larecion Rams',
-      role: 'Co Full-Stack Developer & UX Designer',
-      fb: 'https://www.facebook.com/larecion.rams.2024',
-      gh: 'https://github.com/midastouch79',
-    },
-    {
-      img: '/img/4.jpg',
-      name: 'Jay Ayop',
-      role: 'Documentation Specialist',
-      fb: 'https://www.facebook.com/jay.ayop.56',
-    },
-    {
-      img: '/img/5.jpg',
-      name: 'Manilyn  Matanggo',
-      role: 'Documentation Specialist',
-      fb: 'https://www.facebook.com/manilyn.bayoga.matanggo',
-    },
-  ];
+  
 
   // Auto-slide effect for mobile
   // Remove auto-slide logic for mobile
@@ -366,48 +447,60 @@ const LandingPage = () => {
                 }}
               />
 
-              <motion.img
-                src="/img/logo3.png"
-                alt="SMCBI Logo"
-                className="w-32 h-auto mb-6 relative z-10 drop-shadow-2xl"
-                style={{
-                  rotateX: springRotateX,
-                  rotateY: springRotateY,
-                  transformStyle: 'preserve-3d',
-                  filter: 'drop-shadow(0 10px 15px rgba(0, 0, 0, 0.3))',
-                  willChange: 'transform'
-                }}
-                whileHover={{ 
-                  scale: 1.05,
-                  filter: 'drop-shadow(0 15px 20px rgba(0, 0, 0, 0.4))'
-                }}
-                animate={{
-                  y: [0, -8, 0],
-                  rotateZ: [0, 1, -1, 0],
-                  filter: [
-                    'drop-shadow(0 10px 15px rgba(0, 0, 0, 0.3))',
-                    'drop-shadow(0 15px 20px rgba(0, 0, 0, 0.4))',
-                    'drop-shadow(0 10px 15px rgba(0, 0, 0, 0.3))'
-                  ]
-                }}
-                transition={{
-                  y: {
-                    duration: 6,
-                    repeat: Infinity,
-                    ease: "easeInOut"
-                  },
-                  rotateZ: {
-                    duration: 8,
-                    repeat: Infinity,
-                    ease: "easeInOut"
-                  },
-                  filter: {
-                    duration: 6,
-                    repeat: Infinity,
-                    ease: "easeInOut"
-                  }
-                }}
-              />
+              <div className="relative flex items-center justify-center">
+                {!logoLoaded && (
+                  <div className="w-32 h-32 mb-6 rounded-xl bg-white/10 animate-pulse" />
+                )}
+                <motion.img
+                  src="/img/logo3.png"
+                  alt="SMCBI Logo"
+                  width={128}
+                  height={128}
+                  loading="eager"
+                  decoding="async"
+                  ref={logoRef}
+                  className={`w-32 h-auto mb-6 relative z-10 drop-shadow-2xl ${logoLoaded ? 'opacity-100' : 'opacity-0'}`}
+                  style={{
+                    rotateX: springRotateX,
+                    rotateY: springRotateY,
+                    transformStyle: 'preserve-3d',
+                    filter: 'drop-shadow(0 10px 15px rgba(0, 0, 0, 0.3))',
+                    willChange: 'transform'
+                  }}
+                  whileHover={{ 
+                    scale: 1.05,
+                    filter: 'drop-shadow(0 15px 20px rgba(0, 0, 0, 0.4))'
+                  }}
+                  animate={{
+                    y: [0, -8, 0],
+                    rotateZ: [0, 1, -1, 0],
+                    filter: [
+                      'drop-shadow(0 10px 15px rgba(0, 0, 0, 0.3))',
+                      'drop-shadow(0 15px 20px rgba(0, 0, 0, 0.4))',
+                      'drop-shadow(0 10px 15px rgba(0, 0, 0, 0.3))'
+                    ]
+                  }}
+                  transition={{
+                    y: {
+                      duration: 6,
+                      repeat: Infinity,
+                      ease: "easeInOut"
+                    },
+                    rotateZ: {
+                      duration: 8,
+                      repeat: Infinity,
+                      ease: "easeInOut"
+                    },
+                    filter: {
+                      duration: 6,
+                      repeat: Infinity,
+                      ease: "easeInOut"
+                    }
+                  }}
+                  onLoad={() => setLogoLoaded(true)}
+                  onError={() => setLogoLoaded(true)}
+                />
+              </div>
 
               {/* Glow effect */}
               <motion.div
@@ -1067,19 +1160,19 @@ const LandingPage = () => {
       )}
 
       {/* Developer Modal */}
-      <AnimatePresence>
+      <AnimatePresence initial={false}>
         {showDevModal && (
           <motion.div
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-            initial={{ opacity: 0 }}
+            initial={{ opacity: 1 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.25 }}
+            exit={{ opacity: 1 }}
+            transition={{ duration: 0 }}
             style={{ overflow: 'hidden' }}
           >
             <motion.div
               className={`dev-modal-sheet w-full max-w-6xl ${isMobile ? 'max-h-[70vh] p-1' : 'p-2'} relative bg-white rounded-3xl shadow-2xl border border-gray-200`}
-              initial={isMobile ? { y: '100%', opacity: 0 } : { opacity: 0, y: 20 }}
+              initial={false}
               animate={isMobile ? { y: 0, opacity: 1 } : { opacity: 1, y: 0 }}
               exit={isMobile ? { y: '100%', opacity: 0 } : { opacity: 0, y: 20 }}
               transition={{ 
@@ -1128,13 +1221,15 @@ const LandingPage = () => {
                 {isMobile ? (
                   <div className="w-full flex flex-col items-center">
                     <div className="relative h-64 w-full flex items-center justify-center">
-                      <AnimatePresence mode="wait" initial={false}>
-                        <motion.div
+                      <AnimatePresence initial={false} custom={direction}>
+                    <motion.div
                           key={devs[currentDevIndex].name}
                           className="absolute left-0 right-0 mx-auto flex flex-col items-center bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-4 shadow-lg transition-all duration-300 w-64"
-                          initial={{ x: direction === 1 ? '100vw' : '-100vw', opacity: 0.7 }}
-                          animate={{ x: 0, opacity: 1 }}
-                          exit={{ x: direction === 1 ? '-100vw' : '100vw', opacity: 0.7 }}
+                          variants={swipeVariants}
+                          initial="enter"
+                          animate="center"
+                          exit="exit"
+                          custom={direction}
                           transition={{ 
                             type: 'tween', 
                             duration: 0.25, 
@@ -1160,11 +1255,22 @@ const LandingPage = () => {
                           }}
                         >
                           <div className="relative mb-3">
-                            <img
-                              src={devs[currentDevIndex].img}
-                              alt={devs[currentDevIndex].name}
-                              className="w-32 h-32 rounded-full object-cover border-2 border-blue-400 shadow-lg"
-                            />
+                        {!loadedDevs[devs[currentDevIndex].img] && (
+                          <div className="w-32 h-32 rounded-full bg-gray-200 animate-pulse border-2 border-transparent" />
+                        )}
+                          <img
+                          src={devs[currentDevIndex].img}
+                          alt={devs[currentDevIndex].name}
+                          width={128}
+                          height={128}
+                          loading="eager"
+                          decoding="async"
+                            sizes="128px"
+                          ref={visibleDevImgRef}
+                          onLoad={() => setLoadedDevs((m) => ({ ...m, [devs[currentDevIndex].img]: true }))}
+                          onError={() => setLoadedDevs((m) => ({ ...m, [devs[currentDevIndex].img]: true }))}
+                          className={`w-32 h-32 rounded-full object-cover border-2 border-blue-400 shadow-lg ${loadedDevs[devs[currentDevIndex].img] ? 'opacity-100' : 'opacity-0'}`}
+                        />
                             <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-white"></div>
                           </div>
                           <div className="font-semibold text-[#2C3E50] text-center text-sm mb-1">{devs[currentDevIndex].name}</div>
@@ -1226,7 +1332,7 @@ const LandingPage = () => {
                     <motion.div
                       key={dev.name}
                       className="flex flex-col items-center bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-4 shadow-lg hover:shadow-xl transition-all duration-300 w-48"
-                      initial={{ opacity: 0, y: 20 }}
+                      initial={false}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ 
                         delay: 0.05 + i * 0.08, 
@@ -1241,11 +1347,21 @@ const LandingPage = () => {
                       }}
                     >
                       <div className="relative mb-3">
-                        <img
-                          src={dev.img}
-                          alt={dev.name}
-                          className="w-24 h-24 rounded-full object-cover border-2 border-blue-400 shadow-lg"
-                        />
+                          {!loadedDevs[dev.img] && (
+                            <div className="w-24 h-24 rounded-full bg-gray-200 animate-pulse border-2 border-transparent" />
+                          )}
+                          <img
+                            src={dev.img}
+                            alt={dev.name}
+                            width={96}
+                            height={96}
+                            loading="lazy"
+                            decoding="async"
+                            sizes="96px"
+                            onLoad={() => setLoadedDevs((m) => ({ ...m, [dev.img]: true }))}
+                            onError={() => setLoadedDevs((m) => ({ ...m, [dev.img]: true }))}
+                            className={`w-24 h-24 rounded-full object-cover border-2 border-blue-400 shadow-lg ${loadedDevs[dev.img] ? 'opacity-100' : 'opacity-0'}`}
+                          />
                         <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-white"></div>
                       </div>
                       <div className="font-semibold text-[#2C3E50] text-center text-sm mb-1">{dev.name}</div>
