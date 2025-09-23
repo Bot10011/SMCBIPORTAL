@@ -27,7 +27,6 @@ body {
 
 /* Remove border style from all elements and pseudo-elements globally */
 *, *::before, *::after {
-  /*  border-style: solid !important;  */ 
 
 }
 
@@ -1422,6 +1421,12 @@ html, body, #root, .app-container {
   overflow: visible !important;
   height: auto !important;
 } 
+
+/* Ensure mobile overscroll/pull-to-refresh shows dark background instead of white */
+html, body, #root {
+  background-color: #2C3E50 !important; /* match landing overlay */
+  overscroll-behavior-y: contain; /* reduce glow/whitespace on Android */
+}
 
 /* Premium form control side shadows for better field visibility */
 .premium-form input,
