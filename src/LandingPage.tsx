@@ -160,6 +160,33 @@ const LandingPage = () => {
     }
   }, []);
 
+  // Scope background color and overscroll fix to Landing page only
+  useEffect(() => {
+    try {
+      const html = document.documentElement;
+      const body = document.body;
+      const prevHtmlBg = html.style.backgroundColor;
+      const prevBodyBg = body.style.backgroundColor;
+      const prevOverscroll = getComputedStyle(body).getPropertyValue('overscroll-behavior-y');
+
+      html.style.backgroundColor = '#2C3E50';
+      body.style.backgroundColor = '#2C3E50';
+      body.style.setProperty('overscroll-behavior-y', 'contain');
+
+      return () => {
+        html.style.backgroundColor = prevHtmlBg;
+        body.style.backgroundColor = prevBodyBg;
+        if (prevOverscroll) {
+          body.style.setProperty('overscroll-behavior-y', prevOverscroll.trim());
+        } else {
+          body.style.removeProperty('overscroll-behavior-y');
+        }
+      };
+    } catch {
+      // ignore if DOM not available
+    }
+  }, []);
+
   // Preload currently visible developer image on modal open; prefetch others on idle
   useEffect(() => {
     if (!showDevModal) return;
