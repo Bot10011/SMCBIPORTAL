@@ -1422,11 +1422,7 @@ html, body, #root, .app-container {
   height: auto !important;
 } 
 
-/* Ensure mobile overscroll/pull-to-refresh shows dark background instead of white */
-html, body, #root {
-  background-color: #2C3E50 !important; /* match landing overlay */
-  overscroll-behavior-y: contain; /* reduce glow/whitespace on Android */
-}
+/* Landing page will set overscroll/background color inline to avoid global impact */
 
 /* Premium form control side shadows for better field visibility */
 .premium-form input,
