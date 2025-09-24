@@ -228,6 +228,44 @@ app.post('/api/test-attack', async (req, res) => {
   }
 });
 
+// Get auth users endpoint
+app.get('/api/get-auth-users', async (req, res) => {
+  try {
+    console.log('👥 Get auth users request received');
+    
+    // Import and call the function directly
+    const handler = await import('./api/get-auth-users.ts');
+    await handler.default(req, res);
+  } catch (error) {
+    console.error('Error in get-auth-users:', error);
+    res.status(500).json({ 
+      error: 'Failed to process request', 
+      details: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Update auth email endpoint
+app.post('/api/update-auth-email', async (req, res) => {
+  try {
+    console.log('📧 Update auth email request received:', req.body);
+    
+    // Import and call the function directly
+    const handler = await import('./api/update-auth-email.ts');
+    await handler.default(req, res);
+  } catch (error) {
+    console.error('Error in update-auth-email:', error);
+    res.status(500).json({ 
+      error: 'Failed to process request', 
+      details: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Catch-all for API routes
 app.use('/api/*', (req, res) => {
   res.status(404).json({ error: 'API endpoint not found' });
@@ -245,6 +283,8 @@ app.listen(PORT, () => {
   console.log(`🚨 Security events endpoint: http://localhost:${PORT}/api/security-events`);
   console.log(`⏱️ Rate limit endpoint: http://localhost:${PORT}/api/rate-limit`);
   console.log(`🧪 Test attack endpoint: http://localhost:${PORT}/api/test-attack`);
+  console.log(`👥 Get auth users endpoint: http://localhost:${PORT}/api/get-auth-users`);
+  console.log(`📧 Update auth email endpoint: http://localhost:${PORT}/api/update-auth-email`);
   console.log('');
   console.log('Make sure to set these environment variables:');
   console.log('- RESEND_API_KEY');
