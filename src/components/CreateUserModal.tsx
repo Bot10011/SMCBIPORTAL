@@ -5,7 +5,8 @@ import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
 
 import { createPortal } from 'react-dom';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '../types/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
 interface Program {
@@ -102,20 +103,28 @@ interface UserProfile {
   updated_at: string;
 }
 
-// Isolated Supabase client for user creation that won't affect the main auth session
-const createUserClient = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY,
-  {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-      // Use a unique storage key to avoid cross-client broadcast collisions
-      storageKey: 'sb-create-user-client'
+// Isolated Supabase client for user creation that won't affect the main auth session.
+// Guarded as a singleton across HMR to avoid multiple GoTrueClient instances warning.
+const getCreateUserClient = () => {
+  const g = globalThis as unknown as { __sbCreateUserClient?: SupabaseClient<Database> };
+  if (g.__sbCreateUserClient) return g.__sbCreateUserClient;
+  const client = createClient<Database>(
+    import.meta.env.VITE_SUPABASE_URL,
+    import.meta.env.VITE_SUPABASE_ANON_KEY,
+    {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+        // Use a unique storage key to avoid cross-client broadcast collisions
+        storageKey: 'sb-create-user-client'
+      }
     }
-  }
-);
+  );
+  g.__sbCreateUserClient = client;
+  return client;
+};
+
 
 const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUserCreated }) => {
   // Auto-generate current academic year
@@ -544,7 +553,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onUs
       }
 
       // Create auth user using isolated client so admin session is not affected
-      const { data: authData, error: authError } = await createUserClient.auth.signUp({
+      const { data: authData, error: authError } = await getCreateUserClient().auth.signUp({
         email: `${form.email.toLowerCase()}@smcbi.edu.ph`,
         password: 'TempPass@123',
         options: {
