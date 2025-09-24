@@ -8,7 +8,7 @@ import ClassManagement from './ClassManagement';
 import InstructorManagement from './InstructorManagement';
 import UserManagement from './UserManagement';
 import EmailManagement from './EmailManagement';
-import Settings from './Settings';
+import Settings from './Settings'; 
 
 import { motion } from 'framer-motion';
 import {
