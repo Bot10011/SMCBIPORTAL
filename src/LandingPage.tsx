@@ -427,57 +427,10 @@ const LandingPage = () => {
                 transformStyle: 'preserve-3d'
               }}
             >
-              {/* Main floating shadow */}
-              <motion.div
-                className="absolute inset-0 bg-black/30 blur-2xl rounded-full"
-                style={{
-                  rotateX: springRotateX,
-                  rotateY: springRotateY,
-                  transformStyle: 'preserve-3d',
-                  zIndex: 1,
-                  filter: 'blur(20px)',
-                  transform: 'translateY(20px) scale(0.8)'
-                }}
-                animate={{
-                  scale: [0.8, 0.9, 0.8],
-                  opacity: [0.2, 0.3, 0.2],
-                  y: [20, 25, 20]
-                }}
-                transition={{
-                  duration: 4,
-                  repeat: Infinity,
-                  ease: "easeInOut"
-                }}
-              />
               
-              {/* Secondary subtle shadow for depth */}
-              <motion.div
-                className="absolute inset-0 bg-black/20 blur-xl rounded-full"
-                style={{
-                  rotateX: springRotateX,
-                  rotateY: springRotateY,
-                  transformStyle: 'preserve-3d',
-                  zIndex: 1,
-                  filter: 'blur(15px)',
-                  transform: 'translateY(15px) scale(0.85)'
-                }}
-                animate={{
-                  scale: [0.85, 0.95, 0.85],
-                  opacity: [0.15, 0.25, 0.15],
-                  y: [15, 20, 15]
-                }}
-                transition={{
-                  duration: 4,
-                  repeat: Infinity,
-                  ease: "easeInOut",
-                  delay: 0.2
-                }}
-              />
 
               <div className="relative flex items-center justify-center">
-                {!logoLoaded && (
-                  <div className="w-32 h-32 mb-6 rounded-xl bg-white/10 animate-pulse" />
-                )}
+                
                 <motion.img
                   src="/img/logo3.png"
                   alt="SMCBI Logo"
@@ -494,18 +447,9 @@ const LandingPage = () => {
                     filter: 'drop-shadow(0 10px 15px rgba(0, 0, 0, 0.3))',
                     willChange: 'transform'
                   }}
-                  whileHover={{ 
-                    scale: 1.05,
-                    filter: 'drop-shadow(0 15px 20px rgba(0, 0, 0, 0.4))'
-                  }}
                   animate={{
                     y: [0, -8, 0],
-                    rotateZ: [0, 1, -1, 0],
-                    filter: [
-                      'drop-shadow(0 10px 15px rgba(0, 0, 0, 0.3))',
-                      'drop-shadow(0 15px 20px rgba(0, 0, 0, 0.4))',
-                      'drop-shadow(0 10px 15px rgba(0, 0, 0, 0.3))'
-                    ]
+                    rotateZ: [0, 1, -1, 0]
                   }}
                   transition={{
                     y: {
@@ -517,45 +461,17 @@ const LandingPage = () => {
                       duration: 8,
                       repeat: Infinity,
                       ease: "easeInOut"
-                    },
-                    filter: {
-                      duration: 6,
-                      repeat: Infinity,
-                      ease: "easeInOut"
                     }
                   }}
                   onLoad={() => setLogoLoaded(true)}
                   onError={() => setLogoLoaded(true)}
                 />
               </div>
-
-              {/* Glow effect */}
-              <motion.div
-                className="absolute inset-0 bg-white/10 blur-3xl rounded-full"
-                style={{
-                  rotateX: springRotateX,
-                  rotateY: springRotateY,
-                  transformStyle: 'preserve-3d',
-                  zIndex: 0,
-                  filter: 'blur(30px)',
-                  transform: 'translateY(-5px) scale(0.9)'
-                }}
-                animate={{
-                  scale: [0.9, 1, 0.9],
-                  opacity: [0.1, 0.2, 0.1],
-                  y: [-5, 0, -5]
-                }}
-                transition={{
-                  duration: 4,
-                  repeat: Infinity,
-                  ease: "easeInOut",
-                  delay: 0.1
-                }}
-              />
+              
             </motion.div>
-            <h1 className="text-3xl md:text-5xl font-bold text-white tracking-wide text-center mb-10">
+            <h1 className="text-3xl md:text-5xl font-bold text-white tracking-wide text-center mb-10" style={{ fontFamily: 'Montserrat, Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial' }}>
              
-              <span className="text-base md:text-xl font-normal tracking-normal">SMCBI School Portal & Enrollment System</span>
+              <span className="text-sm md:text-lg font-bold tracking-normal" style={{ fontFamily: 'Montserrat, Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial' }}>SMCBI School Portal & Enrollment System</span>
             </h1>
             
             {/* Login Button */}
