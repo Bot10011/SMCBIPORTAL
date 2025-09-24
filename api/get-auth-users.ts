@@ -3,7 +3,7 @@ import type { Request, Response } from 'express';
 
 const supabaseAdmin = createClient(
   process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY! 
 );
 
 export default async function handler(req: Request, res: Response) {
@@ -77,3 +77,4 @@ export default async function handler(req: Request, res: Response) {
     return res.status(500).json({ error: 'Internal server error', details: err instanceof Error ? err.message : err });
   }
 }
+
