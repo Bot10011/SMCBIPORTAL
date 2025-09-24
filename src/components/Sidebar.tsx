@@ -22,6 +22,8 @@ import {
   UserPlus,
   Sun,
   Moon,
+  Mail,
+  BookOpen,
 } from 'lucide-react';
 import { PiCertificateBold  } from "react-icons/pi";
 import { PiBookOpenTextBold } from "react-icons/pi";
@@ -175,13 +177,20 @@ const sidebarItems: SidebarItem[] = [
   {
     label: 'Class Management',
     path: '/dashboard/class-management',
-    icon: <Users2 className="w-5 h-5" />,
+    icon: <BookOpen className="w-5 h-5" />,
     roles: ['program_head'],
   },
   {
     label: 'Subject Management',
     path: '/dashboard/academic-history',
     icon: <ClipboardList className="w-5 h-5" />,
+    roles: ['program_head'],
+  },
+
+  {
+    label: 'Email Management',
+    path: '/dashboard/email-management',
+    icon: <Mail className="w-5 h-5" />,
     roles: ['program_head'],
   },
   {
