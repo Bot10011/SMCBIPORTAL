@@ -7,6 +7,7 @@ import SubjectAssignment from './SubjectAssignment';
 import ClassManagement from './ClassManagement';
 import InstructorManagement from './InstructorManagement';
 import UserManagement from './UserManagement';
+import EmailManagement from './EmailManagement';
 import Settings from './Settings';
 
 import { motion } from 'framer-motion';
@@ -1298,6 +1299,7 @@ const ProgramHeadDashboard: React.FC = () => {
           <Route path="/assign-subjects" element={<SubjectAssignment />} />
           <Route path="/academic-history" element={<CoursesOffered />} />
           <Route path="/user-management" element={<UserManagement />} />
+           <Route path="/email-management" element={<EmailManagement />} />
           <Route path="/instructor-management" element={<InstructorManagement />} />
           <Route path="/class-management" element={<ClassManagement />} /> 
           <Route path="/settings" element={<Settings />} />
