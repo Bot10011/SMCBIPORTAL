@@ -5,7 +5,7 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-export default async function handler(req: any, res: any) {
+export default async function handler(req: any, res: any) { 
   try {
     if (req.method !== 'POST') {
       return res.status(405).json({ error: 'Method not allowed' });
@@ -44,3 +44,4 @@ export default async function handler(req: any, res: any) {
     return res.status(500).json({ error: 'Internal server error', details: err instanceof Error ? err.message : err });
   }
 }
+
