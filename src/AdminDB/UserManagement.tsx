@@ -432,7 +432,7 @@ export default function UserManagement() {
 
 
   return (
-    <div className="min-h-screen from-blue-50 via-white to-indigo-50 w-full">
+    <div className="min-h-screen from-blue-50 via-black to-indigo-50 w-full">
       <div className="w-full px-6 py-8">
         {/* Header Section */}
         <motion.div 
@@ -482,10 +482,21 @@ export default function UserManagement() {
           transition={{ delay: 0.3 }}
           className="usermanagement-tabs mb-6"
         >
-          <div className="bg-[#252728] rounded-2xl shadow-lg p-2 border border-gray-700 max-w-full">
-            <div className="flex items-center gap-2 md:gap-3 flex-nowrap overflow-x-auto whitespace-nowrap pr-1">
-          <div className="flex-1 min-w-[8rem] sm:min-w-[10rem] md:min-w-[14rem] lg:min-w-[16rem] xl:min-w-[20rem] max-w-[28rem]">
-            <div className="relative overflow-hidden rounded-xl bg-[#252728] border border-gray-600 shadow-[inset_4px_4px_8px_rgba(0,0,0,0.3),inset_-4px_-4px_8px_rgba(255,255,255,0.05)] focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-inset transition-all duration-200">
+          <div className="bg-white/90 rounded-2xl shadow-lg p-2 border border-gray-700 w-full">
+            <div className="flex items-center gap-1 sm:gap-2 md:gap-3 flex-wrap lg:flex-nowrap overflow-x-auto whitespace-nowrap min-w-0 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
+          <div className="flex items-center gap-1 sm:gap-2 md:gap-3 flex-1 min-w-0 w-full lg:w-auto">
+            <motion.div 
+              className={`w-full sm:flex-1 transition-all duration-300 ${
+                activeTab === 'students' 
+                  ? 'min-w-[3rem] sm:min-w-[4rem] md:min-w-[6rem] lg:min-w-[8rem] xl:min-w-[10rem] max-w-[14rem]' 
+                  : 'min-w-[6rem] sm:min-w-[8rem] md:min-w-[12rem] lg:min-w-[16rem] xl:min-w-[20rem] max-w-[24rem]'
+              }`}
+              initial={{ opacity: 0, x: -20, scale: 0.95 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              transition={{ duration: 0.4, ease: "easeOut" }}
+              key="search-bar"
+            >
+            <div className="relative overflow-hidden rounded-xl bg-white/90 border border-gray-300 shadow-sm focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-inset transition-all duration-200 hover:shadow-md hover:border-blue-300">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
               </svg>
@@ -494,20 +505,29 @@ export default function UserManagement() {
                 placeholder="Search users by full name..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-3 py-2 bg-[#1c1c1d] rounded-xl outline-none transition-all duration-200 text-xs sm:text-sm placeholder-gray-400 text-white border-0 focus:ring-0 focus:outline-none"
+                className="w-full pl-10 pr-3 py-2 bg-white rounded-xl outline-none transition-all duration-200 text-xs sm:text-sm placeholder-gray-500 text-black border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
-          </div>
-          {/* Student Status Filter - Only show when students tab is active */}
-          {activeTab === 'students' && (
-            <div className="flex-1 min-w-[8rem] sm:min-w-[10rem] md:min-w-[14rem] lg:min-w-[16rem] xl:min-w-[20rem] max-w-[28rem]">
-              <div className="relative overflow-hidden rounded-xl bg-[#252728] border border-gray-600 shadow-[inset_4px_4px_8px_rgba(0,0,0,0.3),inset_-4px_-4px_8px_rgba(255,255,255,0.05)] focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-inset transition-all duration-200">
+            </motion.div>
+            {/* Student Status Filter - Only show when students tab is active */}
+            <AnimatePresence mode="wait">
+              {activeTab === 'students' && (
+                <motion.div 
+                  className="w-full sm:flex-1 min-w-[3rem] sm:min-w-[4rem] md:min-w-[6rem] lg:min-w-[8rem] xl:min-w-[10rem] max-w-[14rem] transition-all duration-300"
+                  initial={{ opacity: 0, x: 20, scale: 0.95 }}
+                  animate={{ opacity: 1, x: 0, scale: 1 }}
+                  exit={{ opacity: 0, x: 20, scale: 0.95 }}
+                  transition={{ duration: 0.4, ease: "easeOut" }}
+                  key="student-filter"
+                >
+                <div className="relative overflow-hidden rounded-xl bg-white/90 border border-gray-300 shadow-sm focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-inset transition-all duration-200 hover:shadow-md hover:border-blue-300">
                 <select
                   value={studentStatusFilter}
                   onChange={(e) => setStudentStatusFilter(e.target.value)}
-                  className="w-full pl-3 pr-10 py-2 bg-[#1c1c1d] rounded-xl outline-none transition-all duration-200 text-xs sm:text-sm text-white border-0 focus:ring-0 focus:outline-none appearance-none cursor-pointer"
+                  className="w-full pl-3 pr-10 py-2 bg-white rounded-xl outline-none transition-all duration-200 text-xs sm:text-sm text-black border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none cursor-pointer"
+                  style={{ fontSize: '15px' }}
                 >
-                  <option value="">All Student Statuses</option>
+                  <option value="">Student Status</option>
                   <option value="active">Active</option>
                   <option value="inactive">Inactive</option>
                   <option value="graduated">Graduated</option>
@@ -518,24 +538,26 @@ export default function UserManagement() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </div>
-
-            </div>
-          )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+          <div className="flex items-center gap-1 sm:gap-2 md:gap-3 flex-shrink-0 w-full lg:w-auto justify-center lg:justify-end">
           <button
             onClick={() => {
               setActiveTab('all');
               resetStudentStatusFilter();
             }}
-            className={`flex-none shrink-0 px-3 md:px-5 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-medium transition-all duration-200 md:ml-2 ${
+            className={`flex-1 sm:flex-none shrink-0 px-1 sm:px-1.5 md:px-2 lg:px-3 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-medium transition-all duration-200 ${
               activeTab === 'all'
                 ? 'bg-blue-600 text-white shadow-sm'
-                : 'text-white hover:bg-[#2f3133]'
+                : 'text-gray-700 hover:bg-gray-100'
             }`}
           >
             <div className="flex items-center justify-center gap-2">
               <Users className="w-4 h-4" />
               <span>All Users</span>
-              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-white/20 text-white hidden xl:inline-flex">
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-white/30 text-black hidden xl:inline-flex">
                 {userStats.total}
               </span>
             </div>
@@ -545,16 +567,18 @@ export default function UserManagement() {
               setActiveTab('students');
               resetStudentStatusFilter();
             }}
-            className={`flex-none shrink-0 px-3 md:px-5 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-medium transition-all duration-200 ${
+            className={`flex-1 sm:flex-none shrink-0 px-1 sm:px-1.5 md:px-2 lg:px-3 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-medium transition-all duration-200 ${
               activeTab === 'students'
                 ? 'bg-green-600 text-white shadow-sm'
-                : 'text-white hover:bg-[#2f3133]'
+                : 'text-green-600 hover:bg-green-50'
             }`}
           >
             <div className="flex items-center justify-center gap-2">
               <Users className="w-4 h-4" />
               <span>Students</span>
-              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-white/20 text-white hidden xl:inline-flex">
+              <span className={`px-1.5 py-0.5 rounded-full text-[10px] hidden xl:inline-flex ${
+                activeTab === 'students' ? 'bg-white/60 text-green-900' : 'bg-white/30 text-gray-700'
+              }`}>
                 {userStats.students}
               </span>
             </div>
@@ -564,16 +588,18 @@ export default function UserManagement() {
               setActiveTab('instructors');
               resetStudentStatusFilter();
             }}
-            className={`flex-none shrink-0 px-3 md:px-5 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-medium transition-all duration-200 ${
+            className={`flex-1 sm:flex-none shrink-0 px-1 sm:px-1.5 md:px-2 lg:px-3 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-medium transition-all duration-200 ${
               activeTab === 'instructors'
                 ? 'bg-indigo-600 text-white shadow-sm'
-                : 'text-indigo-600 hover:bg-[#2f3133]'
+                : 'text-indigo-600 hover:bg-indigo-50'
             }`}
           >
             <div className="flex items-center justify-center gap-2">
               <Users className="w-4 h-4" />
               <span>Instructor</span>
-              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-white/20 text-white hidden xl:inline-flex">
+              <span className={`px-1.5 py-0.5 rounded-full text-[10px] hidden xl:inline-flex ${
+                activeTab === 'instructors' ? 'bg-white/60 text-indigo-900' : 'bg-white/30 text-gray-700'
+              }`}>
                 {userStats.instructors}
               </span>
             </div>
@@ -583,16 +609,18 @@ export default function UserManagement() {
               setActiveTab('registrars');
               resetStudentStatusFilter();
             }}
-            className={`flex-none shrink-0 px-3 md:px-5 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-medium transition-all duration-200 ${
+            className={`flex-1 sm:flex-none shrink-0 px-1 sm:px-1.5 md:px-2 lg:px-3 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-medium transition-all duration-200 ${
               activeTab === 'registrars'
                 ? 'bg-orange-600 text-white shadow-sm'
-                : 'text-orange-400 hover:bg-[#2f3133]'
+                : 'text-orange-600 hover:bg-orange-50'
             }`}
           >
             <div className="flex items-center justify-center gap-2">
               <Users className="w-4 h-4" />
               <span>Registrars</span>
-              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-white/20 text-white hidden xl:inline-flex">
+              <span className={`px-1.5 py-0.5 rounded-full text-[10px] hidden xl:inline-flex ${
+                activeTab === 'registrars' ? 'bg-white/60 text-orange-900' : 'bg-white/30 text-gray-700'
+              }`}>
                 {userStats.registrars}
               </span>
             </div>
@@ -602,20 +630,23 @@ export default function UserManagement() {
               setActiveTab('program_heads');
               resetStudentStatusFilter();
             }}
-            className={`flex-none shrink-0 px-3 md:px-5 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-medium transition-all duration-200 ${
+            className={`flex-1 sm:flex-none shrink-0 px-1 sm:px-1.5 md:px-2 lg:px-3 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-medium transition-all duration-200 ${
               activeTab === 'program_heads'
                 ? 'bg-purple-600 text-white shadow-sm'
-                : 'text-purple-400 hover:bg-[#2f3133]'
+                : 'text-purple-600 hover:bg-purple-50'
             }`}
           >
             <div className="flex items-center justify-center gap-2">
               <Users className="w-4 h-4" />
               <span>Program Heads</span>
-              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-white/20 text-white hidden xl:inline-flex">
+              <span className={`px-1.5 py-0.5 rounded-full text-[10px] hidden xl:inline-flex ${
+                activeTab === 'program_heads' ? 'bg-white/60 text-purple-900' : 'bg-white/30 text-gray-700'
+              }`}>
                 {userStats.program_heads}
               </span>
             </div>
           </button>
+          </div>
             </div>
           </div>
         </motion.div>
@@ -627,7 +658,7 @@ export default function UserManagement() {
           transition={{ delay: 0.4 }}
           className="usermanagement-table w-full"
         >
-      <div className="bg-[#252728] rounded-2xl shadow-lg overflow-hidden border border-gray-700 w-full">
+      <div className="bg-white/90 rounded-2xl shadow-lg overflow-hidden border border-gray-700 w-full">
         {loading ? (
           <div className="usermanagement-skeleton">
             {/* Header Skeleton */}
@@ -637,13 +668,13 @@ export default function UserManagement() {
             </div>
             
             {/* Search Bar Skeleton */}
-            <div className="bg-[#252728] rounded-2xl p-6 shadow-lg border border-gray-700 mb-8 animate-pulse">
+            <div className="bg-white/90 rounded-2xl p-6 shadow-lg border border-gray-700 mb-8 animate-pulse">
               <div className="h-12 bg-gray-200 rounded-xl w-full"></div>
             </div>
             
             {/* Tabs Skeleton */}
             <div className="mb-6 animate-pulse">
-              <div className="bg-[#252728] rounded-2xl shadow-lg p-1 border border-gray-700">
+              <div className="bg-white/90 rounded-2xl shadow-lg p-1 border border-gray-700">
                 <div className="flex gap-2">
                   {[1, 2, 3].map(i => (
                     <div key={i} className="flex-1 h-12 bg-gray-200 rounded-xl"></div>
@@ -653,7 +684,7 @@ export default function UserManagement() {
             </div>
             
             {/* Table Skeleton */}
-            <div className="bg-[#252728] rounded-2xl shadow-lg overflow-hidden border border-gray-700">
+            <div className="bg-white/90 rounded-2xl shadow-lg overflow-hidden border border-gray-700">
               <div className="p-6">
                 <div className="space-y-4">
                   {[1, 2, 3, 4, 5].map(i => (
@@ -686,19 +717,33 @@ export default function UserManagement() {
                 initial={{ opacity: 0 }} 
                 animate={{ opacity: 1 }} 
                 exit={{ opacity: 0 }} 
-                className="text-center py-20 text-gray-500"
+                className="text-center py-20"
               >
-                <div className="w-20 h-20 mx-auto mb-4 bg-[#2f3133] rounded-full flex items-center justify-center border-2 border-dashed border-gray-600">
+                <div className="w-20 h-20 mx-auto mb-4 bg-white rounded-full flex items-center justify-center border-2 border-dashed border-gray-300">
                   <Users className="w-10 h-10 text-gray-400" />
                 </div>
-                <p className="text-lg font-medium text-white">
-                  {activeTab === 'students' ? 'No students found' : 'No users found'}
+                <p className="text-xl font-semibold text-black">
+                  {activeTab === 'students' ? 'No students match your filters' : 'No users match your filters'}
                 </p>
-                <p className="text-sm text-gray-300 mt-1">
-                  {activeTab === 'students' 
-                    ? 'Add a new student to get started' 
-                    : 'Add a new user to get started'}
+                <p className="text-sm text-gray-600 mt-1">
+                  Try clearing filters or add a new {activeTab === 'students' ? 'student' : 'user'}.
                 </p>
+                <div className="mt-4 flex items-center justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => { setSearchTerm(''); setStudentStatusFilter(''); }}
+                    className="px-4 py-2 rounded-lg text-gray-700 bg-gray-100 hover:bg-gray-200 border border-gray-300 text-sm"
+                  >
+                    Clear filters
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateUserModal(true)}
+                    className="px-4 py-2 rounded-lg text-white bg-blue-600 hover:bg-blue-700 text-sm"
+                  >
+                    Add new {activeTab === 'students' ? 'student' : 'user'}
+                  </button>
+                </div>
               </motion.div>
             ) : (
               <div className="overflow-x-auto w-full">
@@ -709,37 +754,37 @@ export default function UserManagement() {
                   exit={{ opacity: 0 }} 
                   className="w-full divide-y divide-gray-200"
                 >
-                  <thead className="bg-[#2f3133]">
+                  <thead className="bg-gradient-to-r from-blue-100 to-indigo-100">
                     <tr>
-                                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">User Information</th>
+                                        <th className="px-6 py-4 text-left text-xs font-semibold text-black uppercase tracking-wider">User Information</th>
                   {activeTab === 'all' && (
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">Role</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-black uppercase tracking-wider">Role</th>
                   )}
                   {activeTab === 'students' && (
                     <>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">Academic Info</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-black uppercase tracking-wider">Academic Info</th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-black uppercase tracking-wider">Status</th>
                     </>
                   )}
                   {activeTab === 'instructors' && (
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">Department & Subjects</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-black  uppercase tracking-wider">Department & Subjects</th>
                   )}
                   {activeTab === 'registrars' && (
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-black uppercase tracking-wider">Status</th>
                   )}
                   {activeTab === 'program_heads' && (
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">Department & Status</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-black uppercase tracking-wider">Department & Status</th>
                   )}
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">Actions</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-black uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-[#252728] divide-y divide-gray-700">
+                  <tbody className="bg-white/90 divide-y divide-gray-700">
                     {filteredUsers.map((user: UserProfile) => (
                       <motion.tr 
                         key={user.id} 
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="hover:bg-[#2f3133]/50 transition-colors duration-200"
+                        className="hover:bg-gray-100 transition-colors duration-150"
                       >
                         <td className="px-6 py-5">
                           <div className="flex items-center gap-4">
@@ -762,10 +807,10 @@ export default function UserManagement() {
                               )}
                             </div>
                             <div>
-                              <div className="font-semibold text-white">
+                              <div className="font-semibold text-black">
                                 {getStudentName(user)}
                               </div>
-                              <div className="text-sm text-gray-300 mt-0.5">{user.email}</div>
+                              <div className="text-sm text-gray-600 mt-0.5">{user.email}</div>
                               {user.role === 'student' && (
                                 <div className="text-xs text-gray-400 mt-1">ID: {user.student_id}</div>
                               )}
@@ -792,7 +837,7 @@ export default function UserManagement() {
                               <div className="flex flex-col gap-1">
                                 <div className="text-sm">
                                   <span className="text-gray-400">Program:</span>{' '}
-                                  <span className="font-medium text-white">
+                                  <span className="font-medium text-black">
                                     {getSectionDisplayName(user.section)}
                                   </span>
                                 </div>
@@ -839,7 +884,7 @@ export default function UserManagement() {
                             <div className="flex flex-col gap-1">
                               <div className="text-xs mb-1">
                                 <span className="text-gray-400">Department:</span>{' '}
-                                <span className="font-semibold text-white">{user.department || 'N/A'}</span>
+                                <span className="font-semibold text-black">{user.department || 'N/A'}</span>
                               </div>
                               <div className="text-xs">
                                 <span className="text-gray-400">Assigned Subjects:</span>
@@ -848,16 +893,16 @@ export default function UserManagement() {
                                     {teacherSubjects[user.id].map((subject) => (
                                                                               <div
                                           key={subject.id}
-                                          className="flex flex-col gap-0.5 text-[11px] bg-[#2f3133] rounded mb-0.5 shadow-[inset_2px_2px_4px_rgba(0,0,0,0.4),inset_-2px_-2px_4px_rgba(255,255,255,0.08)] border border-gray-600"
+                                          className="flex flex-col gap-0.5 text-[11px] bg-white rounded mb-0.5 shadow-sm border border-gray-200"
                                           style={{ padding: '4px 8px', lineHeight: 1.15 }}
                                         >
                                         <div className="flex items-center gap-1.5">
-                                          <span className="font-semibold text-white">{subject.courses?.code}</span>
-                                          <span className="text-gray-400">-</span>
-                                          <span className="text-gray-300 truncate max-w-[80px]">{subject.courses?.name}</span>
-                                          <span className="text-gray-400">({subject.courses?.units}u)</span>
+                                          <span className="font-semibold text-black">{subject.courses?.code}</span>
+                                          <span className="text-gray-500">-</span>
+                                          <span className="text-gray-700 truncate max-w-[80px]">{subject.courses?.name}</span>
+                                          <span className="text-gray-500">({subject.courses?.units}u)</span>
                                         </div>
-                                        <div className="flex items-center gap-1 text-[10px] text-gray-400">
+                                        <div className="flex items-center gap-1 text-[10px] text-gray-500">
                                           <span>Sec: {subject.section}</span>
                                           <span>•</span>
                                           <span>{subject.academic_year}</span>
@@ -895,7 +940,7 @@ export default function UserManagement() {
                             <div className="flex flex-col gap-1">
                               <div className="text-sm">
                                 <span className="text-gray-400">Department:</span>{' '}
-                                <span className="font-medium text-white">{user.department || 'N/A'}</span>
+                                <span className="font-medium text-black">{user.department || 'N/A'}</span>
                               </div>
                               <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold w-fit ${
                                 user.is_active 
