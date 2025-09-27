@@ -997,34 +997,34 @@ const RegistrarEnrollment: React.FC = () => {
 
         {/* Enrollment Modal */}
         {showConfirmModal && selectedStudent && createPortal(
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[99999]">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4 z-[99999]">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="bg-white rounded-xl shadow-xl p-8 max-w-4xl w-full"
+              className="bg-white rounded-xl shadow-xl p-4 sm:p-6 lg:p-8 max-w-5xl w-full max-h-[90vh] overflow-y-auto"
             >
-              <h2 className="text-xl font-bold text-gray-800 mb-4">
+              <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-3 sm:mb-4">
                 Confirm Enrollment
               </h2>
-              <div className="mb-4">
-                <h3 className="text-lg font-semibold text-gray-700 mb-2">Student Information</h3>
+              <div className="mb-3 sm:mb-4">
+                <h3 className="text-base sm:text-lg font-semibold text-gray-700 mb-2">Student Information</h3>
                 <div className="overflow-x-auto mb-2">
-                  <table className="min-w-full divide-y divide-gray-200 border rounded-lg">
+                  <table className="min-w-full divide-y divide-gray-200 border rounded-lg text-xs sm:text-sm">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student ID</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student ID</th>
+                        <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                        <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                        <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  
                       </tr>
                     </thead>
                     <tbody className="bg-white/90 divide-y divide-gray-200">
                       <tr>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{selectedStudent.student_id}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{selectedStudent.display_name}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{selectedStudent.email}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900">{selectedStudent.student_id}</td>
+                        <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900">{selectedStudent.display_name}</td>
+                        <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 truncate">{selectedStudent.email}</td>
+                        <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap">
                           <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
                             ${selectedStudent.enrollment_status === 'enrolled' ? 'bg-green-100 text-green-800' : 
                               selectedStudent.enrollment_status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 
@@ -1032,59 +1032,57 @@ const RegistrarEnrollment: React.FC = () => {
                             {selectedStudent.enrollment_status}
                           </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          <span className="text-blue-600 font-semibold">Pending Approval</span>
-                        </td>
+                       
                       </tr>
                     </tbody>
                   </table>
                 </div>
-                <div className="mb-6">
-                  <h3 className="text-lg font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                    <BookOpen className="w-5 h-5 text-blue-600" />
+                <div className="mb-4 sm:mb-6">
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-700 mb-2 sm:mb-3 flex items-center gap-2">
+                    <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
                     Courses for Enrollment
                   </h3>
                   
                     {selectedCourses.length === 0 ? (
-                    <div className="text-center py-6 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
-                      <BookOpen className="w-12 h-12 text-gray-400 mx-auto mb-2" />
-                      <p className="text-gray-500 font-medium">No courses selected</p>
-                      <p className="text-sm text-gray-400">Please select courses to enroll this student</p>
+                    <div className="text-center py-4 sm:py-6 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                      <BookOpen className="w-8 h-8 sm:w-12 sm:h-12 text-gray-400 mx-auto mb-2" />
+                      <p className="text-sm sm:text-base text-gray-500 font-medium">No courses selected</p>
+                      <p className="text-xs sm:text-sm text-gray-400">Please select courses to enroll this student</p>
                     </div>
                   ) : (
                     <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-3 border-b border-gray-200">
+                      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-3 sm:px-4 py-2 sm:py-3 border-b border-gray-200">
                         <div className="flex items-center justify-between">
-                          <span className="text-sm font-semibold text-gray-700">Selected Courses</span>
+                          <span className="text-xs sm:text-sm font-semibold text-gray-700">Selected Courses</span>
                           <span className="text-xs text-gray-500 bg-white px-2 py-1 rounded-full">
                             {selectedCourses.length} course{selectedCourses.length !== 1 ? 's' : ''}
                           </span>
                         </div>
                       </div>
                       
-                      <div className="max-h-64 overflow-y-auto">
+                      <div className="max-h-48 sm:max-h-64 overflow-y-auto">
                         <div className="divide-y divide-gray-100">
                           {selectedCourses.map((courseId, index) => {
                         const course = courses.find(c => c.id === courseId);
                         return course ? (
-                              <div key={courseId} className="px-4 py-3 hover:bg-gray-50 transition-colors">
+                              <div key={courseId} className="px-3 sm:px-4 py-2 sm:py-3 hover:bg-gray-50 transition-colors">
                                 <div className="flex items-center justify-between">
                                   <div className="flex-1">
-                                    <div className="flex items-center gap-3">
-                                      <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                                        <span className="text-sm font-bold text-blue-600">{index + 1}</span>
+                                    <div className="flex items-center gap-2 sm:gap-3">
+                                      <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                                        <span className="text-xs sm:text-sm font-bold text-blue-600">{index + 1}</span>
                                       </div>
                                       <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-semibold text-gray-900 truncate">{course.name}</p>
+                                        <p className="text-xs sm:text-sm font-semibold text-gray-900 truncate">{course.name}</p>
                                         <p className="text-xs text-gray-500">Code: {course.code}</p>
                                       </div>
                                     </div>
                                   </div>
-                                  <div className="flex items-center gap-2 ml-4">
-                                    <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-1 rounded-full">
+                                  <div className="flex items-center gap-1 sm:gap-2 ml-2 sm:ml-4">
+                                    <span className="text-xs font-medium text-gray-600 bg-gray-100 px-1 sm:px-2 py-1 rounded-full">
                                       {course.units} unit{course.units !== 1 ? 's' : ''}
                                     </span>
-                                    <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
+                                    <span className="text-xs font-medium text-blue-600 bg-blue-50 px-1 sm:px-2 py-1 rounded-full">
                                       {course.department}
                                     </span>
                                   </div>
@@ -1096,12 +1094,12 @@ const RegistrarEnrollment: React.FC = () => {
                       </div>
                       
                       {/* Summary */}
-                      <div className="bg-gradient-to-r from-green-50 to-emerald-50 px-4 py-3 border-t border-gray-200">
-                        <div className="flex items-center justify-between text-sm">
+                      <div className="bg-gradient-to-r from-green-50 to-emerald-50 px-3 sm:px-4 py-2 sm:py-3 border-t border-gray-200">
+                        <div className="flex items-center justify-between text-xs sm:text-sm">
                           <span className="font-semibold text-gray-700">Total Courses:</span>
                           <span className="font-bold text-green-700">{selectedCourses.length}</span>
                         </div>
-                        <div className="flex items-center justify-between text-sm mt-1">
+                        <div className="flex items-center justify-between text-xs sm:text-sm mt-1">
                           <span className="font-semibold text-gray-700">Total Units:</span>
                           <span className="font-bold text-green-700">
                             {selectedCourses.reduce((total, courseId) => {
@@ -1114,20 +1112,20 @@ const RegistrarEnrollment: React.FC = () => {
                     </div>
                   )}
                 </div>
-                <div className="flex justify-end gap-4">
+                <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-4">
                   <button
                     onClick={() => {
                       setShowConfirmModal(false);
                       setSelectedStudent(null);
                       setSelectedCourses([]);
                     }}
-                    className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium"
+                    className="px-3 sm:px-4 py-2 text-gray-600 hover:text-gray-800 font-medium text-sm sm:text-base"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleShowFinalConfirm}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    className="px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm sm:text-base"
                   >
                     Confirm Enrollment
                   </button>
