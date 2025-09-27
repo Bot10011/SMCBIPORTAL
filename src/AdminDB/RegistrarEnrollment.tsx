@@ -98,7 +98,7 @@ const COEModal = ({ coe, open, onClose }: { coe: COEData, open: boolean, onClose
             headStyles: { fillColor: [41, 128, 185] },
             styles: { fontSize: 9 }
           });
-          const finalY = (doc as any).lastAutoTable.finalY || y + 30;
+          const finalY = (doc as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || y + 30;
           doc.setFontSize(12);
           doc.text('ENROLLED', 105, finalY + 15, { align: 'center' });
           doc.setFontSize(10);
@@ -157,7 +157,7 @@ const COEModal = ({ coe, open, onClose }: { coe: COEData, open: boolean, onClose
             headStyles: { fillColor: [41, 128, 185] },
             styles: { fontSize: 9 }
           });
-          const finalY = (doc as any).lastAutoTable.finalY || y + 30;
+          const finalY = (doc as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || y + 30;
           doc.setFontSize(12);
           doc.text('ENROLLED', 105, finalY + 15, { align: 'center' });
           doc.setFontSize(10);
@@ -220,45 +220,45 @@ const COEModal = ({ coe, open, onClose }: { coe: COEData, open: boolean, onClose
                   <p className="text-sm text-gray-600">Certificate of Enrollment</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 sm:gap-3">
-                <button
-                  onClick={handleDownload}
-                  className="inline-flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-300 shadow-md hover:shadow-lg font-semibold text-xs sm:text-sm"
-                >
-                  <Download className="w-3 h-3 sm:w-4 sm:h-4" /> 
-                  <span className="hidden sm:inline">Download PDF</span>
-                  <span className="sm:hidden">PDF</span>
-                </button>
-                <button
-                  onClick={handlePrint}
-                  className="inline-flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-lg hover:from-gray-700 hover:to-gray-800 transition-all duration-300 shadow-md hover:shadow-lg font-semibold text-xs sm:text-sm"
-                >
-                  <Printer className="w-3 h-3 sm:w-4 sm:h-4" /> 
-                  <span className="hidden sm:inline">Print</span>
-                  <span className="sm:hidden">Print</span>
-                </button>
-                <button
-                  onClick={onClose}
-                  className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center text-lg sm:text-xl font-bold text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-full transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-400"
-                  aria-label="Close"
-                >
-                  ×
-                </button>
-              </div>
+            <div className="flex items-center gap-2 sm:gap-3">
+          <button
+                onClick={handleDownload}
+                className="inline-flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-300 shadow-md hover:shadow-lg font-semibold text-xs sm:text-sm"
+              >
+                <Download className="w-3 h-3 sm:w-4 sm:h-4" /> 
+                <span className="hidden sm:inline">Download PDF</span>
+                <span className="sm:hidden">PDF</span>
+          </button>
+            <button
+                onClick={handlePrint}
+                className="inline-flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-lg hover:from-gray-700 hover:to-gray-800 transition-all duration-300 shadow-md hover:shadow-lg font-semibold text-xs sm:text-sm"
+            >
+                <Printer className="w-3 h-3 sm:w-4 sm:h-4" /> 
+                <span className="hidden sm:inline">Print</span>
+                <span className="sm:hidden">Print</span>
+            </button>
+            <button
+                onClick={onClose}
+                className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center text-lg sm:text-xl font-bold text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-full transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-400"
+                aria-label="Close"
+            >
+                ×
+            </button>
             </div>
           </div>
+              </div>
 
           {/* Scrollable Content */}
           <div className="flex-1 overflow-y-auto p-3 sm:p-4">
             {/* Date Section */}
             <div className="text-center py-2 sm:py-3 mb-4">
               <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
-                <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
-                Date: {new Date(coe.date_issued).toLocaleDateString()}
-              </div>
+              <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
+              Date: {new Date(coe.date_issued).toLocaleDateString()}
             </div>
+          </div>
 
-            {/* Student Information Section */}
+          {/* Student Information Section */}
             <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-2 sm:p-3 mb-3">
               <h2 className="text-sm sm:text-base font-bold text-gray-900 mb-2 flex items-center gap-2">
                 <div className="w-4 h-4 sm:w-5 sm:h-5 bg-blue-600 rounded-lg flex items-center justify-center">
@@ -379,52 +379,26 @@ const RegistrarEnrollment: React.FC = () => {
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [selectedCourses, setSelectedCourses] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showFinalConfirmModal, setShowFinalConfirmModal] = useState(false);
   const [coeModalOpen, setCOEModalOpen] = useState(false);
   const [coeLoading, setCOELoading] = useState(false);
   const [coeError, setCOEError] = useState<string | null>(null);
   const [coeData, setCOEData] = useState<COEData | null>(null);
-  const [showResetNotification, setShowResetNotification] = useState(false);
 
-  // Stats - count both pending and enrolled students
+  // Stats - count all students
   const pendingStudents = students.filter(s => s.enrollment_status === 'pending').length;
   const enrolledStudents = students.filter(s => s.enrollment_status === 'enrolled').length;
-  const totalStudents = pendingStudents + enrolledStudents; // Show both pending and enrolled students
+  const activeStudents = students.filter(s => s.enrollment_status === 'active').length;
+  const totalStudents = students.length; // Count all students
 
   // Fetch students and courses on component mount
   useEffect(() => {
     fetchStudents();
     fetchCourses();
-    checkForEndSemesterEvent();
   }, []);
 
-  // Check for end semester events
-  const checkForEndSemesterEvent = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('system_events')
-        .select('*')
-        .eq('event_type', 'end_semester')
-        .order('created_at', { ascending: false })
-        .limit(1);
-
-      if (error) throw error;
-
-      if (data && data.length > 0) {
-        const event = data[0];
-        const eventDate = new Date(event.created_at);
-        const now = new Date();
-        const hoursDiff = (now.getTime() - eventDate.getTime()) / (1000 * 60 * 60);
-
-        // Show notification if event is within last 24 hours
-        if (hoursDiff <= 24) {
-          setShowResetNotification(true);
-        }
-      }
-    } catch (error) {
-      console.error('Error checking for end semester event:', error);
-    }
-  };
 
 
 
@@ -537,6 +511,12 @@ const RegistrarEnrollment: React.FC = () => {
     setShowConfirmModal(true);
   };
 
+  // Function to show final confirmation modal
+  const handleShowFinalConfirm = () => {
+    setShowConfirmModal(false);
+    setShowFinalConfirmModal(true);
+  };
+
   // New function to confirm enrollment
   const handleConfirmEnroll = async () => {
     if (!selectedStudent) return;
@@ -551,7 +531,7 @@ const RegistrarEnrollment: React.FC = () => {
         id: selectedStudent.id
       });
       // Build update payload with only existing fields
-      const updatePayload: any = { enrollment_status: 'enrolled' };
+      const updatePayload: { enrollment_status: string } = { enrollment_status: 'enrolled' };
       // Do NOT include course_id or year_level since they do not exist
       const { error } = await supabase
         .from('user_profiles')
@@ -600,7 +580,7 @@ const RegistrarEnrollment: React.FC = () => {
         email: studentProfile.email
       };
       console.log('COE Payload:', coePayload); // Debug log
-      const { error: coeError, data: coeData } = await supabase
+      const { error: coeError } = await supabase
         .from('coe')
         .insert(coePayload);
       if (coeError) {
@@ -609,11 +589,12 @@ const RegistrarEnrollment: React.FC = () => {
       }
 
       toast.success('Student successfully enrolled and COE issued!');
-      setShowConfirmModal(false);
+      setShowFinalConfirmModal(false);
       setSelectedStudent(null);
       setSelectedCourses([]);
       fetchStudents();
-    } catch (error) {
+    } catch (err) {
+      console.error('Enrollment error:', err);
       toast.error('Failed to enroll student or issue COE');
     }
   };
@@ -672,7 +653,7 @@ const RegistrarEnrollment: React.FC = () => {
         // Enrich subjects with instructor and section information
         if (coe.subjects && Array.isArray(coe.subjects)) {
           const enrichedSubjects = await Promise.all(
-            coe.subjects.map(async (subject: any) => {
+            coe.subjects.map(async (subject: { code: string; name: string; units: number; section?: string; instructor?: string }) => {
               try {
                 // Resolve subject code to the actual course UUID
                 let courseId: string | null = null;
@@ -763,7 +744,7 @@ const RegistrarEnrollment: React.FC = () => {
                 }
 
                 if (!assignmentError && assignmentData) {
-                  const teacher = assignmentData.teacher as any;
+                  const teacher = assignmentData.teacher as { first_name?: string; last_name?: string; middle_name?: string } | null;
                   const instructorName = teacher 
                     ? `${teacher.first_name} ${teacher.middle_name ? teacher.middle_name + ' ' : ''}${teacher.last_name}`
                     : 'TBA';
@@ -814,15 +795,14 @@ const RegistrarEnrollment: React.FC = () => {
       studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       studentId.toLowerCase().includes(searchTerm.toLowerCase());
     
-    // Show both pending and enrolled students
-    const isRelevant = student.enrollment_status === 'pending' || student.enrollment_status === 'enrolled';
+    const matchesStatus = filterStatus === 'all' || student.enrollment_status === filterStatus;
     
-    return matchesSearch && isRelevant;
+    return matchesSearch && matchesStatus;
   });
 
   return (
-    <div className="min-h-screen  from-blue-50 via-white to-indigo-50 py-8">
-      <div className="max-w-7xl mx-auto px-4">
+    <div className="min-h-screen  from-blue-50 via-white to-indigo-50">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
         {/* Header */}
         <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 rounded-2xl mb-8">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -840,44 +820,9 @@ const RegistrarEnrollment: React.FC = () => {
           </div>
         </div>
 
-        {/* End Semester Notification Banner */}
-        {showResetNotification && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-4 mb-6 shadow-lg"
-          >
-            <div className="flex items-start gap-3">
-              <div className="flex-shrink-0">
-                <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center">
-                  <BookOpen className="w-4 h-4 text-amber-600" />
-                </div>
-              </div>
-              <div className="flex-1">
-                <h3 className="text-sm font-semibold text-amber-800 mb-1">
-                  Semester Reset Notification
-                </h3>
-                <p className="text-sm text-amber-700 mb-2">
-                  The previous semester has ended. ALL students regardless of their previous status have been reset to active status and are no longer visible in this list. Only new pending enrollments will appear here.
-                </p>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-amber-600 bg-amber-100 px-2 py-1 rounded-full">
-                    All students reset to 'active' status and hidden
-                  </span>
-                  <button
-                    onClick={() => setShowResetNotification(false)}
-                    className="text-xs text-amber-600 hover:text-amber-800 underline"
-                  >
-                    Dismiss
-                  </button>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <div className="bg-white/90 rounded-2xl p-6 shadow-lg border border-gray-100 flex items-center gap-4">
             <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
               <Users className="w-6 h-6 text-blue-600" />
@@ -905,6 +850,15 @@ const RegistrarEnrollment: React.FC = () => {
               <p className="text-3xl font-bold text-gray-900">{enrolledStudents}</p>
             </div>
           </div>
+          <div className="bg-white/90 rounded-2xl p-6 shadow-lg border border-gray-100 flex items-center gap-4">
+            <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+              <Users className="w-6 h-6 text-purple-600" />
+            </div>
+            <div>
+              <p className="text-gray-600 text-sm font-medium">Active Students</p>
+              <p className="text-3xl font-bold text-gray-900">{activeStudents}</p>
+            </div>
+          </div>
         </div>
         {/* Search/Filter Bar */}
         <div className="bg-white/90 rounded-2xl p-6 shadow-lg border border-gray-100 mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -919,6 +873,19 @@ const RegistrarEnrollment: React.FC = () => {
               />
             </div>
           </div>
+          <div className="flex items-center gap-4">
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+            >
+              <option value="all">All Status</option>
+              <option value="enrolled">Enrolled</option>
+              <option value="pending">Pending</option>
+              <option value="active">Active</option>
+              <option value="dropped">Dropped</option>
+            </select>
+          </div>
         </div>
         {loading ? (
           <div className="flex flex-col items-center justify-center h-64 gap-4">
@@ -930,9 +897,9 @@ const RegistrarEnrollment: React.FC = () => {
             <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-600 mb-2">No students found</h3>
             <p className="text-gray-500 mb-6">
-              {searchTerm 
-                ? 'Try adjusting your search criteria.'
-                : 'No students found. New student applications and enrolled students will appear here.'
+              {searchTerm || filterStatus !== 'all' 
+                ? 'Try adjusting your search or filter criteria.'
+                : 'No students available for enrollment.'
               }
             </p>
           </div>
@@ -941,13 +908,13 @@ const RegistrarEnrollment: React.FC = () => {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50 sticky top-0 z-10">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Profile Picture</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student ID</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Picture</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Course&Year</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-52">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white/90 divide-y divide-gray-200">
@@ -990,41 +957,35 @@ const RegistrarEnrollment: React.FC = () => {
                         {student.enrollment_status}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <div className="flex gap-2 items-center">
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <div className="flex gap-1 items-center">
                         {student.enrollment_status === 'pending' ? (
                           <button
                             onClick={() => handleEnrollClick(student)}
-                            className="px-3 py-1 bg-blue-600 text-white rounded-lg shadow-sm hover:bg-blue-700 transition-colors font-semibold flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                            style={{ minWidth: 80 }}
+                            className="px-2 py-1 bg-blue-600 text-white rounded-lg shadow-sm hover:bg-blue-700 transition-colors font-semibold flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-blue-400 text-xs"
+                            style={{ width: 80 }}
                           >
-                            <UserCheck className="w-4 h-4 mr-1" /> Enroll
+                            <UserCheck className="w-3 h-3" /> Enroll
                           </button>
-                        ) : student.enrollment_status === 'enrolled' ? (
+                        ) : student.enrollment_status === 'enrolled' || student.enrollment_status === 'active' ? (
+                          // Show View COE button for enrolled and active students
                           <button
-                            className="px-3 py-1 bg-green-200 text-green-700 rounded-lg font-semibold flex items-center gap-1"
-                            style={{ minWidth: 80 }}
-                            disabled
+                            onClick={() => handleViewCOE(student.id)}
+                            className="px-2 py-1 bg-green-600 text-white rounded-lg shadow-sm hover:bg-green-700 transition-colors font-semibold flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-green-400 text-xs"
+                            title="View Certificate of Enrollment"
+                            style={{ width: 80 }}
                           >
-                            <CheckCircle2 className="w-4 h-4 mr-1" /> Enrolled
+                            <Eye className="w-3 h-3" /> View COE
                           </button>
                         ) : (
                           <button
-                            className="px-3 py-1 bg-gray-200 text-gray-400 rounded-lg font-semibold cursor-not-allowed flex items-center gap-1"
-                            style={{ minWidth: 80 }}
+                            className="px-2 py-1 bg-gray-200 text-gray-400 rounded-lg font-semibold cursor-not-allowed flex items-center gap-1 text-xs"
+                            style={{ width: 80 }}
                             disabled
                           >
-                            <UserCheck className="w-4 h-4 mr-1" /> Enroll
+                            <UserCheck className="w-3 h-3" /> Enrolled
                           </button>
                         )}
-                        <button
-                          onClick={() => handleViewCOE(student.id)}
-                          className="px-3 py-1 bg-green-600 text-white rounded-lg shadow-sm hover:bg-green-700 transition-colors font-semibold flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-green-400"
-                          title="View Certificate of Enrollment"
-                          style={{ minWidth: 110 }}
-                        >
-                          <Eye className="w-4 h-4 mr-1" /> View COE
-                        </button>
                       </div>
                     </td>
                   </tr>
@@ -1165,10 +1126,54 @@ const RegistrarEnrollment: React.FC = () => {
                     Cancel
                   </button>
                   <button
-                    onClick={handleConfirmEnroll}
+                    onClick={handleShowFinalConfirm}
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                   >
                     Confirm Enrollment
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        , document.body
+          )}
+
+        {/* Final Confirmation Modal */}
+        {showFinalConfirmModal && selectedStudent && createPortal(
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[99999]">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-white rounded-xl shadow-xl p-8 max-w-md w-full"
+            >
+              <div className="text-center">
+                <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <UserCheck className="w-8 h-8 text-yellow-600" />
+                </div>
+                <h2 className="text-xl font-bold text-gray-800 mb-2">
+                  Final Confirmation
+                </h2>
+                <p className="text-gray-600 mb-6">
+                  Are you sure you want to enroll <strong>{selectedStudent.display_name}</strong>?
+                </p>
+                <p className="text-sm text-gray-500 mb-6">
+                  This action will change the student's status to "enrolled" and issue a Certificate of Enrollment.
+                </p>
+                <div className="flex justify-center gap-4">
+                  <button
+                    onClick={() => {
+                      setShowFinalConfirmModal(false);
+                      setShowConfirmModal(true);
+                    }}
+                    className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleConfirmEnroll}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold"
+                  >
+                    Yes, Enroll Student
                   </button>
                 </div>
               </div>
