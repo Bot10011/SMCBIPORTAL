@@ -108,6 +108,7 @@ const SystemSettings = () => {
   const [unlocking, setUnlocking] = useState(false);
   const [nameInput, setNameInput] = useState('');
   const [nameSaving, setNameSaving] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
 
   // Check for existing Google Drive connection on component mount
   useEffect(() => {
@@ -731,6 +732,7 @@ const SystemSettings = () => {
       }
       setAccountProfile({ first_name, middle_name, last_name });
       toast.success('Profile name updated');
+      setIsEditingName(false); // Exit edit mode after successful save
     } catch (e) {
       console.error('Error updating name:', e);
       toast.error('Failed to update name');
@@ -898,21 +900,20 @@ const SystemSettings = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* User Account */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="neumorphic-dark p-6 lg:col-span-2"
-        style={{ backgroundColor: '#2f3133' }}
-      >
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="p-6 lg:col-span-2 bg-white/90 rounded-xl shadow-lg border border-gray-200"
+        >
         <div className="flex items-center gap-3 mb-6">
-          <Users className="w-6 h-6 text-indigo-400" />
-          <h3 className="text-lg font-semibold text-white">User Account</h3>
+          <Users className="w-6 h-6 text-indigo-600" />
+          <h3 className="text-lg font-semibold text-black">User Account</h3>
         </div>
         
         <div className="space-y-6">
           {/* User Profile Section */}
-          <div className="bg-[#2f3133] rounded-lg p-6 border border-gray-700">
+          <div className="bg-white/80 rounded-lg p-6 border border-gray-200 shadow-sm">
           
             
             {/* Profile Header */}
@@ -922,55 +923,97 @@ const SystemSettings = () => {
           </div>
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-3">
-                  <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
-                  <span className="text-purple-400 text-sm font-medium uppercase tracking-wide">{user?.role || 'Administrator'}</span>
+                  <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                  <span className="text-purple-600 text-sm font-medium uppercase tracking-wide">{user?.role || 'Administrator'}</span>
           </div>
-                <h5 className="text-xl font-bold text-white mb-2">
+                <h5 className="text-xl font-bold text-gray-800 mb-2">
                   {`${accountProfile?.first_name ?? ''} ${accountProfile?.middle_name ?? ''} ${accountProfile?.last_name ?? ''}`.trim() || 'User Profile'}
                 </h5>
-                <p className="text-gray-400 text-sm">{user?.email || 'No email available'}</p>
+                <p className="text-gray-600 text-sm">{user?.email || 'No email available'}</p>
           </div>
           </div>
 
            
 
             {/* Name Edit Section */}
-            <div className="bg-[#FFFFFFE6] rounded-lg p-4 border border-gray-600">
-              <h5 className="text-sm font-semibold text-gray-200 mb-4 flex items-center gap-2">
-                <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                Edit Profile Name
+            <div className="bg-white/60 rounded-lg p-4 border border-gray-200">
+              <h5 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                Profile Name
               </h5>
               <div className="flex items-end gap-4">
                 <div className="flex-1">
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Full Name</label>
-                  <input
-                    type="text"
-                    value={nameInput}
-                    onChange={(e) => setNameInput(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-600 rounded-lg bg-[#1c1c1d] text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Enter full name"
-                  />
-          </div>
-                <button onClick={handleUpdateName} disabled={nameSaving} className={`px-6 py-3 text-white text-sm font-medium rounded-lg transition-colors duration-200 flex items-center gap-2 ${nameSaving ? 'bg-blue-600 opacity-70 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  {nameSaving ? 'Saving...' : 'Update Name'}
-                </button>
-          </div>
-        </div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
+                  {isEditingName ? (
+                    <input
+                      type="text"
+                      value={nameInput}
+                      onChange={(e) => setNameInput(e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-white text-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Enter full name"
+                      autoFocus
+                    />
+                  ) : (
+                    <div className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-800 text-sm">
+                      {nameInput || 'No name set'}
+                    </div>
+                  )}
+                </div>
+                {isEditingName ? (
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => {
+                        setIsEditingName(false);
+                        // Reset to original name if not saved
+                        const originalName = `${accountProfile?.first_name ?? ''} ${accountProfile?.middle_name ?? ''} ${accountProfile?.last_name ?? ''}`.replace(/\s+/g, ' ').trim();
+                        setNameInput(originalName);
+                      }} 
+                      className="px-4 py-3 text-gray-600 text-sm font-medium rounded-lg transition-colors duration-200 flex items-center gap-2 bg-gray-100 hover:bg-gray-200"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                      Cancel
+                    </button>
+                    <button 
+                      onClick={async () => {
+                        await handleUpdateName();
+                        setIsEditingName(false);
+                      }} 
+                      disabled={nameSaving} 
+                      className={`px-6 py-3 text-white text-sm font-medium rounded-lg transition-colors duration-200 flex items-center gap-2 ${nameSaving ? 'bg-blue-600 opacity-70 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      {nameSaving ? 'Saving...' : 'Save'}
+                    </button>
+                  </div>
+                ) : (
+                  <button 
+                    onClick={() => setIsEditingName(true)} 
+                    className="px-6 py-3 text-white text-sm font-medium rounded-lg transition-colors duration-200 flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    Edit Name
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Password Change Section */}
-          <div className="bg-[#2f3133] rounded-lg p-5 border border-gray-700">
-            <h4 className="text-sm font-semibold text-gray-200 mb-5 flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+          <div className="bg-white/80 rounded-lg p-5 border border-gray-200 shadow-sm">
+            <h4 className="text-sm font-semibold text-gray-700 mb-5 flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
               Change Password
             </h4>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-300 mb-1">Update your account password</p>
-                <p className="text-xs text-gray-400">Click the button to change your password securely</p>
+                <p className="text-sm text-gray-700 mb-1">Update your account password</p>
+                <p className="text-xs text-gray-500">Click the button to change your password securely</p>
               </div>
               <button
                 onClick={() => setShowPasswordModal(true)}
@@ -990,12 +1033,11 @@ const SystemSettings = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="neumorphic-dark p-6 relative"
-          style={{ backgroundColor: '#2f3133' }}
+          className=" p-6 relative bg-white/90 rounded-xl shadow-lg border border-gray-200"
         >
           {isBackupLocked && (
-            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/50 rounded-lg">
-              <div className="flex items-center gap-2 text-white mb-3">
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm rounded-lg border border-gray-200">
+              <div className="flex items-center gap-2 text-gray-700 mb-3">
                 <Lock className="w-4 h-4" />
                 <span className="text-sm font-medium">Backup & System is locked</span>
               </div>
@@ -1008,8 +1050,8 @@ const SystemSettings = () => {
             </div>
           )}
           <div className="flex items-center gap-3 mb-4">
-            <Database className="w-6 h-6 text-purple-400" />
-            <h3 className="text-lg font-semibold text-white">Backup & System</h3>
+            <Database className="w-6 h-6 text-purple-600" />
+            <h3 className="text-lg font-semibold text-gray-800">Backup & System</h3>
             <div className="ml-auto flex items-center gap-2">
               {isBackupLocked ? (
                 <button
@@ -1031,8 +1073,8 @@ const SystemSettings = () => {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <label className="text-sm font-medium text-gray-300">Auto Backup</label>
-                <p className="text-xs text-gray-400">
+                <label className="text-sm font-medium text-gray-700">Auto Backup</label>
+                <p className="text-xs text-gray-600">
                   {settings.autoBackup && gdriveConnected 
                     ? `Automatically uploads to Google Drive every ${settings.backupFrequency}` 
                     : settings.autoBackup 
@@ -1054,12 +1096,12 @@ const SystemSettings = () => {
               </button>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Backup Frequency</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Backup Frequency</label>
               <select
                 value={settings.backupFrequency}
                 onChange={(e) => handleSettingChange('backupFrequency', e.target.value)}
                 disabled={saving || !settings.autoBackup || isBackupLocked}
-                className="w-full px-3 py-2 border border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-[#2f3133] text-white disabled:opacity-50"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-800 disabled:opacity-50"
               >
                 <option value="hourly">Hourly</option>
                 <option value="daily">Daily</option>
@@ -1068,7 +1110,7 @@ const SystemSettings = () => {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Data Retention (days)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Data Retention (days)</label>
               <input
                 type="number"
                 value={settings.dataRetention}
@@ -1079,25 +1121,25 @@ const SystemSettings = () => {
                   }
                 }}
                 disabled={saving || !settings.autoBackup || isBackupLocked}
-                className="w-full px-3 py-2 border border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-[#2f3133] text-white disabled:opacity-50"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-800 disabled:opacity-50"
                 min="30"
                 max="1095"
                 placeholder="30-1095 days"
               />
-              <p className="text-xs text-gray-400 mt-1">Keep backups for 30-1095 days (1-3 years)</p>
+              <p className="text-xs text-gray-600 mt-1">Keep backups for 30-1095 days (1-3 years)</p>
             </div>
             
             {/* Manual Backup Section */}
-            <div className="border-t border-gray-600 pt-4 mt-4">
-              <h4 className="text-sm font-semibold text-gray-200 mb-3 flex items-center gap-2">
-                <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+            <div className="border-t border-gray-300 pt-4 mt-4">
+              <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                 Manual Backup
               </h4>
               <div className="space-y-3">
             <div className="flex items-center justify-between">
             <div>
-                    <p className="text-sm text-gray-300 mb-1">Download Complete Database Backup</p>
-                    <p className="text-xs text-gray-400">Export all tables and data as JSON files</p>
+                    <p className="text-sm text-gray-700 mb-1">Download Complete Database Backup</p>
+                    <p className="text-xs text-gray-600">Export all tables and data as JSON files</p>
             </div>
               <button
                     onClick={handleDownloadBackup}
@@ -1124,8 +1166,8 @@ const SystemSettings = () => {
               <div className="flex items-center gap-3">
                 <div className={`w-3 h-3 rounded-full ${gdriveConnected ? 'bg-green-400' : 'bg-red-400'}`}></div>
               <div>
-                  <p className="text-sm text-gray-300">Google Drive</p>
-                  <p className="text-xs text-gray-400">
+                  <p className="text-sm text-gray-700">Google Drive</p>
+                  <p className="text-xs text-gray-600">
                     {gdriveConnected ? 'Connected' : 'Not connected'}
                   </p>
                 </div>
@@ -1160,8 +1202,8 @@ const SystemSettings = () => {
 
             <div className="flex items-center justify-between">
               <div>
-                    <p className="text-sm text-gray-300 mb-1">Upload to Google Drive</p>
-                    <p className="text-xs text-gray-400">Automatically store backup in cloud</p>
+                    <p className="text-sm text-gray-700 mb-1">Upload to Google Drive</p>
+                    <p className="text-xs text-gray-600">Automatically store backup in cloud</p>
               </div>
               <button
                     onClick={handleUploadToDrive}
@@ -1228,23 +1270,23 @@ const SystemSettings = () => {
               padding: '1rem'
             }}
           >
-            <div className="bg-[#FFFFFFE6] rounded-xl shadow-2xl border border-gray-700 w-full max-w-md max-h-[90vh] overflow-hidden">
+            <div className="bg-white/90 rounded-xl shadow-2xl border border-gray-200 w-full max-w-md max-h-[90vh] overflow-hidden">
               {/* Modal Header */}
-              <div className="flex items-center justify-between p-6 border-b border-gray-700 bg-[#2f3133]">
+              <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-white/80">
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-lg bg-indigo-600/20">
-                    <svg className="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                     </svg>
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-white">Change Password</h3>
-                    <p className="text-sm text-gray-400">Update your account password securely</p>
+                    <h3 className="text-lg font-semibold text-gray-800">Change Password</h3>
+                    <p className="text-sm text-gray-600">Update your account password securely</p>
                   </div>
                 </div>
                 <button
                   onClick={() => setShowPasswordModal(false)}
-                  className="p-2 text-gray-400 hover:text-white hover:bg-gray-600 rounded-lg transition-colors duration-200"
+                  className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors duration-200"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1255,36 +1297,36 @@ const SystemSettings = () => {
               {/* Modal Body */}
               <div className="p-6 space-y-4">
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-300">Current Password</label>
+                  <label className="block text-sm font-medium text-gray-700">Current Password</label>
                   <input
                     type="password"
                     value={passwordForm.currentPassword}
                     onChange={(e) => handlePasswordInputChange('currentPassword', e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-[#1c1c1d] text-white placeholder-gray-400 text-sm"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white text-gray-800 placeholder-gray-500 text-sm"
                     disabled={changingPassword}
                     placeholder="Enter current password"
                   />
                 </div>
                 
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-300">New Password</label>
+                  <label className="block text-sm font-medium text-gray-700">New Password</label>
                   <input
                     type="password"
                     value={passwordForm.newPassword}
                     onChange={(e) => handlePasswordInputChange('newPassword', e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-[#1c1c1d] text-white placeholder-gray-400 text-sm"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white text-gray-800 placeholder-gray-500 text-sm"
                     disabled={changingPassword}
                     placeholder="Enter new password"
                   />
                 </div>
                 
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-300">Confirm Password</label>
+                  <label className="block text-sm font-medium text-gray-700">Confirm Password</label>
                   <input
                     type="password"
                     value={passwordForm.confirmPassword}
                     onChange={(e) => handlePasswordInputChange('confirmPassword', e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-[#1c1c1d] text-white placeholder-gray-400 text-sm"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white text-gray-800 placeholder-gray-500 text-sm"
                     disabled={changingPassword}
                     placeholder="Confirm new password"
                   />
@@ -1292,13 +1334,13 @@ const SystemSettings = () => {
               </div>
               
               {/* Modal Footer */}
-              <div className="flex justify-end gap-3 p-6 border-t border-gray-700 bg-[#2f3133]">
+              <div className="flex justify-end gap-3 p-6 border-t border-gray-200 bg-white/80">
                 <button
                   onClick={() => {
                     setShowPasswordModal(false);
                     setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
                   }}
-                  className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white text-sm font-medium rounded-lg transition-colors duration-200"
+                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-colors duration-200"
                 >
                   Cancel
                 </button>
@@ -1373,20 +1415,20 @@ const SystemSettings = () => {
               padding: '1rem'
             }}
           >
-            <div className="bg-[#FFFFFFE6] rounded-xl shadow-2xl border border-gray-700 w-full max-w-md overflow-hidden">
-              <div className="flex items-center justify-between p-6 border-b border-gray-700 bg-[#2f3133]">
+            <div className="bg-white/90 rounded-xl shadow-2xl border border-gray-200 w-full max-w-md overflow-hidden">
+              <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-white/80">
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-lg bg-indigo-600/20">
-                    <Lock className="w-5 h-5 text-indigo-400" />
+                    <Lock className="w-5 h-5 text-indigo-600" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-white">Unlock Backup & System</h3>
-                    <p className="text-sm text-gray-400">Enter your password to continue</p>
+                    <h3 className="text-lg font-semibold text-gray-800">Unlock Backup & System</h3>
+                    <p className="text-sm text-gray-600">Enter your password to continue</p>
                   </div>
                 </div>
                 <button
                   onClick={() => setShowUnlockModal(false)}
-                  className="p-2 text-gray-400 hover:text-white hover:bg-gray-600 rounded-lg transition-colors duration-200"
+                  className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors duration-200"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1395,24 +1437,24 @@ const SystemSettings = () => {
               </div>
               <div className="p-6 space-y-4">
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-300">Password</label>
+                  <label className="block text-sm font-medium text-gray-700">Password</label>
                   <input
                     type="password"
                     value={unlockPassword}
                     onChange={(e) => setUnlockPassword(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-[#1c1c1d] text-white placeholder-gray-400 text-sm"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white text-gray-800 placeholder-gray-500 text-sm"
                     disabled={unlocking}
                     placeholder="Enter your password"
                   />
                 </div>
               </div>
-              <div className="flex justify-end gap-3 p-6 border-t border-gray-700 bg-[#2f3133]">
+              <div className="flex justify-end gap-3 p-6 border-t border-gray-200 bg-white/80">
                 <button
                   onClick={() => {
                     setShowUnlockModal(false);
                     setUnlockPassword('');
                   }}
-                  className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white text-sm font-medium rounded-lg transition-colors duration-200"
+                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-colors duration-200"
                 >
                   Cancel
                 </button>
@@ -1520,7 +1562,7 @@ const DashboardCard: React.FC<{
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay }}
-      className={`neumorphic-dark rounded-xl overflow-hidden border-l-4 ${color}`}
+      className={` rounded-xl overflow-hidden border-l-4 ${color}`}
       style={{ backgroundColor: '#FFFFFFE6' }}
 
     >
@@ -1565,7 +1607,9 @@ const DashboardCard: React.FC<{
 
 // Admin Dashboard Overview Component with real data
 const DashboardOverview: React.FC = () => {
-  const [isLoading, setIsLoading] = useState(true);
+  const [, setIsLoading] = useState(true);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [isSlowConnection, setIsSlowConnection] = useState(false);
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
   const [showNotificationForm, setShowNotificationForm] = useState(false);
   const [creatingNotification, setCreatingNotification] = useState(false);
@@ -1622,44 +1666,94 @@ const DashboardOverview: React.FC = () => {
 
   const { user } = useAuth();
 
+  // Network status detection
   useEffect(() => {
-    fetchDashboardData();
-    // Set up real-time subscription for notifications
-    const notificationsSubscription = supabase
-      .channel('notifications_changes')
-      .on('postgres_changes', 
-        { 
-          event: '*', 
-          schema: 'public', 
-          table: 'notifications' 
-        }, 
-        () => {
-          fetchNotifications();
-        }
-      )
-      .subscribe();
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
 
-    // Set up real-time subscription for user profiles
-    const userProfilesSubscription = supabase
-      .channel('user_profiles_changes')
-      .on('postgres_changes', 
-        { 
-          event: '*', 
-          schema: 'public', 
-          table: 'user_profiles' 
-        }, 
-        () => {
-          fetchDashboardData();
-        }
-      )
-      .subscribe();
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
 
     return () => {
-      notificationsSubscription.unsubscribe();
-      userProfilesSubscription.unsubscribe();
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Connection speed detection
+  useEffect(() => {
+    const detectConnectionSpeed = () => {
+      if ('connection' in navigator) {
+        const connection = (navigator as Navigator & { connection?: { effectiveType?: string; addEventListener?: (event: string, handler: () => void) => void; removeEventListener?: (event: string, handler: () => void) => void } }).connection;
+        const effectiveType = connection?.effectiveType;
+        
+        // Consider 2g, slow-2g, and 3g as slow connections
+        if (effectiveType === '2g' || effectiveType === 'slow-2g' || effectiveType === '3g') {
+          setIsSlowConnection(true);
+        } else {
+          setIsSlowConnection(false);
+        }
+      }
+    };
+
+    detectConnectionSpeed();
+
+    // Listen for connection changes
+    if ('connection' in navigator) {
+      const connection = (navigator as Navigator & { connection?: { effectiveType?: string; addEventListener?: (event: string, handler: () => void) => void; removeEventListener?: (event: string, handler: () => void) => void } }).connection;
+      connection?.addEventListener?.('change', detectConnectionSpeed);
+      
+      return () => {
+        connection?.removeEventListener?.('change', detectConnectionSpeed);
+      };
+    }
+  }, []);
+
+  // Show skeleton for slow connections or when offline
+  const shouldShowSkeleton = false;
+
+  useEffect(() => {
+    fetchDashboardData();
+    
+    // Only set up real-time subscriptions if online
+    if (isOnline) {
+      // Set up real-time subscription for notifications
+      const notificationsSubscription = supabase
+        .channel('notifications_changes')
+        .on('postgres_changes', 
+          { 
+            event: '*', 
+            schema: 'public', 
+            table: 'notifications' 
+          }, 
+          () => {
+            fetchNotifications();
+          }
+        )
+        .subscribe();
+
+      // Set up real-time subscription for user profiles
+      const userProfilesSubscription = supabase
+        .channel('user_profiles_changes')
+        .on('postgres_changes', 
+          { 
+            event: '*', 
+            schema: 'public', 
+            table: 'user_profiles' 
+          }, 
+          () => {
+            fetchDashboardData();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        notificationsSubscription.unsubscribe();
+        userProfilesSubscription.unsubscribe();
+      };
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOnline]);
 
   // Generate recent activity from real database events
   const generateRecentActivity = useCallback(async () => {
@@ -1884,7 +1978,10 @@ const DashboardOverview: React.FC = () => {
   // Memoized dashboard data fetching
   const fetchDashboardData = useCallback(async () => {
     try {
-      setIsLoading(true);
+      // Don't show loading if we're offline or have slow connection
+      if (isOnline && !isSlowConnection) {
+        setIsLoading(true);
+      }
       
       // Date helpers for growth calculations
       const now = new Date();
@@ -1947,11 +2044,13 @@ const DashboardOverview: React.FC = () => {
 
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
-      toast.error('Failed to load dashboard data');
+      if (isOnline) {
+        toast.error('Failed to load dashboard data');
+      }
     } finally {
       setIsLoading(false);
     }
-  }, [generateRecentActivity]);
+  }, [generateRecentActivity, isOnline, isSlowConnection]);
 
   // Generate system notifications based on database state
   const generateSystemNotifications = useCallback(async () => {
@@ -2178,15 +2277,17 @@ const DashboardOverview: React.FC = () => {
     }
   };
 
-  // Fetch notifications when component mounts
+  // Fetch notifications when component mounts (only if online)
   useEffect(() => {
-    fetchNotifications();
-  }, [fetchNotifications]);
+    if (isOnline) {
+      fetchNotifications();
+    }
+  }, [fetchNotifications, isOnline]);
 
-  // Load personal notes for admin
+  // Load personal notes for admin (only if online)
   useEffect(() => {
     const loadNotes = async () => {
-      if (!user?.id) return;
+      if (!user?.id || !isOnline) return;
       try {
         const { data, error } = await supabase
           .from('personal_notes')
@@ -2201,7 +2302,7 @@ const DashboardOverview: React.FC = () => {
       }
     };
     loadNotes();
-  }, [user?.id]);
+  }, [user?.id, isOnline]);
 
   const addNote = useCallback(async () => {
     try {
@@ -2260,476 +2361,272 @@ const DashboardOverview: React.FC = () => {
       <div className="decorative-circle decorative-circle-1" />
       <div className="decorative-circle decorative-circle-2" />
       
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="admindashboard-header mb-8"
-      >
-        <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 rounded-lg">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-layout-dashboard w-6 h-6 text-white">
-                  <rect width="7" height="9" x="3" y="3" rx="1"></rect>
-                  <rect width="7" height="5" x="14" y="3" rx="1"></rect>
-                  <rect width="7" height="9" x="14" y="12" rx="1"></rect>
-                  <rect width="7" height="5" x="3" y="16" rx="1"></rect>
-                </svg>
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-white tracking-tight">Admin Dashboard</h1>
-                <p className="text-white/80 text-sm font-medium">Welcome back, {user?.first_name || 'Admin'}! Here's what's happening with your portal today.</p>
-                <div className="flex items-center gap-4 mt-2 text-xs text-white/80"></div>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <motion.button
-                onClick={fetchDashboardData}
-                className="admindashboard-refresh-button bg-white/20 backdrop-blur-sm text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2 border border-white/30"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-refresh-cw w-4 h-4">
-                  <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
-                  <path d="M21 3v5h-5"></path>
-                  <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
-                  <path d="M3 21v-5h5"></path>
-                </svg>
-                Refresh
-              </motion.button>
-              <div className="relative">
-                
-                
-                    {/* Notifications Popup Modal */}
-                {showNotificationsModal && createPortal(
-                  <>
-                    {/* Backdrop */}
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="fixed inset-0 bg-black/20 z-[999998] notifications-modal-backdrop"
-                      onClick={() => setShowNotificationsModal(false)}
-                      style={{
-                        zIndex: 999998,
-                        position: 'fixed',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        backgroundColor: 'rgba(0, 0, 0, 0.2)'
-                      }}
-                    />
-                    
-                    {/* Modal */}
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.95, y: -10 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.95, y: -10 }}
-                      transition={{ duration: 0.2 }}
-                      className="notifications-modal fixed right-6 top-20 w-[34rem] bg-[#FFFFFFE6] rounded-xl shadow-2xl border border-gray-700 z-[999999] max-h-[70vh] overflow-hidden"
-                      style={{
-                        zIndex: 999999,
-                        position: 'fixed',
-                        top: '5rem',
-                        right: '1.5rem',
-                        width: '34rem',
-                        maxHeight: '70vh',
-                        backgroundColor: '#FFFFFFE6',
-                        borderRadius: '0.75rem',
-                        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.8), 0 10px 10px -5px rgba(0, 0, 0, 0.4)',
-                        border: '1px solid #4b5563',
-                        isolation: 'isolate'
-                      }}
-                    >
-                    {/* Modal Header */}
-                    <div className="flex items-center justify-between p-4 border-b border-gray-700 bg-[#2f3133] relative z-[999999]">
-                      <h3 className="text-lg font-semibold text-white">Notifications</h3>
-                      <button
-                        onClick={() => setShowNotificationsModal(false)}
-                        className="p-1 text-gray-400 hover:text-white hover:bg-gray-600 rounded-lg transition-colors duration-200"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    </div>
-                    
-                    {/* Notifications List with Recent/Older grouping */}
-                    <div className="max-h-[70vh] overflow-y-auto custom-dashboard-scrollbar relative z-[999999]">
-                      {notifications.length === 0 ? (
-                        <div className="p-6 text-center">
-                          <div className="w-16 h-16 mx-auto mb-3 bg-gray-700 rounded-full flex items-center justify-center">
-                            <Bell className="w-8 h-8 text-gray-400" />
-                          </div>
-                          <p className="text-gray-400 text-sm">No notifications</p>
-                          <p className="text-gray-500 text-xs mt-1">You're all caught up!</p>
-                        </div>
-                      ) : (
-                        <div className="p-2">
-                          {(() => {
-                            const now = new Date();
-                            const cutoff = new Date(now);
-                            cutoff.setDate(now.getDate() - 7);
-                            const recent = notifications.filter(n => n.createdAt ? new Date(n.createdAt) >= cutoff : false);
-                            const Section = ({ title, items }: { title: string; items: typeof notifications }) => (
-                              <>
-                                <div className="px-2 py-1 text-[11px] uppercase tracking-wide text-gray-400">{title}</div>
-                                {items.length === 0 ? (
-                                  <div className="px-2 py-1 text-xs text-gray-500">No {title.toLowerCase()}.</div>
-                                ) : null}
-                                {items.map((notification, i) => (
-                            <motion.div 
-                              key={notification.id}
-                              initial={{ opacity: 0, x: 20 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              transition={{ duration: 0.3, delay: i * 0.1 }}
-                              onClick={() => markNotificationAsRead(notification.id)}
-                              className={`p-3 rounded-lg cursor-pointer transition-colors duration-200 hover:bg-[#2f3133] mb-2 ${
-                                notification.read ? 'bg-[#FFFFFFE6]' : 'bg-[#2f3133]'
-                              }`}
-                            >
-                              <div className="flex items-start space-x-3">
-                                <div 
-                                  className={`p-2 rounded-full flex-shrink-0 ${
-                                    notification.severity === 'info' ? 'bg-blue-900' : 
-                                    notification.severity === 'success' ? 'bg-green-900' : 
-                                    notification.severity === 'warning' ? 'bg-yellow-900' : 
-                                    notification.severity === 'error' ? 'bg-red-900' :
-                                    notification.severity === 'announcement' ? 'bg-purple-900' :
-                                    notification.severity === 'reminder' ? 'bg-orange-900' :
-                                    notification.severity === 'deadline' ? 'bg-red-800' :
-                                    notification.severity === 'exam' ? 'bg-indigo-900' :
-                                    notification.severity === 'meeting' ? 'bg-teal-900' :
-                                    notification.severity === 'advisory' ? 'bg-amber-900' : 'bg-gray-900'
-                                  }`}
-                                >
-                                  {notification.severity === 'announcement' ? (
-                                    <svg className="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.5a.5.5 0 01.5-.5h1a.5.5 0 01.5.5v1a.5.5 0 01-.5.5h-1a.5.5 0 01-.5-.5v-1zM11 11a1 1 0 011-1h1a1 1 0 011 1v1a1 1 0 01-1 1h-1a1 1 0 01-1-1v-1zM11 16.5a.5.5 0 01.5-.5h1a.5.5 0 01.5.5v1a.5.5 0 01-.5.5h-1a.5.5 0 01-.5-.5v-1zM5.5 11a.5.5 0 01.5-.5h1a.5.5 0 01.5.5v1a.5.5 0 01-.5.5h-1a.5.5 0 01-.5-.5v-1zM16.5 11a.5.5 0 01.5-.5h1a.5.5 0 01.5.5v1a.5.5 0 01-.5.5h-1a.5.5 0 01-.5-.5v-1z" />
-                                    </svg>
-                                  ) : notification.severity === 'reminder' ? (
-                                    <svg className="w-4 h-4 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                  ) : notification.severity === 'deadline' ? (
-                                    <svg className="w-4 h-4 text-red-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                  ) : notification.severity === 'exam' ? (
-                                    <svg className="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                    </svg>
-                                  ) : notification.severity === 'meeting' ? (
-                                    <svg className="w-4 h-4 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                                    </svg>
-                                  ) : notification.severity === 'advisory' ? (
-                                    <svg className="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                                    </svg>
-                                  ) : notification.severity === 'info' ? (
-                                    <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                  ) : notification.severity === 'success' ? (
-                                    <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                  ) : notification.severity === 'warning' ? (
-                                    <svg className="w-4 h-4 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                                    </svg>
-                                  ) : notification.severity === 'error' ? (
-                                    <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                  ) : (
-                                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                  )}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  {notification.title && (
-                                    <p className={`text-xs font-semibold uppercase tracking-wide mb-1 ${
-                                      notification.read ? 'text-gray-400' : 'text-gray-200'
-                                    }`}>
-                                      {notification.title}
-                                    </p>
-                                  )}
-                                  <p className={`text-sm font-medium ${
-                                    notification.read ? 'text-gray-300' : 'text-white'
-                                  }`}>
-                                    {notification.message}
-                                  </p>
-                                  <div className="flex items-center gap-2 text-xs text-gray-400 mt-1">
-                                    <span>{notification.time}</span>
-                                    {notification.expires_at && (
-                                      <span className="text-orange-400">
-                                        • Expires: {getTimeAgo(notification.expires_at)}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                                {!notification.read && (
-                                  <motion.div 
-                                    initial={{ scale: 0 }}
-                                    animate={{ scale: 1 }}
-                                    className="w-2 h-2 bg-blue-400 rounded-full flex-shrink-0"
-                                  />
-                                )}
-                              </div>
-                            </motion.div>
-                            ))}
-                              </>
-                            );
-                            return (
-                              <>
-                                <Section title="Recent" items={recent} />
-                              </>
-                            );
-                          })()}
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* Modal Footer */}
-                    <div className="p-3 border-t border-gray-700 bg-[#2f3133] relative z-[999999]">
-                      <div className="flex items-center justify-between text-xs text-gray-400">
-                        <span>{unreadCount} unread</span>
-                        <button
-                          onClick={() => {
-                            // Mark all as read functionality
-                            setNotifications(prev => 
-                              prev.map(notif => ({ ...notif, read: true }))
-                            );
-                          }}
-                          className="text-blue-400 hover:text-blue-300 transition-colors duration-200"
-                        >
-                          Mark all as read
-                        </button>
-                      </div>
-                    </div>
-                  </motion.div>
-                </>,
-                document.body
-              )}
-            </div>
-          </div>
-        </div>
-        </div>
-      </motion.div>
-
       <AnimatePresence mode="wait">
-        {isLoading ? (
-          <div className="admindashboard-skeleton">
-            {/* Header Skeleton */}
-            <motion.div
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              className="mb-8"
-            >
-              <div className="bg-gradient-to-r from-gray-700 to-gray-600 px-6 py-4 rounded-lg animate-pulse">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-gray-500/30">
-                      <div className="w-6 h-6 bg-gray-500 rounded"></div>
-                    </div>
-                <div>
-                      <div className="h-8 bg-gray-500 rounded w-48 mb-2"></div>
-                      <div className="h-4 bg-gray-500 rounded w-72"></div>
-                </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-32 bg-gray-500 rounded-lg"></div>
-                    <div className="w-6 h-6 bg-gray-500 rounded"></div>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-
-            {/* Stats Cards Skeleton */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-              {[1, 2, 3, 4].map(i => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: i * 0.1 }}
-                  className="neumorphic-dark rounded-xl overflow-hidden border-l-4 border-gray-500 animate-pulse"
-                  style={{ backgroundColor: '#FFFFFFE6' }}
-                >
-                  <div className="p-5">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="h-4 bg-gray-600 rounded w-24 mb-2"></div>
-                        <div className="h-8 bg-gray-600 rounded w-16 mb-1"></div>
-                        <div className="h-3 bg-gray-600 rounded w-32"></div>
-                      </div>
-                      <div className="w-12 h-12 bg-gray-600 rounded-lg"></div>
-                    </div>
-                    <div className="mt-4">
-                      <div className="h-1.5 bg-gray-600 rounded-full overflow-hidden">
-                        <div className="h-1.5 bg-gray-500 rounded-full w-3/4 animate-pulse"></div>
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-
-            {/* Recent Activity and Notifications Skeleton */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <motion.div 
-                className="neumorphic-dark p-6 rounded-xl col-span-2 h-[300px] animate-pulse"
-                style={{ backgroundColor: '#FFFFFFE6' }}
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.5, delay: 0.3 }}
-              >
-                <div className="h-6 bg-gray-600 rounded w-40 mb-4"></div>
-                <div className="space-y-4">
-                  {[1, 2, 3, 4, 5].map(i => (
-                    <div key={i} className="p-3 bg-gray-700/50 rounded-lg">
-                      <div className="flex items-start space-x-3">
-                        <div className="w-8 h-8 bg-gray-600 rounded-full"></div>
-                        <div>
-                          <div className="h-4 bg-gray-600 rounded w-48 mb-1"></div>
-                          <div className="h-3 bg-gray-600 rounded w-24"></div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </motion.div>
-              <motion.div 
-                className="neumorphic-dark p-6 rounded-xl h-[300px] animate-pulse"
-                style={{ backgroundColor: '#FFFFFFE6' }}
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.5, delay: 0.4 }}
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <div className="h-6 bg-gray-600 rounded w-32"></div>
-                  <div className="w-5 h-5 bg-gray-600 rounded"></div>
-                </div>
-                <div className="space-y-4">
-                  {[1, 2, 3, 4].map(i => (
-                    <div key={i} className="p-3 bg-gray-700/50 rounded-lg">
-                      <div className="flex items-start space-x-3">
-                        <div className="w-8 h-8 bg-gray-600 rounded-full"></div>
-                        <div className="flex-1">
-                          <div className="h-4 bg-gray-600 rounded w-full mb-1"></div>
-                          <div className="h-3 bg-gray-600 rounded w-20"></div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </motion.div>
-            </div>
-
-            {/* Additional skeleton elements for better loading experience */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.5, delay: 0.6 }}
-              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-            >
-              {/* System Settings Skeleton */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.7 }}
-                className="neumorphic-dark p-6 lg:col-span-2 animate-pulse"
-                style={{ backgroundColor: '#2f3133' }}
-              >
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="w-6 h-6 bg-gray-600 rounded"></div>
-                  <div className="h-6 bg-gray-600 rounded w-32"></div>
-                </div>
-                <div className="space-y-6">
-                  <div className="bg-gray-700/50 rounded-lg p-6">
-                    <div className="flex items-center gap-6 mb-8">
-                      <div className="w-20 h-20 bg-gray-600 rounded-full"></div>
-                      <div className="flex-1">
-                        <div className="h-4 bg-gray-600 rounded w-24 mb-3"></div>
-                        <div className="h-6 bg-gray-600 rounded w-40 mb-2"></div>
-                        <div className="h-4 bg-gray-600 rounded w-48"></div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="bg-gray-700/50 rounded-lg p-5">
-                    <div className="h-5 bg-gray-600 rounded w-32 mb-5"></div>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="h-4 bg-gray-600 rounded w-40 mb-1"></div>
-                        <div className="h-3 bg-gray-600 rounded w-32"></div>
-                      </div>
-                      <div className="h-10 w-24 bg-gray-600 rounded-lg"></div>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-
-              {/* Backup & System Skeleton */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.8 }}
-                className="neumorphic-dark p-6 animate-pulse"
-                style={{ backgroundColor: '#2f3133' }}
-              >
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-6 h-6 bg-gray-600 rounded"></div>
-                  <div className="h-6 bg-gray-600 rounded w-40"></div>
-                </div>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="h-4 bg-gray-600 rounded w-24 mb-1"></div>
-                      <div className="h-3 bg-gray-600 rounded w-32"></div>
-                    </div>
-                    <div className="h-6 w-11 bg-gray-600 rounded-full"></div>
-                  </div>
-                  <div>
-                    <div className="h-4 bg-gray-600 rounded w-28 mb-2"></div>
-                    <div className="h-10 bg-gray-600 rounded-lg"></div>
-                  </div>
-                  <div>
-                    <div className="h-4 bg-gray-600 rounded w-32 mb-2"></div>
-                    <div className="h-10 bg-gray-600 rounded-lg"></div>
-                  </div>
-                  <div className="border-t border-gray-600 pt-4 mt-4">
-                    <div className="h-5 bg-gray-600 rounded w-28 mb-3"></div>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="h-4 bg-gray-600 rounded w-36 mb-1"></div>
-                          <div className="h-3 bg-gray-600 rounded w-28"></div>
-                        </div>
-                        <div className="h-8 w-24 bg-gray-600 rounded-lg"></div>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="h-4 bg-gray-600 rounded w-20 mb-1"></div>
-                          <div className="h-3 bg-gray-600 rounded w-24"></div>
-                        </div>
-                        <div className="h-6 w-16 bg-gray-600 rounded-lg"></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            </motion.div>
-          </div>
-        ) : (
+        {!shouldShowSkeleton && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.5 }}
           >
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="admindashboard-header mb-8"
+            >
+              <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 rounded-lg">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-layout-dashboard w-6 h-6 text-white">
+                        <rect width="7" height="9" x="3" y="3" rx="1"></rect>
+                        <rect width="7" height="5" x="14" y="3" rx="1"></rect>
+                        <rect width="7" height="9" x="14" y="12" rx="1"></rect>
+                        <rect width="7" height="5" x="3" y="16" rx="1"></rect>
+                      </svg>
+                    </div>
+                    <div>
+                      <h1 className="text-2xl font-bold text-white tracking-tight">Admin Dashboard</h1>
+                      <p className="text-white/80 text-sm font-medium">Welcome back, {user?.first_name || 'Admin'}! Here's what's happening with your portal today.</p>
+                      <div className="flex items-center gap-4 mt-2 text-xs text-white/80"></div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <motion.button
+                      onClick={fetchDashboardData}
+                      className="admindashboard-refresh-button bg-white/20 backdrop-blur-sm text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2 border border-white/30"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-refresh-cw w-4 h-4">
+                        <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
+                        <path d="M21 3v5h-5"></path>
+                        <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
+                        <path d="M3 21v-5h5"></path>
+                      </svg>
+                      Refresh
+                    </motion.button>
+                    <div className="relative">
+                      
+                      
+                          {/* Notifications Popup Modal */}
+                      {showNotificationsModal && createPortal(
+                        <>
+                          {/* Backdrop */}
+                          <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 bg-black/20 z-[999998] notifications-modal-backdrop"
+                            onClick={() => setShowNotificationsModal(false)}
+                            style={{
+                              zIndex: 999998,
+                              position: 'fixed',
+                              top: 0,
+                              left: 0,
+                              right: 0,
+                              bottom: 0,
+                              backgroundColor: 'rgba(0, 0, 0, 0.2)'
+                            }}
+                          />
+                          
+                          {/* Modal */}
+                          <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                            transition={{ duration: 0.2 }}
+                            className="notifications-modal fixed right-6 top-20 w-[34rem] bg-[#FFFFFFE6] rounded-xl shadow-2xl border border-gray-700 z-[999999] max-h-[70vh] overflow-hidden"
+                            style={{
+                              zIndex: 999999,
+                              position: 'fixed',
+                              top: '5rem',
+                              right: '1.5rem',
+                              width: '34rem',
+                              maxHeight: '70vh',
+                              backgroundColor: '#FFFFFFE6',
+                              borderRadius: '0.75rem',
+                              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.8), 0 10px 10px -5px rgba(0, 0, 0, 0.4)',
+                              border: '1px solid #4b5563',
+                              isolation: 'isolate'
+                            }}
+                          >
+                          {/* Modal Header */}
+                          <div className="flex items-center justify-between p-4 border-b border-gray-700 bg-[#2f3133] relative z-[999999]">
+                            <h3 className="text-lg font-semibold text-white">Notifications</h3>
+                            <button
+                              onClick={() => setShowNotificationsModal(false)}
+                              className="p-1 text-gray-400 hover:text-white hover:bg-gray-600 rounded-lg transition-colors duration-200"
+                            >
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+                          
+                          {/* Notifications List with Recent/Older grouping */}
+                          <div className="max-h-[70vh] overflow-y-auto custom-dashboard-scrollbar relative z-[999999]">
+                            {notifications.length === 0 ? (
+                              <div className="p-6 text-center">
+                                <div className="w-16 h-16 mx-auto mb-3 bg-gray-700 rounded-full flex items-center justify-center">
+                                  <Bell className="w-8 h-8 text-gray-400" />
+                                </div>
+                                <p className="text-gray-400 text-sm">No notifications</p>
+                                <p className="text-gray-500 text-xs mt-1">You're all caught up!</p>
+                              </div>
+                            ) : (
+                              <div className="p-2">
+                                {(() => {
+                                  const now = new Date();
+                                  const cutoff = new Date(now);
+                                  cutoff.setDate(now.getDate() - 7);
+                                  const recent = notifications.filter(n => n.createdAt ? new Date(n.createdAt) >= cutoff : false);
+                                  const Section = ({ title, items }: { title: string; items: typeof notifications }) => (
+                                    <>
+                                      <div className="px-2 py-1 text-[11px] uppercase tracking-wide text-gray-400">{title}</div>
+                                      {items.length === 0 ? (
+                                        <div className="px-2 py-1 text-xs text-gray-500">No {title.toLowerCase()}.</div>
+                                      ) : null}
+                                      {items.map((notification, i) => (
+                                  <motion.div 
+                                    key={notification.id}
+                                    initial={{ opacity: 0, x: 20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{ duration: 0.3, delay: i * 0.1 }}
+                                    onClick={() => markNotificationAsRead(notification.id)}
+                                    className={`p-3 rounded-lg cursor-pointer transition-colors duration-200 hover:bg-[#2f3133] mb-2 ${
+                                      notification.read ? 'bg-[#FFFFFFE6]' : 'bg-[#2f3133]'
+                                    }`}
+                                  >
+                                    <div className="flex items-start space-x-3">
+                                      <div 
+                                        className={`p-2 rounded-full flex-shrink-0 ${
+                                          notification.severity === 'info' ? 'bg-blue-900' : 
+                                          notification.severity === 'success' ? 'bg-green-900' : 
+                                          notification.severity === 'warning' ? 'bg-yellow-900' : 
+                                          notification.severity === 'error' ? 'bg-red-900' :
+                                          notification.severity === 'announcement' ? 'bg-purple-900' :
+                                          notification.severity === 'reminder' ? 'bg-orange-900' :
+                                          notification.severity === 'deadline' ? 'bg-red-800' :
+                                          notification.severity === 'exam' ? 'bg-indigo-900' :
+                                          notification.severity === 'meeting' ? 'bg-teal-900' :
+                                          notification.severity === 'advisory' ? 'bg-amber-900' : 'bg-gray-900'
+                                        }`}
+                                      >
+                                        {notification.severity === 'announcement' ? (
+                                          <svg className="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.5a.5.5 0 01.5-.5h1a.5.5 0 01.5.5v1a.5.5 0 01-.5.5h-1a.5.5 0 01-.5-.5v-1zM11 11a1 1 0 011-1h1a1 1 0 011 1v1a1 1 0 01-1 1h-1a1 1 0 01-1-1v-1zM11 16.5a.5.5 0 01.5-.5h1a.5.5 0 01.5.5v1a.5.5 0 01-.5.5h-1a.5.5 0 01-.5-.5v-1zM5.5 11a.5.5 0 01.5-.5h1a.5.5 0 01.5.5v1a.5.5 0 01-.5.5h-1a.5.5 0 01-.5-.5v-1zM16.5 11a.5.5 0 01.5-.5h1a.5.5 0 01.5.5v1a.5.5 0 01-.5.5h-1a.5.5 0 01-.5-.5v-1z" />
+                                          </svg>
+                                        ) : notification.severity === 'reminder' ? (
+                                          <svg className="w-4 h-4 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                          </svg>
+                                        ) : notification.severity === 'deadline' ? (
+                                          <svg className="w-4 h-4 text-red-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                          </svg>
+                                        ) : notification.severity === 'exam' ? (
+                                          <svg className="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                          </svg>
+                                        ) : notification.severity === 'meeting' ? (
+                                          <svg className="w-4 h-4 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                          </svg>
+                                        ) : notification.severity === 'advisory' ? (
+                                          <svg className="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                                          </svg>
+                                        ) : notification.severity === 'info' ? (
+                                          <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                          </svg>
+                                        ) : notification.severity === 'success' ? (
+                                          <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                          </svg>
+                                        ) : notification.severity === 'warning' ? (
+                                          <svg className="w-4 h-4 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                                          </svg>
+                                        ) : notification.severity === 'error' ? (
+                                          <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                          </svg>
+                                        ) : (
+                                          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                          </svg>
+                                        )}
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        {notification.title && (
+                                          <p className={`text-xs font-semibold uppercase tracking-wide mb-1 ${
+                                            notification.read ? 'text-gray-400' : 'text-gray-200'
+                                          }`}>
+                                            {notification.title}
+                                          </p>
+                                        )}
+                                        <p className={`text-sm font-medium ${
+                                          notification.read ? 'text-gray-300' : 'text-white'
+                                        }`}>
+                                          {notification.message}
+                                        </p>
+                                        <div className="flex items-center gap-2 text-xs text-gray-400 mt-1">
+                                          <span>{notification.time}</span>
+                                          {notification.expires_at && (
+                                            <span className="text-orange-400">
+                                              • Expires: {getTimeAgo(notification.expires_at)}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                      {!notification.read && (
+                                        <motion.div 
+                                          initial={{ scale: 0 }}
+                                          animate={{ scale: 1 }}
+                                          className="w-2 h-2 bg-blue-400 rounded-full flex-shrink-0"
+                                        />
+                                      )}
+                                    </div>
+                                  </motion.div>
+                                  ))}
+                                    </>
+                                  );
+                                  return (
+                                    <>
+                                      <Section title="Recent" items={recent} />
+                                    </>
+                                  );
+                                })()}
+                              </div>
+                            )}
+                          </div>
+                          
+                          {/* Modal Footer */}
+                          <div className="p-3 border-t border-gray-700 bg-[#2f3133] relative z-[999999]">
+                            <div className="flex items-center justify-between text-xs text-gray-400">
+                              <span>{unreadCount} unread</span>
+                              <button
+                                onClick={() => {
+                                  // Mark all as read functionality
+                                  setNotifications(prev => 
+                                    prev.map(notif => ({ ...notif, read: true }))
+                                  );
+                                }}
+                                className="text-blue-400 hover:text-blue-300 transition-colors duration-200"
+                              >
+                                Mark all as read
+                              </button>
+                            </div>
+                          </div>
+                        </motion.div>
+                      </>,
+                      document.body
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
             <div className="admindashboard-stats-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
               <DashboardCard 
                 title={<span className="text-black">Total Users</span>} 
