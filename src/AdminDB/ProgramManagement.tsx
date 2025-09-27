@@ -28,6 +28,13 @@ const ProgramManagement: React.FC = () => {
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingProgram, setEditingProgram] = useState<Program | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deletingProgram, setDeletingProgram] = useState<Program | null>(null);
+  const [deleteConfirmationText, setDeleteConfirmationText] = useState('');
+  const [isDeletingConfirmed, setIsDeletingConfirmed] = useState(false);
+  const [deleteButtonClicked, setDeleteButtonClicked] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   
@@ -170,11 +177,11 @@ const ProgramManagement: React.FC = () => {
 
   useEffect(() => {
     fetchPrograms();
-  }, []);
+  }, [fetchPrograms]);
 
   // Manage body scroll when modal is open
   useEffect(() => {
-    if (isAddingNew || isEditing) {
+    if (isAddingNew || isEditing || isDeleting || showSuccessModal) {
       document.body.classList.add('modal-open');
     } else {
       document.body.classList.remove('modal-open');
@@ -183,7 +190,7 @@ const ProgramManagement: React.FC = () => {
     return () => {
       document.body.classList.remove('modal-open');
     };
-  }, [isAddingNew, isEditing]);
+  }, [isAddingNew, isEditing, isDeleting, showSuccessModal]);
 
   // Memoized filtered programs
   const filteredPrograms = useMemo(() => {
@@ -204,15 +211,11 @@ const ProgramManagement: React.FC = () => {
     const total = programs.length;
     const active = programs.filter(p => p.is_active).length;
     const inactive = total - active;
-    const withDescription = programs.filter(p => p.description && p.description.trim() !== '').length;
-    const withoutDescription = total - withDescription;
     
     return {
       total,
       active,
-      inactive,
-      withDescription,
-      withoutDescription
+      inactive
     };
   }, [programs]);
 
@@ -249,38 +252,103 @@ const ProgramManagement: React.FC = () => {
     clearError();
   }, [clearError]);
 
-  const handleDelete = useCallback(async (program: Program) => {
-    if (!confirm(`Are you sure you want to delete the program "${program.name}"?`)) {
-      console.log('❌ [handleDelete] User cancelled deletion');
+  // Success modal handlers
+  const showSuccess = useCallback((message: string) => {
+    setSuccessMessage(message);
+    setShowSuccessModal(true);
+  }, []);
+
+  const closeSuccessModal = useCallback(() => {
+    setShowSuccessModal(false);
+    setSuccessMessage('');
+  }, []);
+
+  const handleDeleteClick = useCallback((program: Program) => {
+    // Prevent double-clicking
+    if (deleteButtonClicked) {
+      console.log('🚫 [handleDeleteClick] Double-click prevented');
+      return;
+    }
+    
+    console.log('🗑️ [handleDeleteClick] Opening delete modal for program:', { id: program.id, name: program.name });
+    setDeleteButtonClicked(true);
+    setDeletingProgram(program);
+    setIsDeleting(true);
+    setDeleteConfirmationText('');
+    setIsDeletingConfirmed(false);
+    clearError();
+    
+    // Reset double-click protection after a short delay
+    setTimeout(() => {
+      setDeleteButtonClicked(false);
+    }, 1000);
+  }, [deleteButtonClicked, clearError]);
+
+  const handleCancelDelete = useCallback(() => {
+    console.log('❌ [handleCancelDelete] Cancelling delete');
+    setDeletingProgram(null);
+    setIsDeleting(false);
+    setDeleteConfirmationText('');
+    setIsDeletingConfirmed(false);
+    setDeleteButtonClicked(false);
+    clearError();
+  }, [clearError]);
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (!deletingProgram) {
+      console.warn('⚠️ [handleConfirmDelete] No deleting program set');
+      return;
+    }
+
+    // Additional safety check - require confirmation text
+    if (!isDeletingConfirmed) {
+      console.warn('⚠️ [handleConfirmDelete] Delete not confirmed by user');
       return;
     }
 
     try {
-      console.log('🗑️ [handleDelete] Deleting program:', { id: program.id, name: program.name });
+      console.log('🗑️ [handleConfirmDelete] Deleting program:', { id: deletingProgram.id, name: deletingProgram.name });
       
       const { error } = await supabase
         .from('programs')
         .delete()
-        .eq('id', program.id);
+        .eq('id', deletingProgram.id);
 
       if (error) {
-        console.error('❌ [handleDelete] Supabase error:', error);
+        console.error('❌ [handleConfirmDelete] Supabase error:', error);
         throw error;
       }
 
-      console.log('✅ [handleDelete] Program deleted successfully');
-      setPrograms(prev => prev.filter(p => p.id !== program.id));
-      alert('Program deleted successfully!');
+      console.log('✅ [handleConfirmDelete] Program deleted successfully');
+      setPrograms(prev => prev.filter(p => p.id !== deletingProgram.id));
+      setIsDeleting(false);
+      setDeletingProgram(null);
+      setDeleteConfirmationText('');
+      setIsDeletingConfirmed(false);
+      setDeleteButtonClicked(false);
+      clearError();
+      showSuccess('Program deleted successfully!');
     } catch (error: unknown) {
-      console.error('💥 [handleDelete] Error caught:', error);
+      console.error('💥 [handleConfirmDelete] Error caught:', error);
       logError(error, 'deleteProgram', { 
-        programId: program.id, 
-        programName: program.name,
+        programId: deletingProgram.id, 
+        programName: deletingProgram.name,
         timestamp: new Date().toISOString()
       });
       alert('Error deleting program. Please try again.');
     }
-  }, [logError]);
+  }, [deletingProgram, isDeletingConfirmed, clearError, logError, showSuccess]);
+
+  // Handle confirmation text input
+  const handleConfirmationTextChange = useCallback((text: string) => {
+    setDeleteConfirmationText(text);
+    // Check if the confirmation text matches the program name
+    if (deletingProgram && text.trim().toUpperCase() === deletingProgram.name.trim().toUpperCase()) {
+      setIsDeletingConfirmed(true);
+    } else {
+      setIsDeletingConfirmed(false);
+    }
+  }, [deletingProgram]);
 
   const handleUpdateProgram = useCallback(async () => {
     if (!editingProgram) {
@@ -324,7 +392,7 @@ const ProgramManagement: React.FC = () => {
       setIsEditing(false);
       setEditingProgram(null);
       clearError();
-      alert('Program updated successfully!');
+      showSuccess('Program updated successfully!');
     } catch (error: unknown) {
       console.error('💥 [handleUpdateProgram] Error caught:', error);
       logError(error, 'updateProgram', { 
@@ -334,7 +402,7 @@ const ProgramManagement: React.FC = () => {
       });
       alert('Error updating program. Please try again.');
     }
-  }, [editingProgram, clearError, logError]);
+  }, [editingProgram, clearError, logError, showSuccess]);
 
   if (loading && !refreshing) {
     console.log('🔄 Rendering loading state');
@@ -347,46 +415,46 @@ const ProgramManagement: React.FC = () => {
         </div>
 
         {/* Stats Cards Skeleton */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-          {[1, 2, 3, 4, 5].map(i => (
-            <div key={i} className="bg-[#252728] rounded-xl p-4 shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300 animate-pulse">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="bg-white/90 rounded-xl p-4 shadow-lg border border-gray-200 animate-pulse">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="h-4 bg-gray-700 rounded w-20 mb-2"></div>
-                  <div className="h-6 bg-gray-700 rounded w-12"></div>
+                  <div className="h-4 bg-gray-300 rounded w-20 mb-2"></div>
+                  <div className="h-6 bg-gray-300 rounded w-12"></div>
                 </div>
-                <div className="w-10 h-10 bg-gray-700 rounded-lg"></div>
+                <div className="w-10 h-10 bg-gray-300 rounded-lg"></div>
               </div>
             </div>
           ))}
         </div>
 
         {/* Search and Controls Skeleton */}
-        <div className="bg-[#252728] rounded-xl shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300 p-6 mb-6 animate-pulse">
+        <div className="bg-white/90 rounded-xl shadow-lg border border-gray-200 p-6 mb-6 animate-pulse">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="relative w-full md:w-1/3">
-              <div className="h-12 bg-gray-700 rounded-lg"></div>
+              <div className="h-12 bg-gray-300 rounded-lg"></div>
             </div>
             <div className="flex gap-3 w-full md:w-auto">
-              <div className="h-10 w-24 bg-gray-700 rounded-lg"></div>
-              <div className="h-10 w-40 bg-gray-700 rounded-lg"></div>
+              <div className="h-10 w-24 bg-gray-300 rounded-lg"></div>
+              <div className="h-10 w-40 bg-gray-300 rounded-lg"></div>
             </div>
           </div>
         </div>
 
         {/* Table Skeleton */}
-        <div className="bg-[#252728] rounded-xl shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300 overflow-hidden animate-pulse">
-          <div className="h-12 bg-gray-700"></div>
+        <div className="bg-white/90 rounded-xl shadow-lg border border-gray-200 overflow-hidden animate-pulse">
+          <div className="h-12 bg-gray-300"></div>
           <div className="p-6">
             <div className="space-y-4">
               {[1, 2, 3, 4, 5].map(i => (
                 <div key={i} className="flex items-center gap-4">
-                  <div className="h-4 bg-gray-700 rounded w-20"></div>
-                  <div className="h-4 bg-gray-700 rounded w-32"></div>
-                  <div className="h-4 bg-gray-700 rounded w-40"></div>
-                  <div className="h-4 bg-gray-700 rounded w-24"></div>
-                  <div className="h-4 bg-gray-700 rounded w-16"></div>
-                  <div className="h-4 bg-gray-700 rounded w-20"></div>
+                  <div className="h-4 bg-gray-300 rounded w-20"></div>
+                  <div className="h-4 bg-gray-300 rounded w-32"></div>
+                  <div className="h-4 bg-gray-300 rounded w-40"></div>
+                  <div className="h-4 bg-gray-300 rounded w-24"></div>
+                  <div className="h-4 bg-gray-300 rounded w-16"></div>
+                  <div className="h-4 bg-gray-300 rounded w-20"></div>
                 </div>
               ))}
             </div>
@@ -401,13 +469,14 @@ const ProgramManagement: React.FC = () => {
   }
 
   return (
-    <div className="p-6 min-h-screen bg-gradient-to-br  ">
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        className="mb-8"
-      >
+    <div className="min-h-screen  from-blue-50 via-white to-gray-200">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          className="mb-8"
+        >
         <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 rounded-lg shadow-lg">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
@@ -431,65 +500,43 @@ const ProgramManagement: React.FC = () => {
       </motion.div>
 
       {/* Stats Section */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-        <div className="programmanagement-stats-card bg-[#252728] rounded-xl p-4 shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="programmanagement-stats-card bg-white/90 rounded-xl p-4 shadow-lg border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-300 mb-1">Total Programs</p>
-              <p className="text-2xl font-bold text-white">{programStats.total}</p>
+              <p className="text-sm text-gray-600 mb-1">Total Programs</p>
+              <p className="text-2xl font-bold text-gray-800">{programStats.total}</p>
             </div>
-            <div className="w-10 h-10 bg-blue-900/30 rounded-lg flex items-center justify-center border border-blue-700/50">
-              <PlusCircle className="w-5 h-5 text-blue-400" />
+            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center border border-blue-200">
+              <PlusCircle className="w-5 h-5 text-blue-600" />
             </div>
           </div>
         </div>
-        <div className="programmanagement-stats-card bg-[#252728] rounded-xl p-4 shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300">
+        <div className="programmanagement-stats-card bg-white/90 rounded-xl p-4 shadow-lg border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-300 mb-1">Active</p>
-              <p className="text-2xl font-bold text-green-400">{programStats.active}</p>
+              <p className="text-sm text-gray-600 mb-1">Active</p>
+              <p className="text-2xl font-bold text-green-600">{programStats.active}</p>
             </div>
-            <div className="w-10 h-10 bg-green-900/30 rounded-lg flex items-center justify-center border border-green-700/50">
-              <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center border border-green-200">
+              <div className="w-2 h-2 bg-green-600 rounded-full"></div>
             </div>
           </div>
         </div>
-        <div className="programmanagement-stats-card bg-[#252728] rounded-xl p-4 shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300">
+        <div className="programmanagement-stats-card bg-white/90 rounded-xl p-4 shadow-lg border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-300 mb-1">With Description</p>
-              <p className="text-2xl font-bold text-purple-400">{programStats.withDescription}</p>
+              <p className="text-sm text-gray-600 mb-1">Inactive</p>
+              <p className="text-2xl font-bold text-gray-600">{programStats.inactive}</p>
             </div>
-            <div className="w-10 h-10 bg-purple-900/30 rounded-lg flex items-center justify-center border border-purple-700/50">
-              <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
-            </div>
-          </div>
-        </div>
-        <div className="programmanagement-stats-card bg-[#252728] rounded-xl p-4 shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-300 mb-1">Without Description</p>
-              <p className="text-2xl font-bold text-orange-400">{programStats.withoutDescription}</p>
-            </div>
-            <div className="w-10 h-10 bg-orange-900/30 rounded-lg flex items-center justify-center border border-orange-700/50">
-              <div className="w-2 h-2 bg-orange-400 rounded-full"></div>
-            </div>
-          </div>
-        </div>
-        <div className="programmanagement-stats-card bg-[#252728] rounded-xl p-4 shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-300 mb-1">Inactive</p>
-              <p className="text-2xl font-bold text-gray-400">{programStats.inactive}</p>
-            </div>
-            <div className="w-10 h-10 bg-gray-700/50 rounded-lg flex items-center justify-center border border-gray-600/50">
-              <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+            <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200">
+              <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="programmanagement-controls bg-[#252728] rounded-xl shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300 p-6 mb-6">
+      <div className="programmanagement-controls bg-white/90 rounded-xl shadow-lg border border-gray-200 p-6 mb-6">
         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="relative w-full md:w-1/3">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -497,7 +544,7 @@ const ProgramManagement: React.FC = () => {
             </div>
             <input
               type="text"
-              className="pl-10 pr-4 py-3 w-full bg-gray-800 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-white placeholder-gray-400 shadow-[inset_2px_2px_4px_rgba(0,0,0,0.3),inset_-1px_-1px_2px_rgba(255,255,255,0.05)]"
+              className="pl-10 pr-4 py-3 w-full bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800 placeholder-gray-500 shadow-sm"
               placeholder="Search by name or description..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -509,7 +556,7 @@ const ProgramManagement: React.FC = () => {
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.98 }}
               onClick={handleRefresh}
-              className="programmanagement-refresh-button flex items-center gap-2 bg-gray-700 text-gray-200 px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors shadow-[2px_2px_4px_rgba(0,0,0,0.2),-1px_-1px_3px_rgba(255,255,255,0.15)]"
+              className="programmanagement-refresh-button flex items-center gap-2 bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors shadow-sm"
             >
               <RefreshCw size={18} className={refreshing ? "animate-spin" : ""} />
               Refresh
@@ -614,11 +661,10 @@ const ProgramManagement: React.FC = () => {
                 <h2 className="text-2xl font-bold text-gray-900 mb-6">Add New Program</h2>
                 <button
                   onClick={handleCancelAdd}
-                  className="absolute w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center text-lg sm:text-xl font-bold text-white bg-red-500 hover:bg-red-600 rounded-full shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 animate-pop-in hover:scale-110 hover:rotate-90 top-2 right-2 sm:top-3 sm:right-3"
+                  className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors duration-200"
                   aria-label="Close Program Modal"
-                  style={{ backgroundColor: 'rgb(239, 68, 68)', boxShadow: 'rgba(239, 68, 68, 0.3) 0px 2px 8px', zIndex: 50 }}
                 >
-                  ×
+                  <X size={20} />
                 </button>
               </div>
               
@@ -717,11 +763,10 @@ const ProgramManagement: React.FC = () => {
                 <h2 className="text-2xl font-bold text-gray-900 mb-6">Edit Program</h2>
                 <button
                   onClick={handleCancelEdit}
-                  className="absolute w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center text-lg sm:text-xl font-bold text-white bg-red-500 hover:bg-red-600 rounded-full shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 animate-pop-in hover:scale-110 hover:rotate-90 top-2 right-2 sm:top-3 sm:right-3"
+                  className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors duration-200"
                   aria-label="Close Edit Modal"
-                  style={{ backgroundColor: 'rgb(239, 68, 68)', boxShadow: 'rgba(239, 68, 68, 0.3) 0px 2px 8px', zIndex: 50 }}
                 >
-                  ×
+                  <X size={20} />
                 </button>
               </div>
               
@@ -800,9 +845,9 @@ const ProgramManagement: React.FC = () => {
       )}
 
       {/* TABLE - COMPACT AND ZOOM-FRIENDLY */}
-      <div className="bg-[#252728] rounded-xl shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300 overflow-hidden">
+      <div className="bg-white/90 rounded-xl shadow-lg border border-gray-200 overflow-hidden">
         <div className="w-full overflow-x-auto">
-          <table className="w-full min-w-full divide-y divide-gray-600">
+          <table className="w-full min-w-full divide-y divide-gray-200">
             <thead className="bg-gradient-to-r from-indigo-600 to-blue-500">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">
@@ -825,49 +870,49 @@ const ProgramManagement: React.FC = () => {
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-[#252728] divide-y divide-gray-600">
+            <tbody className="bg-white/90 divide-y divide-gray-200">
               {filteredPrograms.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-gray-400">
+                  <td colSpan={6} className="px-4 py-6 text-center text-gray-500">
                     {searchQuery ? 
                       <div className="flex flex-col items-center">
                         <Search className="h-8 w-8 text-gray-400 mb-2" />
-                        <p className="text-white">No programs match your search criteria.</p>
+                        <p className="text-gray-700">No programs match your search criteria.</p>
                         <button 
                           onClick={() => setSearchQuery('')}
-                          className="mt-2 text-blue-400 hover:text-blue-300"
+                          className="mt-2 text-blue-600 hover:text-blue-500"
                         >
                           Clear search
                         </button>
                       </div> : 
                       <div className="flex flex-col items-center">
                         <PlusCircle className="h-8 w-8 text-gray-400 mb-2" />
-                        <p className="text-white">No programs found. Add a new program to get started.</p>
+                        <p className="text-gray-700">No programs found. Add a new program to get started.</p>
                       </div>
                     }
                   </td>
                 </tr>
               ) : (
                 filteredPrograms.map((program, index) => (
-                  <tr key={program.id || index} className="programmanagement-table-row hover:bg-gray-700/50 transition-colors duration-150">
+                  <tr key={program.id || index} className="programmanagement-table-row hover:bg-gray-50 transition-colors duration-150">
                     <td className="px-4 py-3 whitespace-nowrap">
-                      <span className="font-medium text-white">{program.name || 'N/A'}</span>
+                      <span className="font-medium text-gray-800">{program.name || 'N/A'}</span>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-gray-300 break-words">{program.description || 'N/A'}</span>
+                      <span className="text-gray-600 break-words">{program.description || 'N/A'}</span>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
-                      <span className="text-gray-300">{program.is_active ? 'Yes' : 'No'}</span>
+                      <span className="text-gray-600">{program.is_active ? 'Yes' : 'No'}</span>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
-                      <span className="text-gray-400">{program.created_at ? new Date(program.created_at).toLocaleDateString('en-US', {
+                      <span className="text-gray-500">{program.created_at ? new Date(program.created_at).toLocaleDateString('en-US', {
                         year: 'numeric',
                         month: 'short',
                         day: 'numeric'
                       }) : 'N/A'}</span>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
-                      <span className="text-gray-400">{program.updated_at ? new Date(program.updated_at).toLocaleDateString('en-US', {
+                      <span className="text-gray-500">{program.updated_at ? new Date(program.updated_at).toLocaleDateString('en-US', {
                         year: 'numeric',
                         month: 'short',
                         day: 'numeric'
@@ -877,15 +922,20 @@ const ProgramManagement: React.FC = () => {
                       <div className="flex justify-end gap-2">
                         <button 
                           onClick={() => handleEdit(program)}
-                          className="programmanagement-action-button p-1 rounded-full bg-blue-900/30 text-blue-400 hover:bg-blue-800/50 transition-colors duration-200 border border-blue-700/50"
+                          className="programmanagement-action-button p-1 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 transition-colors duration-200 border border-blue-200"
                           title="Edit Program"
                         >
                           <Edit size={16} />
                         </button>
                         <button 
-                          onClick={() => handleDelete(program)}
-                          className="programmanagement-action-button p-1 rounded-full bg-red-900/30 text-red-400 hover:bg-red-800/50 transition-colors duration-200 border border-red-700/50"
-                          title="Delete Program"
+                          onClick={() => handleDeleteClick(program)}
+                          disabled={deleteButtonClicked}
+                          className={`programmanagement-action-button p-1 rounded-full transition-colors duration-200 border ${
+                            deleteButtonClicked
+                              ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                              : 'bg-red-100 text-red-600 hover:bg-red-200 border-red-200'
+                          }`}
+                          title={deleteButtonClicked ? "Please wait..." : "Delete Program"}
                         >
                           <Trash2 size={16} />
                         </button>
@@ -898,6 +948,173 @@ const ProgramManagement: React.FC = () => {
           </table>
         </div>
       </div>
+      </div>
+
+      {/* Delete Confirmation Modal */}
+      {isDeleting && deletingProgram && createPortal(
+        <AnimatePresence>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-md"
+            style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              transition={{ duration: 0.3 }}
+              className="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl relative mx-4"
+            >
+              <div className="relative">
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                    <Trash2 className="w-6 h-6 text-red-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900">Delete Program</h2>
+                    <p className="text-gray-600 text-sm">This action cannot be undone</p>
+                  </div>
+                </div>
+                
+                <div className="mb-6">
+                  <p className="text-gray-700 mb-2">
+                    Are you sure you want to delete the program:
+                  </p>
+                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <p className="font-semibold text-gray-900">{deletingProgram.name}</p>
+                    {deletingProgram.description && (
+                      <p className="text-sm text-gray-600 mt-1">{deletingProgram.description}</p>
+                    )}
+                  </div>
+                  
+                  {/* Additional Safety Measure */}
+                  <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <div className="w-6 h-6 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <AlertCircle className="w-4 h-4 text-red-600" />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-medium text-red-800 mb-2">⚠️ Safety Confirmation Required</h4>
+                        <p className="text-sm text-red-700 mb-3">
+                          To prevent accidental deletion, please type the program name exactly as shown above:
+                        </p>
+                        <div className="space-y-2">
+                          <input
+                            type="text"
+                            value={deleteConfirmationText}
+                            onChange={(e) => handleConfirmationTextChange(e.target.value)}
+                            placeholder={`Type "${deletingProgram.name}" to confirm`}
+                            className={`w-full px-3 py-2 border rounded-lg text-sm transition-colors ${
+                              isDeletingConfirmed 
+                                ? 'border-green-300 bg-green-50 text-green-800' 
+                                : 'border-red-300 bg-red-50 text-red-800'
+                            } focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500`}
+                          />
+                          {isDeletingConfirmed ? (
+                            <p className="text-sm text-green-700 flex items-center gap-2">
+                              <span className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
+                                <span className="text-white text-xs">✓</span>
+                              </span>
+                              Confirmation successful
+                            </p>
+                          ) : (
+                            <p className="text-sm text-red-600">
+                              Program name must match exactly to enable deletion
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex justify-end gap-3">
+                  <motion.button
+                    type="button"
+                    onClick={handleCancelDelete}
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors"
+                  >
+                    Cancel
+                  </motion.button>
+                  <motion.button
+                    type="button"
+                    onClick={handleConfirmDelete}
+                    disabled={!isDeletingConfirmed}
+                    whileHover={isDeletingConfirmed ? { scale: 1.03 } : {}}
+                    whileTap={isDeletingConfirmed ? { scale: 0.98 } : {}}
+                    className={`px-6 py-3 rounded-lg transition-colors shadow-md ${
+                      isDeletingConfirmed
+                        ? 'bg-red-600 text-white hover:bg-red-700 cursor-pointer'
+                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}
+                  >
+                    Delete Program
+                  </motion.button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        </AnimatePresence>,
+        document.body
+      )}
+
+      {/* Success Modal */}
+      {showSuccessModal && createPortal(
+        <AnimatePresence>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-md"
+            style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              transition={{ duration: 0.3 }}
+              className="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl relative mx-4"
+            >
+              <div className="relative">
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                    <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900">Success!</h2>
+                    <p className="text-gray-600 text-sm">Operation completed successfully</p>
+                  </div>
+                </div>
+                
+                <div className="mb-6">
+                  <p className="text-gray-700 text-center">
+                    {successMessage}
+                  </p>
+                </div>
+                
+                <div className="flex justify-center">
+                  <motion.button
+                    type="button"
+                    onClick={closeSuccessModal}
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="px-8 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-md"
+                  >
+                    Continue
+                  </motion.button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 };
