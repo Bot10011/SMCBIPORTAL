@@ -823,40 +823,48 @@ const RegistrarEnrollment: React.FC = () => {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white/90 rounded-2xl p-6 shadow-lg border border-gray-100 flex items-center gap-4">
-            <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-              <Users className="w-6 h-6 text-blue-600" />
-            </div>
-            <div>
-              <p className="text-gray-600 text-sm font-medium">Total Students</p>
-              <p className="text-3xl font-bold text-gray-900">{totalStudents}</p>
-            </div>
-          </div>
-          <div className="bg-white/90 rounded-2xl p-6 shadow-lg border border-gray-100 flex items-center gap-4">
-            <div className="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
-              <UserPlus className="w-6 h-6 text-yellow-600" />
-            </div>
-            <div>
-              <p className="text-gray-600 text-sm font-medium">Pending Approvals</p>
-              <p className="text-3xl font-bold text-gray-900">{pendingStudents}</p>
+          <div className="bg-white/90 rounded-2xl p-6 shadow-lg border border-gray-100">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-600 text-sm font-medium">Total Students</p>
+                <p className="text-3xl font-bold text-gray-900">{totalStudents}</p>
+              </div>
+              <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                <Users className="w-6 h-6 text-blue-600" />
+              </div>
             </div>
           </div>
-          <div className="bg-white/90 rounded-2xl p-6 shadow-lg border border-gray-100 flex items-center gap-4">
-            <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-              <CheckCircle2 className="w-6 h-6 text-green-600" />
-            </div>
-            <div>
-              <p className="text-gray-600 text-sm font-medium">Enrolled Students</p>
-              <p className="text-3xl font-bold text-gray-900">{enrolledStudents}</p>
+          <div className="bg-white/90 rounded-2xl p-6 shadow-lg border border-gray-100">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-600 text-sm font-medium">Pending Approvals</p>
+                <p className="text-3xl font-bold text-gray-900">{pendingStudents}</p>
+              </div>
+              <div className="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
+                <UserPlus className="w-6 h-6 text-yellow-600" />
+              </div>
             </div>
           </div>
-          <div className="bg-white/90 rounded-2xl p-6 shadow-lg border border-gray-100 flex items-center gap-4">
-            <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-              <Users className="w-6 h-6 text-purple-600" />
+          <div className="bg-white/90 rounded-2xl p-6 shadow-lg border border-gray-100">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-600 text-sm font-medium">Enrolled Students</p>
+                <p className="text-3xl font-bold text-gray-900">{enrolledStudents}</p>
+              </div>
+              <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                <CheckCircle2 className="w-6 h-6 text-green-600" />
+              </div>
             </div>
-            <div>
-              <p className="text-gray-600 text-sm font-medium">Active Students</p>
-              <p className="text-3xl font-bold text-gray-900">{activeStudents}</p>
+          </div>
+          <div className="bg-white/90 rounded-2xl p-6 shadow-lg border border-gray-100">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-600 text-sm font-medium">Active Students</p>
+                <p className="text-3xl font-bold text-gray-900">{activeStudents}</p>
+              </div>
+              <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+                <Users className="w-6 h-6 text-purple-600" />
+              </div>
             </div>
           </div>
         </div>
