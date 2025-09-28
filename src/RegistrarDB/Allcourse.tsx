@@ -38,6 +38,9 @@ export const RegistrarGradeViewer: React.FC = () => {
   
   // State for section mapping
   const [sectionMap, setSectionMap] = useState<Map<string, string>>(new Map());
+  
+  // State to track which subjects have instructors assigned
+  const [subjectsWithInstructors, setSubjectsWithInstructors] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const fetchCourses = async () => {
@@ -48,11 +51,46 @@ export const RegistrarGradeViewer: React.FC = () => {
         setError('Failed to load subjects');
       } else {
         setCourses(data || []);
+        // Fetch instructor assignments for all courses
+        await fetchInstructorAssignments(data || []);
       }
       setLoading(false);
     };
     fetchCourses();
   }, []);
+
+  // Function to fetch instructor assignments for all courses
+  const fetchInstructorAssignments = async (coursesData: Course[]) => {
+    try {
+      const courseIds = coursesData.map(course => course.id).filter(Boolean);
+      if (courseIds.length === 0) return;
+
+      const { data: assignments, error } = await supabase
+        .from('teacher_subjects')
+        .select('subject_id')
+        .in('subject_id', courseIds)
+        .eq('is_active', true);
+
+      if (error) {
+        console.error('Error fetching instructor assignments:', error);
+        return;
+      }
+
+      // Create a set of course IDs that have instructors assigned
+      const assignedSubjects = new Set<string>();
+      if (assignments) {
+        assignments.forEach(assignment => {
+          if (assignment.subject_id) {
+            assignedSubjects.add(assignment.subject_id);
+          }
+        });
+      }
+
+      setSubjectsWithInstructors(assignedSubjects);
+    } catch (error) {
+      console.error('Error in fetchInstructorAssignments:', error);
+    }
+  };
 
   // Fetch sections data to map UIDs to names
   useEffect(() => {
@@ -155,16 +193,49 @@ export const RegistrarGradeViewer: React.FC = () => {
     // 1. Get teacher(s) for this subject
     const { data: teacherLinks } = await supabase
       .from('teacher_subjects')
-      .select('teacher_id')
-      .eq('subject_id', courseId);
-    const teacherIds = teacherLinks?.map(link => link.teacher_id) || [];
+      .select(`
+        teacher_id,
+        teacher:user_profiles!teacher_subjects_teacher_id_fkey(
+          display_name,
+          first_name,
+          last_name,
+          middle_name
+        )
+      `)
+      .eq('subject_id', courseId)
+      .eq('is_active', true);
+    
     let teachers: string[] = [];
-    if (teacherIds.length > 0) {
-      const { data: teacherRows } = await supabase
-        .from('user_profiles')
-        .select('display_name')
-        .in('id', teacherIds);
-      teachers = teacherRows ? teacherRows.map(t => t.display_name as string).filter(Boolean) : [];
+    if (teacherLinks && teacherLinks.length > 0) {
+      // Use a Set to track unique teacher IDs to avoid duplicates
+      const uniqueTeacherIds = new Set<string>();
+      const uniqueTeachers: string[] = [];
+      
+      teacherLinks.forEach(link => {
+        if (link.teacher_id && !uniqueTeacherIds.has(link.teacher_id)) {
+          uniqueTeacherIds.add(link.teacher_id);
+          
+          const teacher = link.teacher as { display_name?: string; first_name?: string; last_name?: string; middle_name?: string } | null;
+          let teacherName = '';
+          
+          if (teacher?.display_name && teacher.display_name.trim() !== '') {
+            teacherName = teacher.display_name;
+          } else {
+            // Fallback to concatenating name parts
+            const firstName = teacher?.first_name || '';
+            const lastName = teacher?.last_name || '';
+            const middleName = teacher?.middle_name || '';
+            const nameParts = [firstName, middleName, lastName].filter(part => part.trim() !== '');
+            teacherName = nameParts.length > 0 ? nameParts.join(' ') : 'Unknown Teacher';
+          }
+          
+          if (teacherName && teacherName !== 'Unknown Teacher') {
+            uniqueTeachers.push(teacherName);
+          }
+        }
+      });
+      
+      teachers = uniqueTeachers;
     }
     // 2. Get students enrolled in this subject
     const { data: enrollments } = await supabase
@@ -176,16 +247,37 @@ export const RegistrarGradeViewer: React.FC = () => {
     if (studentIds.length > 0) {
       const { data: studentRows } = await supabase
         .from('user_profiles')
-        .select('display_name, first_name, last_name, middle_name, avatar_url, year_level, section, student_id')
+        .select('id, display_name, first_name, last_name, middle_name, avatar_url, year_level, section, student_id, email')
         .in('id', studentIds);
+      
+      // Get auth users data for avatar fallback
+      const { data: authUsers } = await supabase.auth.admin.listUsers();
+      const authUsersMap = new Map();
+      if (authUsers?.users) {
+        authUsers.users.forEach(user => {
+          authUsersMap.set(user.id, user.user_metadata?.avatar_url || user.user_metadata?.picture);
+        });
+      }
+      
       students = studentRows
         ? studentRows.map(s => {
             // Convert section UID to name if available
             const sectionName = sectionMap.get(s.section || '') || s.section;
             
+            // Get avatar from user_profiles first, then fallback to auth users
+            let avatarUrl = (s.avatar_url as string) || null;
+            if (!avatarUrl) {
+              // Find the corresponding auth user by matching email or other identifier
+              const authUser = authUsers?.users?.find(authUser => {
+                // Try to match by email if available in user_profiles
+                return authUser.email === s.email || authUser.id === s.id;
+              });
+              avatarUrl = authUser?.user_metadata?.avatar_url || authUser?.user_metadata?.picture || null;
+            }
+            
             return {
               name: getStudentName(s),
-              avatar_url: (s.avatar_url as string) || null,
+              avatar_url: avatarUrl,
               year_level: (s.year_level as string | number | null) ?? null,
               section: sectionName,
               school_id: (s.student_id as string | null) ?? null
@@ -349,7 +441,7 @@ export const RegistrarGradeViewer: React.FC = () => {
               {programNames.map(program => (
                 <div key={program} className="bg-white/90 rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
                   <button
-                    className="w-full flex items-center justify-between px-5 py-4 bg-gradient-to-r from-blue-50 to-purple-50 hover:from-blue-100 hover:to-purple-100 transition-colors"
+                    className="w-full flex items-center justify-between px-5 py-4 bg-gradient-to-r from-blue-50 to-purple-50"
                     onClick={() => setOpenPrograms(prev => ({ ...prev, [program]: !prev[program] }))}
                   >
                     <div className="flex items-center gap-3">
@@ -364,62 +456,87 @@ export const RegistrarGradeViewer: React.FC = () => {
                     <span className="text-sm font-medium text-blue-700">{openPrograms[program] ? 'Hide' : 'View'} Subjects</span>
                   </button>
                   {openPrograms[program] && (
-                    <div className="p-5 pt-0">
+                    <div className="p-5 pt-6">
                       <div className="grid gap-6" style={{ gridTemplateColumns: `repeat(auto-fit, minmax(280px, 1fr))` }}>
-                        {grouped[program].map((course) => (
-                          <div
-                            key={course.id}
-                            className="bg-white rounded-2xl shadow border border-gray-100 overflow-hidden hover:shadow-md transition-all duration-300 group"
-                          >
-                            <div className="relative h-32 bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center overflow-hidden">
-                              {imageLoading[String(course.id)] ? (
-                                <div className="w-full h-full flex items-center justify-center">
-                                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+                        {grouped[program].map((course) => {
+                          const hasInstructor = subjectsWithInstructors.has(course.id || '');
+                          return (
+                            <div
+                              key={course.id}
+                              className={`rounded-2xl shadow border overflow-hidden hover:shadow-md transition-all duration-300 group ${
+                                hasInstructor 
+                                  ? 'bg-white border-gray-100' 
+                                  : 'bg-red-50 border-red-200'
+                              }`}
+                            >
+                              <div className={`relative h-32 flex items-center justify-center overflow-hidden ${
+                                hasInstructor 
+                                  ? 'bg-gradient-to-br from-blue-50 to-indigo-50' 
+                                  : 'bg-gradient-to-br from-red-50 to-pink-50'
+                              }`}>
+                                {imageLoading[String(course.id)] ? (
+                                  <div className="w-full h-full flex items-center justify-center">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+                                  </div>
+                                ) : courseImages[String(course.id)] ? (
+                                  <img
+                                    src={courseImages[String(course.id)]}
+                                    alt={course.name}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                      console.error('Image failed to load:', courseImages[String(course.id)]);
+                                      (e.target as HTMLImageElement).style.display = 'none';
+                                      (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+                                    }}
+                                  />
+                                ) : (
+                                  <BookOpen className={`w-12 h-12 ${hasInstructor ? 'text-blue-400' : 'text-red-400'}`} />
+                                )}
+                              </div>
+                              <div className="p-6">
+                                <div className="flex items-center justify-between mb-3">
+                                  <span className={`text-xs font-semibold px-3 py-1 rounded-full ${
+                                    hasInstructor 
+                                      ? 'bg-blue-100 text-blue-800' 
+                                      : 'bg-red-100 text-red-800'
+                                  }`}>
+                                    {course.code}
+                                  </span>
+                                  <span className="bg-green-100 text-green-800 text-xs font-semibold px-3 py-1 rounded-full">
+                                    {course.units} Unit{course.units !== 1 ? 's' : ''}
+                                  </span>
                                 </div>
-                              ) : courseImages[String(course.id)] ? (
-                                <img
-                                  src={courseImages[String(course.id)]}
-                                  alt={course.name}
-                                  className="w-full h-full object-cover"
-                                  onError={(e) => {
-                                    console.error('Image failed to load:', courseImages[String(course.id)]);
-                                    (e.target as HTMLImageElement).style.display = 'none';
-                                    (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+                                <h3 className={`text-xl font-bold mb-2 line-clamp-2 ${
+                                  hasInstructor ? 'text-gray-900' : 'text-red-900'
+                                }`}>{course.name}</h3>
+                                <p className={`text-sm mb-4 line-clamp-3 ${
+                                  hasInstructor ? 'text-gray-600' : 'text-red-700'
+                                }`}>{course.description}</p>
+                                <div className="flex items-center justify-between">
+                                  <div className={`flex items-center gap-2 text-sm ${
+                                    hasInstructor ? 'text-gray-500' : 'text-red-600'
+                                  }`}>
+                                    <span>Created {course.created_at ? new Date(course.created_at).toLocaleDateString() : '-'}</span>
+                                  </div>
+                                </div>
+                                <button
+                                  className={`mt-2 px-4 py-2 rounded-lg transition ${
+                                    hasInstructor 
+                                      ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                                      : 'bg-red-600 text-white hover:bg-red-700'
+                                  }`}
+                                  onClick={async () => {
+                                    setSelectedCourse(course);
+                                    setDetailsOpen(true);
+                                    await fetchSubjectDetails(course.id!);
                                   }}
-                                />
-                              ) : (
-                                <BookOpen className="w-12 h-12 text-blue-400" />
-                              )}
-                            </div>
-                            <div className="p-6">
-                              <div className="flex items-center justify-between mb-3">
-                                <span className="bg-blue-100 text-blue-800 text-xs font-semibold px-3 py-1 rounded-full">
-                                  {course.code}
-                                </span>
-                                <span className="bg-green-100 text-green-800 text-xs font-semibold px-3 py-1 rounded-full">
-                                  {course.units} Unit{course.units !== 1 ? 's' : ''}
-                                </span>
+                                >
+                                  View Details
+                                </button>
                               </div>
-                              <h3 className="text-xl font-bold text-gray-900 mb-2 line-clamp-2">{course.name}</h3>
-                              <p className="text-gray-600 text-sm mb-4 line-clamp-3">{course.description}</p>
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2 text-gray-500 text-sm">
-                                  <span>Created {course.created_at ? new Date(course.created_at).toLocaleDateString() : '-'}</span>
-                                </div>
-                              </div>
-                              <button
-                                className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-                                onClick={async () => {
-                                  setSelectedCourse(course);
-                                  setDetailsOpen(true);
-                                  await fetchSubjectDetails(course.id!);
-                                }}
-                              >
-                                View Details
-                              </button>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   )}
