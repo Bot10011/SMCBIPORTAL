@@ -7,7 +7,7 @@ interface UserEmail {
   id: string;
   email: string;
   display_name?: string;
-  first_name?: string; 
+  first_name?: string;
   last_name?: string;
   avatar_url?: string;
   role: string;
@@ -27,12 +27,16 @@ const EmailManagement: React.FC = () => {
   const [editingEmail, setEditingEmail] = useState('');
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const [isRetrying, setIsRetrying] = useState(false);
 
   // Fetch all users with their email information from auth.users via API
   useEffect(() => {
-    const fetchUsers = async () => {
+    const fetchUsers = async (attempt = 1) => {
       setLoading(true);
       setError(null);
+      setIsRetrying(attempt > 1);
+      
       try {
         const response = await fetch('http://localhost:3000/api/get-auth-users');
         
@@ -43,11 +47,33 @@ const EmailManagement: React.FC = () => {
 
         const data = await response.json();
         setUsers(data.users || []);
+        setRetryCount(0); // Reset retry count on success
       } catch (err) {
         console.error('Error fetching users:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load users');
+        
+        // Check if it's a connection error and we haven't exceeded max retries
+        const isConnectionError = err instanceof TypeError && err.message.includes('Failed to fetch');
+        const maxRetries = 3;
+        
+        if (isConnectionError && attempt < maxRetries) {
+          // Wait before retrying (exponential backoff)
+          const delay = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s
+          setRetryCount(attempt);
+          setTimeout(() => {
+            fetchUsers(attempt + 1);
+          }, delay);
+          return;
+        }
+        
+        // Set appropriate error message
+        if (isConnectionError) {
+          setError('Unable to connect to API server. Please make sure the API server is running on port 3000. You can start it with: npm run dev:api');
+        } else {
+          setError(err instanceof Error ? err.message : 'Failed to load users');
+        }
       } finally {
         setLoading(false);
+        setIsRetrying(false);
       }
     };
     
@@ -218,7 +244,20 @@ const EmailManagement: React.FC = () => {
         {/* Error Display */}
         {error && (
           <div className="bg-red-100 border border-red-300 text-red-800 px-4 py-3 rounded mb-6">
-            <strong>Error:</strong> {error}
+            <div className="flex items-start gap-2">
+              <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+              <div>
+                <strong>Connection Error:</strong> {error}
+                {retryCount > 0 && (
+                  <div className="mt-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Retrying... (Attempt {retryCount}/3)</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
@@ -254,7 +293,8 @@ const EmailManagement: React.FC = () => {
         <div className="md:hidden space-y-3">
           {loading ? (
             <div className="bg-white/90 rounded-2xl shadow p-4 flex items-center justify-center text-gray-500">
-              <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading students...
+              <Loader2 className="w-5 h-5 animate-spin mr-2" /> 
+              {isRetrying ? `Retrying connection... (${retryCount}/3)` : 'Loading students...'}
             </div>
           ) : filteredUsers.length === 0 ? (
             <div className="bg-white/90 rounded-2xl shadow p-6 text-center text-gray-400">No students found.</div>
@@ -350,7 +390,9 @@ const EmailManagement: React.FC = () => {
                 <tr>
                   <td colSpan={7} className="py-12 text-center">
                     <Loader2 className="w-8 h-8 text-blue-500 animate-spin mx-auto mb-2" />
-                    <span className="text-gray-500">Loading students...</span>
+                    <span className="text-gray-500">
+                      {isRetrying ? `Retrying connection... (${retryCount}/3)` : 'Loading students...'}
+                    </span>
                   </td>
                 </tr>
               ) : filteredUsers.length === 0 ? (
@@ -438,4 +480,3 @@ const EmailManagement: React.FC = () => {
 };
 
 export default EmailManagement;
-
