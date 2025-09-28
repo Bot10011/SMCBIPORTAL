@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Loader2, CheckCircle2, Clock, BookOpen, ChevronRight, Search, Users, GraduationCap, Bell } from 'lucide-react';
+import { Loader2, CheckCircle2, Clock, BookOpen, ChevronRight, Search, Users, GraduationCap } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface Grade {
@@ -3134,72 +3134,6 @@ export default function StudentGrades() {
     setBulkUpdating(false);
   };
 
-  const handleNotifyInstructorForGrades = async () => {
-    const filteredStudents = getFilteredStudents();
-    if (filteredStudents.length === 0) return;
-    
-    // Find students who don't have grades yet
-    const studentsWithoutGrades = filteredStudents.filter(student => 
-      student.prelim_grade === null && 
-      student.midterm_grade === null && 
-      student.final_grade === null
-    );
-    
-    if (studentsWithoutGrades.length === 0) {
-      toast.success('All students already have grades entered', {
-        duration: 3000
-      });
-      return;
-    }
-    
-    // Get instructor info for this subject
-    if (!instructorInfo?.instructor_id) {
-      toast.error('No instructor assigned to this subject', {
-        duration: 4000
-      });
-      return;
-    }
-    
-    setBulkUpdating(true);
-    
-    try {
-      // Create notification records for the instructor
-      const notifications = studentsWithoutGrades.map(student => ({
-        recipient_id: instructorInfo.instructor_id,
-        sender_id: user?.id,
-        type: 'grade_request',
-        title: 'Grade Entry Required',
-        message: `Please enter grades for student ${student.student_name || student.student_id} in ${selectedSubject}`,
-        data: {
-          student_id: student.student_id,
-          student_name: student.student_name,
-          subject_id: selectedCourseId,
-          subject_name: selectedSubject,
-          year_level: selectedYearLevel,
-          section: selectedSection
-        },
-        is_read: false,
-        created_at: new Date().toISOString()
-      }));
-      
-      const { error } = await supabase
-        .from('notifications')
-        .insert(notifications);
-      
-      if (!error) {
-        toast.success(`Notification sent to instructor for ${studentsWithoutGrades.length} students without grades`, {
-          duration: 5000
-        });
-      } else {
-        toast.error('Failed to send notification to instructor');
-      }
-    } catch (error) {
-      console.error('Error sending notification:', error);
-      toast.error('Failed to send notification to instructor');
-    }
-    
-    setBulkUpdating(false);
-  };
 
   const handleBulkHide = async () => {
     const filteredStudents = getFilteredStudents();
@@ -4175,42 +4109,42 @@ export default function StudentGrades() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white/90 rounded-2xl p-6 shadow-sm border border-blue-200/50 hover:shadow-md transition-all duration-300">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 mt-6">
+          {/* Total Grades Card */}
+          <div className="bg-white/90 rounded-2xl p-6 shadow-lg border border-gray-100">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-blue-700 text-sm font-semibold uppercase tracking-wide mb-1">Total Grades</p>
-                <p className="text-4xl font-bold text-blue-900">{totalGrades}</p>
-                <p className="text-blue-600 text-xs mt-1">All grade records</p>
+                <p className="text-gray-600 text-sm font-medium">Total Grades</p>
+                <p className="text-3xl font-bold text-gray-900">{totalGrades}</p>
               </div>
-              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg">
-                <BookOpen className="w-8 h-8 text-white" />
+              <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                <BookOpen className="w-6 h-6 text-blue-600" />
               </div>
             </div>
           </div>
           
-          <div className="bg-white/90 rounded-2xl p-6 shadow-sm border border-amber-200/50 hover:shadow-md transition-all duration-300">
+          {/* Pending Grades Card */}
+          <div className="bg-white/90 rounded-2xl p-6 shadow-lg border border-gray-100">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-amber-700 text-sm font-semibold uppercase tracking-wide mb-1">Pending</p>
-                <p className="text-4xl font-bold text-amber-900">{pendingGrades}</p>
-                <p className="text-amber-600 text-xs mt-1">Awaiting release</p>
+                <p className="text-gray-600 text-sm font-medium">Pending</p>
+                <p className="text-3xl font-bold text-gray-900">{pendingGrades}</p>
               </div>
-              <div className="w-16 h-16 bg-gradient-to-br from-amber-500 to-amber-600 rounded-2xl flex items-center justify-center shadow-lg">
-                <Clock className="w-8 h-8 text-white" />
+              <div className="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
+                <Clock className="w-6 h-6 text-yellow-600" />
               </div>
             </div>
           </div>
           
-          <div className="bg-white/90 rounded-2xl p-6 shadow-sm border border-emerald-200/50 hover:shadow-md transition-all duration-300">
+          {/* Released Grades Card */}
+          <div className="bg-white/90 rounded-2xl p-6 shadow-lg border border-gray-100">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-emerald-700 text-sm font-semibold uppercase tracking-wide mb-1">Released</p>
-                <p className="text-4xl font-bold text-emerald-900">{releasedGrades}</p>
-                <p className="text-emerald-600 text-xs mt-1">Visible to students</p>
+                <p className="text-gray-600 text-sm font-medium">Released</p>
+                <p className="text-3xl font-bold text-gray-900">{releasedGrades}</p>
               </div>
-              <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg">
-                <CheckCircle2 className="w-8 h-8 text-white" />
+              <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                <CheckCircle2 className="w-6 h-6 text-green-600" />
               </div>
             </div>
           </div>
@@ -5364,75 +5298,6 @@ export default function StudentGrades() {
                       })()}
                     </div>
                     <div className="flex items-center gap-3">
-                      <button
-                        onClick={handleNotifyInstructorForGrades}
-                        disabled={(() => {
-                          const filteredStudents = getFilteredStudents();
-                          const studentsWithoutGrades = filteredStudents.filter(student => 
-                            student.prelim_grade === null && 
-                            student.midterm_grade === null && 
-                            student.final_grade === null
-                          );
-                          
-                          return bulkUpdating || 
-                                 filteredStudents.length === 0 ||
-                                 studentsWithoutGrades.length === 0 ||
-                                 !instructorInfo?.instructor_id;
-                        })()}
-                        className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 ${
-                          (() => {
-                            const filteredStudents = getFilteredStudents();
-                            const studentsWithoutGrades = filteredStudents.filter(student => 
-                              student.prelim_grade === null && 
-                              student.midterm_grade === null && 
-                              student.final_grade === null
-                            );
-                            
-                            return bulkUpdating || 
-                                   filteredStudents.length === 0 ||
-                                   studentsWithoutGrades.length === 0 ||
-                                   !instructorInfo?.instructor_id;
-                          })()
-                            ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                            : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-lg'
-                        }`}
-                        title={
-                          (() => {
-                            const filteredStudents = getFilteredStudents();
-                            const studentsWithoutGrades = filteredStudents.filter(student => 
-                              student.prelim_grade === null && 
-                              student.midterm_grade === null && 
-                              student.final_grade === null
-                            );
-                            
-                            if (filteredStudents.length === 0) {
-                              return 'Cannot notify: No students enrolled in this subject';
-                            }
-                            
-                            if (!instructorInfo?.instructor_id) {
-                              return 'Cannot notify: No instructor assigned to this subject';
-                            }
-                            
-                            if (studentsWithoutGrades.length === 0) {
-                              return 'All students already have grades entered';
-                            }
-                            
-                            return `Notify instructor to enter grades for ${studentsWithoutGrades.length} students`;
-                          })()
-                        }
-                      >
-                        {bulkUpdating ? (
-                          <div className="flex items-center gap-2">
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            Sending...
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2">
-                            <Bell className="w-4 h-4" />
-                            Notify Instructor
-                          </div>
-                        )}
-                      </button>
                       <button
                         onClick={handleBulkRelease}
                         disabled={(() => {
