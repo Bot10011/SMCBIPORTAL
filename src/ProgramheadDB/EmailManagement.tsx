@@ -38,7 +38,7 @@ const EmailManagement: React.FC = () => {
       setIsRetrying(attempt > 1);
       
       try {
-        const response = await fetch('http://localhost:3000/api/get-auth-users');
+        const response = await fetch('/api/get-auth-users');
         
         if (!response.ok) {
           const errorData = await response.json();
@@ -67,7 +67,7 @@ const EmailManagement: React.FC = () => {
         
         // Set appropriate error message
         if (isConnectionError) {
-          setError('Unable to connect to API server. Please make sure the API server is running on port 3000. You can start it with: npm run dev:api');
+          setError('Unable to connect to API server. Please check your internet connection and try again.');
         } else {
           setError(err instanceof Error ? err.message : 'Failed to load users');
         }
@@ -172,7 +172,7 @@ const EmailManagement: React.FC = () => {
 
     setSaving(userId);
     try {
-      const response = await fetch('http://localhost:3000/api/update-auth-email', {
+      const response = await fetch('/api/update-auth-email', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
