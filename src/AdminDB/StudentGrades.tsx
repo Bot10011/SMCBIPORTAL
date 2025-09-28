@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 import { Loader2, CheckCircle2, Clock, BookOpen, ChevronRight, Search, Users, GraduationCap } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -65,6 +67,7 @@ interface Program {
     id: string;
     display_name: string;
     avatar_url?: string;
+    department: string;
   };
 }
 
@@ -78,26 +81,85 @@ interface ProgramHead {
   role?: string;
 }
 
+interface Student {
+  id: string;
+  student_id: string;
+  display_name?: string;
+  first_name?: string;
+  last_name?: string;
+  middle_name?: string;
+  avatar_url?: string;
+  year_level: string;
+  section: string;
+  program_id: string;
+  department?: string;
+  student_status?: string;
+  enrollment_status?: string;
+  student_type?: string;
+}
+
 export default function StudentGrades() {
+  const { user } = useAuth();
+  const [searchParams] = useSearchParams();
   const [grades, setGrades] = useState<Grade[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Silence non-error console output while this component is mounted
+  useEffect(() => {
+    const originalConsole = {
+      log: console.log,
+      info: console.info,
+      debug: console.debug,
+      warn: console.warn,
+      group: console.group,
+      groupEnd: console.groupEnd,
+      table: console.table,
+    } as const;
+
+    const noop = () => {};
+
+    const originalGroup = console.group;
+    const originalGroupEnd = console.groupEnd;
+    const originalTable = console.table;
+
+    console.log = noop as typeof console.log;
+    console.info = noop as typeof console.info;
+    console.debug = noop as typeof console.debug;
+    console.warn = noop as typeof console.warn;
+    console.group = noop as typeof console.group;
+    console.groupEnd = noop as typeof console.groupEnd;
+    console.table = noop as typeof console.table;
+
+    return () => {
+      console.log = originalConsole.log;
+      console.info = originalConsole.info;
+      console.debug = originalConsole.debug;
+      console.warn = originalConsole.warn;
+      console.group = originalGroup;
+      console.groupEnd = originalGroupEnd;
+      console.table = originalTable;
+    };
+  }, []);
   
   // State for selection interface
   const [selectedProgram, setSelectedProgram] = useState<string>('');
   const [selectedYearLevel, setSelectedYearLevel] = useState<string>('');
   const [selectedSection, setSelectedSection] = useState<string>('');
   const [selectedSubject, setSelectedSubject] = useState<string>('');
+  const [selectedCourseId, setSelectedCourseId] = useState<string>('');
   const [showPrograms, setShowPrograms] = useState(true);
   const [showYearLevels, setShowYearLevels] = useState(false);
   const [showSections, setShowSections] = useState(false);
   const [showSubjects, setShowSubjects] = useState(false);
   const [showEmptyProgram, setShowEmptyProgram] = useState(false);
   
-  // Navigation history to track the flow
-  const [navigationHistory, setNavigationHistory] = useState<string[]>(['programs']);
+  // Professional navigation stack system
+  const [navigationStack, setNavigationStack] = useState<string[]>(['programs']);
+  const [currentStackIndex, setCurrentStackIndex] = useState(0);
 
-  const [yearLevelSectionSubjects, setYearLevelSectionSubjects] = useState<YearLevelSectionSubject[]>([]);
+  const [, setYearLevelSectionSubjects] = useState<YearLevelSectionSubject[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
   
   // State for search and filtering - separate states for different views
@@ -109,18 +171,146 @@ export default function StudentGrades() {
   
   // State for section mapping
   const [sectionMap, setSectionMap] = useState<Map<string, string>>(new Map());
+  const [sectionsList, setSectionsList] = useState<Array<{ id: string; name: string; year_level?: string | number | null }>>([]);
   // Released grades modal state
   const [releasedModalOpen, setReleasedModalOpen] = useState(false);
   const [releasedModalGroup, setReleasedModalGroup] = useState<{
     year: string;
     section: string;
     items: Grade[];
+    department?: string;
   } | null>(null);
   const [releasedModalUpdating, setReleasedModalUpdating] = useState(false);
   const [releasedModalSearch, setReleasedModalSearch] = useState('');
+  
+  // Grade Change Request state
+  const [instructorRequests, setInstructorRequests] = useState<Array<{
+    id: string;
+    student_id: string;
+    student_name?: string | null;
+    instructor_id?: string | null;
+    instructor_name?: string | null;
+    subject_id?: string | null;
+    section?: string | null;
+    academic_year?: string | null;
+    edit_reason?: string | null;
+    edit_status?: string | null;
+    created_at?: string | null;
+  }>>([]);
+  
+  // Request details modal state
+  const [requestModalOpen, setRequestModalOpen] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState<{
+    id: string;
+    student_id: string;
+    student_name?: string | null;
+    instructor_id?: string | null;
+    instructor_name?: string | null;
+    subject_id?: string | null;
+    section?: string | null;
+    academic_year?: string | null;
+    edit_reason?: string | null;
+    edit_status?: string | null;
+    created_at?: string | null;
+  } | null>(null);
+  
+  // Additional modal data
+  const [modalStudentCustomId, setModalStudentCustomId] = useState<string | null>(null);
+  const [modalSubjectName, setModalSubjectName] = useState<string | null>(null);
+  
+  // Confirmation modal state
+  const [confirmationModalOpen, setConfirmationModalOpen] = useState(false);
+  const [confirmationAction, setConfirmationAction] = useState<'approve' | 'deny' | 'hide' | null>(null);
+  const [confirmationRequestId, setConfirmationRequestId] = useState<string | null>(null);
 
-  const handleHideReleasedGroup = async () => {
+  // Hide confirmation modal state
+  const [hideConfirmationOpen, setHideConfirmationOpen] = useState(false);
+
+  // Subjects sourced from courses table for the selected year level
+  const [courseSubjects, setCourseSubjects] = useState<Array<{
+    id: string;
+    code: string;
+    name: string;
+    unit?: number | null;
+    year_level?: string | number | null;
+    summer?: boolean | null;
+    semester?: string | null;
+  }>>([]);
+
+  // Count of courses for the selected year level (used in Sections view)
+  const [coursesCount, setCoursesCount] = useState<number>(0);
+
+  // State for instructor assignments
+  const [instructorAssignments, setInstructorAssignments] = useState<Map<string, { hasInstructor: boolean; instructorName: string }>>(new Map());
+
+  // State for instructor assignment filter
+  const [instructorFilter, setInstructorFilter] = useState<'all' | 'assigned' | 'unassigned'>('all');
+
+  // State for enrolled students display
+  const [enrolledStudents, setEnrolledStudents] = useState<Array<{
+    id: string;
+    student_id: string;
+    first_name: string;
+    last_name: string;
+    enrollment_status: string;
+  }>>([]);
+  const [loadingEnrolledStudents, setLoadingEnrolledStudents] = useState(false);
+
+  // State for instructor and subject information
+  const [instructorInfo, setInstructorInfo] = useState<{
+    instructor_id: string;
+    instructor_name: string;
+    subject_name: string;
+    course_code: string;
+  } | null>(null);
+
+  // State for instructor error tracking (value not used, only setter)
+  const [, setInstructorErrors] = useState<{
+    duplicateInstructors: Array<{
+      instructorId: string;
+      instructorName: string;
+      sections: string[];
+      yearLevels: string[];
+      courseId: string;
+      courseCode: string;
+    }>;
+    missingInstructors: Array<{
+      courseId: string;
+      courseCode: string;
+      section: string;
+      yearLevel: string;
+    }>;
+    mappingErrors: Array<{
+      teacherId: string;
+      instructorId: string;
+      section: string;
+      yearLevel: string;
+      error: string;
+    }>;
+    fallbackInstructors: Array<{
+      instructorId: string;
+      instructorName: string;
+      sections: string[];
+      yearLevels: string[];
+      courseId: string;
+      courseCode: string;
+      reason: string;
+    }>;
+  }>({
+    duplicateInstructors: [],
+    missingInstructors: [],
+    mappingErrors: [],
+    fallbackInstructors: []
+  });
+
+  const handleHideReleasedGroup = () => {
     if (!releasedModalGroup || releasedModalUpdating) return;
+    setHideConfirmationOpen(true);
+  };
+
+  const confirmHideReleasedGroup = async () => {
+    if (!releasedModalGroup || releasedModalUpdating) return;
+    
     try {
       setReleasedModalUpdating(true);
       const ids = releasedModalGroup.items.map((i) => i.id);
@@ -132,8 +322,9 @@ export default function StudentGrades() {
         toast.error('Failed to hide released grades');
       } else {
         setGrades((prev) => prev.map((g) => (ids.includes(g.id) ? { ...g, is_released: false } : g)));
-        toast.success('Grades moved back to pending');
+        toast.success(`Successfully moved ${releasedModalGroup.items.length} grades back to pending`);
         setReleasedModalOpen(false);
+        setHideConfirmationOpen(false);
       }
     } catch {
       toast.error('Failed to hide released grades');
@@ -142,9 +333,312 @@ export default function StudentGrades() {
     }
   };
   
+  const printReleasedGrades = () => {
+    if (!releasedModalGroup) return;
+
+    // Filter the data based on search term
+    const filteredData = releasedModalGroup.items
+      .slice()
+      .sort((a, b) => {
+        const aDate = new Date(a.updated_at || a.graded_at || a.created_at).getTime();
+        const bDate = new Date(b.updated_at || b.graded_at || b.created_at).getTime();
+        return bDate - aDate;
+      })
+      .filter((g) => {
+        if (!releasedModalSearch.trim()) return true;
+        const q = releasedModalSearch.toLowerCase();
+        const name = (g.student_name || '').toLowerCase();
+        const schoolId = (g.school_id || g.student_id || '').toLowerCase();
+        return name.includes(q) || schoolId.includes(q);
+      });
+
+    // Generate the HTML content for printing
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Released Grades Report</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              margin: 20px;
+              color: #333;
+            }
+            .header {
+              text-align: center;
+              margin-bottom: 30px;
+              border-bottom: 2px solid #2563eb;
+              padding-bottom: 20px;
+            }
+            .header-logo {
+              margin-bottom: 15px;
+            }
+            .header-logo img {
+              max-height: 80px;
+              max-width: 200px;
+              object-fit: contain;
+            }
+            .header h1 {
+              color: #2563eb;
+              margin: 0;
+              font-size: 24px;
+            }
+            .header p {
+              margin: 5px 0 0 0;
+              color: #666;
+            }
+            .info-section {
+              margin-bottom: 20px;
+              background: #f8fafc;
+              padding: 15px;
+              border-radius: 8px;
+            }
+            .info-section h3 {
+              margin: 0 0 10px 0;
+              color: #374151;
+            }
+            .info-grid {
+              display: grid;
+              grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+              gap: 8px;
+            }
+            .info-item {
+              display: flex;
+              align-items: center;
+              gap: 10px;
+            }
+            .info-label {
+              font-weight: bold;
+              color: #6b7280;
+            }
+            .info-value {
+              color: #111827;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-top: 20px;
+              background: white;
+            }
+            th, td {
+              border: 1px solid #d1d5db;
+              padding: 12px 8px;
+              text-align: left;
+            }
+            th {
+              background: #f3f4f6;
+              font-weight: bold;
+              color: #374151;
+              text-transform: uppercase;
+              font-size: 12px;
+            }
+            td {
+              font-size: 14px;
+            }
+            .grade-cell {
+              text-align: center;
+              font-weight: bold;
+            }
+            .ga-cell {
+              text-align: center;
+              font-weight: bold;
+              color: #2563eb;
+            }
+            .footer {
+              margin-top: 30px;
+              text-align: center;
+              color: #6b7280;
+              font-size: 12px;
+              border-top: 1px solid #e5e7eb;
+              padding-top: 20px;
+            }
+            @media print {
+              body { margin: 0; }
+              .no-print { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="header-logo">
+              <img src="/img/logo3.png" alt="School Logo" />
+            </div>
+            <h1>Released Grades Report</h1>
+            <p>Generated on ${new Date().toLocaleString()}</p>
+          </div>
+
+          <div class="info-section">
+            <h3>Report Information</h3>
+            <div class="info-grid">
+              <div class="info-item">
+                <span class="info-label">Department:</span>
+                <span class="info-value">${releasedModalGroup.department || 'N/A'}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Year & Section:</span>
+                <span class="info-value">${releasedModalGroup.section}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Total Records:</span>
+                <span class="info-value">${filteredData.length}</span>
+              </div>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Student Name</th>
+                <th>Student ID</th>
+                <th>Subject</th>
+                <th>Prelim</th>
+                <th>Midterm</th>
+                <th>Final</th>
+                <th>GA</th>
+                <th>Released Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filteredData.map(g => `
+                <tr>
+                  <td>${g.student_name || 'Unknown Student'}</td>
+                  <td>${g.school_id || g.student_id || 'N/A'}</td>
+                  <td>${g.course_code || 'Unknown'}</td>
+                  <td class="grade-cell">${g.prelim_grade !== null && g.prelim_grade !== undefined ? g.prelim_grade : '-'}</td>
+                  <td class="grade-cell">${g.midterm_grade !== null && g.midterm_grade !== undefined ? g.midterm_grade : '-'}</td>
+                  <td class="grade-cell">${g.final_grade !== null && g.final_grade !== undefined ? g.final_grade : '-'}</td>
+                  <td class="ga-cell">${g.general_average !== null && g.general_average !== undefined ? g.general_average.toFixed(2) : '-'}</td>
+                  <td>${new Date(g.updated_at || g.graded_at || g.created_at).toLocaleDateString()}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+
+          <div class="footer">
+            <p>This report was generated from the Student Portal Grade Management System</p>
+            <p>For questions or concerns, please contact the Registrar's Office</p>
+          </div>
+        </body>
+      </html>
+    `;
+
+    // Create a new window for printing
+    const printWindow = window.open('', '_blank', 'width=800,height=600');
+    if (!printWindow) {
+      toast.error('Please allow popups to print the document');
+      return;
+    }
+
+    // Write the content to the new window
+    printWindow.document.open();
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+
+    // Wait for content to load, then trigger print dialog
+    printWindow.onload = () => {
+      printWindow.focus();
+      printWindow.print();
+      
+      // Close the window after printing
+      printWindow.onafterprint = () => {
+        printWindow.close();
+      };
+    };
+
+    toast.success('Print dialog opened');
+  };
+
+  const downloadReleasedGrades = () => {
+    if (!releasedModalGroup) return;
+
+    // Filter the data based on search term
+    const filteredData = releasedModalGroup.items
+      .slice()
+      .sort((a, b) => {
+        const aDate = new Date(a.updated_at || a.graded_at || a.created_at).getTime();
+        const bDate = new Date(b.updated_at || b.graded_at || b.created_at).getTime();
+        return bDate - aDate;
+      })
+      .filter((g) => {
+        if (!releasedModalSearch.trim()) return true;
+        const q = releasedModalSearch.toLowerCase();
+        const name = (g.student_name || '').toLowerCase();
+        const schoolId = (g.school_id || g.student_id || '').toLowerCase();
+        return name.includes(q) || schoolId.includes(q);
+      });
+
+    // Create CSV content
+    const csvData = [
+      ['Student Name', 'Student ID', 'Subject', 'Prelim', 'Midterm', 'Final', 'GA', 'Released Date'],
+      ...filteredData.map(g => [
+        g.student_name || 'Unknown Student',
+        g.school_id || g.student_id || 'N/A',
+        g.course_code || 'Unknown',
+        g.prelim_grade !== null && g.prelim_grade !== undefined ? g.prelim_grade : '-',
+        g.midterm_grade !== null && g.midterm_grade !== undefined ? g.midterm_grade : '-',
+        g.final_grade !== null && g.final_grade !== undefined ? g.final_grade : '-',
+        g.general_average !== null && g.general_average !== undefined ? g.general_average.toFixed(2) : '-',
+        new Date(g.updated_at || g.graded_at || g.created_at).toLocaleDateString()
+      ])
+    ];
+
+    const csvContent = csvData.map(row => row.join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `Released_Grades_${releasedModalGroup.year}_${releasedModalGroup.section}_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    toast.success('Grades downloaded successfully');
+  };
+  
 
   
 
+
+  // Debug effect to track students state changes
+  useEffect(() => {
+    console.group('🔄 Students State Changed');
+    console.log('Students count:', students.length);
+    console.log('Selected program:', selectedProgram);
+    console.log('Sample students:', students.slice(0, 3));
+    console.groupEnd();
+  }, [students, selectedProgram]);
+
+  // Helper function to normalize year level values
+  const normalizeYearLevel = (yearLevel: string | number): string => {
+    if (typeof yearLevel === 'number') {
+      return yearLevel.toString();
+    }
+    
+    const yearLevelStr = yearLevel.toString().toLowerCase();
+    
+    // Handle various formats
+    if (yearLevelStr.includes('1st') || yearLevelStr === '1' || yearLevelStr === 'first') {
+      return '1';
+    }
+    if (yearLevelStr.includes('2nd') || yearLevelStr === '2' || yearLevelStr === 'second') {
+      return '2';
+    }
+    if (yearLevelStr.includes('3rd') || yearLevelStr === '3' || yearLevelStr === 'third') {
+      return '3';
+    }
+    if (yearLevelStr.includes('4th') || yearLevelStr === '4' || yearLevelStr === 'fourth') {
+      return '4';
+    }
+    
+    // If it's already a single digit, return it
+    if (/^[1-4]$/.test(yearLevelStr)) {
+      return yearLevelStr;
+    }
+    
+    return yearLevelStr; // Return as-is if no match
+  };
 
   // Helper function to convert year level number to display format
   const getYearLevelDisplayName = (yearLevel: string): string => {
@@ -185,27 +679,141 @@ export default function StudentGrades() {
     fetchGrades();
   }, []);
 
+  // Professional navigation functions
+  const updateUIForStep = useCallback((step: string) => {
+    // Reset all views
+    setShowPrograms(false);
+    setShowYearLevels(false);
+    setShowSections(false);
+    setShowSubjects(false);
+    setShowEmptyProgram(false);
+
+    switch (step) {
+      case 'programs':
+        setShowPrograms(true);
+        setSelectedProgram('');
+        setSelectedYearLevel('');
+        setSelectedSection('');
+        setSelectedSubject('');
+        break;
+      case 'yearLevels':
+        setShowYearLevels(true);
+        setSelectedSection('');
+        setSelectedSubject('');
+        break;
+      case 'sections':
+        setShowSections(true);
+        setSelectedSubject('');
+        break;
+      case 'subjects':
+        setShowSubjects(true);
+        break;
+      case 'students':
+        // Students view - no additional UI changes needed
+        break;
+      case 'emptyProgram':
+        setShowEmptyProgram(true);
+        setSelectedProgram('');
+        setSelectedYearLevel('');
+        setSelectedSection('');
+        setSelectedSubject('');
+        break;
+    }
+  }, []);
+
+  const navigateTo = useCallback((step: string) => {
+    const newStack = [...navigationStack];
+    const newIndex = currentStackIndex + 1;
+    
+    // If we're navigating forward from a previous position, remove future steps
+    if (newIndex < newStack.length) {
+      newStack.splice(newIndex);
+    }
+    
+    // Add new step to stack
+    newStack.push(step);
+    
+    setNavigationStack(newStack);
+    setCurrentStackIndex(newIndex);
+    
+    // Update UI based on step
+    updateUIForStep(step);
+  }, [navigationStack, currentStackIndex, updateUIForStep]);
+
+  // Fetch instructor grade-edit requests
+  useEffect(() => {
+    fetchInstructorRequests();
+  }, []);
+
+  // Handle URL parameters for direct navigation to specific student
+  useEffect(() => {
+    const studentId = searchParams.get('studentId');
+    const subjectId = searchParams.get('subjectId');
+    
+    if (studentId && subjectId && grades.length > 0) {
+      // Find the grade record for this student and subject
+      const targetGrade = grades.find(g => 
+        g.student_id === studentId && 
+        g.subject_id === subjectId
+      );
+      
+      if (targetGrade) {
+        // Check if we're already showing this student to prevent duplicate navigation
+        const isAlreadyShowing = 
+          selectedProgram === programs.find(p => p.name === targetGrade.program_name)?.id &&
+          selectedYearLevel === targetGrade.year_level &&
+          selectedSection === targetGrade.section &&
+          selectedSubject === targetGrade.course_code &&
+          studentSearchTerm === targetGrade.student_name;
+        
+        if (!isAlreadyShowing) {
+          // Find the program ID by matching the program name
+          const program = programs.find(p => p.name === targetGrade.program_name);
+          if (program) {
+            setSelectedProgram(program.id);
+          }
+          
+          setSelectedYearLevel(targetGrade.year_level || '');
+          setSelectedSection(targetGrade.section || '');
+          setSelectedSubject(targetGrade.course_code || '');
+          
+          // Navigate to the students view
+          navigateTo('students');
+          
+          // Set search term to highlight the specific student
+          setStudentSearchTerm(targetGrade.student_name || '');
+          
+          // Show a toast notification only once
+          toast.success(`Navigated to ${targetGrade.student_name}'s grade change request`, {
+            duration: 3000,
+            id: `navigate-${studentId}-${subjectId}` // Use unique ID to prevent duplicates
+          });
+        }
+      }
+    }
+  }, [searchParams, grades, programs, navigateTo, selectedProgram, selectedYearLevel, selectedSection, selectedSubject, studentSearchTerm]);
+
   const fetchGrades = async () => {
     setLoading(true);
     setError(null);
     
-    console.log('Fetching grades and student data...');
+    console.log('🔄 Fetching grades and student data...');
     
     try {
       // Test database connectivity first
-      console.log('Testing database connectivity...');
+      console.log('🔍 Testing database connectivity...');
       const { error: testError } = await supabase
         .from('programs')
         .select('count')
         .limit(1);
         
       if (testError) {
-        console.error('Database connectivity test failed:', testError);
+        console.error('❌ Database connectivity test failed:', testError);
         setError(`Database connection failed: ${testError.message}`);
         setLoading(false);
         return;
       } else {
-        console.log('Database connectivity test passed');
+        console.log('✅ Database connectivity test passed');
       }
       
       // Test fetching a single program to see the actual data structure
@@ -226,6 +834,7 @@ export default function StudentGrades() {
       }
       
       // First, get all students with their year level and section info
+      // We'll filter by department after we get the program head information
       const { data: studentsData, error: initialStudentsError } = await supabase
         .from('user_profiles')
         .select('id, student_id, display_name, first_name, last_name, middle_name, avatar_url, year_level, section, program_id, department, student_status, enrollment_status, student_type')
@@ -242,10 +851,13 @@ export default function StudentGrades() {
       
       console.log('Students data:', studentsData?.length || 0, 'records');
       
-      // Fetch sections data to map UIDs to names
+      // Store students data in state (will be filtered later by department)
+      setStudents(studentsData || []);
+      
+      // Fetch sections data to map UIDs to names and drive Sections UI
       const { data: sectionsData, error: sectionsError } = await supabase
         .from('sections')
-        .select('id, name');
+        .select('id, name, year_level');
         
       if (sectionsError) {
         console.error('Sections error:', sectionsError);
@@ -258,6 +870,7 @@ export default function StudentGrades() {
           sectionMap.set(section.id, section.name);
         });
         console.log('Section map created:', sectionMap.size, 'entries');
+        setSectionsList(sectionsData as Array<{ id: string; name: string; year_level?: string | number | null }>);
       }
       
       // Set section map in state for use in UI
@@ -309,9 +922,20 @@ export default function StudentGrades() {
       
 
       
-      // Fetch grades for students who have year level and section
+      // Fetch ALL grades first, then filter by students - this ensures we don't miss any grades
       const studentIds = (studentsData || []).map(s => s.id);
-      const { data: gradesData, error: gradesError } = await supabase
+      console.log('🔍 Fetching grades for student IDs:', studentIds);
+      console.log('🔍 Students data sample:', studentsData?.slice(0, 3).map(s => ({
+        id: s.id,
+        student_id: s.student_id,
+        year_level: s.year_level,
+        section: s.section,
+        program_id: s.program_id
+      })));
+      
+      // Run grades and enrollments queries in parallel for speed
+      const [gradesRes, enrollRes] = await Promise.all([
+        supabase
         .from('grades')
         .select(`
           *,
@@ -327,11 +951,29 @@ export default function StudentGrades() {
             student_status, 
             enrollment_status, 
             student_type,
-            program_id
+            program_id,
+            year_level,
+            section
           )
         `)
         .in('student_id', studentIds)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false }),
+        supabase
+          .from('enrollcourse')
+          .select(`
+            id,
+            student_id,
+            subject_id,
+            status,
+            course:courses (id, code, name)
+          `)
+          .in('student_id', studentIds)
+      ]);
+
+      const gradesData = gradesRes.data as typeof gradesRes.data;
+      const gradesError = gradesRes.error;
+      const enrollmentsData = enrollRes.data as typeof enrollRes.data;
+      const enrollmentsError = enrollRes.error;
         
       if (gradesError) {
         console.error('Grades error:', gradesError);
@@ -340,43 +982,122 @@ export default function StudentGrades() {
         return;
       }
       
-      console.log('Grades data:', gradesData?.length || 0, 'records');
+      console.log('📊 Grades data:', gradesData?.length || 0, 'records');
+      
+      // ERROR HANDLING: Check if grades query returned any results
+      if (!gradesData || gradesData.length === 0) {
+        console.warn('⚠️ NO GRADES FOUND in grades table!', {
+          queryUsed: {
+            studentIds: studentIds,
+            query: 'grades WHERE student_id IN (studentIds)'
+          },
+          possibleReasons: [
+            'No grades have been entered yet for any students',
+            'Student IDs in user_profiles do not match student IDs in grades table',
+            'Grades table is empty or has different column names',
+            'Grades table has no records for the selected students'
+          ],
+          debugInfo: {
+            totalStudents: studentIds.length,
+            studentIds: studentIds
+          }
+        });
+      } else {
+        console.log('✅ GRADES FOUND!', {
+          totalGrades: gradesData.length,
+          gradeDetails: gradesData.map(g => ({
+            gradeId: g.id,
+            studentId: g.student_id,
+            subjectId: g.subject_id,
+            hasPrelim: g.prelim_grade !== null,
+            hasMidterm: g.midterm_grade !== null,
+            hasFinal: g.final_grade !== null
+          }))
+        });
+      }
+      
+      // Debug: Show sample raw grades data from database
+      if (gradesData && gradesData.length > 0) {
+        console.log('🔍 Sample raw grades from database:', gradesData.slice(0, 2).map(g => ({
+          id: g.id,
+          student_id: g.student_id,
+          prelim_grade: g.prelim_grade,
+          midterm_grade: g.midterm_grade,
+          final_grade: g.final_grade,
+          subject_id: g.subject_id,
+          year_level: g.year_level,
+          section: g.section,
+          course_code: g.course_code,
+          course_name: g.course_name,
+          student: g.student
+        })));
+        
+        // Check for grades with actual values in raw data
+        const rawGradesWithValues = gradesData.filter(g => 
+          g.prelim_grade !== null || g.midterm_grade !== null || g.final_grade !== null
+        );
+        console.log(`📊 Raw grades with values: ${rawGradesWithValues.length} out of ${gradesData.length}`);
+        
+        // Debug: Show all unique combinations of year_level, section, and course
+        const uniqueCombinations = [...new Set(gradesData.map(g => 
+          `${g.year_level}-${g.section}-${g.course_code || g.course_name}`
+        ))];
+        console.log('🔍 Unique grade combinations (year-section-course):', uniqueCombinations);
+        
+        // Debug: Show student information from grades
+        const studentsFromGrades = [...new Set(gradesData.map(g => g.student_id))];
+        console.log('🔍 Students found in grades:', studentsFromGrades.length);
+        console.log('🔍 Sample student data from grades:', gradesData.slice(0, 3).map(g => ({
+          student_id: g.student_id,
+          student_name: g.student?.display_name || `${g.student?.first_name || ''} ${g.student?.last_name || ''}`.trim(),
+          student_data: g.student
+        })));
+      }
+      
+      // Validate grades data
+      if (!gradesData || gradesData.length === 0) {
+        console.warn('⚠️ No grades data found');
+        toast.error('No grades found for the selected criteria');
+      } else {
+        // Validate grade data integrity
+        const invalidGrades = gradesData.filter(grade => 
+          !grade.student_id || 
+          (!grade.prelim_grade && !grade.midterm_grade && !grade.final_grade)
+        );
+        
+        if (invalidGrades.length > 0) {
+          console.warn(`⚠️ Found ${invalidGrades.length} grades with missing data:`, invalidGrades);
+        }
+        
+        console.log('✅ Grade data validation completed');
+      }
       
       // Build lookup maps for graded_by (teacher) and subject_id (course)
       const gradedByIds = Array.from(new Set((gradesData || []).map(g => g.graded_by).filter(Boolean)));
       const subjectIdsFromGrades = Array.from(new Set((gradesData || []).map(g => g.subject_id).filter(Boolean)));
 
-      // Fetch teacher display names
+      // Fetch teacher display names and course codes concurrently
       const teachersById = new Map<string, { display_name?: string; first_name?: string; last_name?: string }>();
-      if (gradedByIds.length > 0) {
-        const { data: teachersData } = await supabase
+      const coursesById = new Map<string, { code?: string; name?: string }>();
+      if (gradedByIds.length > 0 || subjectIdsFromGrades.length > 0) {
+        const [teachersRes, coursesRes] = await Promise.all([
+          gradedByIds.length > 0
+            ? supabase
           .from('user_profiles')
           .select('id, display_name, first_name, last_name')
-          .in('id', gradedByIds as string[]);
-        (teachersData || []).forEach(t => teachersById.set(t.id, { display_name: t.display_name, first_name: t.first_name, last_name: t.last_name }));
-      }
-
-      // Fetch course codes for subject ids
-      const coursesById = new Map<string, { code?: string; name?: string }>();
-      if (subjectIdsFromGrades.length > 0) {
-        const { data: coursesData } = await supabase
+                .in('id', gradedByIds as string[])
+            : Promise.resolve({ data: [], error: null } as { data: Array<{ id: string; display_name?: string; first_name?: string; last_name?: string }>; error: null }),
+          subjectIdsFromGrades.length > 0
+            ? supabase
           .from('courses')
           .select('id, code, name')
-          .in('id', subjectIdsFromGrades as string[]);
-        (coursesData || []).forEach(c => coursesById.set(c.id, { code: c.code, name: c.name }));
+                .in('id', subjectIdsFromGrades as string[])
+            : Promise.resolve({ data: [], error: null } as { data: Array<{ id: string; code?: string; name?: string }>; error: null })
+        ]);
+
+        (teachersRes.data || []).forEach(t => teachersById.set(t.id, { display_name: t.display_name, first_name: t.first_name, last_name: t.last_name }));
+        (coursesRes.data || []).forEach(c => coursesById.set(c.id, { code: c.code, name: c.name }));
       }
-      
-      // Fetch enrollments to get course information
-      const { data: enrollmentsData, error: enrollmentsError } = await supabase
-        .from('enrollcourse')
-        .select(`
-          id,
-          student_id,
-          subject_id,
-          status,
-          course:courses (id, code, name)
-        `)
-        .in('student_id', studentIds);
         
       if (enrollmentsError) {
         console.error('Enrollments error:', enrollmentsError);
@@ -385,6 +1106,37 @@ export default function StudentGrades() {
       console.log('Enrollments data:', enrollmentsData?.length || 0, 'records');
       if (enrollmentsData && enrollmentsData.length > 0) {
         console.log('Sample enrollment:', enrollmentsData[0]);
+      }
+      
+      // ERROR HANDLING: Check if enrollments query returned any results
+      if (!enrollmentsData || enrollmentsData.length === 0) {
+        console.warn('⚠️ NO ENROLLMENTS FOUND in enrollcourse table!', {
+          queryUsed: {
+            studentIds: studentIds,
+            query: 'enrollcourse WHERE student_id IN (studentIds)'
+          },
+          possibleReasons: [
+            'No students are enrolled in any courses',
+            'Student IDs in user_profiles do not match student IDs in enrollcourse table',
+            'Enrollcourse table is empty or has different column names',
+            'All enrollments have inactive status'
+          ],
+          debugInfo: {
+            totalStudents: studentIds.length,
+            studentIds: studentIds
+          }
+        });
+      } else {
+        console.log('✅ ENROLLMENTS FOUND!', {
+          totalEnrollments: enrollmentsData.length,
+          enrollmentDetails: enrollmentsData.map(e => ({
+            enrollmentId: e.id,
+            studentId: e.student_id,
+            subjectId: e.subject_id,
+            status: e.status,
+            courseCode: Array.isArray(e.course) ? (e.course[0] as { code?: string })?.code : (e.course as { code?: string })?.code
+          }))
+        });
       }
       
       // Create enrollment map for quick lookup keyed by student_id+subject_id
@@ -429,6 +1181,9 @@ export default function StudentGrades() {
       
       console.log('Course IDs for teacher lookup:', courseIds);
       
+      // Merge subject ids from enrollments and grades for teacher_subjects lookup
+      const subjectIdsForTeacherQuery = Array.from(new Set([...(courseIds as string[]), ...(subjectIdsFromGrades as string[])]));
+      
       // Get current academic period (you may need to adjust this based on your system)
       const currentDate = new Date();
       const currentYear = currentDate.getFullYear();
@@ -462,7 +1217,7 @@ export default function StudentGrades() {
           year_level,
           teacher:user_profiles!teacher_subjects_teacher_id_fkey (id, display_name, first_name, last_name)
         `)
-        .in('subject_id', courseIds)
+        .in('subject_id', subjectIdsForTeacherQuery)
         .eq('is_active', true)
         .eq('academic_year', academicYear)
         .eq('semester', semester);
@@ -482,7 +1237,7 @@ export default function StudentGrades() {
             year_level,
             teacher:user_profiles!teacher_subjects_teacher_id_fkey (id, display_name, first_name, last_name)
           `)
-          .in('subject_id', courseIds)
+          .in('subject_id', subjectIdsForTeacherQuery)
           .eq('is_active', true);
           
         if (unfilteredError) {
@@ -528,7 +1283,10 @@ export default function StudentGrades() {
           section: ts.section,
           year_level: ts.year_level,
           normalizedYear,
-          teacher: teacher
+          teacher: teacher,
+          teacher_display_name: teacher?.display_name,
+          teacher_first_name: teacher?.first_name,
+          teacher_last_name: teacher?.last_name
         });
         
         // Create a composite key for more specific matching
@@ -537,6 +1295,12 @@ export default function StudentGrades() {
         
         // Also store by just subject_id for fallback
         teacherMap.set(ts.subject_id, teacher);
+        
+        console.log('Added to teacher map:', {
+          compositeKey: key,
+          subjectIdKey: ts.subject_id,
+          teacherName: teacher?.display_name || `${teacher?.first_name} ${teacher?.last_name}` || 'Unknown'
+        });
       });
       
       console.log('Teacher map created with keys:', Array.from(teacherMap.keys()));
@@ -593,7 +1357,7 @@ export default function StudentGrades() {
         const { data: allTeachers, error: teachersError } = await supabase
           .from('user_profiles')
           .select('id, first_name, last_name, role')
-          .eq('role', 'teacher');
+          .eq('role', 'instructor');
           
         if (teachersError) {
           console.error('Fallback teachers fetch error:', teachersError);
@@ -660,6 +1424,31 @@ export default function StudentGrades() {
       
       const processedGrades = (gradesData || []).map(g => {
         const student = Array.isArray(g.student) ? g.student[0] : g.student;
+        
+        // Debug: Log grade values before processing
+        console.log(`🔍 Processing grade ${g.id}:`, {
+          prelim_grade: g.prelim_grade,
+          midterm_grade: g.midterm_grade,
+          final_grade: g.final_grade,
+          student_id: g.student_id,
+          subject_id: g.subject_id,
+          year_level: g.year_level,
+          section: g.section,
+          course_code: g.course_code,
+          course_name: g.course_name,
+          student_name: student?.display_name || `${student?.first_name || ''} ${student?.last_name || ''}`.trim(),
+          student_data: student ? {
+            id: student.id,
+            student_id: student.student_id,
+            year_level: student.year_level,
+            section: student.section,
+            program_id: student.program_id
+          } : null,
+          // ENROLLMENT MATCHING DEBUG
+          enrollmentKey: `${g.student_id}-${g.subject_id || ''}`,
+          hasEnrollment: enrollmentMap.has(`${g.student_id}-${g.subject_id || ''}`)
+        });
+        
         const mapYearLevelToNumericString = (num?: number | null): string => {
           if (num === 1) return '1';
           if (num === 2) return '2';
@@ -683,10 +1472,13 @@ export default function StudentGrades() {
           return nameParts.length > 0 ? nameParts.join(' ') : 'Unknown Student';
         };
         
-        // Calculate General Average
-        const grades = [g.prelim_grade, g.midterm_grade, g.final_grade].filter(grade => grade !== null && grade !== undefined);
-        const general_average = grades.length > 0 
-          ? Math.round((grades.reduce((sum, grade) => sum + (grade || 0), 0) / grades.length) * 100) / 100
+        // Calculate General Average - only when all three grades are present
+        const hasPrelim = g.prelim_grade !== null && g.prelim_grade !== undefined;
+        const hasMidterm = g.midterm_grade !== null && g.midterm_grade !== undefined;
+        const hasFinal = g.final_grade !== null && g.final_grade !== undefined;
+        
+        const general_average = (hasPrelim && hasMidterm && hasFinal) 
+          ? Math.round(((g.prelim_grade + g.midterm_grade + g.final_grade) / 3) * 100) / 100
           : null;
         
         // Get enrollment data for this student and subject
@@ -725,17 +1517,65 @@ export default function StudentGrades() {
             return name || 'Unknown';
           })(),
           teacher_name: (() => {
+            // Debug: Log the teacher lookup process
+            console.log('Teacher lookup for grade:', {
+              grade_id: g.id,
+              student_id: g.student_id,
+              subject_id: g.subject_id,
+              section: g.section,
+              year_level: g.year_level,
+              sectionName,
+              graded_by: g.graded_by
+            });
+            
             // Prefer graded_by profile display_name only
             if (g.graded_by) {
               const t = teachersById.get(g.graded_by);
+              console.log('Found teacher by graded_by:', t);
               if (t && t.display_name && t.display_name.trim()) return t.display_name.trim();
             }
+            
             // Fallback to teacherMap using composite key subject_id-section-year
             const compositeKey = `${g.subject_id || ''}-${sectionName}-${mapYearLevelToNumericString(g.year_level)}`;
-            const mappedTeacher = teacherMap.get(compositeKey) || (g.subject_id ? teacherMap.get(g.subject_id) : undefined);
+            console.log('Trying composite key:', compositeKey);
+            console.log('Available teacher map keys:', Array.from(teacherMap.keys()));
+            
+            // Try multiple key combinations to find the teacher
+            let mappedTeacher = teacherMap.get(compositeKey);
+            if (!mappedTeacher && g.subject_id) {
+              mappedTeacher = teacherMap.get(g.subject_id);
+            }
+            if (!mappedTeacher && g.subject_id && sectionName) {
+              // Try without year level
+              mappedTeacher = teacherMap.get(`${g.subject_id}-${sectionName}`);
+            }
+            if (!mappedTeacher && g.subject_id) {
+              // Try with different year level formats
+              const altYearLevel = g.year_level?.toString().toLowerCase().includes('1') ? '1' :
+                                 g.year_level?.toString().toLowerCase().includes('2') ? '2' :
+                                 g.year_level?.toString().toLowerCase().includes('3') ? '3' :
+                                 g.year_level?.toString().toLowerCase().includes('4') ? '4' : null;
+              if (altYearLevel) {
+                mappedTeacher = teacherMap.get(`${g.subject_id}-${sectionName}-${altYearLevel}`);
+              }
+            }
+            console.log('Mapped teacher result:', mappedTeacher);
+            
             if (mappedTeacher && (mappedTeacher as { display_name?: string }).display_name && (mappedTeacher as { display_name?: string }).display_name!.trim()) {
               return (mappedTeacher as { display_name: string }).display_name.trim();
             }
+            
+            // Try to get teacher name from first_name + last_name if display_name is not available
+            if (mappedTeacher && (mappedTeacher as { first_name?: string; last_name?: string }).first_name) {
+              const teacher = mappedTeacher as { first_name?: string; last_name?: string };
+              const fullName = `${teacher.first_name || ''} ${teacher.last_name || ''}`.trim();
+              if (fullName) {
+                console.log('Using first_name + last_name:', fullName);
+                return fullName;
+              }
+            }
+            
+            console.log('No teacher found, returning Not Assigned');
             return 'Not Assigned';
           })(),
         };
@@ -746,6 +1586,73 @@ export default function StudentGrades() {
 
       console.log('Processed grades:', processedGrades.length, 'records');
       console.log('Sample processed grade:', processedGrades[0]);
+      
+      // ERROR HANDLING: Enhanced analysis of processed grades
+      if (processedGrades.length > 0) {
+        const processedGradesWithValues = processedGrades.filter(g => 
+          g.prelim_grade !== null || g.midterm_grade !== null || g.final_grade !== null
+        );
+        const processedGradesWithoutValues = processedGrades.filter(g => 
+          g.prelim_grade === null && g.midterm_grade === null && g.final_grade === null
+        );
+        
+        console.log(`📊 Processed grades with values: ${processedGradesWithValues.length} out of ${processedGrades.length}`);
+        
+        // ERROR HANDLING: Detailed analysis of why grades might not be showing
+        if (processedGradesWithValues.length === 0) {
+          console.warn('\n⚠️ GRADES NOT SHOWING - ERROR ANALYSIS:', {
+            totalProcessedGrades: processedGrades.length,
+            gradesWithValues: processedGradesWithValues.length,
+            gradesWithoutValues: processedGradesWithoutValues.length,
+            possibleIssues: [
+              'All grades have null values (no actual grades entered)',
+              'Grades exist but are not being displayed due to filtering',
+              'Enrollment matching is failing',
+              'UI filtering is hiding all grades'
+            ],
+            debugInfo: {
+              sampleGradesWithoutValues: processedGradesWithoutValues.slice(0, 3).map(g => ({
+                gradeId: g.id,
+                studentId: g.student_id,
+                subjectId: g.subject_id,
+                prelim: g.prelim_grade,
+                midterm: g.midterm_grade,
+                final: g.final_grade
+              })),
+              totalEnrollments: enrollmentMap.size,
+              totalGradesFromDB: gradesData?.length || 0
+            },
+            troubleshootingSteps: [
+              '1. Check if grades table has actual grade values (not null)',
+              '2. Verify enrollment matching is working correctly',
+              '3. Check if UI filters are hiding grades',
+              '4. Ensure grades are being processed correctly'
+            ]
+          });
+        } else {
+          console.log('✅ SUCCESS: Grades with values found!', {
+            totalGradesWithValues: processedGradesWithValues.length,
+            sampleGrades: processedGradesWithValues.slice(0, 3).map(g => ({
+              gradeId: g.id,
+              studentId: g.student_id,
+              prelim: g.prelim_grade,
+              midterm: g.midterm_grade,
+              final: g.final_grade
+            }))
+          });
+          
+          console.log('✅ Sample processed grade with values:', {
+            student_name: processedGradesWithValues[0].student_name,
+            student_id: processedGradesWithValues[0].student_id,
+            prelim_grade: processedGradesWithValues[0].prelim_grade,
+            midterm_grade: processedGradesWithValues[0].midterm_grade,
+            final_grade: processedGradesWithValues[0].final_grade,
+            course_code: processedGradesWithValues[0].course_code,
+            year_level: processedGradesWithValues[0].year_level,
+            section: processedGradesWithValues[0].section
+          });
+        }
+      }
       console.log('Enrollment map size:', enrollmentMap.size);
       console.log('Teacher map size:', teacherMap.size);
       
@@ -1066,13 +1973,14 @@ export default function StudentGrades() {
       console.log('Program student count map (department-based):', Array.from(programStudentCountMap.entries()));
       
       // Create a map to link programs to their program heads
-      const programHeadMap = new Map<string, { id: string; display_name: string; avatar_url?: string }>();
+      const programHeadMap = new Map<string, { id: string; display_name: string; avatar_url?: string; department: string }>();
       (programHeadsData || []).forEach(programHead => {
         if (programHead.department) {
           programHeadMap.set(programHead.department, {
             id: programHead.id,
             display_name: programHead.display_name,
-            avatar_url: programHead.avatar_url
+            avatar_url: programHead.avatar_url,
+            department: programHead.department
           });
         }
       });
@@ -1179,6 +2087,67 @@ export default function StudentGrades() {
         console.log('Sample programs:', programsArray.slice(0, 3));
       }
       
+      // Filter students by department matching program head departments
+      console.group('🔍 DEPARTMENT FILTERING DEBUG');
+      console.log('Total students before filtering:', studentsData?.length || 0);
+      console.log('Programs array:', programsArray.map(p => ({ id: p.id, name: p.name, hasProgramHead: !!p.programHead })));
+      
+      const filteredStudents = (studentsData || []).filter(student => {
+        // Find the program for this student
+        const studentProgram = programsArray.find(p => p.id === student.program_id);
+        
+        console.log(`Student ${student.id}:`, {
+          program_id: student.program_id,
+          department: student.department,
+          foundProgram: !!studentProgram,
+          programName: studentProgram?.name,
+          hasProgramHead: !!studentProgram?.programHead
+        });
+        
+        if (!studentProgram || !studentProgram.programHead) {
+          console.log(`❌ Student ${student.id} filtered out: No program or program head`);
+          return false; // Skip students without program or program head
+        }
+        
+        // Get the program head's department
+        const programHeadDepartment = (studentProgram.programHead as { id: string; display_name: string; avatar_url?: string; department: string }).department;
+        if (!programHeadDepartment) {
+          console.log(`❌ Student ${student.id} filtered out: Program head has no department`);
+          return false; // Skip if program head has no department
+        }
+        
+        // Check if student's department matches program head's department
+        const departmentMatch = student.department === programHeadDepartment;
+        console.log(`Student ${student.id} department check:`, {
+          studentDepartment: student.department,
+          programHeadDepartment: programHeadDepartment,
+          matches: departmentMatch
+        });
+        
+        if (!departmentMatch) {
+          console.log(`❌ Student ${student.id} filtered out: Department mismatch`);
+        } else {
+          console.log(`✅ Student ${student.id} passed department filter`);
+        }
+        
+        return departmentMatch;
+      });
+      
+      console.log('Students after filtering:', filteredStudents.length);
+      console.log('Sample filtered students:', filteredStudents.slice(0, 3));
+      console.groupEnd();
+      
+      // If department filtering removes all students, use all students as fallback
+      const finalStudents = filteredStudents.length > 0 ? filteredStudents : (studentsData || []);
+      
+      if (filteredStudents.length === 0 && (studentsData || []).length > 0) {
+        console.warn('⚠️ Department filtering removed all students. Using all students as fallback.');
+        console.log('This might indicate an issue with department matching logic.');
+      }
+      
+      console.log('Final students to store in state:', finalStudents.length);
+      setStudents(finalStudents);
+      
       // Check for missing data
       // Note: skip logging gradesWithoutEnrollments to keep console clean and linter satisfied
       
@@ -1188,88 +2157,44 @@ export default function StudentGrades() {
       console.log('=== END SUMMARY ===');
       
     } catch (error) {
-      console.error('Error fetching data:', error);
-      setError('Failed to load data');
-    }
-    
-    setLoading(false);
-  };
-
-
-
-
-
-
-
-  // Smart back function that goes to the previous step
-  const handleGoBack = () => {
-    const currentHistory = [...navigationHistory];
-    const previousStep = currentHistory[currentHistory.length - 2]; // Get the previous step
-    
-    if (previousStep === 'programs') {
-      setShowPrograms(true);
-      setShowYearLevels(false);
-      setShowSections(false);
-    setShowSubjects(false);
-      setSelectedProgram('');
-    setSelectedYearLevel('');
-    setSelectedSection('');
-    setSelectedSubject('');
-      setNavigationHistory(['programs']);
-    } else if (previousStep === 'yearLevels') {
-      setShowPrograms(false);
-      setShowYearLevels(true);
-      setShowSections(false);
-      setShowSubjects(false);
-      setSelectedSection('');
-      setSelectedSubject('');
-      setNavigationHistory(currentHistory.slice(0, -1));
-    } else if (previousStep === 'sections') {
-      setShowPrograms(false);
-      setShowYearLevels(false);
-      setShowSections(true);
-      setShowSubjects(false);
-      setSelectedSubject('');
-      setNavigationHistory(currentHistory.slice(0, -1));
-    } else if (previousStep === 'subjects') {
-      setShowPrograms(false);
-      setShowYearLevels(false);
-      setShowSections(false);
-      setShowSubjects(true);
-      setSelectedSubject('');
-      setNavigationHistory(currentHistory.slice(0, -1));
-    } else if (previousStep === 'students') {
-      setShowPrograms(false);
-      setShowYearLevels(false);
-      setShowSections(false);
-      setShowSubjects(true);
-      setSelectedSubject('');
-      setNavigationHistory(currentHistory.slice(0, -1));
-    } else if (previousStep === 'emptyProgram') {
-      // Going back from empty program state to programs list
-      setShowPrograms(true);
-      setShowYearLevels(false);
-      setShowSections(false);
-      setShowSubjects(false);
-      setShowEmptyProgram(false);
-      setSelectedProgram('');
-      setSelectedYearLevel('');
-      setSelectedSection('');
-      setSelectedSubject('');
-      setNavigationHistory(['programs']);
-    } else {
-      // Default fallback to programs
-      setShowPrograms(true);
-      setShowYearLevels(false);
-      setShowSections(false);
-      setShowSubjects(false);
-      setSelectedProgram('');
-      setSelectedYearLevel('');
-      setSelectedSection('');
-      setSelectedSubject('');
-      setNavigationHistory(['programs']);
+      console.error('❌ Error fetching data:', error);
+      setError(`Failed to load data: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      
+      // Show user-friendly error message
+      toast.error('Failed to load grades data. Please try refreshing.');
+    } finally {
+      setLoading(false);
+      console.log('🏁 Grade fetching completed');
     }
   };
+
+
+
+
+
+
+
+  const navigateBack = () => {
+    if (currentStackIndex > 0) {
+      const newIndex = currentStackIndex - 1;
+      setCurrentStackIndex(newIndex);
+      const step = navigationStack[newIndex];
+      updateUIForStep(step);
+    }
+  };
+
+  const navigateForward = () => {
+    if (currentStackIndex < navigationStack.length - 1) {
+      const newIndex = currentStackIndex + 1;
+      setCurrentStackIndex(newIndex);
+      const step = navigationStack[newIndex];
+      updateUIForStep(step);
+    }
+  };
+
+  // Check if back/forward navigation is available
+  const canGoBack = currentStackIndex > 0;
+  const canGoForward = currentStackIndex < navigationStack.length - 1;
 
   // New function to handle program card clicks
   const handleProgramClick = async (programId: string) => {
@@ -1312,19 +2237,17 @@ export default function StudentGrades() {
       if (actualStudentCount === 0) {
         // No students found in database - show empty state
         setSelectedProgram(programId);
-        setShowPrograms(false);
-        setShowYearLevels(false);
-        setShowSections(false);
-        setShowSubjects(false);
-        setShowEmptyProgram(true);
-        setNavigationHistory(prev => [...prev, 'emptyProgram']);
+        setSelectedYearLevel('');
+        setSelectedSection('');
+        setSelectedSubject('');
+        navigateTo('emptyProgram');
       } else {
         // Students found in database - proceed with normal navigation
         setSelectedProgram(programId);
-        setShowPrograms(false);
-        setShowYearLevels(true);
-        setShowEmptyProgram(false);
-        setNavigationHistory(prev => [...prev, 'yearLevels']);
+        setSelectedYearLevel('');
+        setSelectedSection('');
+        setSelectedSubject('');
+        navigateTo('yearLevels');
       }
     } catch (error) {
       console.error('Error in handleProgramClick:', error);
@@ -1340,66 +2263,854 @@ export default function StudentGrades() {
   // New function to handle year level card clicks
   const handleYearLevelClick = (yearLevel: string) => {
     setSelectedYearLevel(yearLevel);
-    setShowYearLevels(false);
-    setShowSections(true);
-    setNavigationHistory(prev => [...prev, 'sections']);
+    setSelectedSection('');
+    setSelectedSubject('');
+    // Clear instructor errors when changing year levels
+    setInstructorErrors({
+      duplicateInstructors: [],
+      missingInstructors: [],
+      mappingErrors: [],
+      fallbackInstructors: []
+    });
+    navigateTo('sections');
   };
 
   // New function to handle section card clicks
   const handleSectionClick = (section: string) => {
     setSelectedSection(section);
-    setShowSections(false);
-    setShowSubjects(true);
-    setNavigationHistory(prev => [...prev, 'subjects']);
+    setSelectedSubject('');
+    setSelectedCourseId('');
+    // Clear instructor errors when changing sections
+    setInstructorErrors({
+      duplicateInstructors: [],
+      missingInstructors: [],
+      mappingErrors: [],
+      fallbackInstructors: []
+    });
+    navigateTo('subjects');
   };
+
+  // Function to track instructor errors and duplicates
+  const trackInstructorErrors = useCallback(async (courseId: string, courseCode: string) => {
+    try {
+      console.log('=== INSTRUCTOR ERROR TRACKING START ===');
+      
+      // Get all teacher_subjects for this course across all sections and year levels
+      const { data: allTeacherSubjects, error: allTeacherError } = await supabase
+        .from('teacher_subjects')
+        .select(`
+          id,
+          teacher_id,
+          subject_id,
+          section,
+          year_level,
+          teacher:user_profiles!teacher_subjects_teacher_id_fkey (id, display_name, first_name, last_name)
+        `)
+        .eq('subject_id', courseId)
+        .eq('is_active', true);
+
+      if (allTeacherError) {
+        console.error('Error fetching all teacher subjects for tracking:', allTeacherError);
+        return;
+      }
+
+      if (!allTeacherSubjects || allTeacherSubjects.length === 0) {
+        console.log('No teacher subjects found for course:', courseId);
+        return;
+      }
+
+      // Group by instructor ID to find duplicates
+      const instructorMap = new Map<string, Array<{
+        section: string;
+        yearLevel: string;
+        teacherId: string;
+        instructorName: string;
+      }>>();
+
+      const duplicateInstructors: Array<{
+        instructorId: string;
+        instructorName: string;
+        sections: string[];
+        yearLevels: string[];
+        courseId: string;
+        courseCode: string;
+      }> = [];
+
+      const missingInstructors: Array<{
+        courseId: string;
+        courseCode: string;
+        section: string;
+        yearLevel: string;
+      }> = [];
+
+      const mappingErrors: Array<{
+        teacherId: string;
+        instructorId: string;
+        section: string;
+        yearLevel: string;
+        error: string;
+      }> = [];
+
+      const fallbackInstructors: Array<{
+        instructorId: string;
+        instructorName: string;
+        sections: string[];
+        yearLevels: string[];
+        courseId: string;
+        courseCode: string;
+        reason: string;
+      }> = [];
+
+      // Process each teacher subject entry
+      allTeacherSubjects.forEach(ts => {
+        const instructorId = ts.teacher_id;
+        const teacher = Array.isArray(ts.teacher) ? ts.teacher[0] : (ts.teacher as { id?: string; display_name?: string; first_name?: string; last_name?: string } | null);
+        const instructorName = teacher?.display_name || 
+          `${teacher?.first_name || ''} ${teacher?.last_name || ''}`.trim() || 
+          'Unknown Instructor';
+
+        if (!instructorId) {
+          missingInstructors.push({
+            courseId,
+            courseCode,
+            section: ts.section,
+            yearLevel: ts.year_level
+          });
+          return;
+        }
+
+        if (!instructorMap.has(instructorId)) {
+          instructorMap.set(instructorId, []);
+        }
+
+        instructorMap.get(instructorId)!.push({
+          section: ts.section,
+          yearLevel: ts.year_level,
+          teacherId: instructorId,
+          instructorName
+        });
+      });
+
+      // Teaching multiple sections/year levels is valid. No duplicate error flagged.
+      // If you want to detect real conflicts (e.g., multiple distinct instructors for the same subject+section+year),
+      // implement a separate check grouping by (section, yearLevel) and counting distinct instructor IDs.
+
+      // Check for mapping errors
+      allTeacherSubjects.forEach(ts => {
+        if (ts.teacher_id && !ts.teacher) {
+          mappingErrors.push({
+            teacherId: ts.teacher_id,
+            instructorId: ts.teacher_id,
+            section: ts.section,
+            yearLevel: ts.year_level,
+            error: 'Teacher profile not found in user_profiles table'
+          });
+        }
+      });
+
+      // Update error state
+      setInstructorErrors({
+        duplicateInstructors,
+        missingInstructors,
+        mappingErrors,
+        fallbackInstructors
+      });
+
+      console.log('=== INSTRUCTOR ERROR TRACKING RESULTS ===');
+      console.log('Duplicate Instructors:', duplicateInstructors);
+      console.log('Missing Instructors:', missingInstructors);
+      console.log('Mapping Errors:', mappingErrors);
+      console.log('Fallback Instructors:', fallbackInstructors);
+      console.log('=== INSTRUCTOR ERROR TRACKING END ===');
+
+    } catch (error) {
+      console.error('Error in instructor error tracking:', error);
+    }
+  }, []);
+
+  // Function to fetch instructor and subject information
+  const fetchInstructorInfo = useCallback(async (courseId: string) => {
+    if (!courseId || !selectedYearLevel || !selectedSection) {
+      setInstructorInfo(null);
+      return;
+    }
+
+    try {
+      console.log('Fetching instructor info for course:', courseId, 'year:', selectedYearLevel, 'section:', selectedSection);
+
+      // Get instructor assignment from teacher_subjects (first get all for this subject)
+      const { data: allTeacherSubjectData, error: teacherSubjectError } = await supabase
+        .from('teacher_subjects')
+        .select(`
+          id,
+          subject_id,
+          teacher_id,
+          section,
+          year_level
+        `)
+        .eq('subject_id', courseId);
+
+      console.log('All teacher subject data for this course:', allTeacherSubjectData);
+      console.log('Looking for section:', selectedSection, 'year level:', selectedYearLevel);
+
+      if (teacherSubjectError) {
+        console.error('Error fetching teacher subject:', teacherSubjectError);
+        throw teacherSubjectError;
+      }
+
+      if (!allTeacherSubjectData || allTeacherSubjectData.length === 0) {
+        console.log('No instructor assigned to this subject');
+        setInstructorInfo(null);
+        return;
+      }
+
+      // Filter by section and year level (handle text matching)
+      let teacherSubjectData = allTeacherSubjectData.filter(ts => {
+        const sectionMatch = ts.section === selectedSection;
+        
+        // Handle different year level formats
+        const normalizeYear = (year: string | number) => {
+          if (typeof year === 'number') return year.toString();
+          const normalized = year.toLowerCase()
+            .replace(/\s+/g, '')
+            .replace('st', '')
+            .replace('nd', '')
+            .replace('rd', '')
+            .replace('th', '')
+            .replace('year', '');
+          console.log(`Normalizing year: "${year}" -> "${normalized}"`);
+          return normalized;
+        };
+        
+        const normalizedSelectedYear = normalizeYear(selectedYearLevel);
+        const normalizedDbYear = normalizeYear(ts.year_level);
+        const yearMatch = normalizedSelectedYear === normalizedDbYear;
+        
+        console.log(`Teacher subject: section="${ts.section}" (${sectionMatch}), year="${ts.year_level}" (${yearMatch})`);
+        console.log(`Year comparison: "${normalizedSelectedYear}" vs "${normalizedDbYear}"`);
+        return sectionMatch && yearMatch;
+      });
+
+      console.log('Filtered teacher subject data:', teacherSubjectData);
+
+      if (teacherSubjectData.length === 0) {
+        console.log('No instructor assigned to this subject for this section and year level');
+        console.log('Available sections and years:', allTeacherSubjectData.map(ts => ({ section: ts.section, year: ts.year_level })));
+        console.log('Search criteria:', { courseId, selectedSection, selectedYearLevel });
+        
+        // Fallback: use first available instructor if no exact match
+        if (allTeacherSubjectData.length > 0) {
+          console.warn('⚠️ USING FALLBACK INSTRUCTOR - No exact match found for section/year combination');
+          console.warn('This may cause the same instructor to appear in different sections!');
+          console.warn('Available teacher_subjects:', allTeacherSubjectData.map(ts => ({
+            section: ts.section,
+            year: ts.year_level,
+            teacher_id: ts.teacher_id
+          })));
+          console.warn('Search criteria:', { courseId, selectedSection, selectedYearLevel });
+          teacherSubjectData = allTeacherSubjectData.slice(0, 1);
+        } else {
+          setInstructorInfo(null);
+          return;
+        }
+      }
+
+      // Get instructor details and course details
+      const teacherIds = teacherSubjectData.map(ts => ts.teacher_id);
+      console.log('Teacher IDs to fetch:', teacherIds);
+      
+      const { data: instructorData, error: instructorError } = await supabase
+        .from('user_profiles')
+        .select(`
+          id,
+          first_name,
+          last_name,
+          display_name,
+          role
+        `)
+        .in('id', teacherIds);
+
+      console.log('Raw instructor data from user_profiles:', instructorData);
+      console.log('Instructor error:', instructorError);
+
+      // Filter for instructor/teacher roles (systems may use either)
+      const filteredInstructorData = (instructorData || []).filter(instructor =>
+        ['instructor', 'teacher'].includes((instructor.role || '').toLowerCase())
+      );
+      console.log('Filtered instructor data (role in instructor/teacher):', filteredInstructorData);
+
+      const { data: courseData, error: courseError } = await supabase
+        .from('courses')
+        .select(`
+          id,
+          code,
+          name
+        `)
+        .eq('id', courseId);
+
+      console.log('Instructor data:', instructorData);
+      console.log('Course data:', courseData);
+
+      if (instructorError || courseError) {
+        console.error('Error fetching instructor or course data:', instructorError, courseError);
+        throw instructorError || courseError;
+      }
+
+      if (filteredInstructorData && filteredInstructorData.length > 0 && courseData && courseData.length > 0) {
+        // If we have multiple instructors, show all of them or the specific one for this section/year
+        let selectedInstructor;
+        
+        if (filteredInstructorData.length === 1) {
+          selectedInstructor = filteredInstructorData[0];
+        } else {
+          // Multiple instructors - find the one that matches our filtered teacherSubjectData
+          console.log('Multiple instructors found, looking for correct one...');
+          console.log('Filtered teacherSubjectData:', teacherSubjectData);
+          
+          if (teacherSubjectData.length > 0) {
+            // Since teacherSubjectData is already filtered by section/year, use its teacher_id
+            const correctTeacherId = teacherSubjectData[0]?.teacher_id;
+            console.log('Correct teacher ID from filtered data:', correctTeacherId);
+            
+            selectedInstructor = filteredInstructorData.find(instructor => 
+              instructor.id === correctTeacherId
+            );
+            
+            console.log('Found instructor by teacher_id:', selectedInstructor);
+          } else {
+            console.log('No teacherSubjectData found, using first instructor');
+            selectedInstructor = filteredInstructorData[0];
+          }
+          
+          // If still no match, use the first one
+          if (!selectedInstructor) {
+            selectedInstructor = filteredInstructorData[0];
+            console.log('Warning: Could not find instructor for specific section/year, using first available');
+          }
+        }
+        
+        const course = courseData[0];
+        
+        // Track instructor errors for this course
+        await trackInstructorErrors(courseId, course.code);
+        
+        console.log('Selected instructor:', selectedInstructor);
+        console.log('Teacher subject data used for filtering:', teacherSubjectData);
+        console.log('Available instructors:', filteredInstructorData.map(i => ({ 
+          id: i.id, 
+          name: i.display_name || `${i.first_name} ${i.last_name}` 
+        })));
+        
+        // Debug: Show mapping between teacher_subjects and instructors
+        console.log('=== TEACHER MAPPING DEBUG ===');
+        teacherSubjectData.forEach(ts => {
+          const instructor = filteredInstructorData.find(i => i.id === ts.teacher_id);
+          console.log(`Section: ${ts.section}, Year: ${ts.year_level}, Teacher ID: ${ts.teacher_id}, Instructor: ${instructor?.display_name || instructor?.first_name + ' ' + instructor?.last_name || 'NOT FOUND'}`);
+        });
+        
+        setInstructorInfo({
+          instructor_id: selectedInstructor.id,
+          instructor_name: selectedInstructor.display_name || `${selectedInstructor.first_name} ${selectedInstructor.last_name}`,
+          subject_name: course.name,
+          course_code: course.code
+        });
+      } else {
+        console.log('No instructor or course data found');
+        console.log('Filtered instructor data length:', filteredInstructorData?.length || 0);
+        console.log('Course data length:', courseData?.length || 0);
+        setInstructorInfo(null);
+      }
+    } catch (error) {
+      console.error('Error fetching instructor info:', error);
+      setInstructorInfo(null);
+    }
+  }, [selectedYearLevel, selectedSection, trackInstructorErrors]);
+
+  // Function to fetch enrolled students for selected subject
+  const fetchEnrolledStudents = useCallback(async (courseId: string) => {
+    if (!courseId || !selectedYearLevel || !selectedSection || !user?.id) {
+      setEnrolledStudents([]);
+      return;
+    }
+
+    try {
+      setLoadingEnrolledStudents(true);
+      console.log('=== DEBUGGING ENROLLED STUDENTS FETCH ===');
+      console.log('Course ID:', courseId);
+      console.log('Year Level:', selectedYearLevel);
+      console.log('Section (name):', selectedSection);
+      console.log('User ID:', user.id);
+      console.log('User Role:', user.role);
+      
+      // 1) Check if current user is assigned (only applies to instructors)
+      let teacherAssigned = true; // Default to true for registrars
+      if (user?.role === 'instructor') {
+        const { data: teacherSubjectData, error: teacherSubjectError } = await supabase
+          .from('teacher_subjects')
+          .select(`
+            id,
+            subject_id,
+            teacher_id
+          `)
+          .eq('subject_id', courseId)
+          .eq('teacher_id', user.id);
+
+        console.log('Teacher subject assignment:', teacherSubjectData);
+        console.log('Teacher subject error:', teacherSubjectError);
+
+        if (teacherSubjectError) {
+          console.error('Error checking teacher assignment:', teacherSubjectError);
+          throw teacherSubjectError;
+        }
+
+        teacherAssigned = teacherSubjectData && teacherSubjectData.length > 0;
+        if (!teacherAssigned) {
+          console.log('Current teacher is not assigned to this subject');
+          setEnrolledStudents([]);
+          return;
+        }
+      } else {
+        console.log('User is a registrar - skipping teacher assignment check');
+      }
+
+      // 2) Resolve target section UUID from sections list by name + year level
+      const normalize = (v: string | number | null | undefined) => {
+        if (v === null || v === undefined) return '';
+        const s = String(v).toLowerCase();
+        if (s.startsWith('1')) return '1';
+        if (s.startsWith('2')) return '2';
+        if (s.startsWith('3')) return '3';
+        if (s.startsWith('4')) return '4';
+        if (['1','2','3','4'].includes(s)) return s;
+        return s;
+      };
+      const targetSection = sectionsList.find(s => (s.name || '') === selectedSection && normalize(s.year_level) === selectedYearLevel);
+      const targetSectionId = targetSection?.id || null;
+      console.log('Resolved targetSectionId from sections table:', targetSectionId);
+
+      // 3) Get active enrollments for this subject (do not filter by section here)
+      const { data: enrollmentsData, error: enrollmentsError } = await supabase
+        .from('enrollcourse')
+        .select(`
+          id,
+          student_id,
+          subject_id,
+          status,
+          school_year,
+          section
+        `)
+        .eq('subject_id', courseId)
+        .eq('status', 'active');
+
+      console.log('=== ENROLLCOURSE QUERY RESULTS (no section filter) ===');
+      console.log('Enrollments data:', enrollmentsData);
+      console.log('Enrollments error:', enrollmentsError);
+      console.log('Number of enrollments found:', enrollmentsData?.length || 0);
+
+      if (enrollmentsError) {
+        console.error('Error fetching enrollments:', enrollmentsError);
+        throw enrollmentsError;
+      }
+      if (!enrollmentsData || enrollmentsData.length === 0) {
+        console.log('❌ No enrollments found for course:', courseId);
+        setEnrolledStudents([]);
+        return;
+      }
+
+      // 4) Fetch corresponding student profiles
+      const studentIds = enrollmentsData.map(e => e.student_id);
+      console.log('Student IDs to fetch:', studentIds);
+
+      const { data: studentsData, error: studentsError } = await supabase
+        .from('user_profiles')
+        .select(`
+          id,
+          student_id,
+          first_name,
+          last_name,
+          year_level,
+          section
+        `)
+        .in('id', studentIds)
+        .eq('role', 'student');
+
+      console.log('=== USER_PROFILES QUERY RESULTS ===');
+      console.log('Students data:', studentsData);
+      console.log('Students error:', studentsError);
+      console.log('Number of students found:', studentsData?.length || 0);
+
+      if (studentsError) {
+        console.error('Error fetching students:', studentsError);
+        throw studentsError;
+      }
+
+      // 5) Filter by normalized year and by section UUID (resolved)
+      console.log('=== FILTERING STUDENTS ===');
+      console.log('Target year level (normalized):', selectedYearLevel);
+      console.log('Target section name:', selectedSection, '→ UUID:', targetSectionId);
+
+      const filteredStudents = (studentsData || []).filter(student => {
+        const yearMatches = normalizeYearLevel(student.year_level || '') === selectedYearLevel;
+        const sectionMatches = targetSectionId
+          ? (student.section === targetSectionId)
+          : (sectionMap.get(student.section || '') === selectedSection);
+        console.log(`Student ${student.first_name} ${student.last_name}: year=${student.year_level} (${yearMatches}), section=${student.section} (${sectionMatches})`);
+        return yearMatches && sectionMatches;
+      });
+
+      console.log('=== FINAL RESULTS ===');
+      console.log('Filtered students by year and section:', filteredStudents);
+      console.log('Number of filtered students:', filteredStudents.length);
+
+      // 6) Map the filtered data
+      const enrolledStudentsList = filteredStudents.map(student => ({
+        id: student.id,
+        student_id: student.student_id || student.id,
+        first_name: student.first_name || '',
+        last_name: student.last_name || '',
+        enrollment_status: 'active'
+      }));
+
+      console.log('Final enrolled students list:', enrolledStudentsList);
+      setEnrolledStudents(enrolledStudentsList);
+    } catch (error) {
+      console.error('Error fetching enrolled students:', error);
+      setEnrolledStudents([]);
+    } finally {
+      setLoadingEnrolledStudents(false);
+    }
+  }, [selectedYearLevel, selectedSection, user?.id, user?.role, sectionsList, sectionMap]);
 
   // New function to handle subject selection
-  const handleSubjectClick = (subject: string) => {
-    setSelectedSubject(subject);
-    setShowSubjects(false);
-    setNavigationHistory(prev => [...prev, 'students']);
+  const handleSubjectClick = async (course: { id: string; code: string }) => {
+    setSelectedSubject(course.code);
+    setSelectedCourseId(course.id);
+    
+    // Fetch instructor info and enrolled students for this subject
+    await Promise.all([
+      fetchInstructorInfo(course.id),
+      fetchEnrolledStudents(course.id)
+    ]);
+    
+    navigateTo('students');
   };
 
+  // Refresh enrolled students when year level or section changes
+  useEffect(() => {
+    if (selectedCourseId && selectedYearLevel && selectedSection && user?.id) {
+      console.log('Year level or section changed, refreshing enrolled students...');
+      fetchEnrolledStudents(selectedCourseId);
+    }
+  }, [selectedYearLevel, selectedSection, selectedCourseId, fetchEnrolledStudents, user?.id]);
+
+  // Refresh instructor info when year level or section changes
+  useEffect(() => {
+    if (selectedCourseId && selectedYearLevel && selectedSection) {
+      console.log('Year level or section changed, refreshing instructor info...');
+      fetchInstructorInfo(selectedCourseId);
+    }
+  }, [selectedYearLevel, selectedSection, selectedCourseId, fetchInstructorInfo]);
 
 
 
 
 
 
-  // Get filtered students based on selection
+
+  // Get filtered students based on selection - now includes enrolled students even without grades
   const getFilteredStudents = () => {
     if (!selectedYearLevel || !selectedSection || !selectedSubject) return [];
     
-    let filtered = grades.filter(grade => 
-      grade.year_level === selectedYearLevel && 
-      grade.section === selectedSection &&
-      grade.course_code === selectedSubject &&
-      !grade.is_released
-    );
+    console.log('=== GETFILTEREDSTUDENTS DEBUG ===');
+    console.log('Selected year level:', selectedYearLevel);
+    console.log('Selected section:', selectedSection);
+    console.log('Selected subject:', selectedSubject);
+    console.log('Selected course ID:', selectedCourseId);
+    console.log('Enrolled students count:', enrolledStudents.length);
+    console.log('Grades count:', grades.length);
+    
+    // Debug: Show sample grade data structure
+    if (grades.length > 0) {
+      console.log('Sample grade data structure:', {
+        firstGrade: grades[0],
+        gradeKeys: Object.keys(grades[0]),
+        yearLevels: [...new Set(grades.map(g => g.year_level))],
+        sections: [...new Set(grades.map(g => g.section))],
+        courseCodes: [...new Set(grades.map(g => g.course_code))],
+        courseIds: [...new Set(grades.map(g => g.course_id))]
+      });
+    }
+    
+    const normalizeStr = (v?: string | null) => (v || '').toString().trim().toLowerCase();
+    const sectionTarget = normalizeStr(selectedSection);
+    const subjectTarget = normalizeStr(selectedSubject);
+
+    // First get all grades that match the criteria - improved filtering with better matching
+    let gradeStudents = grades.filter(grade => {
+      // More flexible year level matching
+      const yearMatches = grade.year_level === selectedYearLevel || 
+                         grade.year_level?.toString() === selectedYearLevel ||
+                         normalizeStr(grade.year_level) === normalizeStr(selectedYearLevel);
+      
+      // More flexible section matching - be more permissive
+      let sectionMatches = false;
+      if (grade.section && selectedSection) {
+        // Both have sections - try multiple matching strategies
+        sectionMatches = normalizeStr(grade.section) === sectionTarget ||
+                        grade.section === selectedSection ||
+                        sectionMap.get(grade.section || '') === selectedSection;
+      } else if (!grade.section && !selectedSection) {
+        // Neither has section - consider it a match
+        sectionMatches = true;
+      } else if (!grade.section) {
+        // Grade has no section but selection does - still match (grade might be for any section)
+        sectionMatches = true;
+      }
+      
+      // More flexible subject matching
+      const subjectMatches = normalizeStr(grade.course_code) === subjectTarget || 
+                           normalizeStr(grade.course_name) === subjectTarget ||
+                           (!!selectedCourseId && grade.course_id === selectedCourseId) ||
+                           grade.subject_id === selectedCourseId;
+      
+      console.log(`Grade ${grade.id} filtering:`, {
+        yearLevel: grade.year_level,
+        yearMatches,
+        section: grade.section,
+        sectionMatches,
+        courseCode: grade.course_code,
+        courseName: grade.course_name,
+        courseId: grade.course_id,
+        subjectId: grade.subject_id,
+        subjectMatches,
+        selectedCourseId,
+        selectedSection,
+        sectionTarget,
+        prelim_grade: grade.prelim_grade,
+        midterm_grade: grade.midterm_grade,
+        final_grade: grade.final_grade,
+        finalMatch: yearMatches && sectionMatches && subjectMatches
+      });
+      
+      return yearMatches && sectionMatches && subjectMatches;
+    });
+
+    console.log('Grade students found:', gradeStudents.length);
+    
+    // If no grades found with strict filtering, try more permissive filtering
+    if (gradeStudents.length === 0 && grades.length > 0) {
+      console.log('⚠️ No grades found with strict filtering, trying permissive approach...');
+      
+      // Try to find grades by just matching the subject/course
+      gradeStudents = grades.filter(grade => {
+        const subjectMatches = normalizeStr(grade.course_code) === subjectTarget || 
+                             normalizeStr(grade.course_name) === subjectTarget ||
+                             (!!selectedCourseId && grade.course_id === selectedCourseId) ||
+                             grade.subject_id === selectedCourseId;
+        
+        console.log(`Permissive filtering for grade ${grade.id}:`, {
+          courseCode: grade.course_code,
+          courseName: grade.course_name,
+          courseId: grade.course_id,
+          subjectId: grade.subject_id,
+          subjectMatches,
+          prelim_grade: grade.prelim_grade,
+          midterm_grade: grade.midterm_grade,
+          final_grade: grade.final_grade
+        });
+        
+        return subjectMatches;
+      });
+      
+      console.log('Permissive filtering found:', gradeStudents.length, 'grades');
+    }
+    
+    // Debug: Check if grades have actual grade values
+    if (gradeStudents.length > 0) {
+      console.log('🔍 Sample grade data with actual values:', gradeStudents.slice(0, 3).map(g => ({
+        student_name: g.student_name,
+        student_id: g.student_id,
+        prelim_grade: g.prelim_grade,
+        midterm_grade: g.midterm_grade,
+        final_grade: g.final_grade,
+        course_code: g.course_code,
+        course_name: g.course_name,
+        year_level: g.year_level,
+        section: g.section
+      })));
+      
+      // Check for grades with actual values
+      const gradesWithValues = gradeStudents.filter(g => 
+        g.prelim_grade !== null || g.midterm_grade !== null || g.final_grade !== null
+      );
+      console.log(`📊 Grades with actual values: ${gradesWithValues.length} out of ${gradeStudents.length}`);
+      
+      if (gradesWithValues.length > 0) {
+        console.log('✅ Sample grade with values:', gradesWithValues[0]);
+      } else {
+        console.log('❌ No grades have actual values - all are null/undefined');
+      }
+    }
+
+    // If we have enrolled students, merge them with grade data
+    if (enrolledStudents.length > 0) {
+      console.log('Processing enrolled students...');
+      // Create a map of existing grades by student_id (UUID from user_profiles.id)
+      const gradesMap = new Map();
+      gradeStudents.forEach(grade => {
+        gradesMap.set(grade.student_id, grade);
+      });
+      
+      console.log('🔍 Grades map created:', {
+        totalGrades: gradeStudents.length,
+        gradesMapKeys: Array.from(gradesMap.keys()),
+        sampleGrades: gradeStudents.slice(0, 3).map(g => ({
+          student_id: g.student_id,
+          student_name: g.student_name,
+          prelim: g.prelim_grade,
+          midterm: g.midterm_grade,
+          final: g.final_grade
+        }))
+      });
+
+      // Create final list with enrolled students
+      const finalStudents = enrolledStudents.map(enrolledStudent => {
+        // Try to match by both student_id (UUID) and custom student_id
+        const existingGrade = gradesMap.get(enrolledStudent.id) || gradesMap.get(enrolledStudent.student_id);
+        
+        console.log(`🔍 Matching student ${enrolledStudent.first_name} ${enrolledStudent.last_name}:`, {
+          enrolledStudentId: enrolledStudent.id,
+          enrolledStudentCustomId: enrolledStudent.student_id,
+          foundGrade: !!existingGrade,
+          gradeStudentId: existingGrade?.student_id,
+          gradeStudentName: existingGrade?.student_name,
+          prelim: existingGrade?.prelim_grade,
+          midterm: existingGrade?.midterm_grade,
+          final: existingGrade?.final_grade
+        });
+        
+        if (existingGrade) {
+          // Student has grades, use existing grade data
+          console.log(`✅ Found grades for ${enrolledStudent.first_name} ${enrolledStudent.last_name}`);
+          return existingGrade;
+        } else {
+          // Student is enrolled but has no grades, create a placeholder grade entry
+          return {
+            id: `enrolled-${enrolledStudent.id}`,
+            student_id: enrolledStudent.student_id,
+            student_name: `${enrolledStudent.first_name} ${enrolledStudent.last_name}`,
+            school_id: enrolledStudent.student_id,
+            prelim_grade: null,
+            midterm_grade: null,
+            final_grade: null,
+            general_average: null,
+            is_released: false,
+            is_approved: false,
+            is_locked: false,
+            year_level: selectedYearLevel,
+            section: selectedSection,
+            course_code: selectedSubject,
+            course_id: selectedCourseId,
+            student_type: 'Enrolled',
+            enrollment_status: 'active',
+            avatar_url: null,
+            teacher_name: 'Not Assigned',
+            remarks: null,
+            graded_by: null,
+            graded_at: null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+        }
+      });
+
+      gradeStudents = finalStudents;
+    } else {
+      console.log('No enrolled students found, showing only students with grades');
+    }
+    
+    console.log('Final gradeStudents before search:', gradeStudents.length);
     
     // Apply search filter if search term exists
     if (studentSearchTerm.trim()) {
-      filtered = filtered.filter(grade => 
+      gradeStudents = gradeStudents.filter(grade => 
         (grade.student_name || '').toLowerCase().includes(studentSearchTerm.toLowerCase()) ||
         (grade.school_id || '').toLowerCase().includes(studentSearchTerm.toLowerCase())
       );
     }
     
     // Sort by student name
-    filtered.sort((a, b) => (a.student_name || '').localeCompare(b.student_name || ''));
+    gradeStudents.sort((a, b) => (a.student_name || '').localeCompare(b.student_name || ''));
     
-    console.log('Filtered students:', filtered.length, 'for', selectedYearLevel, 'Section', selectedSection, 'Subject', selectedSubject, 'Search:', studentSearchTerm);
-    return filtered;
+    console.log('=== FINAL RESULT ===');
+    console.log('Final students to display:', gradeStudents.length);
+    console.log('Students:', gradeStudents.map(s => ({ name: s.student_name, id: s.student_id, hasGrades: s.prelim_grade !== null })));
+    
+    return gradeStudents;
   };
 
   // Bulk action handlers
+  // Function to validate if all students have complete grades
+  const validateCompleteGrades = (students: Grade[]) => {
+    // If no students are enrolled, grades are not complete
+    if (students.length === 0) {
+      return {
+        isValid: false,
+        incompleteStudents: [],
+        reason: 'No students enrolled'
+      };
+    }
+    
+    const incompleteStudents = students.filter(student => {
+      const hasPrelim = student.prelim_grade !== null && student.prelim_grade !== undefined;
+      const hasMidterm = student.midterm_grade !== null && student.midterm_grade !== undefined;
+      const hasFinal = student.final_grade !== null && student.final_grade !== undefined;
+      
+      return !hasPrelim || !hasMidterm || !hasFinal;
+    });
+    
+    return {
+      isValid: incompleteStudents.length === 0 && students.length > 0,
+      incompleteStudents: incompleteStudents,
+      reason: incompleteStudents.length === 0 ? 'All students have complete grades' : `${incompleteStudents.length} students have incomplete grades`
+    };
+  };
+
   const handleBulkRelease = async () => {
     const filteredStudents = getFilteredStudents();
     if (filteredStudents.length === 0) return;
     
+    // Check if there are any pending grade change requests for the current subject
+    const currentSubjectRequests = instructorRequests.filter(req => 
+      req.subject_id === selectedCourseId && 
+      req.edit_status === 'pending'
+    );
+    
+    if (currentSubjectRequests.length > 0) {
+      toast.error(`${currentSubjectRequests.length} pending grade change requests must be resolved before releasing grades`, {
+        duration: 5000
+      });
+      return;
+    }
+    
+    // Validate that all students have complete grades
+    const validation = validateCompleteGrades(filteredStudents);
+    
+    if (!validation.isValid) {
+      const incompleteCount = validation.incompleteStudents.length;
+      const totalCount = filteredStudents.length;
+      
+      toast.error(
+        `Cannot release grades: ${incompleteCount} out of ${totalCount} students have incomplete grades. All students must have Prelim, Midterm, and Final grades before releasing.`,
+        { duration: 6000 }
+      );
+      return;
+    }
+    
     setBulkUpdating(true);
     
     try {
+      // Release grades for all students (no pending requests)
       const { error } = await supabase
         .from('grades')
         .update({ is_released: true })
@@ -1423,6 +3134,7 @@ export default function StudentGrades() {
     setBulkUpdating(false);
   };
 
+
   const handleBulkHide = async () => {
     const filteredStudents = getFilteredStudents();
     if (filteredStudents.length === 0) return;
@@ -1442,7 +3154,7 @@ export default function StudentGrades() {
           )
         );
         
-        toast.success(`Hidden grades for ${filteredStudents.length} students`);
+        toast.success(`Hidden grades for ${filteredStudents.length} stdnts`);
       } else {
         toast.error('Failed to hide grades');
       }
@@ -1466,7 +3178,7 @@ export default function StudentGrades() {
     try {
       // Create a CSV report
       const csvData = [
-        ['Student Name', 'Student ID', 'Subject', 'Prelim', 'Midterm', 'Final', 'GA', 'Status'],
+        ['Student Name', 'Student ID', 'Subject', 'Prelim', 'Midterm', 'Final', 'GA'],
         ...filteredStudents.map(student => [
           student.student_name || 'Unknown',
           student.school_id || student.student_id,
@@ -1474,8 +3186,7 @@ export default function StudentGrades() {
           student.prelim_grade?.toString() || '-',
           student.midterm_grade?.toString() || '-',
           student.final_grade?.toString() || '-',
-          student.general_average?.toFixed(2) || '-',
-          student.is_approved ? 'Approved' : 'Pending'
+          student.general_average?.toFixed(2) || '-'
         ])
       ];
 
@@ -1502,35 +3213,755 @@ export default function StudentGrades() {
   const releasedGrades = grades.filter(g => g.is_released).length;
   const pendingGrades = grades.filter(g => !g.is_released).length;
 
-  // Get students for a given combination (year, section, subject) - filtered by selected program
-  const getStudentsForCombination = (yearLevel: string, section: string, subject: string) => {
-    const selectedProgramName = programs.find(p => p.id === selectedProgram)?.name;
-    return grades
-      .filter(g => 
-        g.program_name === selectedProgramName &&
-        g.year_level === yearLevel && 
-        g.section === section && 
-        g.course_code === subject &&
-        !g.is_released
-      )
-      .slice(0, 8); // cap to 8 avatars for layout
+  // Grade Change Request functions
+  const fetchInstructorRequests = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('grades')
+        .select('id, student_id, subject_id, section, academic_year, edit_reason, edit_status, edit_requested_by, edit_requested_by_name, edit_student_name, created_at')
+        .eq('edit_requested', true)
+        .eq('edit_status', 'pending')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      
+      const base = (data || []).map((g: {
+        id: string;
+        student_id: string;
+        subject_id: string | null;
+        section: string | null;
+        academic_year: string | null;
+        edit_reason: string | null;
+        edit_status: string | null;
+        edit_requested_by: string | null;
+        edit_requested_by_name: string | null;
+        edit_student_name: string | null;
+        created_at: string | null;
+      }) => ({
+        id: g.id,
+        student_id: g.student_id,
+        student_name: g.edit_student_name,
+        instructor_id: g.edit_requested_by, // temporary; will override from teacher_subjects if available
+        instructor_name: g.edit_requested_by_name, // temporary; will override from user_profiles
+        subject_id: g.subject_id,
+        section: g.section,
+        academic_year: g.academic_year,
+        edit_reason: g.edit_reason,
+        edit_status: g.edit_status,
+        created_at: g.created_at
+      }));
+
+      // Enhance with teacher_subjects.teacher_id and user_profiles.display_name
+      const subjectIds = Array.from(new Set(base.map(r => r.subject_id).filter(Boolean))) as string[];
+      const subjectToTeacherId = new Map<string, string>();
+      if (subjectIds.length > 0) {
+        const { data: tsRows } = await supabase
+          .from('teacher_subjects')
+          .select('subject_id, teacher_id')
+          .in('subject_id', subjectIds);
+        if (tsRows) {
+          tsRows.forEach((row: { subject_id: string; teacher_id: string }) => {
+            if (row?.subject_id && row?.teacher_id) subjectToTeacherId.set(row.subject_id, row.teacher_id);
+          });
+        }
+      }
+
+      const teacherIds = Array.from(new Set(Array.from(subjectToTeacherId.values())));
+      const teacherIdToName = new Map<string, string>();
+      if (teacherIds.length > 0) {
+        const { data: teachers } = await supabase
+          .from('user_profiles')
+          .select('id, display_name, first_name, last_name')
+          .in('id', teacherIds);
+        if (teachers) {
+          teachers.forEach((t: { id: string; display_name?: string | null; first_name?: string | null; last_name?: string | null; }) => {
+            const full = (t.display_name && t.display_name.trim()) || [t.first_name, t.last_name].filter(Boolean).join(' ').trim();
+            if (t.id && full) teacherIdToName.set(t.id, full);
+          });
+        }
+      }
+
+      const mapped = base.map(req => {
+        const teacherId = req.subject_id ? subjectToTeacherId.get(req.subject_id) : undefined;
+        if (teacherId) {
+          return {
+            ...req,
+            instructor_id: teacherId,
+            instructor_name: teacherIdToName.get(teacherId) || req.instructor_name || 'Unknown Instructor',
+          };
+        }
+        return req;
+      });
+
+      setInstructorRequests(mapped);
+    } catch (e) {
+      console.error('Failed to load instructor requests:', e);
+      setInstructorRequests([]);
+    }
   };
 
-  // Get total student count for a combination - filtered by selected program
-  const getTotalStudentCount = (yearLevel: string, section: string, subject: string) => {
-    const selectedProgramName = programs.find(p => p.id === selectedProgram)?.name;
-    return grades
-      .filter(g => 
-        g.program_name === selectedProgramName &&
-        g.year_level === yearLevel && 
-        g.section === section && 
-        g.course_code === subject &&
-        !g.is_released
-      )
-      .length;
+  const refreshInstructorRequests = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('grades')
+        .select('id, student_id, subject_id, section, academic_year, edit_reason, edit_status, edit_requested_by, edit_requested_by_name, edit_student_name, created_at')
+        .eq('edit_requested', true)
+        .eq('edit_status', 'pending')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      
+      const base = (data || []).map((g: {
+        id: string;
+        student_id: string;
+        subject_id: string | null;
+        section: string | null;
+        academic_year: string | null;
+        edit_reason: string | null;
+        edit_status: string | null;
+        edit_requested_by: string | null;
+        edit_requested_by_name: string | null;
+        edit_student_name: string | null;
+        created_at: string | null;
+      }) => ({
+        id: g.id,
+        student_id: g.student_id,
+        student_name: g.edit_student_name,
+        instructor_id: g.edit_requested_by, // temporary; will override from teacher_subjects if available
+        instructor_name: g.edit_requested_by_name, // temporary; will override from user_profiles
+        subject_id: g.subject_id,
+        section: g.section,
+        academic_year: g.academic_year,
+        edit_reason: g.edit_reason,
+        edit_status: g.edit_status,
+        created_at: g.created_at
+      }));
+
+      // Enhance with teacher_subjects.teacher_id and user_profiles.display_name
+      const subjectIds = Array.from(new Set(base.map(r => r.subject_id).filter(Boolean))) as string[];
+      const subjectToTeacherId = new Map<string, string>();
+      if (subjectIds.length > 0) {
+        const { data: tsRows } = await supabase
+          .from('teacher_subjects')
+          .select('subject_id, teacher_id')
+          .in('subject_id', subjectIds);
+        if (tsRows) {
+          tsRows.forEach((row: { subject_id: string; teacher_id: string }) => {
+            if (row?.subject_id && row?.teacher_id) subjectToTeacherId.set(row.subject_id, row.teacher_id);
+          });
+        }
+      }
+
+      const teacherIds = Array.from(new Set(Array.from(subjectToTeacherId.values())));
+      const teacherIdToName = new Map<string, string>();
+      if (teacherIds.length > 0) {
+        const { data: teachers } = await supabase
+          .from('user_profiles')
+          .select('id, display_name, first_name, last_name')
+          .in('id', teacherIds);
+        if (teachers) {
+          teachers.forEach((t: { id: string; display_name?: string | null; first_name?: string | null; last_name?: string | null; }) => {
+            const full = (t.display_name && t.display_name.trim()) || [t.first_name, t.last_name].filter(Boolean).join(' ').trim();
+            if (t.id && full) teacherIdToName.set(t.id, full);
+          });
+        }
+      }
+
+      const mapped = base.map(req => {
+        const teacherId = req.subject_id ? subjectToTeacherId.get(req.subject_id) : undefined;
+        if (teacherId) {
+          return {
+            ...req,
+            instructor_id: teacherId,
+            instructor_name: teacherIdToName.get(teacherId) || req.instructor_name || 'Unknown Instructor',
+          };
+        }
+        return req;
+      });
+
+      setInstructorRequests(mapped);
+    } catch (e) {
+      console.error('Failed to refresh instructor requests:', e);
+      setInstructorRequests([]);
+    }
   };
+
+  const approveRequest = async (gradeId: string) => {
+    try {
+      const { error } = await supabase
+        .from('grades')
+        .update({ edit_status: 'granted', edit_requested: false, approved_at: new Date().toISOString() })
+        .eq('id', gradeId);
+      if (error) throw error;
+      toast.success('Grade edit request approved successfully');
+      await refreshInstructorRequests();
+    } catch (e) {
+      console.error('Approve failed:', e);
+      toast.error('Failed to approve request');
+    }
+  };
+
+  const denyRequest = async (gradeId: string) => {
+    try {
+      const { error } = await supabase
+        .from('grades')
+        .update({ edit_status: 'denied', edit_requested: false })
+        .eq('id', gradeId);
+      if (error) throw error;
+      toast.success('Grade edit request denied');
+      await refreshInstructorRequests();
+    } catch (e) {
+      console.error('Deny failed:', e);
+      toast.error('Failed to deny request');
+    }
+  };
+
+  const openRequestDetails = async (request: {
+    id: string;
+    student_id: string;
+    student_name?: string | null;
+    instructor_id?: string | null;
+    instructor_name?: string | null;
+    subject_id?: string | null;
+    section?: string | null;
+    academic_year?: string | null;
+    edit_reason?: string | null;
+    edit_status?: string | null;
+    created_at?: string | null;
+  }) => {
+    let resolvedName = request.instructor_name;
+    let studentCustomId = null;
+    let subjectName = null;
+    
+    try {
+      // Resolve instructor name
+      if (!resolvedName || resolvedName.trim() === '') {
+        const name = await resolveInstructorName(
+          request.instructor_id,
+          request.subject_id || undefined,
+          request.section || undefined,
+          request.academic_year || undefined
+        );
+        if (name) resolvedName = name;
+      }
+
+      // Fetch student's custom ID
+      if (request.student_id) {
+        const { data: studentProfile } = await supabase
+          .from('user_profiles')
+          .select('student_id')
+          .eq('id', request.student_id)
+          .maybeSingle();
+        studentCustomId = studentProfile?.student_id || null;
+      }
+
+      // Fetch subject name
+      if (request.subject_id) {
+        const { data: subjectData } = await supabase
+          .from('courses')
+          .select('name')
+          .eq('id', request.subject_id)
+          .maybeSingle();
+        subjectName = subjectData?.name || null;
+      }
+    } catch {
+      // ignore and fall back
+    }
+
+    setSelectedRequest({ ...request, instructor_name: resolvedName || 'Unknown Instructor' });
+    setModalStudentCustomId(studentCustomId);
+    setModalSubjectName(subjectName);
+    setRequestModalOpen(true);
+  };
+
+  const showConfirmation = (action: 'approve' | 'deny', requestId: string) => {
+    setConfirmationAction(action);
+    setConfirmationRequestId(requestId);
+    setConfirmationModalOpen(true);
+  };
+
+  const handleConfirmedAction = async () => {
+    if (!confirmationAction || !confirmationRequestId) return;
+    
+    try {
+      if (confirmationAction === 'approve') {
+        await approveRequest(confirmationRequestId);
+      } else if (confirmationAction === 'deny') {
+        await denyRequest(confirmationRequestId);
+      }
+      
+      // Close both modals
+      setConfirmationModalOpen(false);
+      setRequestModalOpen(false);
+      
+      // Reset confirmation state
+      setConfirmationAction(null);
+      setConfirmationRequestId(null);
+    } catch (error) {
+      console.error('Error handling confirmed action:', error);
+    }
+  };
+
+  // Fetch courses for the selected year level when Subjects view is active
+  useEffect(() => {
+    const fetchCoursesForYear = async () => {
+      if (!showSubjects || !selectedYearLevel) return;
+      try {
+        const displayYear = getYearLevelDisplayName(selectedYearLevel);
+        const { data, error } = await supabase
+          .from('courses')
+          .select('id, code, name, units, year_level, summer, semester')
+          // Support both display format (e.g., '1st Year') and numeric forms ('1') using IN to avoid encoding issues
+          .in('year_level', [displayYear, selectedYearLevel]);
+        if (error) throw error;
+        setCourseSubjects(data || []);
+      } catch (e) {
+        console.error('Failed to fetch courses for year level', selectedYearLevel, e);
+        setCourseSubjects([]);
+      }
+    };
+    fetchCoursesForYear();
+  }, [showSubjects, selectedYearLevel]);
+
+  // Fetch instructor assignments for subjects
+  const fetchInstructorAssignments = useCallback(async () => {
+    if (!selectedYearLevel || !selectedSection || courseSubjects.length === 0) {
+      console.log('⚠️ Skipping instructor assignment fetch - missing required data:', {
+        selectedYearLevel,
+        selectedSection,
+        courseSubjectsLength: courseSubjects.length
+      });
+      return;
+    }
+    
+    try {
+      // Get all subject IDs from the current course subjects
+      const subjectIds = courseSubjects.map(course => course.id);
+      
+      console.log('🔍 Debug - Subject IDs to check:', subjectIds);
+      console.log('🔍 Debug - Selected year level:', selectedYearLevel);
+      console.log('🔍 Debug - Selected section:', selectedSection);
+      
+      // First, let's check what's actually in teacher_subjects for these subjects
+      const { data: allAssignments, error: allError } = await supabase
+        .from('teacher_subjects')
+        .select(`
+          subject_id,
+          year_level,
+          section,
+          is_active,
+          teacher:user_profiles!teacher_subjects_teacher_id_fkey(
+            id,
+            first_name,
+            last_name,
+            display_name
+          )
+        `)
+        .in('subject_id', subjectIds);
+
+      console.log('🔍 Debug - All assignments found:', allAssignments);
+      console.log('🔍 Debug - All assignments error:', allError);
+
+      if (allError) {
+        console.error('❌ Database error fetching teacher_subjects:', allError);
+        throw allError;
+      }
+
+      // Check if we got any data at all
+      if (!allAssignments || allAssignments.length === 0) {
+        console.log('⚠️ No assignments found in teacher_subjects table for any of the subjects');
+        console.log('📋 This could mean:');
+        console.log('   1. No instructors are assigned to any subjects');
+        console.log('   2. The subject IDs don\'t match what\'s in teacher_subjects');
+        console.log('   3. All assignments are inactive (is_active = false)');
+      }
+
+      // Let's see what the actual data looks like
+      console.log('🔍 Debug - Raw assignment data structure:', allAssignments);
+      
+      // Check if assignments exist but don't match our filters
+      const assignmentsWithDifferentYear = (allAssignments || []).filter(a => a.year_level !== selectedYearLevel);
+      const assignmentsWithDifferentSection = (allAssignments || []).filter(a => a.section !== selectedSection);
+      const inactiveAssignments = (allAssignments || []).filter(a => a.is_active !== true);
+      
+      console.log('🔍 Debug - Assignments with different year level:', assignmentsWithDifferentYear);
+      console.log('🔍 Debug - Assignments with different section:', assignmentsWithDifferentSection);
+      console.log('🔍 Debug - Inactive assignments:', inactiveAssignments);
+
+      // Try a more flexible approach - if we have assignments for the subjects, use them regardless of year/section
+      // This matches what the existing instructor display logic does
+      const flexibleAssignments = (allAssignments || []).filter(assignment => 
+        assignment.is_active === true
+      );
+
+      console.log('🔍 Debug - Flexible assignments (only is_active filter):', flexibleAssignments);
+
+      // Now filter by our criteria
+      const filteredAssignments = (allAssignments || []).filter(assignment => 
+        assignment.year_level === selectedYearLevel &&
+        assignment.section === selectedSection &&
+        assignment.is_active === true
+      );
+
+      console.log('🔍 Debug - Strict filtered assignments:', filteredAssignments);
+      console.log('📊 Assignment Statistics:', {
+        totalAssignments: allAssignments?.length || 0,
+        flexibleAssignments: flexibleAssignments.length,
+        strictFilteredAssignments: filteredAssignments.length,
+        totalSubjects: courseSubjects.length,
+        assignedSubjects: filteredAssignments.length,
+        unassignedSubjects: courseSubjects.length - filteredAssignments.length
+      });
+
+      // Use flexible assignments if strict filtering returns nothing but flexible does
+      const finalAssignments = filteredAssignments.length > 0 ? filteredAssignments : flexibleAssignments;
+      console.log('🔍 Debug - Final assignments to use:', finalAssignments);
+
+      // Create a map of subject_id to instructor info
+      const assignmentsMap = new Map<string, { hasInstructor: boolean; instructorName: string }>();
+      
+      // Initialize all subjects as unassigned
+      courseSubjects.forEach(course => {
+        assignmentsMap.set(course.id, {
+          hasInstructor: false,
+          instructorName: 'No Assigned'
+        });
+      });
+      
+      // Update with actual assignments
+      finalAssignments.forEach((assignment: { subject_id: string; teacher: { display_name?: string; first_name?: string; last_name?: string }[] }) => {
+        const teacher = assignment.teacher[0];
+        const instructorName = teacher?.display_name || 
+          `${teacher?.first_name || ''} ${teacher?.last_name || ''}`.trim() || 
+          'Unknown';
+        assignmentsMap.set(assignment.subject_id, {
+          hasInstructor: true,
+          instructorName
+        });
+        console.log(`✅ Found instructor for subject ${assignment.subject_id}: ${instructorName}`);
+      });
+
+      console.log('🔍 Debug - Final assignments map:', assignmentsMap);
+      console.log('📈 Summary:', {
+        totalSubjects: courseSubjects.length,
+        assignedSubjects: Array.from(assignmentsMap.values()).filter(a => a.hasInstructor).length,
+        unassignedSubjects: Array.from(assignmentsMap.values()).filter(a => !a.hasInstructor).length
+      });
+      
+      setInstructorAssignments(assignmentsMap);
+    } catch (error) {
+      console.error('❌ Error fetching instructor assignments:', error);
+      console.log('🔄 Setting all subjects as unassigned due to error');
+      
+      // Fallback: Set all subjects as unassigned
+      const fallbackMap = new Map<string, { hasInstructor: boolean; instructorName: string }>();
+      courseSubjects.forEach(course => {
+        fallbackMap.set(course.id, {
+          hasInstructor: false,
+          instructorName: 'No Assigned'
+        });
+      });
+      setInstructorAssignments(fallbackMap);
+    }
+  }, [selectedYearLevel, selectedSection, courseSubjects]);
+
+  // Fetch instructor assignments when year level, section, or course subjects change
+  useEffect(() => {
+    fetchInstructorAssignments();
+  }, [fetchInstructorAssignments]);
+
+  // Also fetch instructor assignments when course subjects are loaded
+  useEffect(() => {
+    if (courseSubjects.length > 0 && selectedYearLevel && selectedSection) {
+      fetchInstructorAssignments();
+    }
+  }, [courseSubjects, selectedYearLevel, selectedSection, fetchInstructorAssignments]);
+
+  // Fetch course count for the selected year level to show in Sections view
+  useEffect(() => {
+    const fetchCoursesCount = async () => {
+      if (!showSections || !selectedYearLevel) { setCoursesCount(0); return; }
+      try {
+        const displayYear = getYearLevelDisplayName(selectedYearLevel);
+        const { count, error } = await supabase
+          .from('courses')
+          .select('id', { count: 'exact', head: true })
+          .in('year_level', [displayYear, selectedYearLevel]);
+        if (error) throw error;
+        setCoursesCount(count || 0);
+      } catch (e) {
+        console.error('Failed to count courses for year level', selectedYearLevel, e);
+        setCoursesCount(0);
+      }
+    };
+    fetchCoursesCount();
+  }, [showSections, selectedYearLevel]);
+
+  // Helper: resolve instructor display name consistently (user_profiles → teacher_subjects fallbacks)
+  const resolveInstructorName = useCallback(async (
+    instructorId?: string | null,
+    subjectId?: string | null,
+    section?: string | null,
+    academicYear?: string | null
+  ): Promise<string | null> => {
+    try {
+      // 1) Direct by instructorId
+      if (instructorId) {
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('display_name, first_name, last_name')
+          .eq('id', instructorId)
+          .maybeSingle();
+        const display = (profile?.display_name || '').trim();
+        if (display) return display;
+        const full = `${(profile?.first_name || '').trim()} ${(profile?.last_name || '').trim()}`.trim();
+        if (full) return full;
+      }
+
+      // 2) Via teacher_subjects using subject + section (+ AY)
+      if (subjectId) {
+        let tsQuery = supabase
+          .from('teacher_subjects')
+          .select('teacher:user_profiles!teacher_subjects_teacher_id_fkey(display_name, first_name, last_name)')
+          .eq('subject_id', subjectId)
+          .eq('is_active', true)
+          .limit(1);
+        if (section) tsQuery = tsQuery.eq('section', section);
+        if (academicYear) tsQuery = tsQuery.eq('academic_year', academicYear);
+        let { data: tsRow } = await tsQuery.maybeSingle();
+
+        // Final fallback: any active teacher for the subject
+        if (!tsRow) {
+          const { data: tsAny } = await supabase
+            .from('teacher_subjects')
+            .select('teacher:user_profiles!teacher_subjects_teacher_id_fkey(display_name, first_name, last_name)')
+            .eq('subject_id', subjectId)
+            .eq('is_active', true)
+            .limit(1)
+            .maybeSingle();
+          tsRow = tsAny ?? null;
+        }
+
+        const teacher = Array.isArray(tsRow?.teacher) ? tsRow?.teacher?.[0] : tsRow?.teacher;
+        const display = (teacher?.display_name || '').trim();
+        if (display) return display;
+        if (teacher) {
+          const full = `${(teacher.first_name || '').trim()} ${(teacher.last_name || '').trim()}`.trim();
+          if (full) return full;
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return null;
+  }, []);
 
   return (
+    <>
+      {/* Request Details Modal - Outside main container */}
+      {requestModalOpen && selectedRequest && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
+          <div className="fixed inset-0 bg-black/50" onClick={() => {
+            setRequestModalOpen(false);
+            setModalStudentCustomId(null);
+            setModalSubjectName(null);
+          }}></div>
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden z-10">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+              <div>
+                <div className="text-lg font-semibold text-gray-800">Grade Change Request Details</div>
+                <div className="text-xs text-gray-500">Request ID: {selectedRequest.id}</div>
+              </div>
+              <button onClick={() => {
+                setRequestModalOpen(false);
+                setModalStudentCustomId(null);
+                setModalSubjectName(null);
+              }} className="p-2 rounded-lg hover:bg-gray-100">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5 text-gray-600">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-6 space-y-6">
+              {/* Request Information */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Instructor</label>
+                    <div className="text-lg font-semibold text-gray-800">{selectedRequest.instructor_name || instructorInfo?.instructor_name || 'Unknown Instructor'}</div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Student</label>
+                    <div className="text-lg font-semibold text-gray-800">{selectedRequest.student_name || selectedRequest.student_id}</div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Student ID</label>
+                    <div className="text-lg font-semibold text-gray-800">{modalStudentCustomId || selectedRequest.student_id}</div>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Subject</label>
+                    <div className="text-lg font-semibold text-gray-800">{modalSubjectName || selectedRequest.section || 'N/A'}</div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Academic Year</label>
+                    <div className="text-lg font-semibold text-gray-800">{selectedRequest.academic_year || 'N/A'}</div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Request Date</label>
+                    <div className="text-lg font-semibold text-gray-800">
+                      {selectedRequest.created_at ? new Date(selectedRequest.created_at).toLocaleString() : 'Unknown'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Edit Reason */}
+              {selectedRequest.edit_reason && (
+                <div>
+                  <label className="text-sm font-medium text-gray-600">Edit Reason</label>
+                  <div className="mt-2 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                    <p className="text-gray-800 whitespace-pre-wrap">{selectedRequest.edit_reason}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                <button 
+                  onClick={() => showConfirmation('deny', selectedRequest.id)}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                >
+                  Deny Request
+                </button>
+                <button 
+                  onClick={() => showConfirmation('approve', selectedRequest.id)}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  Approve Request
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal - Outside main container */}
+      {confirmationModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
+          <div className="fixed inset-0 bg-black/60" onClick={() => setConfirmationModalOpen(false)}></div>
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden z-10">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                  confirmationAction === 'approve' ? 'bg-green-100' : 'bg-red-100'
+                }`}>
+                  {confirmationAction === 'approve' ? (
+                    <CheckCircle2 className="w-6 h-6 text-green-600" />
+                  ) : (
+                    <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800">
+                    {confirmationAction === 'approve' ? 'Approve Request' : 'Deny Request'}
+                  </h3>
+                  <p className="text-sm text-gray-600">Please confirm your action</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-6">
+              <div className="mb-4">
+                <p className="text-gray-700">
+                  Are you sure you want to <strong>{confirmationAction === 'approve' ? 'approve' : 'deny'}</strong> this grade change request?
+                </p>
+                <p className="text-sm text-gray-500 mt-2">
+                  This action cannot be undone.
+                </p>
+              </div>
+              <div className="flex justify-end gap-3">
+                <button 
+                  onClick={() => setConfirmationModalOpen(false)}
+                  className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleConfirmedAction}
+                  className={`px-4 py-2 text-white rounded-lg transition-colors ${
+                    confirmationAction === 'approve' 
+                      ? 'bg-green-600 hover:bg-green-700' 
+                      : 'bg-red-600 hover:bg-red-700'
+                  }`}
+                >
+                  {confirmationAction === 'approve' ? 'Approve' : 'Deny'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Hide Confirmation Modal - Outside main container */}
+      {hideConfirmationOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
+          <div className="fixed inset-0 bg-black/60" onClick={() => setHideConfirmationOpen(false)}></div>
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden z-10">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center bg-orange-100">
+                  <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800">Move Grades Back to Pending</h3>
+                  <p className="text-sm text-gray-600">Please confirm this action</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-6">
+              <div className="mb-6">
+                <p className="text-gray-700 mb-4">
+                  Are you sure you want to move <strong>{releasedModalGroup?.items.length || 0} released grades</strong> back to pending?
+                </p>
+                <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                  <h4 className="font-semibold text-orange-800 mb-2">This action will:</h4>
+                  <ul className="text-sm text-orange-700 space-y-1">
+                    <li>• Hide grades from students</li>
+                    <li>• Move grades back to pending status</li>
+                    <li>• Require re-release to make them visible again</li>
+                  </ul>
+                </div>
+                <p className="text-sm text-red-600 mt-3 font-medium">
+                  ⚠️ This action cannot be undone.
+                </p>
+              </div>
+              <div className="flex justify-end gap-3">
+                <button 
+                  onClick={() => setHideConfirmationOpen(false)}
+                  className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={confirmHideReleasedGroup}
+                  disabled={releasedModalUpdating}
+                  className={`px-4 py-2 text-white rounded-lg transition-colors ${
+                    releasedModalUpdating
+                      ? 'bg-gray-400 cursor-not-allowed'
+                      : 'bg-orange-600 hover:bg-orange-700'
+                  }`}
+                >
+                  {releasedModalUpdating ? 'Moving...' : 'Move to Pending'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     <div className="min-h-screen from-blue-50 via-white to-indigo-50 py-8">
       <div className="max-w-7xl mx-auto px-4">
         {/* Released Grades Modal */}
@@ -1563,6 +3994,19 @@ export default function StudentGrades() {
                       className="w-full h-10 px-4 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                     />
                   </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => printReleasedGrades()}
+                      className="px-4 py-2 rounded-lg text-sm font-semibold transition bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-md"
+                    >
+                      Print
+                    </button>
+                    <button
+                      onClick={() => downloadReleasedGrades()}
+                      className="px-4 py-2 rounded-lg text-sm font-semibold transition bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:shadow-md"
+                    >
+                      Download CSV
+                    </button>
                   <button
                     onClick={handleHideReleasedGroup}
                     disabled={releasedModalUpdating}
@@ -1570,6 +4014,7 @@ export default function StudentGrades() {
                   >
                     {releasedModalUpdating ? 'Hiding…' : 'Hide All (Move back to Pending)'}
                   </button>
+                  </div>
                 </div>
               </div>
               <div className="max-h-[60vh] overflow-y-auto">
@@ -1578,6 +4023,9 @@ export default function StudentGrades() {
                     <tr>
                       <th className="px-4 py-2 text-left">Student</th>
                       <th className="px-4 py-2 text-left">Subject</th>
+                      <th className="px-4 py-2 text-center">Prelim</th>
+                      <th className="px-4 py-2 text-center">Midterm</th>
+                      <th className="px-4 py-2 text-center">Final</th>
                       <th className="px-4 py-2 text-center">GA</th>
                       <th className="px-4 py-2 text-left">Updated</th>
                     </tr>
@@ -1613,7 +4061,22 @@ export default function StudentGrades() {
                               <span className="text-sm font-medium text-gray-900 truncate max-w-[200px]">{g.student_name || 'Unknown Student'}</span>
                             </div>
                           </td>
-                          <td className="px-4 py-2 text-sm text-gray-700 truncate max-w-[220px]">{g.course_code || 'Unknown'}{g.course_name && g.course_name !== 'Unknown' ? ` - ${g.course_name}` : ''}</td>
+                          <td className="px-4 py-2 text-sm text-gray-700 truncate max-w-[220px]">{g.course_code || 'Unknown'}</td>
+                          <td className="px-4 py-2 text-center">
+                            <div className="text-sm font-semibold text-gray-800">
+                              {g.prelim_grade !== null && g.prelim_grade !== undefined ? g.prelim_grade : '-'}
+                            </div>
+                          </td>
+                          <td className="px-4 py-2 text-center">
+                            <div className="text-sm font-semibold text-gray-800">
+                              {g.midterm_grade !== null && g.midterm_grade !== undefined ? g.midterm_grade : '-'}
+                            </div>
+                          </td>
+                          <td className="px-4 py-2 text-center">
+                            <div className="text-sm font-semibold text-gray-800">
+                              {g.final_grade !== null && g.final_grade !== undefined ? g.final_grade : '-'}
+                            </div>
+                          </td>
                           <td className="px-4 py-2 text-center text-sm font-semibold text-blue-900">{g.general_average !== null && g.general_average !== undefined ? g.general_average.toFixed(2) : '-'}</td>
                           <td className="px-4 py-2 text-xs text-gray-500">{new Date(g.updated_at || g.graded_at || g.created_at).toLocaleString()}</td>
                         </tr>
@@ -1646,46 +4109,47 @@ export default function StudentGrades() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white/90 rounded-2xl p-6 shadow-sm border border-blue-200/50 hover:shadow-md transition-all duration-300">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 mt-6">
+          {/* Total Grades Card */}
+          <div className="bg-white/90 rounded-2xl p-6 shadow-lg border border-gray-100">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-blue-700 text-sm font-semibold uppercase tracking-wide mb-1">Total Grades</p>
-                <p className="text-4xl font-bold text-blue-900">{totalGrades}</p>
-                <p className="text-blue-600 text-xs mt-1">All grade records</p>
+                <p className="text-gray-600 text-sm font-medium">Total Grades</p>
+                <p className="text-3xl font-bold text-gray-900">{totalGrades}</p>
               </div>
-              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg">
-                <BookOpen className="w-8 h-8 text-white" />
+              <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                <BookOpen className="w-6 h-6 text-blue-600" />
               </div>
             </div>
           </div>
           
-          <div className="bg-white/90 rounded-2xl p-6 shadow-sm border border-amber-200/50 hover:shadow-md transition-all duration-300">
+          {/* Pending Grades Card */}
+          <div className="bg-white/90 rounded-2xl p-6 shadow-lg border border-gray-100">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-amber-700 text-sm font-semibold uppercase tracking-wide mb-1">Pending</p>
-                <p className="text-4xl font-bold text-amber-900">{pendingGrades}</p>
-                <p className="text-amber-600 text-xs mt-1">Awaiting release</p>
+                <p className="text-gray-600 text-sm font-medium">Pending</p>
+                <p className="text-3xl font-bold text-gray-900">{pendingGrades}</p>
               </div>
-              <div className="w-16 h-16 bg-gradient-to-br from-amber-500 to-amber-600 rounded-2xl flex items-center justify-center shadow-lg">
-                <Clock className="w-8 h-8 text-white" />
+              <div className="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
+                <Clock className="w-6 h-6 text-yellow-600" />
               </div>
             </div>
           </div>
           
-          <div className="bg-white/90 rounded-2xl p-6 shadow-sm border border-emerald-200/50 hover:shadow-md transition-all duration-300">
+          {/* Released Grades Card */}
+          <div className="bg-white/90 rounded-2xl p-6 shadow-lg border border-gray-100">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-emerald-700 text-sm font-semibold uppercase tracking-wide mb-1">Released</p>
-                <p className="text-4xl font-bold text-emerald-900">{releasedGrades}</p>
-                <p className="text-emerald-600 text-xs mt-1">Visible to students</p>
+                <p className="text-gray-600 text-sm font-medium">Released</p>
+                <p className="text-3xl font-bold text-gray-900">{releasedGrades}</p>
               </div>
-              <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg">
-                <CheckCircle2 className="w-8 h-8 text-white" />
+              <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                <CheckCircle2 className="w-6 h-6 text-green-600" />
               </div>
             </div>
           </div>
         </div>
+
 
         {loading ? (
           <div className="flex flex-col items-center justify-center h-64 gap-4">
@@ -1694,7 +4158,10 @@ export default function StudentGrades() {
           </div>
         ) : error ? (
           <div className="bg-red-100 text-red-700 rounded-xl p-6 text-center font-semibold">{error}</div>
-                ) : showPrograms ? (
+        ) : (
+          <>
+
+            {showPrograms ? (
           <>
           {/* Fast Selection Interface */}
           <div className="bg-white/90 rounded-2xl shadow-lg border border-gray-100 p-8">
@@ -1905,7 +4372,12 @@ export default function StudentGrades() {
                             <div
                               className="p-4 cursor-pointer"
                               onClick={() => {
-                                setReleasedModalGroup({ year: group.year, section: group.section, items: group.items as unknown as Grade[] });
+                                setReleasedModalGroup({ 
+                                  year: group.year, 
+                                  section: group.section, 
+                                  items: group.items as unknown as Grade[],
+                                  department: group.items[0]?.program_name || 'N/A'
+                                });
                                 setReleasedModalOpen(true);
                               }}
                               title="Click to view details"
@@ -1948,11 +4420,16 @@ export default function StudentGrades() {
                      {/* Back Button and Header */}
                      <div className="flex items-center justify-between">
                        <button
-                         onClick={handleGoBack}
-                         className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"
+                         onClick={navigateBack}
+                         className={`flex items-center justify-center w-10 h-10 rounded-lg transition-colors duration-200 ${
+                           canGoBack 
+                             ? 'bg-blue-100 hover:bg-blue-200 text-blue-700 hover:text-blue-800' 
+                             : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                         }`}
+                         disabled={!canGoBack}
+                         title={canGoBack ? "Go Back" : "No previous step"}
                        >
-                         <ChevronRight className="w-4 h-4 rotate-180" />
-                         Back to Programs
+                         <ChevronRight className="w-5 h-5 rotate-180" />
                        </button>
                        <div className="text-center flex-1">
                          <div className="bg-gradient-to-r from-gray-600 to-slate-600 text-white px-8 py-4 rounded-xl shadow-lg inline-block">
@@ -1996,8 +4473,13 @@ export default function StudentGrades() {
                          </div>
                          <div className="flex items-center justify-center gap-4">
                            <button
-                             onClick={handleGoBack}
-                             className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                             onClick={navigateBack}
+                             className={`px-6 py-3 rounded-lg transition-colors font-medium ${
+                               canGoBack 
+                                 ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                                 : 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                             }`}
+                             disabled={!canGoBack}
                            >
                              Back to Programs
                            </button>
@@ -2012,7 +4494,9 @@ export default function StudentGrades() {
                                setSelectedYearLevel('');
                                setSelectedSection('');
                                setSelectedSubject('');
-                               setNavigationHistory(['programs']);
+                               // Reset navigation stack
+                               setNavigationStack(['programs']);
+                               setCurrentStackIndex(0);
                              }}
                              className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
                            >
@@ -2027,13 +4511,32 @@ export default function StudentGrades() {
            <div className="space-y-6">
              {/* Back Button and Header */}
              <div className="flex items-center justify-between">
-               <button
-                 onClick={handleGoBack}
-                 className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"
-               >
-                 <ChevronRight className="w-4 h-4 rotate-180" />
-                 Back to Programs
-               </button>
+               <div className="flex items-center gap-2">
+                 <button
+                   onClick={navigateBack}
+                   className={`flex items-center justify-center w-10 h-10 rounded-lg transition-colors duration-200 ${
+                     canGoBack 
+                       ? 'bg-blue-100 hover:bg-blue-200 text-blue-700 hover:text-blue-800' 
+                       : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                   }`}
+                   disabled={!canGoBack}
+                   title={canGoBack ? "Go Back" : "No previous step"}
+                 >
+                   <ChevronRight className="w-5 h-5 rotate-180" />
+                 </button>
+                 <button
+                   onClick={navigateForward}
+                   className={`flex items-center justify-center w-10 h-10 rounded-lg transition-colors duration-200 ${
+                     canGoForward 
+                       ? 'bg-green-100 hover:bg-green-200 text-green-700 hover:text-green-800' 
+                       : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                   }`}
+                   disabled={!canGoForward}
+                   title={canGoForward ? "Go Forward" : "No next step"}
+                 >
+                   <ChevronRight className="w-5 h-5" />
+                 </button>
+               </div>
                <div className="text-center flex-1">
                  <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-4 rounded-xl shadow-lg inline-block">
                    <h2 className="text-2xl font-bold">
@@ -2056,113 +4559,196 @@ export default function StudentGrades() {
                {/* Year Level Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                  {(() => {
-                   // Get unique year levels for the selected program
-                   const selectedProgramName = programs.find(p => p.id === selectedProgram)?.name;
-                   const programYearLevels = Array.from(new Set(
-                     yearLevelSectionSubjects
-                       .filter(item => {
-                         // Filter by selected program using grades data
-                         const hasStudentsInProgram = grades.some(g => 
-                           g.program_name === selectedProgramName &&
-                           g.year_level === item.year_level &&
-                           g.section === item.section &&
-                           g.course_code === item.subject
-                         );
-                         return hasStudentsInProgram;
-                       })
-                       .map(item => item.year_level)
-                   )).sort();
-                   
-                   return programYearLevels.map((yearLevel) => {
-                     // Count students for this year level in the selected program
-                     const studentCount = grades.filter(g => 
-                       g.program_name === selectedProgramName &&
-                       g.year_level === yearLevel
-                     ).length;
-                     
+                   // Only show year levels when a program is selected
+                   if (!selectedProgram) {
                      return (
-                       <div
-                         key={yearLevel}
-                         onClick={() => handleYearLevelClick(yearLevel)}
-                         className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 border border-green-200 hover:border-green-400 hover:shadow-lg transition-all duration-200 cursor-pointer transform hover:scale-105"
-                  >
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                             <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                             <span className="text-sm font-medium text-green-700">
-                               {getYearLevelDisplayName(yearLevel)}
-                        </span>
-                      </div>
-                           <span className="text-xs font-medium text-green-600 bg-green-100 px-2 py-1 rounded-full">
-                             {studentCount} students
-                      </span>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <div className="text-lg font-bold text-gray-800">
-                             {(() => {
-                               const sections = Array.from(new Set(
-                                 yearLevelSectionSubjects
-                                   .filter(item => item.year_level === yearLevel)
-                                   .map(item => item.section)
-                               ));
-                               return `${sections.length} section${sections.length !== 1 ? 's' : ''}`;
-                             })()}
-                      </div>
-                      <div className="flex -space-x-2 items-center">
-                             {/* Year level icon */}
-                             <div className="w-6 h-6 rounded-full bg-green-100 border-2 border-white shadow-sm flex items-center justify-center">
-                               <BookOpen className="w-4 h-4 text-green-600" />
-                             </div>
-                        {(() => {
-                               const totalCount = studentCount;
-                          
-                          if (totalCount === 0) {
-                            return <span className="text-sm font-medium text-gray-500">No students</span>;
-                               } else if (totalCount > 1) {
-                            return (
-                                   <div className="w-6 h-6 rounded-full bg-green-100 border-2 border-white shadow-sm flex items-center justify-center">
-                                     <span className="text-xs font-bold text-green-600">+{totalCount - 1}</span>
-                              </div>
-                            );
-                          }
-                          return null;
-                        })()}
-                      </div>
-                    </div>
-                    
-                         <div className="mt-4 pt-3 border-t border-green-200">
-                      <div className="flex items-center justify-between text-xs text-gray-500">
-                        <span>Click to view</span>
-                             <ChevronRight className="w-4 h-4" />
-                      </div>
-                    </div>
-                  </div>
+                       <div className="col-span-full text-center py-12">
+                         <div className="text-gray-400 mb-4">
+                           <Users className="w-16 h-16 mx-auto" />
+                         </div>
+                         <h3 className="text-lg font-semibold text-gray-600 mb-2">No Program Selected</h3>
+                         <p className="text-gray-500">Please select a program to view year levels and student counts.</p>
+                       </div>
                      );
+                   }
+                   
+                   // Show all year levels from 1st to 4th year
+                   const allYearLevels = ['1', '2', '3', '4'];
+                   
+                   return allYearLevels.map((yearLevel) => {
+                     try {
+                       // Comprehensive error handling and debugging
+                       console.group(`🔍 DEBUGGING Year Level ${yearLevel}`);
+                       
+                       // Check basic data
+                       console.log('📊 Basic Data Check:', {
+                         selectedProgram: selectedProgram || 'EMPTY',
+                         selectedProgramType: typeof selectedProgram,
+                         totalStudentsInState: students.length,
+                         studentsIsArray: Array.isArray(students),
+                         allYearLevels: allYearLevels
+                       });
+                       
+                       // Check if students data is valid
+                       if (!Array.isArray(students)) {
+                         console.error('❌ ERROR: students is not an array:', students);
+                         console.groupEnd();
+                         return (
+                           <div key={yearLevel} className="bg-red-50 border border-red-200 rounded-xl p-6">
+                             <div className="text-red-600 font-semibold">Error: Invalid students data</div>
+                             <div className="text-red-500 text-sm">Students data is not an array</div>
+                           </div>
+                         );
+                       }
+                       
+                       if (students.length === 0) {
+                         console.warn('⚠️ WARNING: No students in state');
+                         console.log('Students state:', students);
+                       }
+                       
+                       // Resolve selected program info
+                       const selectedProgramInfo = programs.find(p => String(p.id) === String(selectedProgram));
+                       const selectedDeptName = selectedProgramInfo?.name?.trim();
+                       
+                       // Match helpers
+                       const programIdMatches = (s: Student) => String(s.program_id) === String(selectedProgram);
+                       const departmentMatches = (s: Student) => !!selectedDeptName && !!s.department && s.department.trim() === selectedDeptName;
+                       
+                       // Check program filtering
+                       const studentsInProgramById = students.filter(programIdMatches);
+                       const studentsInProgramByDept = students.filter(departmentMatches);
+                       
+                       console.log('🎯 Program Filtering:', {
+                         studentsInProgramByIdCount: studentsInProgramById.length,
+                         studentsInProgramByDeptCount: studentsInProgramByDept.length,
+                         selectedProgram,
+                         selectedDeptName,
+                         sampleStudentProgramIds: students.slice(0, 5).map(s => s.program_id),
+                         sampleStudentDepartments: students.slice(0, 5).map(s => s.department)
+                       });
+                       
+                       // Check year level filtering
+                       const studentsInYearLevel = students.filter(s => normalizeYearLevel(s.year_level) === yearLevel);
+                       console.log('📚 Year Level Filtering:', {
+                         studentsInYearLevelCount: studentsInYearLevel.length,
+                         targetYearLevel: yearLevel,
+                         allOriginalYearLevels: [...new Set(students.map(s => s.year_level))],
+                         allNormalizedYearLevels: [...new Set(students.map(s => normalizeYearLevel(s.year_level)))]
+                       });
+                       
+                       // Final count calculation (match by program_id OR department)
+                       const studentCount = students.filter(s => {
+                         const programMatch = programIdMatches(s) || departmentMatches(s);
+                         const yearLevelMatch = normalizeYearLevel(s.year_level) === yearLevel;
+                         
+                         return programMatch && yearLevelMatch;
+                       }).length;
+                       
+                       // Prepare matching students (first 8 for avatar display)
+                       const matchingStudents = students.filter(s => {
+                         const programMatch = programIdMatches(s) || departmentMatches(s);
+                         const yearLevelMatch = normalizeYearLevel(s.year_level) === yearLevel;
+                         return programMatch && yearLevelMatch;
+                       });
+                       const displayedStudents = matchingStudents.slice(0, 8);
+                       
+                       console.log('🎯 Final Count Calculation:', {
+                         studentCount,
+                         selectedProgram,
+                         selectedDeptName,
+                         yearLevel,
+                         byIdOnlyCount: students.filter(s => programIdMatches(s) && normalizeYearLevel(s.year_level) === yearLevel).length,
+                         byDeptOnlyCount: students.filter(s => departmentMatches(s) && normalizeYearLevel(s.year_level) === yearLevel).length
+                       });
+                       
+                       // Sample data for debugging
+                       console.log('📋 Sample Students Data:', students.slice(0, 3).map(s => ({
+                         id: s.id,
+                         program_id: s.program_id,
+                         year_level: s.year_level,
+                         normalized_year_level: normalizeYearLevel(s.year_level),
+                         department: s.department,
+                         student_id: s.student_id
+                       })));
+                       
+                       console.groupEnd();
+                       
+                       // Return the year level card with error handling
+                       return (
+                         <div
+                           key={yearLevel}
+                           onClick={() => handleYearLevelClick(yearLevel)}
+                           className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 border border-green-200 hover:border-green-400 hover:shadow-lg transition-all duration-200 cursor-pointer transform hover:scale-105"
+                        >
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                              <span className="text-sm font-medium text-green-700">
+                                {getYearLevelDisplayName(yearLevel)}
+                              </span>
+                            </div>
+                            <span className="text-xs font-medium text-green-600 bg-green-100 px-2 py-1 rounded-full">
+                              {studentCount} students
+                            </span>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <div className="flex -space-x-2 items-center">
+                              {/* Avatars of matching students */}
+                              {displayedStudents.length === 0 ? (
+                                <div className="w-6 h-6 rounded-full bg-green-100 border-2 border-white shadow-sm flex items-center justify-center">
+                                  <BookOpen className="w-4 h-4 text-green-600" />
+                                </div>
+                              ) : (
+                                <>
+                                  {displayedStudents.map(s => (
+                                    <img
+                                      key={s.id}
+                                      src={s.avatar_url || "/img/user-avatar.png"}
+                                      alt={s.display_name || 'Student'}
+                                      title={s.display_name || ''}
+                                      className="w-6 h-6 rounded-full border-2 border-white shadow-sm"
+                                      onError={(e) => {
+                                        const target = e.target as HTMLImageElement;
+                                        target.src = "/img/user-avatar.png";
+                                      }}
+                                    />
+                                  ))}
+                                  {studentCount > displayedStudents.length && (
+                                    <div className="w-6 h-6 rounded-full bg-green-100 border-2 border-white shadow-sm flex items-center justify-center">
+                                      <span className="text-xs font-bold text-green-600">+{studentCount - displayedStudents.length}</span>
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          
+                          <div className="mt-4 pt-3 border-t border-green-200">
+                            <div className="flex items-center justify-between text-xs text-gray-500">
+                              <span>Click to view</span>
+                              <ChevronRight className="w-4 h-4" />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                     } catch (error) {
+                       console.error(`❌ ERROR in Year Level ${yearLevel}:`, error);
+                       console.groupEnd();
+                       return (
+                         <div key={yearLevel} className="bg-red-50 border border-red-200 rounded-xl p-6">
+                           <div className="text-red-600 font-semibold">Error in Year Level {yearLevel}</div>
+                           <div className="text-red-500 text-sm">{error instanceof Error ? error.message : 'Unknown error'}</div>
+                           <div className="text-red-400 text-xs mt-2">Check console for details</div>
+                         </div>
+                       );
+                     }
                    });
                  })()}
               </div>
               
-              {(() => {
-                 const programYearLevels = Array.from(new Set(
-                   yearLevelSectionSubjects.map(item => item.year_level)
-                 ));
-                 
-                 if (programYearLevels.length === 0) {
-                   return (
-                     <div className="text-center py-12">
-                       <div className="text-gray-400 mb-4">
-                         <BookOpen className="w-16 h-16 mx-auto" />
+              {/* Year Levels are always shown (1–4) so no empty-state needed here */}
                        </div>
-                       <h3 className="text-lg font-semibold text-gray-600 mb-2">No Data Available</h3>
-                       <p className="text-gray-500">No year levels found for this program.</p>
-                     </div>
-                   );
-                 }
-                 
-                 return null;
-               })()}
-             </div>
            </div>
                   </div>
          ) : showSections ? (
@@ -2170,13 +4756,32 @@ export default function StudentGrades() {
            <div className="space-y-6">
              {/* Back Button and Header */}
              <div className="flex items-center justify-between">
-               <button
-                 onClick={handleGoBack}
-                 className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"
-               >
-                 <ChevronRight className="w-4 h-4 rotate-180" />
-                 Back to Year Levels
-               </button>
+               <div className="flex items-center gap-2">
+                 <button
+                   onClick={navigateBack}
+                   className={`flex items-center justify-center w-10 h-10 rounded-lg transition-colors duration-200 ${
+                     canGoBack 
+                       ? 'bg-blue-100 hover:bg-blue-200 text-blue-700 hover:text-blue-800' 
+                       : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                   }`}
+                   disabled={!canGoBack}
+                   title={canGoBack ? "Go Back" : "No previous step"}
+                 >
+                   <ChevronRight className="w-5 h-5 rotate-180" />
+                 </button>
+                 <button
+                   onClick={navigateForward}
+                   className={`flex items-center justify-center w-10 h-10 rounded-lg transition-colors duration-200 ${
+                     canGoForward 
+                       ? 'bg-green-100 hover:bg-green-200 text-green-700 hover:text-green-800' 
+                       : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                   }`}
+                   disabled={!canGoForward}
+                   title={canGoForward ? "Go Forward" : "No next step"}
+                 >
+                   <ChevronRight className="w-5 h-5" />
+                 </button>
+               </div>
                <div className="text-center flex-1">
                  <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-4 rounded-xl shadow-lg inline-block">
                    <h2 className="text-2xl font-bold">
@@ -2197,105 +4802,123 @@ export default function StudentGrades() {
                  {/* Sections Grid */}
                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                    {(() => {
-                     // Get unique sections for the selected year level and program
                      const selectedProgramName = programs.find(p => p.id === selectedProgram)?.name;
-                     const yearLevelSections = Array.from(new Set(
-                       yearLevelSectionSubjects
-                         .filter(item => item.year_level === selectedYearLevel)
-                         .filter(item => {
-                           // Filter by selected program using grades data
-                           const hasStudentsInProgram = grades.some(g => 
-                             g.program_name === selectedProgramName &&
-                             g.year_level === item.year_level &&
-                             g.section === item.section &&
-                             g.course_code === item.subject
-                           );
-                           return hasStudentsInProgram;
-                         })
-                         .map(item => item.section)
-                     )).sort();
-                     
-                     return yearLevelSections.map((section) => {
-                       // Count students for this section in the selected program and year level
-                       const studentCount = grades.filter(g => 
-                         g.program_name === selectedProgramName &&
-                         g.year_level === selectedYearLevel &&
-                         g.section === section
-                       ).length;
-                
-                return (
+
+                     // Normalize helper to compare different year_level formats
+                     const normalize = (v: string | number | null | undefined) => {
+                       if (v === null || v === undefined) return '';
+                       const s = String(v).toLowerCase();
+                       if (s.startsWith('1')) return '1';
+                       if (s.startsWith('2')) return '2';
+                       if (s.startsWith('3')) return '3';
+                       if (s.startsWith('4')) return '4';
+                       if (['1','2','3','4'].includes(s)) return s;
+                       return s;
+                     };
+
+                     // Source sections directly from sections table, filtered by selected year level
+                     const sectionsForYear = sectionsList
+                       .filter(s => normalize(s.year_level) === selectedYearLevel)
+                       .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+                     return sectionsForYear.map((sec) => {
+                       const sectionName = sec.name;
+
+                       // Count students from user_profiles by section UUID and year_level, with program match
+                       const studentCount = students.filter(s => {
+                         const programMatch = String(s.program_id) === String(selectedProgram) || (s.department && selectedProgramName && s.department.trim() === selectedProgramName);
+                         const yearMatch = normalizeYearLevel(s.year_level) === selectedYearLevel;
+                         const sectionMatch = s.section === sec.id; // section stores UUID in user_profiles
+                         return programMatch && yearMatch && sectionMatch;
+                       }).length;
+
+                       // Subject list not used here; removed to satisfy linter
+
+                       return (
                          <div
-                           key={section}
-                           onClick={() => handleSectionClick(section)}
+                           key={sec.id}
+                           onClick={() => handleSectionClick(sectionName)}
                            className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 border border-purple-200 hover:border-purple-400 hover:shadow-lg transition-all duration-200 cursor-pointer transform hover:scale-105"
                          >
                            <div className="flex items-center justify-between mb-3">
                              <div className="flex items-center gap-2">
                                <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
                                <span className="text-sm font-medium text-purple-700">
-                                 Section {getSectionDisplayName(section, sectionMap)}
+                                  {sectionName}
                                </span>
                              </div>
                              <span className="text-xs font-medium text-purple-600 bg-purple-100 px-2 py-1 rounded-full">
                                {studentCount} students
                              </span>
                            </div>
-                           
+
                            <div className="space-y-2">
                              <div className="text-lg font-bold text-gray-800">
-                               {(() => {
-                                 const subjects = Array.from(new Set(
-                                   yearLevelSectionSubjects
-                                     .filter(item => item.year_level === selectedYearLevel && item.section === section)
-                                     .map(item => item.subject)
-                                 ));
-                                 return `${subjects.length} subject${subjects.length !== 1 ? 's' : ''}`;
-                               })()}
+                               {`${coursesCount} subject${coursesCount !== 1 ? 's' : ''}`}
                              </div>
                              <div className="flex -space-x-2 items-center">
-                               {/* Section icon */}
-                               <div className="w-6 h-6 rounded-full bg-purple-100 border-2 border-white shadow-sm flex items-center justify-center">
-                                 <Users className="w-4 h-4 text-purple-600" />
-                               </div>
                                {(() => {
-                                 const totalCount = studentCount;
-                                 
-                                 if (totalCount === 0) {
-                                   return <span className="text-sm font-medium text-gray-500">No students</span>;
-                                 } else if (totalCount > 1) {
-                                   return (
-                                     <div className="w-6 h-6 rounded-full bg-purple-100 border-2 border-white shadow-sm flex items-center justify-center">
-                                       <span className="text-xs font-bold text-purple-600">+{totalCount - 1}</span>
-                  </div>
-                );
-                                 }
-                                 return null;
-              })()}
+                                 const selectedProgramName = programs.find(p => p.id === selectedProgram)?.name;
+                                 const yearMatch = (s: Student) => normalizeYearLevel(s.year_level) === selectedYearLevel;
+                                 const programMatch = (s: Student) => String(s.program_id) === String(selectedProgram) || (s.department && selectedProgramName && s.department.trim() === selectedProgramName);
+                                 const sectionMatch = (s: Student) => s.section === sec.id; // UUID match to sections.id
+                                 const matchingStudents = students.filter(s => programMatch(s) && yearMatch(s) && sectionMatch(s));
+                                 const displayed = matchingStudents.slice(0, 8);
+                                 return (
+                                   <>
+                                     {displayed.map(s => (
+                                       <img
+                                         key={s.id}
+                                         src={s.avatar_url || "/img/user-avatar.png"}
+                                         alt={s.display_name || 'Student'}
+                                         title={s.display_name || ''}
+                                         className="w-6 h-6 rounded-full border-2 border-white shadow-sm"
+                                         onError={(e) => {
+                                           const target = e.target as HTMLImageElement;
+                                           target.src = "/img/user-avatar.png";
+                                         }}
+                                       />
+                                     ))}
+                                     {matchingStudents.length > displayed.length && (
+                                       <div className="w-6 h-6 rounded-full bg-purple-100 border-2 border-white shadow-sm flex items-center justify-center">
+                                         <span className="text-xs font-bold text-purple-600">+{matchingStudents.length - displayed.length}</span>
+                                       </div>
+                                     )}
+                                   </>
+                                 );
+                               })()}
                              </div>
                            </div>
-                           
+
                            <div className="mt-4 pt-3 border-t border-purple-200">
                              <div className="flex items-center justify-between text-xs text-gray-500">
                                <span>Click to view</span>
                                <ChevronRight className="w-4 h-4" />
-                  </div>
-                </div>
+                             </div>
+                           </div>
                          </div>
                        );
                      });
                    })()}
                  </div>
                  
-
-                 
                  {(() => {
-                   const yearLevelSections = Array.from(new Set(
-                     yearLevelSectionSubjects
-                       .filter(item => item.year_level === selectedYearLevel)
-                       .map(item => item.section)
-                   ));
-                   
-                   if (yearLevelSections.length === 0) {
+  if (!showSections || loading || !selectedYearLevel) return null;
+
+  const normalize = (v: string | number | null | undefined) => {
+    if (v === null || v === undefined) return '';
+    const s = String(v).toLowerCase();
+    if (s.startsWith('1')) return '1';
+    if (s.startsWith('2')) return '2';
+    if (s.startsWith('3')) return '3';
+    if (s.startsWith('4')) return '4';
+    if (['1', '2', '3', '4'].includes(s)) return s;
+    return s;
+  };
+
+  const sectionsForYear = sectionsList.filter(s => normalize(s.year_level) === selectedYearLevel);
+
+  if (sectionsForYear.length === 0) {
                      return (
                   <div className="text-center py-12">
                     <div className="text-gray-400 mb-4">
@@ -2306,8 +4929,7 @@ export default function StudentGrades() {
                   </div>
                      );
                    }
-                   
-
+  return null;
               })()}
                </div>
             </div>
@@ -2316,14 +4938,33 @@ export default function StudentGrades() {
           // Subjects List View
           <div className="space-y-6">
             {/* Back Button and Header */}
-            <div className="flex items-center justify-between">
-              <button
-                onClick={handleGoBack}
-                className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"
-              >
-                <ChevronRight className="w-4 h-4 rotate-180" />
-                Back to Sections
-              </button>
+             <div className="flex items-center justify-between">
+               <div className="flex items-center gap-2">
+                 <button
+                   onClick={navigateBack}
+                   className={`flex items-center justify-center w-10 h-10 rounded-lg transition-colors duration-200 ${
+                     canGoBack 
+                       ? 'bg-blue-100 hover:bg-blue-200 text-blue-700 hover:text-blue-800' 
+                       : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                   }`}
+                   disabled={!canGoBack}
+                   title={canGoBack ? "Go Back" : "No previous step"}
+                 >
+                   <ChevronRight className="w-5 h-5 rotate-180" />
+                 </button>
+                 <button
+                   onClick={navigateForward}
+                   className={`flex items-center justify-center w-10 h-10 rounded-lg transition-colors duration-200 ${
+                     canGoForward 
+                       ? 'bg-green-100 hover:bg-green-200 text-green-700 hover:text-green-800' 
+                       : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                   }`}
+                   disabled={!canGoForward}
+                   title={canGoForward ? "Go Forward" : "No next step"}
+                 >
+                   <ChevronRight className="w-5 h-5" />
+                 </button>
+               </div>
               <div className="text-center flex-1">
                 <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-4 rounded-xl shadow-lg inline-block">
                   <h2 className="text-2xl font-bold">
@@ -2351,10 +4992,31 @@ export default function StudentGrades() {
                     <Search className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 transform -translate-y-1/2" />
                   </div>
 
+                  {/* Instructor Assignment Filter */}
+                  <div className="relative">
+                    <select
+                      value={instructorFilter}
+                      onChange={(e) => setInstructorFilter(e.target.value as 'all' | 'assigned' | 'unassigned')}
+                      className="h-12 px-4 pr-8 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white/90 appearance-none cursor-pointer min-w-[140px]"
+                    >
+                      <option value="all">All Subjects</option>
+                      <option value="assigned">Assigned Only</option>
+                      <option value="unassigned">Unassigned Only</option>
+                    </select>
+                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                  </div>
+
                   {/* Clear Filters Button */}
-                  {subjectSearchTerm && (
+                  {(subjectSearchTerm || instructorFilter !== 'all') && (
                     <button
-                      onClick={() => setSubjectSearchTerm('')}
+                      onClick={() => {
+                        setSubjectSearchTerm('');
+                        setInstructorFilter('all');
+                      }}
                       className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors"
                     >
                       Clear Filters
@@ -2363,109 +5025,122 @@ export default function StudentGrades() {
                 </div>
                 
                 {/* Search Results Counter */}
-                {subjectSearchTerm && (
+                {(subjectSearchTerm || instructorFilter !== 'all') && (
                   <div className="text-sm text-gray-600 mt-2">
                     Showing {(() => {
-                      const filteredSubjects = yearLevelSectionSubjects
-                        .filter(item => 
-                          item.year_level === selectedYearLevel && 
-                          item.section === selectedSection &&
-                          (item.subject.toLowerCase().includes(subjectSearchTerm.toLowerCase()) ||
-                           (item.subject_name && item.subject_name.toLowerCase().includes(subjectSearchTerm.toLowerCase())))
-                        );
+                      const filteredSubjects = courseSubjects.filter(course => {
+                        // Text search filter
+                        const matchesSearch = !subjectSearchTerm ||
+                          course.code.toLowerCase().includes(subjectSearchTerm.toLowerCase()) ||
+                          (course.name && course.name.toLowerCase().includes(subjectSearchTerm.toLowerCase()));
+                        
+                        // Instructor assignment filter
+                        const assignment = instructorAssignments.get(course.id);
+                        const hasInstructor = assignment?.hasInstructor || false;
+                        const matchesInstructorFilter = 
+                          instructorFilter === 'all' ||
+                          (instructorFilter === 'assigned' && hasInstructor) ||
+                          (instructorFilter === 'unassigned' && !hasInstructor);
+                        
+                        return matchesSearch && matchesInstructorFilter;
+                      });
                       return filteredSubjects.length;
-                    })()} of {yearLevelSectionSubjects.filter(item => 
-                      item.year_level === selectedYearLevel && 
-                      item.section === selectedSection
-                    ).length} subjects
+                    })()} of {courseSubjects.length} subjects
+                    {instructorFilter !== 'all' && (
+                      <span className="ml-2 text-blue-600">
+                  
+                      </span>
+                    )}
                   </div>
                 )}
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {yearLevelSectionSubjects
-                  .filter(item => 
-                    item.year_level === selectedYearLevel && 
-                    item.section === selectedSection &&
-                    (!subjectSearchTerm || 
-                     item.subject.toLowerCase().includes(subjectSearchTerm.toLowerCase()) ||
-                     (item.subject_name && item.subject_name.toLowerCase().includes(subjectSearchTerm.toLowerCase())))
-                  )
-                  .map((item) => (
-                    <div
-                      key={`${item.year_level}-${item.section}-${item.subject}`}
-                      onClick={() => handleSubjectClick(item.subject)}
-                      className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 border border-green-200 hover:border-green-400 hover:shadow-lg transition-all duration-200 cursor-pointer transform hover:scale-105"
-                    >
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                          <span className="text-sm font-medium text-green-700">
-                            {item.subject}
-                          </span>
+                {courseSubjects
+                  .filter(course => {
+                    // Text search filter
+                    const matchesSearch = !subjectSearchTerm ||
+                      course.code.toLowerCase().includes(subjectSearchTerm.toLowerCase()) ||
+                      (course.name && course.name.toLowerCase().includes(subjectSearchTerm.toLowerCase()));
+                    
+                    // Instructor assignment filter
+                    const assignment = instructorAssignments.get(course.id);
+                    const hasInstructor = assignment?.hasInstructor || false;
+                    const matchesInstructorFilter = 
+                      instructorFilter === 'all' ||
+                      (instructorFilter === 'assigned' && hasInstructor) ||
+                      (instructorFilter === 'unassigned' && !hasInstructor);
+                    
+                    return matchesSearch && matchesInstructorFilter;
+                  })
+                  .map((course) => {
+                    const assignment = instructorAssignments.get(course.id);
+                    const hasInstructor = assignment?.hasInstructor || false;
+                    
+                    // Dynamic styling based on instructor assignment
+                    const cardClasses = hasInstructor 
+                      ? "bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200 hover:border-blue-400 hover:shadow-lg transition-all duration-200 cursor-pointer transform hover:scale-105"
+                      : "bg-gradient-to-br from-gray-50 to-slate-50 rounded-xl p-6 border border-gray-200 hover:border-gray-400 hover:shadow-lg transition-all duration-200 cursor-pointer transform hover:scale-105";
+                    
+                    const dotClasses = hasInstructor 
+                      ? "w-3 h-3 bg-blue-500 rounded-full"
+                      : "w-3 h-3 bg-gray-400 rounded-full";
+                    
+                    const codeClasses = hasInstructor 
+                      ? "text-sm font-medium text-blue-700"
+                      : "text-sm font-medium text-gray-600";
+                    
+                    const borderClasses = hasInstructor 
+                      ? "border-t border-blue-200"
+                      : "border-t border-gray-200";
+                    
+                    return (
+                      <div
+                        key={course.id}
+                        onClick={() => handleSubjectClick({ id: course.id, code: course.code })}
+                        className={cardClasses}
+                      >
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <div className={dotClasses}></div>
+                            <span className={codeClasses}>
+                              {course.code}
+                            </span>
+                          </div>
+                          {hasInstructor ? (
+                            <div className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded-full">
+                              Assigned
+                            </div>
+                          ) : (
+                            <div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                              No Assigned
+                            </div>
+                          )}
                         </div>
-                        <span className="text-xs font-medium text-green-600 bg-green-100 px-2 py-1 rounded-full">
-                          {item.studentCount} students
-                        </span>
+                        
+                        <div className="space-y-2">
+                          <div className="text-lg font-bold text-gray-800">
+                            {course.name}
+                          </div>
+                        </div>
+                        <div className={`mt-4 pt-3 ${borderClasses}`}>
+                          <div className="flex items-center justify-between text-xs text-gray-500">
+                            <span>Click to view students</span>
+                            <Users className="w-4 h-4" />
+                          </div>
+                        </div>
                       </div>
-                      
-                      <div className="space-y-2">
-                        <div className="text-lg font-bold text-gray-800">
-                          {item.subject_name}
-                        </div>
-                        {/* Removed year level and section line as requested */}
-                        <div className="flex -space-x-2 items-center">
-                          {getStudentsForCombination(item.year_level, item.section, item.subject).map((s) => (
-                            <img
-                              key={s.id}
-                              src={s.avatar_url || "/img/user-avatar.png"}
-                              alt={s.student_name || 'Student'}
-                              title={s.student_name || ''}
-                              className="w-6 h-6 rounded-full border-2 border-white shadow-sm"
-                              onError={(e) => {
-                                const target = e.target as HTMLImageElement;
-                                target.src = "/img/user-avatar.png";
-                              }}
-                            />
-                          ))}
-                          {(() => {
-                            const totalCount = getTotalStudentCount(item.year_level, item.section, item.subject);
-                            const displayedCount = getStudentsForCombination(item.year_level, item.section, item.subject).length;
-                            
-                            if (totalCount === 0) {
-                              return <span className="text-sm font-medium text-gray-500">No students</span>;
-                            } else if (totalCount > displayedCount) {
-                              return (
-                                <div className="w-6 h-6 rounded-full bg-green-100 border-2 border-white shadow-sm flex items-center justify-center">
-                                  <span className="text-xs font-bold text-green-600">+{totalCount - displayedCount}</span>
-                                </div>
-                              );
-                            }
-                            return null;
-                          })()}
-                        </div>
-                      </div>
-                      
-                      <div className="mt-4 pt-3 border-t border-green-200">
-                        <div className="flex items-center justify-between text-xs text-gray-500">
-                          <span>Click to view students</span>
-                          <Users className="w-4 h-4" />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
               </div>
               
               {(() => {
-                const totalSubjects = yearLevelSectionSubjects.filter(item => 
-                item.year_level === selectedYearLevel && 
-                item.section === selectedSection
-                );
+                const totalSubjects = courseSubjects;
                 
                 const filteredSubjects = totalSubjects.filter(item => 
                   !subjectSearchTerm || 
-                  item.subject.toLowerCase().includes(subjectSearchTerm.toLowerCase()) ||
-                  (item.subject_name && item.subject_name.toLowerCase().includes(subjectSearchTerm.toLowerCase()))
+                  item.code.toLowerCase().includes(subjectSearchTerm.toLowerCase()) ||
+                  (item.name && item.name.toLowerCase().includes(subjectSearchTerm.toLowerCase()))
                 );
                 
                 if (totalSubjects.length === 0) {
@@ -2475,7 +5150,7 @@ export default function StudentGrades() {
                     <BookOpen className="w-16 h-16 mx-auto" />
                   </div>
                   <h3 className="text-lg font-semibold text-gray-600 mb-2">No Subjects Available</h3>
-                  <p className="text-gray-500">No subjects found for the selected year level and section.</p>
+                  <p className="text-gray-500">No subjects found for the selected year level.</p>
                 </div>
                   );
                 } else if (filteredSubjects.length === 0) {
@@ -2498,64 +5173,54 @@ export default function StudentGrades() {
           <div className="space-y-6">
             {/* Back Button and Header */}
             <div className="flex items-center justify-between">
-              <button
-                 onClick={handleGoBack}
-                className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"
-              >
-                <ChevronRight className="w-4 h-4 rotate-180" />
-                 Back
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                   onClick={navigateBack}
+                  className={`flex items-center justify-center w-10 h-10 rounded-lg transition-colors duration-200 ${
+                    canGoBack 
+                      ? 'bg-blue-100 hover:bg-blue-200 text-blue-700 hover:text-blue-800' 
+                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  }`}
+                  disabled={!canGoBack}
+                  title={canGoBack ? "Go Back" : "No previous step"}
+                >
+                  <ChevronRight className="w-5 h-5 rotate-180" />
+                </button>
+                <button
+                  onClick={navigateForward}
+                  className={`flex items-center justify-center w-10 h-10 rounded-lg transition-colors duration-200 ${
+                    canGoForward 
+                      ? 'bg-green-100 hover:bg-green-200 text-green-700 hover:text-green-800' 
+                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  }`}
+                  disabled={!canGoForward}
+                  title={canGoForward ? "Go Forward" : "No next step"}
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </div>
               <div className="text-center flex-1">
                 <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-4 rounded-xl shadow-lg inline-block">
                   <h2 className="text-2xl font-bold">
                     {selectedProgram ? programs.find(p => p.id === selectedProgram)?.name || 'Unknown Program' : 'Select a Program'} -{selectedYearLevel} Section {getSectionDisplayName(selectedSection, sectionMap)}
                   </h2>
-                  {getFilteredStudents().length > 0 && (
+                  {selectedSubject && (
                     <div className="mt-3 text-base font-medium">
                       <span className="mr-6">
-                        Subject: {(() => {
-                          const student = getFilteredStudents()[0];
-                          const courseCode = student?.course_code;
-                          if (courseCode && courseCode !== 'Unknown') {
-                            return courseCode;
-                          }
-                          
-                          // Debug: Show why course_code is missing
-                          console.log('Header Debug - Student data:', {
-                            id: student?.id,
-                            student_id: student?.student_id,
-                            course_code: student?.course_code,
-                            course_id: student?.course_id
-                          });
-                          
-                          return courseCode || 'Unknown (Check console for debug info)';
-                        })()}
+                        Subject: {instructorInfo?.course_code || selectedSubject}
                       </span>
                       <span>
-                        Instructor: {(() => {
-                          const student = getFilteredStudents()[0];
-                          const teacherName = student?.teacher_name;
-                          if (teacherName && teacherName !== 'Not Assigned') {
-                            return teacherName;
-                          }
-                          
-                          // Debug: Show why teacher_name is missing
-                          console.log('Header Debug - Teacher lookup:', {
-                            student_id: student?.student_id,
-                            year_level: student?.year_level,
-                            section: student?.section,
-                            teacher_name: student?.teacher_name
-                          });
-                          
-                          return teacherName || 'Not Assigned (Check console for debug info)';
-                        })()}
+                        Instructor: {instructorInfo?.instructor_name || 'No Instructor...'}
                       </span>
                     </div>
                   )}
+
+                  {/* Instructor Error Tracking Display - removed per request */}
                 </div>
               </div>
               <div className="w-32"></div> {/* Spacer to balance the layout */}
             </div>
+
 
             {/* Students Table - Only show when both year level and section are selected */}
             {selectedYearLevel && selectedSection ? (
@@ -2565,18 +5230,130 @@ export default function StudentGrades() {
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-4">
                       <span className="text-sm font-medium text-gray-700">
-                        {getFilteredStudents().length} students in {selectedProgram ? programs.find(p => p.id === selectedProgram)?.name || 'Unknown Program' : 'Select a Program'} -{selectedYearLevel} Section {getSectionDisplayName(selectedSection, sectionMap)}
+                    
+                      {enrolledStudents.length > 0 && (
+                        <span className="text-blue-600 ml-2">
+                          ({enrolledStudents.length} enrolled in {selectedSubject})
+                        </span>
+                      )}
                       </span>
+                      {(() => {
+                        const validation = validateCompleteGrades(getFilteredStudents());
+                        const filteredStudents = getFilteredStudents();
+                        const currentSubjectRequests = instructorRequests.filter(req => 
+                          req.subject_id === selectedCourseId && 
+                          req.edit_status === 'pending'
+                        );
+                        
+                        // If no students are enrolled, show different status
+                        if (filteredStudents.length === 0) {
+                          return (
+                            <div className="flex items-center gap-2 px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-xs font-medium">
+                              <Clock className="w-3 h-3" />
+                              No students enrolled
+                            </div>
+                          );
+                        }
+                        
+                        // Show pending requests count if there are any
+                        if (currentSubjectRequests.length > 0) {
+                          return (
+                            <div className="flex items-center gap-2 px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs font-medium">
+                              <Clock className="w-3 h-3" />
+                              {currentSubjectRequests.length} pending requests
+                            </div>
+                          );
+                        }
+                        
+                        // Show students without grades count if there are any
+                        const studentsWithoutGrades = filteredStudents.filter(student => 
+                          student.prelim_grade === null && 
+                          student.midterm_grade === null && 
+                          student.final_grade === null
+                        );
+                        
+                        if (studentsWithoutGrades.length > 0) {
+                          return (
+                            <div className="flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                              <Clock className="w-3 h-3" />
+                              {studentsWithoutGrades.length} students need grades
+                            </div>
+                          );
+                        }
+                        
+                        if (!validation.isValid) {
+                          return (
+                            <div className="flex items-center gap-2 px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-xs font-medium">
+                              <Clock className="w-3 h-3" />
+                              {validation.incompleteStudents.length} incomplete grades
+                            </div>
+                          );
+                        }
+                        return (
+                          <div className="flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
+                            <CheckCircle2 className="w-3 h-3" />
+                            All grades complete
+                          </div>
+                        );
+                      })()}
                     </div>
                     <div className="flex items-center gap-3">
                       <button
                         onClick={handleBulkRelease}
-                        disabled={bulkUpdating}
+                        disabled={(() => {
+                          const validation = validateCompleteGrades(getFilteredStudents());
+                          const filteredStudents = getFilteredStudents();
+                          const currentSubjectRequests = instructorRequests.filter(req => 
+                            req.subject_id === selectedCourseId && 
+                            req.edit_status === 'pending'
+                          );
+                          
+                          return bulkUpdating || 
+                                 !validation.isValid || 
+                                 filteredStudents.length === 0 ||
+                                 currentSubjectRequests.length > 0; // Changed: disable if there ARE pending requests
+                        })()}
                         className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 ${
-                          bulkUpdating
+                          (() => {
+                            const validation = validateCompleteGrades(getFilteredStudents());
+                            const filteredStudents = getFilteredStudents();
+                            const currentSubjectRequests = instructorRequests.filter(req => 
+                              req.subject_id === selectedCourseId && 
+                              req.edit_status === 'pending'
+                            );
+                            
+                            return bulkUpdating || 
+                                   !validation.isValid || 
+                                   filteredStudents.length === 0 ||
+                                   currentSubjectRequests.length > 0; // Changed: disable if there ARE pending requests
+                          })()
                             ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
                             : 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:shadow-lg'
                         }`}
+                        title={
+                          (() => {
+                            const validation = validateCompleteGrades(getFilteredStudents());
+                            const filteredStudents = getFilteredStudents();
+                            const currentSubjectRequests = instructorRequests.filter(req => 
+                              req.subject_id === selectedCourseId && 
+                              req.edit_status === 'pending'
+                            );
+                            
+                            if (filteredStudents.length === 0) {
+                              return 'Cannot release: No students enrolled in this subject';
+                            }
+                            
+                            if (currentSubjectRequests.length > 0) {
+                              return `Cannot release: ${currentSubjectRequests.length} pending grade change requests must be resolved first`;
+                            }
+                            
+                            if (!validation.isValid) {
+                              return 'Cannot release: Some students have incomplete grades (missing Prelim, Midterm, or Final)';
+                            }
+                            
+                            return `Release grades for all ${filteredStudents.length} students (no pending requests)`;
+                          })()
+                        }
                       >
                         {bulkUpdating ? (
                           <div className="flex items-center gap-2">
@@ -2628,6 +5405,25 @@ export default function StudentGrades() {
                       <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
                     </div>
                     
+                    {/* Refresh Button */}
+                    <button
+                      onClick={() => {
+                        setLoading(true);
+                        fetchGrades();
+                      }}
+                      disabled={loading}
+                      className="px-4 py-2 h-10 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                      {loading ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                      )}
+                      Refresh
+                    </button>
+                    
                     {/* Clear Search Button */}
                     {studentSearchTerm && (
                       <button
@@ -2645,7 +5441,10 @@ export default function StudentGrades() {
                       Showing {getFilteredStudents().length} of {grades.filter(grade => 
                         grade.year_level === selectedYearLevel && 
                         grade.section === selectedSection &&
-                        grade.course_code === selectedSubject
+                        (
+                          grade.course_code === selectedSubject ||
+                          (!!selectedCourseId && grade.course_id === selectedCourseId)
+                        )
                       ).length} students
                     </div>
                   )}
@@ -2658,16 +5457,26 @@ export default function StudentGrades() {
                         <th className="px-6 py-4 text-left font-semibold">Student Name</th>
                         <th className="px-6 py-4 text-left font-semibold">Student ID</th>
                         <th className="px-6 py-4 text-center font-semibold">Status</th>
-
                         <th className="px-6 py-4 text-center font-semibold">Prelim</th>
                         <th className="px-6 py-4 text-center font-semibold">Midterm</th>
                         <th className="px-6 py-4 text-center font-semibold">Final</th>
                         <th className="px-6 py-4 text-center font-semibold">GA</th>
                         <th className="px-6 py-4 text-center font-semibold">Release Status</th>
+                        <th className="px-6 py-4 text-center font-semibold">Grade Change Requests</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
-                      {getFilteredStudents().map((grade, index) => (
+                      {loadingEnrolledStudents ? (
+                        <tr>
+                          <td colSpan={9} className="px-6 py-12 text-center">
+                            <div className="flex items-center justify-center gap-3">
+                              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                              <span className="text-gray-600">Loading enrolled students...</span>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : (
+                        getFilteredStudents().map((grade, index) => (
                         <tr key={grade.id} className={`hover:bg-gray-50 transition-colors ${index % 2 === 0 ? 'bg-white/90' : 'bg-gray-50'}`}>
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-3">
@@ -2736,8 +5545,43 @@ export default function StudentGrades() {
                               </span>
                             )}
                           </td>
+                          <td className="px-6 py-4 text-center">
+                            {(() => {
+                              // Filter requests for this specific student and subject
+                              const studentRequests = instructorRequests.filter(req => 
+                                req.student_id === grade.student_id && 
+                                req.subject_id === grade.subject_id
+                              );
+                              
+                              if (studentRequests.length === 0) {
+                                return (
+                                  <span className="text-gray-400 text-xs">No requests</span>
+                                );
+                              }
+                              
+                              return (
+                                <div className="space-y-1">
+                                  {studentRequests.map(req => (
+                                    <div key={req.id} className="flex flex-col items-center gap-1">
+                                        <button 
+                                          onClick={() => openRequestDetails(req)}
+                                          className="px-2 py-1 text-xs rounded-md bg-blue-600 text-white hover:bg-blue-700"
+                                        title="View request details - Instructor needs permission to edit grades"
+                                        >
+                                          👁
+                                        </button>
+                                      <div className="text-xs text-amber-600 text-center max-w-32" title="Instructor needs permission to edit grades">
+                                        Permission Required
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              );
+                            })()}
+                          </td>
                         </tr>
-                      ))}
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -2760,9 +5604,11 @@ export default function StudentGrades() {
             )}
           </div>
         )}
-
+          </>
+        )}
 
       </div>
     </div>
+    </>
   );
 }
