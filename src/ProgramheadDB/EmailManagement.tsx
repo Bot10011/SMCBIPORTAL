@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
 import { Mail, Edit3, Save, X, Search, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
@@ -29,6 +30,8 @@ const EmailManagement: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const [isRetrying, setIsRetrying] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [pendingSave, setPendingSave] = useState<{userId: string, newEmail: string} | null>(null);
 
   // Fetch all users with their email information from auth.users via API
   useEffect(() => {
@@ -158,8 +161,8 @@ const EmailManagement: React.FC = () => {
     setEditingEmail('');
   };
 
-  // Save email changes
-  const saveEmail = async (userId: string, newEmail: string) => {
+  // Show confirmation modal
+  const showSaveConfirmation = (userId: string, newEmail: string) => {
     if (!isValidEmail(newEmail)) {
       toast.error('Please enter a valid email address');
       return;
@@ -170,7 +173,18 @@ const EmailManagement: React.FC = () => {
       return;
     }
 
+    setPendingSave({ userId, newEmail });
+    setShowConfirmModal(true);
+  };
+
+  // Confirm and save email changes
+  const confirmSaveEmail = async () => {
+    if (!pendingSave) return;
+
+    const { userId, newEmail } = pendingSave;
     setSaving(userId);
+    setShowConfirmModal(false);
+    
     try {
       const response = await fetch('/api/update-auth-email', {
         method: 'POST',
@@ -204,66 +218,81 @@ const EmailManagement: React.FC = () => {
       toast.error(err instanceof Error ? err.message : 'Failed to update email');
     } finally {
       setSaving(null);
+      setPendingSave(null);
+    }
+  };
+
+  // Cancel save confirmation
+  const cancelSaveConfirmation = () => {
+    setShowConfirmModal(false);
+    setPendingSave(null);
+  };
+
+  // Handle backdrop click
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget) {
+      cancelSaveConfirmation();
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br via-white to-indigo-50 py-8 px-2 md:px-8">
-      <div className="w-full">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 rounded-lg">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
-                  <Mail className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h4 className="text-2xl font-bold text-white tracking-tight">Student Email Management</h4>
-                  <p className="text-white/80 text-sm font-medium">View and edit student email addresses.</p>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2 items-center">
-                <div className="rounded-xl px-4 py-2 flex items-center gap-2 bg-white/15 border border-white/25 text-white shadow-sm">
-                  <span className="font-bold text-lg">{users.length}</span>
-                  <span className="text-sm">Total Students</span>
-                </div>
-                <div className="rounded-xl px-4 py-2 flex items-center gap-2 bg-white/15 border border-white/25 text-white shadow-sm">
-                  <CheckCircle className="w-5 h-5 text-emerald-200" />
-                  <span className="font-semibold text-sm">{users.filter(u => u.is_active).length} Active</span>
-                </div>
-                <div className="rounded-xl px-4 py-2 flex items-center gap-2 bg-white/15 border border-white/25 text-white shadow-sm">
-                  <AlertCircle className="w-5 h-5 text-amber-200" />
-                  <span className="font-semibold text-sm">{users.filter(u => !u.is_active).length} Inactive</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Error Display */}
-        {error && (
-          <div className="bg-red-100 border border-red-300 text-red-800 px-4 py-3 rounded mb-6">
-            <div className="flex items-start gap-2">
-              <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
-              <div>
-                <strong>Connection Error:</strong> {error}
-                {retryCount > 0 && (
-                  <div className="mt-2 text-sm">
-                    <div className="flex items-center gap-2">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Retrying... (Attempt {retryCount}/3)</span>
-                    </div>
+    <>
+      <div className="min-h-screen bg-gradient-to-br via-white to-indigo-50 py-8 px-2 md:px-8">
+        <div className="w-full">
+          {/* Header */}
+          <div className="mb-8">
+            <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 rounded-lg">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
+                    <Mail className="w-6 h-6 text-white" />
                   </div>
-                )}
+                  <div>
+                    <h4 className="text-2xl font-bold text-white tracking-tight">Student Email Management</h4>
+                    <p className="text-white/80 text-sm font-medium">View and edit student email addresses.</p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 items-center">
+                  <div className="rounded-xl px-4 py-2 flex items-center gap-2 bg-white/15 border border-white/25 text-white shadow-sm">
+                    <span className="font-bold text-lg">{users.length}</span>
+                    <span className="text-sm">Total Students</span>
+                  </div>
+                  <div className="rounded-xl px-4 py-2 flex items-center gap-2 bg-white/15 border border-white/25 text-white shadow-sm">
+                    <CheckCircle className="w-5 h-5 text-emerald-200" />
+                    <span className="font-semibold text-sm">{users.filter(u => u.is_active).length} Active</span>
+                  </div>
+                  <div className="rounded-xl px-4 py-2 flex items-center gap-2 bg-white/15 border border-white/25 text-white shadow-sm">
+                    <AlertCircle className="w-5 h-5 text-amber-200" />
+                    <span className="font-semibold text-sm">{users.filter(u => !u.is_active).length} Inactive</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-        )}
 
-        {/* Filters */}
-        <div className="bg-white/80 rounded-2xl shadow-lg p-4 mb-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* Error Display */}
+          {error && (
+            <div className="bg-red-100 border border-red-300 text-red-800 px-4 py-3 rounded mb-6">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+                <div>
+                  <strong>Connection Error:</strong> {error}
+                  {retryCount > 0 && (
+                    <div className="mt-2 text-sm">
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Retrying... (Attempt {retryCount}/3)</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Filters */}
+          <div className="bg-white/80 rounded-2xl shadow-lg p-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <div className="flex items-center gap-2 bg-gray-100 rounded-lg px-3 py-2 w-full">
               <Search className="w-4 h-4 text-gray-400" />
               <input
@@ -336,7 +365,7 @@ const EmailManagement: React.FC = () => {
                         />
                         <div className="flex gap-2">
                           <button
-                            onClick={() => saveEmail(user.id, editingEmail)}
+                            onClick={() => showSaveConfirmation(user.id, editingEmail)}
                             disabled={saving === user.id}
                             className="flex-1 bg-green-500 text-white rounded-lg px-3 py-1.5 text-xs font-semibold flex items-center justify-center gap-1 disabled:opacity-50"
                           >
@@ -443,7 +472,7 @@ const EmailManagement: React.FC = () => {
                       {editingUserId === user.id ? (
                         <div className="flex gap-2 justify-center">
                           <button
-                            onClick={() => saveEmail(user.id, editingEmail)}
+                            onClick={() => showSaveConfirmation(user.id, editingEmail)}
                             disabled={saving === user.id}
                             className="bg-green-500 text-white rounded-lg px-3 py-1.5 text-xs font-semibold flex items-center gap-1 disabled:opacity-50"
                           >
@@ -474,8 +503,69 @@ const EmailManagement: React.FC = () => {
             </tbody>
           </table>
         </div>
+        </div>
       </div>
-    </div>
+
+      {/* Confirmation Modal - Using Portal */}
+      {showConfirmModal && pendingSave && createPortal(
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4"
+          onClick={handleBackdropClick}
+        >
+          <div 
+            className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 rounded-full bg-amber-100">
+                  <AlertCircle className="w-6 h-6 text-amber-600" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-800">Confirm Email Change</h3>
+              </div>
+              
+              <div className="mb-6">
+                <p className="text-gray-600 mb-4">
+                  Are you sure you want to change this email address? This action cannot be undone.
+                </p>
+                
+                <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-gray-500">From:</span>
+                    <span className="text-sm text-gray-800 font-mono">
+                      {users.find(u => u.id === pendingSave.userId)?.email}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-gray-500">To:</span>
+                    <span className="text-sm text-blue-600 font-mono font-semibold">
+                      {pendingSave.newEmail}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex gap-3">
+                <button
+                  onClick={cancelSaveConfirmation}
+                  className="flex-1 bg-gray-100 text-gray-700 rounded-lg px-4 py-2 font-semibold hover:bg-gray-200 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmSaveEmail}
+                  className="flex-1 bg-green-500 text-white rounded-lg px-4 py-2 font-semibold hover:bg-green-600 transition-colors flex items-center justify-center gap-2"
+                >
+                  <Save className="w-4 h-4" />
+                  Confirm Change
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
   );
 };
 
