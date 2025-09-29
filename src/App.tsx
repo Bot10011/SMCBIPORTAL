@@ -15,7 +15,8 @@ import ResetPasswordWrapper from './components/ResetPasswordWrapper';
 import SupabaseAuthCallback from './components/SupabaseAuthCallback';
 
 // Import public components (not lazy loaded for immediate access)
-import LandingPage from './LandingPage';
+import LandingPage from './MainLandingpage';
+import ClassicLanding from './LandingPage';
 // import Login from './Login';
 
 // Lazy load dashboard components for better performance
@@ -219,6 +220,8 @@ const App: React.FC = () => {
               <Route path="/" element={<LandingPage />} />
               {/* Make /login redirect to landing to prevent direct access */}
               <Route path="/login" element={<Navigate to="/" replace />} />
+              {/* Classic landing page opened in new tab from CTAs */}
+              <Route path="/loginpage" element={<ClassicLanding />} />
               <Route 
                 path="/reset-password" 
                 element={
