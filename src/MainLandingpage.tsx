@@ -23,6 +23,7 @@ import {
 const MainLandingPage: React.FC = () => {
   
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState<'home' | 'features' | 'about'>('home');
   const [activeFeature, setActiveFeature] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
   const heroRef = useRef<HTMLDivElement>(null);
@@ -35,28 +36,28 @@ const MainLandingPage: React.FC = () => {
       title: "Student Portal",
       description: "Access grades, schedules, tasks, and subjects in one centralized dashboard.",
       icon: <BookOpen className="w-6 h-6" />,
-      color: "from-blue-500 to-indigo-600",
+      color: "#4ade80",
       image: "/img/student-portal.jpg"
     },
     {
       title: "Enrollment System",
       description: "Streamlined online enrollment process with real-time status tracking.",
       icon: <GraduationCap className="w-6 h-6" />,
-      color: "from-emerald-500 to-teal-600",
+      color: "#4ade80",
       image: "/img/enrollment.jpg"
     },
     {
       title: "Grade Management",
       description: "Grade submission and viewing with security measures and analytics.",
       icon: <BarChart2 className="w-6 h-6" />,
-      color: "from-amber-500 to-orange-600",
+      color: "#4ade80",
       image: "/img/grade.png"
     },
     {
       title: "Subject Management",
       description: "Easy subjects selection with prerequisite checking.",
       icon: <BookOpen className="w-6 h-6" />,
-      color: "from-purple-500 to-fuchsia-600",
+      color: "#4ade80",
       image: "/img/subject.png"
     }
   ];
@@ -107,6 +108,26 @@ const MainLandingPage: React.FC = () => {
     return () => clearInterval(interval);
   }, [features.length]);
 
+  // Track section in view to underline corresponding header tab
+  useEffect(() => {
+    const handleScroll = () => {
+      const y = window.scrollY + window.innerHeight * 0.25; // quarter down viewport
+      // heroTop currently unused; kept for potential future logic
+      const featTop = featuresRef.current?.offsetTop ?? 0;
+      const aboutTop = statsRef.current?.offsetTop ?? 0;
+      if (y >= aboutTop) {
+        setActiveSection('about');
+      } else if (y >= featTop) {
+        setActiveSection('features');
+      } else {
+        setActiveSection('home');
+      }
+    };
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
   // Fetch statistics from database
   useEffect(() => {
     let isMounted = true;
@@ -147,22 +168,16 @@ const MainLandingPage: React.FC = () => {
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
-  // Scroll to section (delay to let mobile menu close first)
+  // Scroll to section
   const scrollToSection = (ref: React.RefObject<HTMLDivElement>) => {
+    if (ref.current) {
+      ref.current.scrollIntoView({ behavior: 'smooth' });
+    }
     setIsMenuOpen(false);
-    if (!ref.current) return;
-    // Allow the collapse animation a brief moment, then scroll
-    setTimeout(() => {
-      try {
-        ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      } catch {
-        // no-op
-      }
-    }, 60);
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50  overflow-x-hidden">
+    <div className="min-h-screen bg-[#00171F] overflow-x-hidden text-white">
       {/* Navigation via Portal to ensure always on top */}
       <StickyHeader 
         isMenuOpen={isMenuOpen}
@@ -171,18 +186,19 @@ const MainLandingPage: React.FC = () => {
         onFeatures={() => scrollToSection(featuresRef)}
         onAbout={() => scrollToSection(statsRef)}
         onLogin={handleLogin}
+        activeSection={activeSection}
       />
 
       {/* Hero Section */}
-      <motion.section 
+      <motion.section id="home"
         ref={heroRef}
         style={{ y: heroY, opacity: heroOpacity }}
-        className="pt-40 md:pt-44 pb-16 md:pb-24 px-4 relative overflow-hidden"
+        className="pt-40 md:pt-52 pb-10 md:pb-24 px-4 relative overflow-hidden scroll-mt-28 md:scroll-mt-36"
       >
         <div className="max-w-7xl mx-auto">
           {/* Accent radial highlight behind heading */}
           <div className="relative">
-            <div className="pointer-events-none absolute inset-x-0 -top-12 mx-auto h-40 w-[90%] max-w-3xl rounded-full blur-3xl opacity-40 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-400/40 via-indigo-400/30 to-transparent" />
+            <div className="pointer-events-none absolute inset-x-0 -top-12 mx-auto h-40 w-[90%] max-w-3xl rounded-full blur-3xl opacity-40 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-[#00A7E1]/40 via-[#007EA7]/30 to-transparent" />
           </div>
 
           {/* Centered headline and actions */}
@@ -192,28 +208,28 @@ const MainLandingPage: React.FC = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
           >
-            <h1 className="text-4xl md:text-4xl lg:text-5xl font-bold text-gray-900 tracking-tight md:whitespace-nowrap">
+            <h1 className="text-4xl md:text-4xl lg:text-5xl font-bold text-white tracking-tight md:whitespace-nowrap">
               SMCBI School Portal & Enrollment System
             </h1>
-            <p className="mt-4 md:mt-5 text-base md:text-lg text-gray-600 leading-relaxed">
+            <p className="mt-4 md:mt-5 text-base md:text-lg text-gray-300 leading-relaxed">
             A modern, user-friendly platform designed to streamline academic processes and improve the educational experience for students, faculty, registrars, and program heads.
             </p>
             {/* CTA buttons removed as requested */}
           </motion.div>
 
           {/* Showcase image card under CTA (centered) */}
-          <div className="mt-8 md:mt-12">
+          <div className="mt-6 md:mt-10">
             <Carousel />
           </div>
         </div>
         
         {/* Background Elements */}
-        <div className="absolute top-20 right-10 w-64 h-64 bg-blue-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
-        <div className="absolute bottom-10 left-20 w-72 h-72 bg-purple-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+        <div className="absolute top-20 right-10 w-64 h-64 bg-[#007EA7] rounded-full mix-blend-overlay filter blur-3xl opacity-30 animate-blob"></div>
+        <div className="absolute bottom-10 left-20 w-72 h-72 bg-[#00A7E1] rounded-full mix-blend-overlay filter blur-3xl opacity-30 animate-blob animation-delay-2000"></div>
       </motion.section>
 
       {/* Features Section */}
-      <section ref={featuresRef} className="py-16 md:py-24 px-4 bg-white">
+      <section id="features" ref={featuresRef} className="py-16 md:py-24 px-4 bg-[#00171F] scroll-mt-28 md:scroll-mt-36">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <motion.div
@@ -222,8 +238,8 @@ const MainLandingPage: React.FC = () => {
               viewport={{ once: true }}
               transition={{ duration: 0.6 }}
             >
-              <h2 className="text-3xl md:text-4xl font-bold text-gray-900">Features</h2>
-              <p className="mt-4 text-lg text-gray-600 max-w-3xl mx-auto">
+              <h2 className="text-3xl md:text-4xl font-bold text-white">Features</h2>
+              <p className="mt-4 text-lg text-gray-300 max-w-3xl mx-auto">
               Our system is designed to support a seamless educational experience.
               </p>
             </motion.div>
@@ -241,27 +257,27 @@ const MainLandingPage: React.FC = () => {
                   transition={{ duration: 0.5, delay: index * 0.1 }}
                   className={`p-4 rounded-xl cursor-pointer transition-all duration-300 ${
                     activeFeature === index 
-                      ? `bg-gradient-to-r ${feature.color} text-white shadow-lg` 
-                      : 'bg-gray-100 hover:bg-gray-200 text-gray-800'
+                      ? 'bg-[#4ade80] text-gray-900 shadow-lg' 
+                      : 'bg-[#1F2937] hover:bg-[#374151] text-white'
                   }`}
                   onClick={() => setActiveFeature(index)}
                 >
                   <div className="flex items-center">
                     <div className={`p-2 rounded-lg ${
-                      activeFeature === index ? 'bg-white/20' : 'bg-white'
+                      activeFeature === index ? 'bg-white/80 text-gray-900' : 'bg-[#374151]/60 text-white'
                     }`}>
                       {feature.icon}
                     </div>
                     <div className="ml-4">
                       <h3 className="font-semibold text-lg">{feature.title}</h3>
                       <p className={`text-sm mt-1 ${
-                        activeFeature === index ? 'text-white/90' : 'text-gray-600'
+                        activeFeature === index ? 'text-gray-900' : 'text-gray-300'
                       }`}>
                         {feature.description}
                       </p>
                     </div>
                     <ChevronRight className={`ml-auto ${
-                      activeFeature === index ? 'text-white' : 'text-gray-400'
+                      activeFeature === index ? 'text-gray-900' : 'text-gray-400'
                     }`} />
                   </div>
                 </motion.div>
@@ -269,7 +285,7 @@ const MainLandingPage: React.FC = () => {
             </div>
             
             {/* Feature Preview (image based on selected feature) */}
-            <div className="relative h-80 lg:h-auto rounded-xl overflow-hidden shadow-xl border border-gray-200">
+            <div className="relative h-80 lg:h-auto rounded-xl overflow-hidden shadow-xl border border-[#007EA7]/30">
               <AnimatePresence mode="wait">
                 <motion.div
                   key={activeFeature}
@@ -327,13 +343,13 @@ const MainLandingPage: React.FC = () => {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.5, delay: index * 0.1 }}
-                className="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-all border border-gray-100"
+                className="bg-[#1F2937] p-6 rounded-xl shadow-md hover:shadow-lg transition-all border border-gray-700/40"
               >
-                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600 mb-4">
+                <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center text-white mb-4">
                   {item.icon}
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">{item.title}</h3>
-                <p className="text-gray-600">{item.description}</p>
+                <h3 className="text-lg font-semibold text-white mb-2">{item.title}</h3>
+                <p className="text-gray-300">{item.description}</p>
               </motion.div>
             ))}
           </div>
@@ -341,13 +357,13 @@ const MainLandingPage: React.FC = () => {
       </section>
 
       {/* Stats Section */}
-      <section ref={statsRef} className="pt-2 sm:pt-4 md:pt-20 pb-24 md:pb-32 px-4 text-white relative overflow-hidden min-h-[560px] sm:min-h-[680px] md:min-h-[840px]">
+      <section id="about" ref={statsRef} className="pt-2 sm:pt-4 md:pt-20 pb-24 md:pb-32 px-4 text-white relative overflow-hidden min-h-[560px] sm:min-h-[680px] md:min-h-[840px] scroll-mt-28 md:scroll-mt-36 ">
         <div
           className="absolute inset-0 bg-center bg-no-repeat bg-[length:800px_auto] sm:bg-[length:1000px_auto] md:bg-[length:1200px_auto] lg:bg-[length:1400px_auto]"
           style={{ backgroundImage: "url('/img/impact.jpg')" }}
         />
-        <div className="absolute inset-0 " />
-        <div className="relative max-w-7xl mx-auto mt-0 md:mt-16 pt-8 sm:pt-10 md:pt-0">
+        <div className="absolute inset-0 bg-[#00171F]/90" />
+        <div className="relative max-w-7xl mx-auto mt-8 md:mt-16">
           <div className="text-center mb-10">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -356,8 +372,8 @@ const MainLandingPage: React.FC = () => {
               transition={{ duration: 0.6 }}
               
             >
-              <h2 className="text-3xl md:text-4xl font-bold">Our Impact</h2>
-              <p className="mt-4 text-lg text-blue-100 max-w-3xl mx-auto">
+              <h2 className="text-3xl md:text-4xl font-bold text-white">About</h2>
+              <p className="mt-4 text-lg text-gray-300 max-w-3xl mx-auto">
                 Transforming education through technology and innovation.
               </p>
             </motion.div>
@@ -371,9 +387,9 @@ const MainLandingPage: React.FC = () => {
                 whileInView={{ opacity: 1, scale: 1 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.5, delay: index * 0.1 }}
-                className="bg-white/10 backdrop-blur-md p-4 md:p-5 rounded-xl text-center"
+                className="bg-[#1F2937] p-4 md:p-5 rounded-xl text-center border border-gray-700/40 shadow-md"
               >
-                <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3 text-white">
                   {stat.icon}
                 </div>
                 <div className="text-2xl md:text-3xl font-bold mb-1.5">
@@ -386,9 +402,9 @@ const MainLandingPage: React.FC = () => {
                     />
                   )}
                 </div>
-                <p className="text-blue-100 text-sm md:text-base">{stat.label}</p>
+                <p className="text-gray-300 text-sm md:text-base">{stat.label}</p>
                 {stat.label === 'Satisfaction %' && stat.meta && stat.meta.hasData === false && (
-                  <div className="mt-1 inline-flex items-center gap-1 text-xs text-blue-100/80">
+                  <div className="mt-1 inline-flex items-center gap-1 text-xs text-gray-300/80">
                     <span className="inline-block w-1.5 h-1.5 rounded-full bg-yellow-300" />
                     No responses yet
                   </div>
@@ -400,9 +416,9 @@ const MainLandingPage: React.FC = () => {
       </section>
 
       {/* CTA Section */}
-      <section className="py-16 md:py-24 px-4">
+      <section className="py-16 md:py-24 px-4 bg-[#4ade80 ]">
         <div className="max-w-7xl mx-auto">
-          <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-8 md:p-12 shadow-xl">
+          <div className="bg-[#4ade80 ] rounded-2xl p-8 md:p-12  border border-[#4ade80] ">
             <div className="flex flex-col md:flex-row items-center justify-between">
               <div className="mb-8 md:mb-0 md:mr-8">
                 <motion.div
@@ -425,7 +441,7 @@ const MainLandingPage: React.FC = () => {
               >
                 <button 
                   onClick={handleLogin}
-                  className="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium text-lg transition-colors shadow-lg hover:shadow-xl flex items-center"
+                  className="px-8 py-4 bg-gray-800 hover:bg-gray-700 text-white rounded-xl font-medium text-lg transition-colors transition-shadow shadow-[0_12px_28px_rgba(0,0,0,0.45)] hover:shadow-[0_16px_40px_rgba(0,0,0,0.55)] flex items-center"
                 >
                   Log In Now
                   <motion.span
@@ -443,10 +459,10 @@ const MainLandingPage: React.FC = () => {
       </section>
 
       {/* Footer */}
-      <footer className="bg-gray-900 text-white py-12 px-4">
+      <footer className="bg-[#00171F] text-white py-12 px-4 border-t border-[#007EA7]/30">
         <div className="max-w-7xl mx-auto">
           <div className="pt-6 text-center">
-            <p className="text-gray-400 text-sm">
+            <p className="text-gray-400 text-sm hover:text-[#00A7E1] transition-colors">
               &copy; {new Date().getFullYear()} St. Mary's College of Bansalan, Inc. All rights reserved.
             </p>
           </div>
@@ -474,6 +490,14 @@ const MainLandingPage: React.FC = () => {
         .nav-3d {
           will-change: box-shadow;
         }
+        .perspective-\\[1000px\\] {
+          perspective: 1000px;
+        }
+        @keyframes float {
+          0% { transform: translateY(0px) rotate3d(1, 1, 1, 0deg); }
+          50% { transform: translateY(-10px) rotate3d(1, 1, 1, 1deg); }
+          100% { transform: translateY(0px) rotate3d(1, 1, 1, 0deg); }
+        }
       `}</style>
     </div>
   );
@@ -488,7 +512,8 @@ function StickyHeader({
   onHome,
   onFeatures,
   onAbout,
-  onLogin
+  onLogin,
+  activeSection
 }: {
   isMenuOpen: boolean;
   toggleMenu: () => void;
@@ -496,22 +521,36 @@ function StickyHeader({
   onFeatures: () => void;
   onAbout: () => void;
   onLogin: () => void;
+  activeSection: 'home' | 'features' | 'about';
 }) {
+  const handleNavClick = (targetId: 'home' | 'features' | 'about') => {
+    // Close menu first, then perform scroll to avoid layout jank on mobile
+    toggleMenu();
+    const performScroll = () => {
+      const el = document.getElementById(targetId);
+      if (!el) return;
+      const headerOffset = 96; // approximate sticky header height on mobile
+      const y = el.getBoundingClientRect().top + window.pageYOffset - headerOffset;
+      window.scrollTo({ top: y, behavior: 'smooth' });
+    };
+    // Defer to next frame so menu close animation doesn't absorb the scroll
+    window.requestAnimationFrame(performScroll);
+  };
   const header = (
     <header className="fixed top-2 sm:top-3 md:top-6 left-0 right-0 z-[99999]">
-      <motion.div className="relative mx-auto w-[92%] md:w-[80%] bg-white/60 backdrop-blur-md backdrop-saturate-150 rounded-2xl ring-1 ring-white/60 shadow-[0_8px_24px_rgba(0,0,0,0.08)] pointer-events-auto">
+      <motion.div className="relative mx-auto w-[92%] md:w-[80%] bg-[#00171F]/90 backdrop-blur-md backdrop-saturate-150 rounded-2xl ring-1 ring-gray-800/30 shadow-[0_8px_24px_rgba(0,0,0,0.25)] pointer-events-auto">
         <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center py-3">
             <div className="flex items-center">
               <img src="/img/logo1.png" alt="SMCBI Logo" className="h-10 w-auto" />
             </div>
             <nav className="hidden md:flex flex-1 items-center justify-center gap-10">
-              <button onClick={onHome} className="nav-3d text-gray-700 font-medium rounded-md px-3 py-1.5 bg-transparent transition-shadow duration-200 hover:bg-blue-50 shadow-none hover:shadow-[0_8px_20px_rgba(37,99,235,0.15)]">Home</button>
-              <button onClick={onFeatures} className="nav-3d text-gray-700 font-medium rounded-md px-3 py-1.5 bg-transparent transition-shadow duration-200 hover:bg-blue-50 shadow-none hover:shadow-[0_8px_20px_rgba(37,99,235,0.15)]">Features</button>
-              <button onClick={onAbout} className="nav-3d text-gray-700 font-medium rounded-md px-3 py-1.5 bg-transparent transition-shadow duration-200 hover:bg-blue-50 shadow-none hover:shadow-[0_8px_20px_rgba(37,99,235,0.15)]">About</button>
+              <button onClick={onHome} className={`nav-3d text-white font-medium rounded-md px-3 py-1.5 bg-transparent transition-shadow duration-200 hover:bg-gray-800/50 shadow-none hover:shadow-[0_4px_12px_rgba(0,0,0,0.2)] border-b-2 ${activeSection==='home' ? 'border-[#4ade80]' : 'border-transparent'}`}>Home</button>
+              <button onClick={onFeatures} className={`nav-3d text-white font-medium rounded-md px-3 py-1.5 bg-transparent transition-shadow duration-200 hover:bg-gray-800/50 shadow-none hover:shadow-[0_4px_12px_rgba(0,0,0,0.2)] border-b-2 ${activeSection==='features' ? 'border-[#4ade80]' : 'border-transparent'}`}>Features</button>
+              <button onClick={onAbout} className={`nav-3d text-white font-medium rounded-md px-3 py-1.5 bg-transparent transition-shadow duration-200 hover:bg-gray-800/50 shadow-none hover:shadow-[0_4px_12px_rgba(0,0,0,0.2)] border-b-2 ${activeSection==='about' ? 'border-[#4ade80]' : 'border-transparent'}`}>About</button>
             </nav>
-            <button onClick={onLogin} className="hidden md:inline-flex bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg font-medium transition-colors shadow-md hover:shadow-lg">Log In</button>
-            <button className="md:hidden ml-auto rounded-md p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100" onClick={toggleMenu}>
+            <button onClick={onLogin} className="hidden md:inline-flex bg-gray-800 hover:bg-gray-700 text-white px-5 py-2 rounded-lg font-medium transition-colors shadow-md hover:shadow-lg">Log In</button>
+            <button className="md:hidden ml-auto rounded-md p-2 text-white hover:text-gray-300 hover:bg-gray-800/50" onClick={toggleMenu}>
               {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
           </div>
@@ -524,13 +563,13 @@ function StickyHeader({
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.3 }}
-            className="md:hidden overflow-hidden bg-white/70 backdrop-blur-md ring-1 ring-white/60 rounded-2xl mx-auto w-[92%] max-w-sm mt-2"
+            className="md:hidden overflow-hidden bg-[#00171F]/95 backdrop-blur-md ring-1 ring-gray-800/30 w-[92%] mx-auto rounded-2xl"
           >
-            <div className="px-4 py-2 space-y-1 text-center">
-              <button onClick={onHome} className="block w-full px-3 py-2 rounded-md text-gray-700 hover:bg-blue-50 font-medium transition-colors">Home</button>
-              <button onClick={onFeatures} className="block w-full px-3 py-2 rounded-md text-gray-700 hover:bg-blue-50 font-medium transition-colors">Features</button>
-              <button onClick={onAbout} className="block w-full px-3 py-2 rounded-md text-gray-700 hover:bg-blue-50 font-medium transition-colors">About</button>
-              <button onClick={onLogin} className="block w-full px-3 py-2 rounded-md bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors mt-2">Log In</button>
+            <div className="px-4 py-2 space-y-1 text-center w-full">
+              <a href="#home" onClick={(e)=>{e.preventDefault(); handleNavClick('home');}} className="block w-full text-center px-3 py-2 rounded-md text-white hover:text-gray-300 hover:bg-gray-800/50 font-medium transition-colors" aria-label="Go to Home">Home</a>
+              <a href="#features" onClick={(e)=>{e.preventDefault(); handleNavClick('features');}} className="block w-full text-center px-3 py-2 rounded-md text-white hover:text-gray-300 hover:bg-gray-800/50 font-medium transition-colors" aria-label="Go to Features">Features</a>
+              <a href="#about" onClick={(e)=>{e.preventDefault(); handleNavClick('about');}} className="block w-full text-center px-3 py-2 rounded-md text-white hover:text-gray-300 hover:bg-gray-800/50 font-medium transition-colors" aria-label="Go to About">About</a>
+              <button onClick={onLogin} className="block w-full text-center px-3 py-2 rounded-md bg-gray-800 text-white font-medium hover:bg-gray-700 transition-colors mt-2">Log In</button>
             </div>
           </motion.div>
         )}
@@ -544,9 +583,7 @@ function StickyHeader({
 // Simple auto-playing, swipeable carousel (no hover effects)
 const Carousel: React.FC = () => {
   const images = useMemo(() => [
-    '/img/bglandingpage.png',
-    '/img/bglandingpage1.png',
-    '/img/bglandingpage2.png'
+    '/img/bglandingpage.png'
   ], []);
 
   const [index, setIndex] = useState(0);
@@ -588,8 +625,8 @@ const Carousel: React.FC = () => {
   }, [images.length]);
 
   return (
-    <div className="relative mx-auto w-full max-w-4xl md:max-w-3xl">
-      <div ref={containerRef} className="relative overflow-hidden rounded-2xl border border-gray-200">
+    <div className="relative mx-auto w-full max-w-4xl md:max-w-3xl perspective-[1000px]">
+     <div ref={containerRef} className="relative overflow-hidden rounded-2xl border border-gray-800/20 shadow-[0_20px_50px_rgba(0,0,0,0.4)] min-h-[180px] sm:min-h-[240px] md:min-h-[380px] transform hover:translate-y-[-5px] transition-all duration-500" style={{ animation: 'float 6s ease-in-out infinite' }}>
         <AnimatePresence mode="wait" initial={false}>
           <motion.img
             key={images[index]}
@@ -600,24 +637,13 @@ const Carousel: React.FC = () => {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.4, ease: 'easeInOut' }}
             onError={(e) => { (e.target as HTMLImageElement).src = '/img/logo3.png'; }}
-            className="w-full h-auto object-cover select-none"
+            className="w-full h-full object-cover object-center select-none"
           />
         </AnimatePresence>
         {/* Soft vignette for depth */}
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(0,0,0,0.0),_rgba(0,0,0,0.08))]" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/10" />
       </div>
 
-      {/* Indicators */}
-      <div className="mt-3 flex items-center justify-center gap-2">
-        {images.map((_, i) => (
-          <button
-            key={i}
-            aria-label={`Go to slide ${i + 1}`}
-            className={`h-1.5 rounded-full transition-all duration-300 ${i === index ? 'w-6 bg-blue-600' : 'w-3 bg-gray-300'}`}
-            onClick={() => setIndex(i)}
-          />
-        ))}
-      </div>
 
       {/* Arrow controls removed as requested */}
     </div>
