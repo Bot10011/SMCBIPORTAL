@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import DashboardLayout from '../components/Sidebar';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, Bell, Activity, Database, BookOpen, GraduationCap, LogIn, LogOut, Cloud, Lock, Unlock, StickyNote, Calendar, Trash2 } from 'lucide-react';
+import { Users, Bell, Activity, Database, BookOpen, GraduationCap, LogIn, LogOut, Cloud, Lock, Unlock, StickyNote, Calendar, Trash2, PieChart } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
@@ -1523,9 +1523,8 @@ const DashboardCard: React.FC<{
   value: string | number;
   subtitle: string;
   icon: React.ReactNode;
-  color: string;
   delay?: number;
-}> = ({ title, value, subtitle, icon, color, delay = 0 }) => {
+}> = ({ title, value, subtitle, icon, delay = 0 }) => {
   const [count, setCount] = useState(0);
   const numericValue = typeof value === 'string' ? parseInt(value.replace(/,/g, '')) : value;
   
@@ -1562,20 +1561,26 @@ const DashboardCard: React.FC<{
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay }}
-      className={` rounded-xl overflow-hidden border-l-4 ${color}`}
-      style={{ backgroundColor: '#FFFFFFE6' }}
-
+      className="bg-[#00A7E1] rounded-2xl p-4 relative"
+      style={{
+        boxShadow: '4px 4px 8px rgba(0, 0, 0, 0.15), -4px -4px 8px rgba(0, 0, 0, 0.05), inset 1px 1px 2px rgba(255, 255, 255, 0.1)'
+      }}
     >
-      <div className="p-5">
+      <div className="p-4">
         <div className="flex items-center justify-between">
           <div>
-              <p className="text-sm font-medium text-black/90">{title}</p>
-              <h3 className="mt-1 text-2xl font-bold text-black">
+              <p className="text-sm font-medium text-white/90">{title}</p>
+              <h3 className="mt-1 text-2xl font-bold text-white">
               {isNaN(numericValue) ? value : count.toLocaleString()}
             </h3>
-            <p className="mt-1 text-xs text-gray-600">{subtitle}</p>
+            <p className="mt-1 text-xs text-white/70">{subtitle}</p>
           </div>
-          <div className={`p-3 rounded-lg ${color.replace('border', 'bg').replace('-600', '-100')}`}>
+          <div 
+            className="p-3 rounded-xl bg-white/10 backdrop-blur-sm"
+            style={{
+              boxShadow: 'inset 2px 2px 4px rgba(0, 0, 0, 0.1), inset -2px -2px 4px rgba(255, 255, 255, 0.1)'
+            }}
+          >
             <motion.div 
               initial={{ scale: 1 }}
               animate={{ scale: [1, 1.2, 1] }}
@@ -1591,9 +1596,17 @@ const DashboardCard: React.FC<{
           </div>
         </div>
         <div className="mt-4">
-          <div className="h-1.5 bg-gray-600 rounded-full overflow-hidden">
+          <div 
+            className="h-2 rounded-full overflow-hidden bg-white/20"
+            style={{
+              boxShadow: 'inset 1px 1px 2px rgba(0, 0, 0, 0.15)'
+            }}
+          >
             <motion.div 
-              className={`h-1.5 rounded-full ${color.replace('border', 'bg')}`}
+              className="h-2 rounded-full bg-white/40"
+              style={{
+                boxShadow: '2px 2px 4px rgba(255, 255, 255, 0.2)'
+              }}
               initial={{ width: 0 }}
               animate={{ width: "70%" }}
               transition={{ duration: 1.2, delay: delay + 0.5 }}
@@ -1605,6 +1618,230 @@ const DashboardCard: React.FC<{
   );
 };
 
+// User Distribution Chart Component
+const UserDistributionChart: React.FC = () => {
+  const [userDistribution, setUserDistribution] = useState({
+    students: 0,
+    instructors: 0,
+    programHeads: 0,
+    registrars: 0
+  });
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchUserDistribution = async () => {
+      try {
+        const { data: users, error } = await supabase
+          .from('user_profiles')
+          .select('role');
+
+        if (error) throw error;
+
+        const distribution = {
+          students: 0,
+          instructors: 0,
+          programHeads: 0,
+          registrars: 0
+        };
+
+        users?.forEach((user: { role: string }) => {
+          switch (user.role) {
+            case 'student':
+              distribution.students++;
+              break;
+            case 'instructor':
+              distribution.instructors++;
+              break;
+            case 'program_head':
+              distribution.programHeads++;
+              break;
+            case 'registrar':
+              distribution.registrars++;
+              break;
+          }
+        });
+
+        setUserDistribution(distribution);
+      } catch (error) {
+        console.error('Error fetching user distribution:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchUserDistribution();
+  }, []);
+
+  const total = userDistribution.students + userDistribution.instructors + 
+                userDistribution.programHeads + userDistribution.registrars;
+
+  const chartData = [
+    { label: 'Students', count: userDistribution.students, color: '#EF4444', percentage: total > 0 ? (userDistribution.students / total) * 100 : 0 },
+    { label: 'Instructors', count: userDistribution.instructors, color: '#F59E0B', percentage: total > 0 ? (userDistribution.instructors / total) * 100 : 0 },
+    { label: 'Program Heads', count: userDistribution.programHeads, color: '#10B981', percentage: total > 0 ? (userDistribution.programHeads / total) * 100 : 0 },
+    { label: 'Registrars', count: userDistribution.registrars, color: '#3B82F6', percentage: total > 0 ? (userDistribution.registrars / total) * 100 : 0 }
+  ];
+
+  const radius = 105;
+  const strokeWidth = 32;
+  const normalizedRadius = radius - strokeWidth * 2;
+  const circumference = normalizedRadius * 2 * Math.PI;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div 
+          className="animate-spin rounded-full h-12 w-12 border-4 border-purple-200"
+          style={{
+            borderTopColor: '#8B5CF6',
+            filter: 'drop-shadow(0 4px 8px rgba(139, 92, 246, 0.3))'
+          }}
+        ></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-start justify-center h-full w-full pt-1 pb-2 px-2 overflow-hidden">
+      <div className="flex items-center gap-4 max-w-full">
+        {/* Simple Modern Donut Chart */}
+        <div className="relative flex-shrink-0">
+          <svg
+            height={radius * 2}
+            width={radius * 2}
+            className="transform -rotate-90"
+          >
+            <defs>
+              {/* Simple gradients for each segment */}
+              {chartData.map((item, index) => (
+                <linearGradient key={`grad-${index}`} id={`gradient-${index}`} x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor={item.color} />
+                  <stop offset="100%" stopColor={`${item.color}CC`} />
+                </linearGradient>
+              ))}
+            </defs>
+            
+            {/* Background track */}
+            <circle
+              stroke="#f1f5f9"
+              fill="transparent"
+              strokeWidth={strokeWidth}
+              r={normalizedRadius}
+              cx={radius}
+              cy={radius}
+            />
+            
+            {/* Data segments with clean animation */}
+            {chartData.map((item, index) => {
+              const previousPercentages = chartData.slice(0, index).reduce((sum, prev) => sum + prev.percentage, 0);
+              // Use exact percentage - true proportional representation
+              const strokeDasharray = `${(item.percentage / 100) * circumference} ${circumference}`;
+              const strokeDashoffset = circumference - (previousPercentages / 100) * circumference;
+              
+              return item.count > 0 ? (
+                <motion.circle
+                  key={`segment-${item.label}-${item.count}`}
+                  stroke={item.color}
+                  fill="transparent"
+                  strokeWidth={strokeWidth}
+                  strokeLinecap="round"
+                  strokeDasharray={strokeDasharray}
+                  strokeDashoffset={strokeDashoffset}
+                  r={normalizedRadius}
+                  cx={radius}
+                  cy={radius}
+                  initial={{ 
+                    strokeDasharray: `0 ${circumference}`
+                  }}
+                  animate={{ 
+                    strokeDasharray: strokeDasharray
+                  }}
+                  transition={{ 
+                    duration: 1.2, 
+                    delay: index * 0.15,
+                    ease: "easeInOut"
+                  }}
+                  style={{
+                    filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'
+                  }}
+                />
+              ) : null;
+            })}
+          </svg>
+          
+          {/* Clean center display */}
+          <div className="absolute inset-0 flex items-center justify-center">
+            <motion.div
+              className="text-center"
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: 0.6, delay: 0.4 }}
+            >
+              <div className="text-xl font-bold text-gray-800 mb-0.5">
+                {total}
+              </div>
+              
+            </motion.div>
+          </div>
+        </div>
+
+        {/* Clean Modern Legend */}
+        <div className="space-y-2 flex-shrink min-w-0 max-w-[120px]">
+          {chartData.map((item, index) => (
+            <motion.div 
+              key={index} 
+              className="flex items-center gap-2"
+              initial={{ x: 15, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              transition={{ duration: 0.4, delay: index * 0.08 }}
+            >
+              <div 
+                className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                style={{ 
+                  backgroundColor: item.color,
+                  boxShadow: `0 2px 4px ${item.color}30`
+                }}
+              />
+              <div className="flex flex-col leading-tight min-w-0">
+                <span className="text-[10px] font-medium text-gray-700 truncate">
+                  {item.label}
+                </span>
+                <span className="text-[9px] text-gray-500 truncate">
+                  {item.count} users
+                </span>
+              </div>
+            </motion.div>
+          ))}
+          
+          {/* All Users Total */}
+          <motion.div 
+            className="flex items-center gap-2 border-t border-gray-200 pt-2 mt-1"
+            initial={{ x: 15, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ duration: 0.4, delay: chartData.length * 0.08 }}
+          >
+            <div 
+              className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+              style={{ 
+                backgroundColor: '#6B7280',
+                boxShadow: '0 2px 4px #6B728030'
+              }}
+            />
+            <div className="flex flex-col leading-tight min-w-0">
+              <span className="text-[10px] font-medium text-gray-700 truncate">
+                All Users
+              </span>
+              <span className="text-[9px] text-gray-500 truncate">
+                {total} users
+              </span>
+            </div>
+          </motion.div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // Admin Dashboard Overview Component with real data
 const DashboardOverview: React.FC = () => {
   const [, setIsLoading] = useState(true);
@@ -1613,7 +1850,7 @@ const DashboardOverview: React.FC = () => {
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
   const [showNotificationForm, setShowNotificationForm] = useState(false);
   const [creatingNotification, setCreatingNotification] = useState(false);
-  const [activePanel, setActivePanel] = useState<'notifications' | 'notes' | 'calendar'>('notifications');
+  const [activePanel, setActivePanel] = useState<'notifications' | 'notes' | 'calendar' | 'chart'>('notifications');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date().getDate());
   const [personalNotes, setPersonalNotes] = useState<Array<{ id: string; content: string; created_at: string }>>([]);
@@ -1649,6 +1886,10 @@ const DashboardOverview: React.FC = () => {
     createdAt?: string;
   };
   const [recentActivity, setRecentActivity] = useState<UiActivity[]>([]);
+  const [allActivity, setAllActivity] = useState<UiActivity[]>([]);
+  const [showAllActivityModal, setShowAllActivityModal] = useState(false);
+  const [activitySearchTerm, setActivitySearchTerm] = useState('');
+  const [loadingAllActivity, setLoadingAllActivity] = useState(false);
   type UiNotification = {
     id: string;
     type: string;
@@ -1974,6 +2215,168 @@ const DashboardOverview: React.FC = () => {
       console.error('Error generating recent activity:', error);
     }
   }, []);
+
+  // Fetch all activity logs for the modal
+  const fetchAllActivity = useCallback(async () => {
+    if (loadingAllActivity) return;
+    setLoadingAllActivity(true);
+    
+    try {
+      type ActivityItem = {
+        type: string;
+        message: string;
+        time: string;
+        createdAt: string;
+        icon?: React.ComponentType<{ className?: string }>;
+        actorId?: string;
+        actorName?: string;
+        actorAvatarUrl?: string | null;
+        targetUserId?: string;
+        targetName?: string;
+      };
+      const items: ActivityItem[] = [];
+      const actorIds = new Set<string>();
+      type Timestamped = Partial<Record<'updated_at' | 'created_at' | 'login_time' | 'assigned_at' | 'enrolled_at', string>> & Record<string, unknown>;
+      const coalesceTimestamp = (row: Timestamped): string | null => {
+        return (
+          row?.updated_at ||
+          row?.created_at ||
+          row?.login_time ||
+          row?.assigned_at ||
+          row?.enrolled_at ||
+          null
+        );
+      };
+
+      // Fetch more comprehensive data for all activity
+      const { data: logins } = await supabase
+        .from('login_sessions')
+        .select('login_time, user_id, user_agent')
+        .order('login_time', { ascending: false })
+        .limit(50); // Increased limit for all activity
+
+      if (logins && logins.length > 0) {
+        const ids = Array.from(new Set(logins.map((l: { user_id: string }) => l.user_id)));
+        const names = new Map<string, string>();
+        if (ids.length > 0) {
+          const { data: profiles } = await supabase
+            .from('user_profiles')
+            .select('id, display_name, first_name, last_name')
+            .in('id', ids);
+          (profiles || []).forEach((p: { id: string; display_name?: string | null; first_name?: string | null; last_name?: string | null; }) => {
+            const name = p.display_name || [p.first_name, p.last_name].filter(Boolean).join(' ') || 'User';
+            names.set(p.id, name);
+          });
+        }
+        logins.forEach((l: { user_id: string; login_time: string }) => {
+          if (l.user_id) actorIds.add(l.user_id);
+          const name = names.get(l.user_id) || 'User';
+          items.push({
+            type: 'system',
+            message: `${name} logged in`,
+            time: getTimeAgo(l.login_time),
+            createdAt: l.login_time,
+            actorId: l.user_id,
+            actorName: name,
+          });
+        });
+      }
+
+      // Fetch more notifications
+      const { data: recentNotifs } = await supabase
+        .from('notifications')
+        .select('title, created_at, created_by')
+        .order('created_at', { ascending: false })
+        .limit(30);
+      if (recentNotifs && recentNotifs.length > 0) {
+        recentNotifs.forEach((n: { title: string | null; created_at: string; created_by?: string }) => {
+          if (n.created_by) actorIds.add(n.created_by);
+          items.push({
+            type: 'system',
+            message: `Notification sent: ${n.title || 'Untitled'}`,
+            time: getTimeAgo(n.created_at),
+            createdAt: n.created_at,
+            actorId: n.created_by,
+          });
+        });
+      }
+
+      // Fetch more enrollments
+      try {
+        const { data: enrolls } = await supabase
+          .from('enrollcourse')
+          .select('id, student_id, created_at')
+          .order('created_at', { ascending: false })
+          .limit(30);
+        (enrolls || []).forEach((e: { id?: string; student_id?: string; created_at?: string }) => {
+          const ts = e.created_at || null;
+          if (!ts) return;
+          if (e.student_id) actorIds.add(e.student_id);
+          items.push({
+            type: 'system',
+            message: `Student enrolled`,
+            time: getTimeAgo(ts),
+            createdAt: ts,
+            actorId: e.student_id,
+          });
+        });
+      } catch { /* table may not exist */ }
+
+      // Fetch more user profile updates
+      try {
+        const { data: profiles } = await supabase
+          .from('user_profiles')
+          .select('id, display_name, first_name, last_name, updated_at, created_at')
+          .order('updated_at', { ascending: false })
+          .limit(30);
+        (profiles || []).forEach((p: { id?: string; display_name?: string | null; first_name?: string | null; last_name?: string | null; updated_at?: string; created_at?: string }) => {
+          const ts = coalesceTimestamp(p);
+          if (!ts) return;
+          const name = p.display_name || [p.first_name, p.last_name].filter(Boolean).join(' ') || 'User';
+          if (p.id) actorIds.add(p.id);
+          items.push({
+            type: 'system',
+            message: `Profile updated: ${name}`,
+            time: getTimeAgo(ts),
+            createdAt: ts,
+            actorId: p.id,
+            actorName: name,
+          });
+        });
+      } catch { /* table may not exist */ }
+
+      // Fetch actor profiles
+      const profilesMap = new Map<string, { name: string; avatar_url: string | null }>();
+      if (actorIds.size > 0) {
+        const ids = Array.from(actorIds);
+        const { data: actorProfiles } = await supabase
+          .from('user_profiles')
+          .select('id, display_name, first_name, last_name, avatar_url')
+          .in('id', ids);
+        (actorProfiles || []).forEach((p: { id: string; display_name?: string | null; first_name?: string | null; last_name?: string | null; avatar_url?: string | null; }) => {
+          const name = p.display_name || [p.first_name, p.last_name].filter(Boolean).join(' ') || 'User';
+          profilesMap.set(p.id, { name, avatar_url: p.avatar_url ?? null });
+        });
+      }
+
+      // Sort by createdAt desc
+      items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+      const enriched = items.map((it) => {
+        if (it.actorId && profilesMap.has(it.actorId)) {
+          const prof = profilesMap.get(it.actorId)!;
+          return { ...it, actorName: it.actorName || prof.name, actorAvatarUrl: prof.avatar_url };
+        }
+        return it;
+      });
+
+      setAllActivity(enriched);
+    } catch (error) {
+      console.error('Error fetching all activity:', error);
+    } finally {
+      setLoadingAllActivity(false);
+    }
+  }, [loadingAllActivity]);
 
   // Memoized dashboard data fetching
   const fetchDashboardData = useCallback(async () => {
@@ -2374,10 +2777,20 @@ const DashboardOverview: React.FC = () => {
               transition={{ duration: 0.5 }}
               className="admindashboard-header mb-8"
             >
-              <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 rounded-lg">
+              <div 
+                className="bg-[#00171f] px-6 py-4 rounded-2xl"
+                style={{
+                  boxShadow: '8px 8px 16px rgba(0, 0, 0, 0.3), -8px -8px 16px rgba(0, 23, 31, 0.1), inset 2px 2px 4px rgba(255, 255, 255, 0.05)'
+                }}
+              >
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
+                    <div 
+                      className="p-2 rounded-lg bg-white/10 backdrop-blur-sm"
+                      style={{
+                        boxShadow: 'inset 3px 3px 6px rgba(0, 0, 0, 0.2), inset -3px -3px 6px rgba(255, 255, 255, 0.05)'
+                      }}
+                    >
                       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-layout-dashboard w-6 h-6 text-white">
                         <rect width="7" height="9" x="3" y="3" rx="1"></rect>
                         <rect width="7" height="5" x="14" y="3" rx="1"></rect>
@@ -2392,18 +2805,6 @@ const DashboardOverview: React.FC = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <motion.button
-                      onClick={fetchDashboardData}
-                      className="admindashboard-refresh-button bg-white/20 backdrop-blur-sm text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2 border border-white/30"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-refresh-cw w-4 h-4">
-                        <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
-                        <path d="M21 3v5h-5"></path>
-                        <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
-                        <path d="M3 21v-5h5"></path>
-                      </svg>
-                      Refresh
-                    </motion.button>
                     <div className="relative">
                       
                       
@@ -2622,6 +3023,189 @@ const DashboardOverview: React.FC = () => {
                       </>,
                       document.body
                     )}
+
+                      {/* Activity Logs Modal */}
+                      {showAllActivityModal && createPortal(
+                        <>
+                          {/* Backdrop */}
+                          <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[999998]"
+                            onClick={() => setShowAllActivityModal(false)}
+                            style={{
+                              zIndex: 999998,
+                              position: 'fixed',
+                              top: 0,
+                              left: 0,
+                              right: 0,
+                              bottom: 0,
+                              backgroundColor: 'rgba(0, 0, 0, 0.5)'
+                            }}
+                          />
+                          
+                          {/* Modal */}
+                          <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                            transition={{ duration: 0.3 }}
+                            className="fixed inset-0 flex items-center justify-center p-4 z-[999999]"
+                          >
+                            <div
+                              className="w-full max-w-4xl bg-white rounded-2xl shadow-2xl max-h-[85vh] overflow-hidden"
+                              style={{
+                                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25), 20px 20px 40px rgba(0, 0, 0, 0.15), -20px -20px 40px rgba(255, 255, 255, 0.8), inset 2px 2px 4px rgba(255, 255, 255, 0.3), inset -2px -2px 4px rgba(0, 0, 0, 0.08)'
+                              }}
+                            >
+                            {/* Modal Header */}
+                            <div className="flex items-center justify-between p-6 border-b border-gray-200"
+                              style={{
+                                background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+                                boxShadow: 'inset 4px 4px 8px rgba(0, 0, 0, 0.05), inset -4px -4px 8px rgba(255, 255, 255, 0.8)'
+                              }}
+                            >
+                              <h3 className="text-xl font-semibold text-gray-900">All Activity Logs</h3>
+                              <button
+                                onClick={() => setShowAllActivityModal(false)}
+                                className="p-2 text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors duration-200"
+                                style={{
+                                  boxShadow: '4px 4px 8px rgba(0, 0, 0, 0.15), -4px -4px 8px rgba(255, 255, 255, 0.8), inset 1px 1px 2px rgba(255, 255, 255, 0.2)'
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.boxShadow = 'inset 4px 4px 8px rgba(0, 0, 0, 0.2), inset -4px -4px 8px rgba(255, 255, 255, 0.1)';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.boxShadow = '4px 4px 8px rgba(0, 0, 0, 0.15), -4px -4px 8px rgba(255, 255, 255, 0.8), inset 1px 1px 2px rgba(255, 255, 255, 0.2)';
+                                }}
+                              >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            </div>
+
+                            {/* Search Bar */}
+                            <div className="p-6 border-b border-gray-200">
+                              <div className="relative">
+                                <input
+                                  type="text"
+                                  placeholder="Search activity logs..."
+                                  value={activitySearchTerm}
+                                  onChange={(e) => setActivitySearchTerm(e.target.value)}
+                                  className="w-full px-4 py-3 pl-10 text-sm bg-white border-0 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all duration-200"
+                                  style={{
+                                    boxShadow: 'inset 8px 8px 16px rgba(0, 0, 0, 0.1), inset -8px -8px 16px rgba(255, 255, 255, 0.8), 2px 2px 4px rgba(0, 0, 0, 0.05)'
+                                  }}
+                                />
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                  </svg>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {/* Activity List */}
+                            <div className="max-h-[60vh] overflow-y-auto custom-dashboard-scrollbar p-6">
+                              {loadingAllActivity ? (
+                                <div className="flex items-center justify-center py-12">
+                                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                                  <span className="ml-3 text-gray-600">Loading activity logs...</span>
+                                </div>
+                              ) : (
+                                <div className="space-y-4">
+                                  {allActivity
+                                    .filter(activity => 
+                                      activitySearchTerm === '' || 
+                                      activity.message.toLowerCase().includes(activitySearchTerm.toLowerCase()) ||
+                                      activity.actorName?.toLowerCase().includes(activitySearchTerm.toLowerCase())
+                                    )
+                                    .map((activity, i) => (
+                                    <motion.div
+                                      key={i}
+                                      initial={{ opacity: 0, y: 10 }}
+                                      animate={{ opacity: 1, y: 0 }}
+                                      transition={{ duration: 0.25, delay: i * 0.02 }}
+                                      className="relative group rounded-xl cursor-pointer bg-white hover:bg-gray-50 transition-all duration-300 p-4 border border-gray-200"
+                                    >
+                                      <div className="flex items-start gap-4">
+                                        {activity.actorAvatarUrl ? (
+                                          <img
+                                            src={activity.actorAvatarUrl}
+                                            alt={activity.actorName || 'User'}
+                                            className="w-10 h-10 rounded-full object-cover ring-2 ring-blue-500/20 group-hover:ring-blue-500/40 transition"
+                                          />
+                                        ) : (
+                                          <div 
+                                            className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 text-gray-700 flex items-center justify-center text-sm font-semibold border border-gray-300"
+                                          >
+                                            {(activity.actorName || 'U').slice(0,1).toUpperCase()}
+                                          </div>
+                                        )}
+                                        <div className="flex-1 min-w-0">
+                                          <div className="flex items-start justify-between gap-2">
+                                            <p className="text-sm text-gray-900 flex-1">
+                                              {activity.actorName ? (
+                                                <span className="font-semibold text-gray-900">{activity.actorName}</span>
+                                              ) : null}
+                                              {activity.actorName ? ' • ' : ''}
+                                              <span className="font-medium text-gray-800">{activity.message}</span>
+                                              {activity.targetUserId ? (
+                                                <>
+                                                  {' '}<span className="text-gray-500">for</span>{' '}
+                                                  <span className="font-semibold text-gray-900">{activity.targetName || 'Student'}</span>
+                                                </>
+                                              ) : null}
+                                            </p>
+                                            <span 
+                                              className="ml-auto text-xs whitespace-nowrap px-3 py-1 rounded-full bg-gray-100 text-gray-600 border border-gray-200"
+                                            >
+                                              {activity.time}
+                                            </span>
+                                          </div>
+                                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                                            {activity.message?.toLowerCase().includes('graded') ? (
+                                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">GRADING</span>
+                                            ) : null}
+                                            {activity.message?.toLowerCase().includes('enrolled') ? (
+                                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">ENROLLMENT</span>
+                                            ) : null}
+                                            {activity.message?.toLowerCase().includes('notification sent') || activity.message?.toLowerCase().includes('notification') ? (
+                                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">NOTICE</span>
+                                            ) : null}
+                                            {activity.message?.toLowerCase().includes('logged in') ? (
+                                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-sky-50 text-sky-700 border border-sky-200">SESSION</span>
+                                            ) : null}
+                                            {activity.message?.toLowerCase().includes('profile updated') ? (
+                                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200">PROFILE</span>
+                                            ) : null}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </motion.div>
+                                  ))}
+                                  {allActivity.filter(activity => 
+                                    activitySearchTerm === '' || 
+                                    activity.message.toLowerCase().includes(activitySearchTerm.toLowerCase()) ||
+                                    activity.actorName?.toLowerCase().includes(activitySearchTerm.toLowerCase())
+                                  ).length === 0 && (
+                                    <div className="text-center py-12">
+                                      <Activity className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                                      <p className="text-gray-500 text-sm">
+                                        {activitySearchTerm ? 'No activity logs found matching your search.' : 'No activity logs available.'}
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            </div>
+                          </motion.div>
+                        </>,
+                        document.body
+                      )}
                   </div>
                 </div>
               </div>
@@ -2629,57 +3213,75 @@ const DashboardOverview: React.FC = () => {
           </motion.div>
             <div className="admindashboard-stats-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
               <DashboardCard 
-                title={<span className="text-black">Total Users</span>} 
+                title={<span className="text-white">Total Users</span>} 
                 value={stats.totalUsers} 
                 subtitle={
                   stats.usersMoMPercent === null
                     ? 'No comparable data from last month'
                     : `${stats.usersMoMPercent >= 0 ? '↑' : '↓'} ${Math.abs(stats.usersMoMPercent)}% from last month`
                 } 
-                icon={<Users className="w-6 h-6 text-indigo-600" />}
-                color="border-indigo-600"
+                icon={<Users className="w-6 h-6 text-white" />}
                 delay={0.1}
               />
               <DashboardCard 
-                title={<span className="text-black">Active Subjects</span>}
+                title={<span className="text-white">Active Subjects</span>}
                 value={stats.totalCourses} 
                 subtitle={
                   stats.coursesWoWPercent === null
                     ? 'No comparable data from last week'
                     : `${stats.coursesWoWPercent >= 0 ? '↑' : '↓'} ${Math.abs(stats.coursesWoWPercent)}% from last week`
                 } 
-                icon={<BookOpen className="w-6 h-6 text-green-600" />}
-                color="border-green-600"
+                icon={<BookOpen className="w-6 h-6 text-white" />}
                 delay={0.2}
               />
               <DashboardCard 
-                title={<span className="text-black">Total Programs</span>} 
+                title={<span className="text-white">Total Programs</span>} 
                 value={stats.totalPrograms} 
                 subtitle="Active programs" 
-                icon={<GraduationCap className="w-6 h-6 text-blue-600" />}
-                color="border-blue-600"
+                icon={<GraduationCap className="w-6 h-6 text-white" />}
                 delay={0.3}
               />
               <DashboardCard 
-                title={<span className="text-black">Active Users</span>} 
+                title={<span className="text-white">Active Users</span>} 
                 value={stats.activeUsers} 
                 subtitle="Currently online" 
-                icon={<Activity className="w-6 h-6 text-purple-600" />}
-                color="border-purple-600"
+                icon={<Activity className="w-6 h-6 text-white" />}
                 delay={0.4}
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-9">
               <motion.div 
-                className="admindashboard-activity-card neumorphic-dark p-6 rounded-xl col-span-2 h-[385px]"
-                style={{ backgroundColor: '#FFFFFFE6' }}
+                className="bg-[#FFFFFFE6] rounded-2xl p-4 col-span-2 h-[387px]"
+                style={{
+                  boxShadow: '8px 8px 16px rgba(0, 0, 0, 0.1), -8px -8px 16px rgba(255, 255, 255, 0.7), inset 2px 2px 4px rgba(0, 0, 0, 0.05)'
+                }}
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.5, delay: 0.3 }}
               >
-                <h3 className="text-lg font-semibold text-black mb-4">Activity Logs</h3>
-                <div className="space-y-3 overflow-y-auto h-[310px] custom-dashboard-scrollbar pr-1">
+                <div className="flex items-center justify-between px-3 pt-3 mb-4">
+                  <h3 className="text-lg font-semibold text-black">Activity Logs</h3>
+                  <button
+                    onClick={() => {
+                      setShowAllActivityModal(true);
+                      fetchAllActivity();
+                    }}
+                    className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-all duration-200 active:scale-95"
+                    style={{
+                      boxShadow: '4px 4px 8px rgba(0, 0, 0, 0.15), -4px -4px 8px rgba(255, 255, 255, 0.8), inset 1px 1px 2px rgba(255, 255, 255, 0.2)'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.boxShadow = 'inset 4px 4px 8px rgba(0, 0, 0, 0.2), inset -4px -4px 8px rgba(255, 255, 255, 0.1)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.boxShadow = '4px 4px 8px rgba(0, 0, 0, 0.15), -4px -4px 8px rgba(255, 255, 255, 0.8), inset 1px 1px 2px rgba(255, 255, 255, 0.2)';
+                    }}
+                  >
+                    View All
+                  </button>
+                </div>
+                <div className="space-y-3 overflow-y-auto h-[290px] custom-dashboard-scrollbar pr-1 px-3 pb-3">
                   {recentActivity.map((activity: UiActivity, i) => (
                     <motion.div
                       key={i}
@@ -2687,7 +3289,11 @@ const DashboardOverview: React.FC = () => {
                       animate={{ opacity: 1, y: 0 }}
                       whileHover={{ y: -2, scale: 1.01 }}
                       transition={{ duration: 0.25, delay: 0.12 + (i * 0.05) }}
-                      className="relative group rounded-xl cursor-pointer bg-white/80 hover:bg-white backdrop-blur border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300"
+                      className="relative group rounded-xl cursor-pointer bg-[#FFFFFFE6] hover:bg-white backdrop-blur transition-all duration-300"
+                      style={{
+                        boxShadow: 'inset 4px 4px 8px rgba(0, 0, 0, 0.08), inset -4px -4px 8px rgba(255, 255, 255, 0.5)'
+                      }}
+                      
                     >
                       <div className="pl-3 pr-3 py-3 sm:pl-4 sm:pr-4">
                         <div className="flex items-start gap-3">
@@ -2698,7 +3304,12 @@ const DashboardOverview: React.FC = () => {
                               className="w-9 h-9 rounded-full object-cover ring-2 ring-blue-500/20 group-hover:ring-blue-500/40 transition"
                             />
                           ) : (
-                            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 text-gray-700 flex items-center justify-center text-xs font-semibold ring-2 ring-gray-300/40">
+                            <div 
+                              className="w-9 h-9 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 text-gray-700 flex items-center justify-center text-xs font-semibold"
+                              style={{
+                                boxShadow: '3px 3px 6px rgba(0, 0, 0, 0.1), -3px -3px 6px rgba(255, 255, 255, 0.7)'
+                              }}
+                            >
                               {(activity.actorName || 'U').slice(0,1).toUpperCase()}
                             </div>
                           )}
@@ -2717,7 +3328,12 @@ const DashboardOverview: React.FC = () => {
                                   </>
                                 ) : null}
                               </p>
-                              <span className="ml-auto text-[10px] whitespace-nowrap px-2 py-0.5 rounded-full bg-gray-50 text-gray-600 border border-gray-200 shadow-sm">
+                              <span 
+                                className="ml-auto text-[10px] whitespace-nowrap px-2 py-0.5 rounded-full bg-gray-50 text-gray-600"
+                                style={{
+                                  boxShadow: 'inset 2px 2px 4px rgba(0, 0, 0, 0.1), inset -2px -2px 4px rgba(255, 255, 255, 0.7)'
+                                }}
+                              >
                                 {activity.time}
                               </span>
                             </div>
@@ -2746,10 +3362,27 @@ const DashboardOverview: React.FC = () => {
               {/* Right column container: toolbar + dynamic panel stacked */}
               <div className="flex flex-col gap-4">
                 {/* Toolbar (Notifications/Notes/Calendar) */}
-                <div className="bg-[#FFFFFFE6] rounded-xl p-3 shadow-xl border border-gray-200">
+                <div 
+                  className="bg-[#FFFFFFE6] rounded-2xl p-4"
+                  style={{
+                    boxShadow: '8px 8px 16px rgba(0, 0, 0, 0.1), -8px -8px 16px rgba(255, 255, 255, 0.7), inset 2px 2px 4px rgba(0, 0, 0, 0.05)'
+                  }}
+                >
                   <div className="flex items-center justify-center">
                     <div className="flex items-center space-x-3">
-                      <button onClick={() => setActivePanel('notifications')} className={`relative cursor-pointer rounded-xl p-2.5 shadow border transition-colors ${activePanel === 'notifications' ? 'bg-blue-100 border-blue-300' : 'bg-white border-gray-200'}`}>
+                      <button 
+                        onClick={() => setActivePanel('notifications')} 
+                        className={`relative cursor-pointer rounded-xl p-2.5 transition-colors ${
+                          activePanel === 'notifications' 
+                            ? 'bg-blue-100' 
+                            : 'bg-[#FFFFFFE6]'
+                        }`}
+                        style={{
+                          boxShadow: activePanel === 'notifications'
+                            ? 'inset 4px 4px 8px rgba(0, 0, 0, 0.1), inset -4px -4px 8px rgba(255, 255, 255, 0.5)'
+                            : '4px 4px 8px rgba(0, 0, 0, 0.1), -4px -4px 8px rgba(255, 255, 255, 0.7)'
+                        }}
+                      >
                         <Bell className={`w-5 h-5 ${activePanel === 'notifications' ? 'text-blue-600' : 'text-gray-600'}`} />
                         {unreadCount > 0 && (
                           <span className="absolute -top-1 -right-1 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] bg-red-600 text-white border border-white">
@@ -2757,11 +3390,50 @@ const DashboardOverview: React.FC = () => {
                           </span>
                         )}
                       </button>
-                      <button onClick={() => setActivePanel('notes')} className={`relative cursor-pointer rounded-xl p-2.5 shadow border transition-colors ${activePanel === 'notes' ? 'bg-yellow-100 border-yellow-300' : 'bg-white border-gray-200'}`}>
+                      <button 
+                        onClick={() => setActivePanel('notes')} 
+                        className={`relative cursor-pointer rounded-xl p-2.5 transition-colors ${
+                          activePanel === 'notes' 
+                            ? 'bg-yellow-100' 
+                            : 'bg-[#FFFFFFE6]'
+                        }`}
+                        style={{
+                          boxShadow: activePanel === 'notes'
+                            ? 'inset 4px 4px 8px rgba(0, 0, 0, 0.1), inset -4px -4px 8px rgba(255, 255, 255, 0.5)'
+                            : '4px 4px 8px rgba(0, 0, 0, 0.1), -4px -4px 8px rgba(255, 255, 255, 0.7)'
+                        }}
+                      >
                         <StickyNote className={`w-5 h-5 ${activePanel === 'notes' ? 'text-yellow-600' : 'text-gray-600'}`} />
                       </button>
-                      <button onClick={() => setActivePanel('calendar')} className={`relative cursor-pointer rounded-xl p-2.5 shadow border transition-colors ${activePanel === 'calendar' ? 'bg-green-100 border-green-300' : 'bg-white border-gray-200'}`}>
+                      <button 
+                        onClick={() => setActivePanel('calendar')} 
+                        className={`relative cursor-pointer rounded-xl p-2.5 transition-colors ${
+                          activePanel === 'calendar' 
+                            ? 'bg-green-100' 
+                            : 'bg-[#FFFFFFE6]'
+                        }`}
+                        style={{
+                          boxShadow: activePanel === 'calendar'
+                            ? 'inset 4px 4px 8px rgba(0, 0, 0, 0.1), inset -4px -4px 8px rgba(255, 255, 255, 0.5)'
+                            : '4px 4px 8px rgba(0, 0, 0, 0.1), -4px -4px 8px rgba(255, 255, 255, 0.7)'
+                        }}
+                      >
                         <Calendar className={`w-5 h-5 ${activePanel === 'calendar' ? 'text-green-600' : 'text-gray-600'}`} />
+                      </button>
+                      <button 
+                        onClick={() => setActivePanel('chart')} 
+                        className={`relative cursor-pointer rounded-xl p-2.5 transition-colors ${
+                          activePanel === 'chart' 
+                            ? 'bg-purple-100' 
+                            : 'bg-[#FFFFFFE6]'
+                        }`}
+                        style={{
+                          boxShadow: activePanel === 'chart'
+                            ? 'inset 4px 4px 8px rgba(0, 0, 0, 0.1), inset -4px -4px 8px rgba(255, 255, 255, 0.5)'
+                            : '4px 4px 8px rgba(0, 0, 0, 0.1), -4px -4px 8px rgba(255, 255, 255, 0.7)'
+                        }}
+                      >
+                        <PieChart className={`w-5 h-5 ${activePanel === 'chart' ? 'text-purple-600' : 'text-gray-600'}`} />
                       </button>
                     </div>
                   </div>
@@ -2770,12 +3442,15 @@ const DashboardOverview: React.FC = () => {
                 {/* Dynamic panel under toolbar */}
                 {activePanel === 'notifications' && (
                 <motion.div 
-                  className="admindashboard-notification-card p-6 rounded-2xl h-[300px] bg-white/90 border border-gray-200 shadow-lg"
+                  className="bg-[#FFFFFFE6] rounded-2xl p-4 h-[300px]"
+                  style={{
+                    boxShadow: '8px 8px 16px rgba(0, 0, 0, 0.1), -8px -8px 16px rgba(255, 255, 255, 0.7), inset 2px 2px 4px rgba(0, 0, 0, 0.05)'
+                  }}
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ duration: 0.5, delay: 0.1 }}
                 >
-                  <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center justify-between mb-3 px-3 pt-3">
                     <div className="flex items-center gap-2">
                       <Bell className="w-4 h-4 text-blue-600" />
                       <h3 className="text-sm font-semibold text-gray-700">Notifications</h3>
@@ -2784,6 +3459,9 @@ const DashboardOverview: React.FC = () => {
                       <button
                         onClick={() => setShowNotificationForm(true)}
                         className="p-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white"
+                        style={{
+                          boxShadow: '4px 4px 8px rgba(0, 0, 0, 0.2), -2px -2px 4px rgba(255, 255, 255, 0.1)'
+                        }}
                         aria-label="Add"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2793,7 +3471,10 @@ const DashboardOverview: React.FC = () => {
                     ) : (
                       <button
                         onClick={() => setShowNotificationForm(false)}
-                        className="p-2 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                        className="p-2 rounded-md text-gray-500 hover:text-gray-700 bg-gray-100 hover:bg-gray-200"
+                        style={{
+                          boxShadow: 'inset 2px 2px 4px rgba(0, 0, 0, 0.1), inset -2px -2px 4px rgba(255, 255, 255, 0.7)'
+                        }}
                         aria-label="Close"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2804,13 +3485,19 @@ const DashboardOverview: React.FC = () => {
                   </div>
 
                 {!showNotificationForm ? (
-                  <div className="py-1 h-[220px] overflow-y-auto pr-1">
+                  <div className="py-1 h-[220px] overflow-y-auto pr-1 px-3 pb-3">
                     {notifications.length === 0 ? (
                       <p className="text-gray-500 text-sm">No notifications</p>
                     ) : (
                       <div className="space-y-1">
                         {notifications.map(n => (
-                          <div key={n.id} className="bg-blue-50 border border-blue-100 rounded p-2.5">
+                          <div 
+                            key={n.id} 
+                            className="bg-blue-50 rounded p-2.5"
+                            style={{
+                              boxShadow: 'inset 2px 2px 4px rgba(0, 0, 0, 0.08), inset -2px -2px 4px rgba(255, 255, 255, 0.5)'
+                            }}
+                          >
                             <div className="flex items-start justify-between gap-1">
                               <div className="flex-1 min-w-0">
                                 <p className="text-[11px] font-semibold text-gray-800 leading-tight">{n.title || 'Untitled'}</p>
@@ -2819,7 +3506,10 @@ const DashboardOverview: React.FC = () => {
                               <div className="flex items-center gap-0.5 ml-1 flex-shrink-0">
                                 <span className="text-[8px] text-gray-500 whitespace-nowrap">{n.time}</span>
                                 <button
-                                  className="p-0.5 rounded hover:bg-red-100 text-red-600"
+                                  className="p-0.5 rounded text-red-600 hover:bg-red-100"
+                                  style={{
+                                    boxShadow: '2px 2px 4px rgba(0, 0, 0, 0.1), -2px -2px 4px rgba(255, 255, 255, 0.7)'
+                                  }}
                                   title="Delete notification"
                                   onClick={async () => {
                                     if (deletingNotifId) return;
@@ -2846,14 +3536,42 @@ const DashboardOverview: React.FC = () => {
                               </div>
                             </div>
                             <div className="mt-0.5 flex items-center gap-0.5 flex-wrap">
-                              <span className="text-[7px] px-1 py-0.5 rounded-full bg-gray-200 text-gray-700">{n.severity}</span>
+                              <span 
+                                className="text-[7px] px-1 py-0.5 rounded-full bg-gray-200 text-gray-700"
+                                style={{
+                                  boxShadow: 'inset 1px 1px 2px rgba(0, 0, 0, 0.1), inset -1px -1px 2px rgba(255, 255, 255, 0.7)'
+                                }}
+                              >
+                                {n.severity}
+                              </span>
                               {n.audience && (
-                                <span className="text-[7px] px-1 py-0.5 rounded-full bg-gray-200 text-gray-700">{n.audience === 'all' ? 'All' : n.audience}</span>
+                                <span 
+                                  className="text-[7px] px-1 py-0.5 rounded-full bg-gray-200 text-gray-700"
+                                  style={{
+                                    boxShadow: 'inset 1px 1px 2px rgba(0, 0, 0, 0.1), inset -1px -1px 2px rgba(255, 255, 255, 0.7)'
+                                  }}
+                                >
+                                  {n.audience === 'all' ? 'All' : n.audience}
+                                </span>
                               )}
                               {n.expires_at ? (
-                                <span className="text-[7px] px-1 py-0.5 rounded-full bg-orange-100 text-orange-700">{getTimeLeft(n.expires_at)}</span>
+                                <span 
+                                  className="text-[7px] px-1 py-0.5 rounded-full bg-orange-100 text-orange-700"
+                                  style={{
+                                    boxShadow: 'inset 1px 1px 2px rgba(0, 0, 0, 0.1), inset -1px -1px 2px rgba(255, 255, 255, 0.7)'
+                                  }}
+                                >
+                                  {getTimeLeft(n.expires_at)}
+                                </span>
                               ) : (
-                                <span className="text-[7px] px-1 py-0.5 rounded-full bg-gray-100 text-gray-600">read-only</span>
+                                <span 
+                                  className="text-[7px] px-1 py-0.5 rounded-full bg-gray-100 text-gray-600"
+                                  style={{
+                                    boxShadow: 'inset 1px 1px 2px rgba(0, 0, 0, 0.1), inset -1px -1px 2px rgba(255, 255, 255, 0.7)'
+                                  }}
+                                >
+                                  read-only
+                                </span>
                               )}
                             </div>
                           </div>
@@ -2862,7 +3580,7 @@ const DashboardOverview: React.FC = () => {
                     )}
                   </div>
                 ) : (
-                  <div className="h-[252px] overflow-y-auto pr-1">
+                  <div className="h-[252px] overflow-y-auto pr-1 px-3 pb-3">
                     <div className="space-y-1">
                     {/* Title + Duration row */}
                     <div className="grid grid-cols-2 gap-1">
@@ -2872,7 +3590,10 @@ const DashboardOverview: React.FC = () => {
                           type="text"
                           value={notificationForm.title}
                           onChange={(e) => setNotificationForm(prev => ({ ...prev, title: e.target.value }))}
-                          className="w-full px-2 py-0.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-black placeholder-gray-500 text-xs"
+                          className="w-full px-2 py-0.5 border border-gray-300 rounded-lg bg-white text-black placeholder-gray-500 text-xs"
+                          style={{
+                            boxShadow: 'inset 2px 2px 4px rgba(0, 0, 0, 0.1), inset -2px -2px 4px rgba(255, 255, 255, 0.7)'
+                          }}
                           placeholder="Enter notification title"
                           required
                         />
@@ -2890,7 +3611,10 @@ const DashboardOverview: React.FC = () => {
                             if (v.endsWith('w')) return setNotificationForm(prev => ({ ...prev, timeInterval: 'weeks', timeValue: n }));
                             if (v.endsWith('m')) return setNotificationForm(prev => ({ ...prev, timeInterval: 'months', timeValue: n }));
                           }}
-                          className="w-full px-2 py-0.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-black text-xs"
+                          className="w-full px-2 py-0.5 border border-gray-300 rounded-lg bg-white text-black text-xs"
+                          style={{
+                            boxShadow: 'inset 2px 2px 4px rgba(0, 0, 0, 0.1), inset -2px -2px 4px rgba(255, 255, 255, 0.7)'
+                          }}
                         >
                           <option value="none">Never</option>
                           <option value="1h">1h</option>
@@ -2912,7 +3636,10 @@ const DashboardOverview: React.FC = () => {
                         value={notificationForm.message}
                         onChange={(e) => setNotificationForm(prev => ({ ...prev, message: e.target.value }))}
                         rows={2}
-                        className="w-full px-2 py-0.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-black placeholder-gray-500 text-xs resize-none"
+                        className="w-full px-2 py-0.5 border border-gray-300 rounded-lg bg-white text-black placeholder-gray-500 text-xs resize-none"
+                        style={{
+                          boxShadow: 'inset 2px 2px 4px rgba(0, 0, 0, 0.1), inset -2px -2px 4px rgba(255, 255, 255, 0.7)'
+                        }}
                         placeholder="Enter notification message..."
                         required
                       />
@@ -2925,7 +3652,10 @@ const DashboardOverview: React.FC = () => {
                         <select
                           value={notificationForm.severity}
                           onChange={(e) => setNotificationForm(prev => ({ ...prev, severity: e.target.value }))}
-                          className="w-full px-2 py-0.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-black text-xs"
+                          className="w-full px-2 py-0.5 border border-gray-300 rounded-lg bg-white text-black text-xs"
+                          style={{
+                            boxShadow: 'inset 2px 2px 4px rgba(0, 0, 0, 0.1), inset -2px -2px 4px rgba(255, 255, 255, 0.7)'
+                          }}
                           required
                         >
                           <option value="announcement">Announcement</option>
@@ -2945,7 +3675,10 @@ const DashboardOverview: React.FC = () => {
                         <select
                           value={notificationForm.audience}
                           onChange={(e) => setNotificationForm(prev => ({ ...prev, audience: e.target.value }))}
-                          className="w-full px-2 py-0.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-black text-xs"
+                          className="w-full px-2 py-0.5 border border-gray-300 rounded-lg bg-white text-black text-xs"
+                          style={{
+                            boxShadow: 'inset 2px 2px 4px rgba(0, 0, 0, 0.1), inset -2px -2px 4px rgba(255, 255, 255, 0.7)'
+                          }}
                           required
                         >
                           <option value="all">All Users</option>
@@ -2965,6 +3698,9 @@ const DashboardOverview: React.FC = () => {
                         className={`w-full px-4 py-2 rounded-lg text-white font-medium flex items-center justify-center gap-2 transition-colors duration-200 ${
                           creatingNotification ? 'bg-blue-600 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
                         }`}
+                        style={{
+                          boxShadow: '4px 4px 8px rgba(0, 0, 0, 0.2), -2px -2px 4px rgba(255, 255, 255, 0.1)'
+                        }}
                       >
                         {creatingNotification ? (
                           <>
@@ -2986,31 +3722,66 @@ const DashboardOverview: React.FC = () => {
                 )}
 
                 {activePanel === 'notes' && (
-                  <motion.div className="neumorphic-dark p-4 rounded-xl h-[300px] overflow-hidden" style={{ backgroundColor: '#FFFFFFE6' }} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                    <div className="flex items-center justify-between mb-3">
+                  <motion.div 
+                    className="bg-[#FFFFFFE6] rounded-2xl p-4 h-[300px] overflow-hidden" 
+                    style={{
+                      boxShadow: '8px 8px 16px rgba(0, 0, 0, 0.1), -8px -8px 16px rgba(255, 255, 255, 0.7), inset 2px 2px 4px rgba(0, 0, 0, 0.05)'
+                    }}
+                    initial={{ opacity: 0 }} 
+                    animate={{ opacity: 1 }}
+                  >
+                    <div className="flex items-center justify-between mb-3 px-3 pt-3">
                       <h3 className="text-lg font-semibold text-black">Personal Notes</h3>
                     </div>
-                    <div className="flex gap-2 mb-3">
+                    <div className="flex gap-2 mb-3 px-3">
                       <input
                         type="text"
                         value={newNote}
                         onChange={(e) => setNewNote(e.target.value)}
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-black placeholder-gray-500"
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white text-black placeholder-gray-500"
+                        style={{
+                          boxShadow: 'inset 2px 2px 4px rgba(0, 0, 0, 0.1), inset -2px -2px 4px rgba(255, 255, 255, 0.7)'
+                        }}
                         placeholder="Write a note..."
                       />
-                      <button onClick={addNote} disabled={savingNote} className={`px-3 py-2 rounded-lg text-white text-sm ${savingNote ? 'bg-blue-600 opacity-70 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}>Add</button>
+                      <button 
+                        onClick={addNote} 
+                        disabled={savingNote} 
+                        className={`px-3 py-2 rounded-lg text-white text-sm ${
+                          savingNote ? 'bg-blue-600 opacity-70 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+                        }`}
+                        style={{
+                          boxShadow: '4px 4px 8px rgba(0, 0, 0, 0.2), -2px -2px 4px rgba(255, 255, 255, 0.1)'
+                        }}
+                      >
+                        Add
+                      </button>
                     </div>
-                    <div className="space-y-2 h-[222px] overflow-y-auto custom-dashboard-scrollbar pr-1">
+                    <div className="space-y-2 h-[222px] overflow-y-auto custom-dashboard-scrollbar pr-1 px-3 pb-3">
                       {personalNotes.length === 0 ? (
                         <p className="text-gray-500 text-sm">No notes yet.</p>
                       ) : (
                         personalNotes.map(n => (
-                          <div key={n.id} className="flex items-start justify-between bg-white rounded-lg p-3 border border-gray-200">
+                          <div 
+                            key={n.id} 
+                            className="flex items-start justify-between bg-[#FFFFFFE6] rounded-lg p-3"
+                            style={{
+                              boxShadow: 'inset 4px 4px 8px rgba(0, 0, 0, 0.08), inset -4px -4px 8px rgba(255, 255, 255, 0.5)'
+                            }}
+                          >
                             <div>
                               <p className="text-sm text-gray-800">{n.content}</p>
                               <p className="text-xs text-gray-400 mt-1">{new Date(n.created_at).toLocaleString()}</p>
                             </div>
-                            <button onClick={() => deleteNote(n.id)} className="text-xs text-red-600 hover:text-red-700">Delete</button>
+                            <button 
+                              onClick={() => deleteNote(n.id)} 
+                              className="text-xs text-red-600 hover:text-red-700 px-2 py-1 rounded"
+                              style={{
+                                boxShadow: '2px 2px 4px rgba(0, 0, 0, 0.1), -2px -2px 4px rgba(255, 255, 255, 0.7)'
+                              }}
+                            >
+                              Delete
+                            </button>
                           </div>
                         ))
                       )}
@@ -3019,21 +3790,44 @@ const DashboardOverview: React.FC = () => {
                 )}
 
                 {activePanel === 'calendar' && (
-                  <motion.div className="neumorphic-dark p-4 rounded-xl h-[300px]" style={{ backgroundColor: '#FFFFFFE6' }} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                    <div className="flex items-center justify-between mb-3">
+                  <motion.div 
+                    className="bg-[#FFFFFFE6] rounded-2xl p-4 h-[300px]" 
+                    style={{
+                      boxShadow: '8px 8px 16px rgba(0, 0, 0, 0.1), -8px -8px 16px rgba(255, 255, 255, 0.7), inset 2px 2px 4px rgba(0, 0, 0, 0.05)'
+                    }}
+                    initial={{ opacity: 0 }} 
+                    animate={{ opacity: 1 }}
+                  >
+                    <div className="flex items-center justify-between mb-3 px-3 pt-3">
                       <div className="flex items-center gap-2 text-gray-700 font-semibold">
                         <Calendar className="w-4 h-4 text-green-600" />
                         <span>{currentMonth.toLocaleString('default', { month: 'long' })} {currentMonth.getFullYear()}</span>
                       </div>
                       <div className="flex gap-2">
-                        <button className="px-2 py-1 rounded bg-gray-200 hover:bg-gray-300" onClick={() => setCurrentMonth(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}>{'<'}</button>
-                        <button className="px-2 py-1 rounded bg-gray-200 hover:bg-gray-300" onClick={() => setCurrentMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}>{'>'}</button>
+                        <button 
+                          className="px-2 py-1 rounded bg-gray-200 hover:bg-gray-300" 
+                          style={{
+                            boxShadow: '3px 3px 6px rgba(0, 0, 0, 0.1), -3px -3px 6px rgba(255, 255, 255, 0.7)'
+                          }}
+                          onClick={() => setCurrentMonth(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
+                        >
+                          {'<'}
+                        </button>
+                        <button 
+                          className="px-2 py-1 rounded bg-gray-200 hover:bg-gray-300" 
+                          style={{
+                            boxShadow: '3px 3px 6px rgba(0, 0, 0, 0.1), -3px -3px 6px rgba(255, 255, 255, 0.7)'
+                          }}
+                          onClick={() => setCurrentMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
+                        >
+                          {'>'}
+                        </button>
                       </div>
                     </div>
-                    <div className="grid grid-cols-7 gap-1 text-[10px] text-gray-500 mb-2">
+                    <div className="grid grid-cols-7 gap-1 text-[10px] text-gray-500 mb-2 px-3">
                       {['MON','TUE','WED','THU','FRI','SAT','SUN'].map(d => (<div key={d} className="text-center py-0.5">{d}</div>))}
                     </div>
-                    <div className="grid grid-cols-7 gap-1 text-[9px] h-[220px] overflow-y-auto pr-1 pb-1">
+                    <div className="grid grid-cols-7 gap-1 text-[9px] h-[210px] overflow-y-auto pr-1 pb-1 px-3">
                       {(() => {
                         const year = currentMonth.getFullYear();
                         const month = currentMonth.getMonth();
@@ -3046,13 +3840,27 @@ const DashboardOverview: React.FC = () => {
                         for (let i = 0; i < 42; i++) {
                           const date = new Date(start);
                           date.setDate(start.getDate() + i);
+                          
                           const inMonth = date.getMonth() === month;
                           const isSelected = inMonth && date.getDate() === selectedDate;
                           cells.push(
                             <button
                               key={i}
                               onClick={() => { if (inMonth) setSelectedDate(date.getDate()); }}
-                              className={`h-5 rounded text-center leading-none py-1 ${isSelected ? 'bg-green-400 text-white' : inMonth ? 'bg-white text-gray-700' : 'bg-gray-200 text-gray-400'}`}
+                              className={`h-5 rounded text-center leading-none py-1 transition-all ${
+                                isSelected 
+                                  ? 'bg-green-400 text-white' 
+                                  : inMonth 
+                                    ? 'bg-[#FFFFFFE6] text-gray-700 hover:bg-white' 
+                                    : 'bg-gray-200 text-gray-400'
+                              }`}
+                              style={{
+                                boxShadow: isSelected
+                                  ? 'inset 2px 2px 4px rgba(0, 0, 0, 0.2), inset -2px -2px 4px rgba(255, 255, 255, 0.1)'
+                                  : inMonth
+                                    ? '2px 2px 4px rgba(0, 0, 0, 0.08), -2px -2px 4px rgba(255, 255, 255, 0.5)'
+                                    : 'inset 1px 1px 2px rgba(0, 0, 0, 0.1)'
+                              }}
                             >
                               {date.getDate()}
                             </button>
@@ -3061,6 +3869,27 @@ const DashboardOverview: React.FC = () => {
                         return cells;
                       })()}
                     </div>
+                  </motion.div>
+                )}
+
+                {/* User Distribution Chart Panel */}
+                {activePanel === 'chart' && (
+                  <motion.div 
+                    className="bg-[#FFFFFFE6] rounded-2xl p-4 h-[300px]"
+                    style={{
+                      boxShadow: '8px 8px 16px rgba(0, 0, 0, 0.1), -8px -8px 16px rgba(255, 255, 255, 0.7), inset 2px 2px 4px rgba(0, 0, 0, 0.05)'
+                    }}
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.5, delay: 0.1 }}
+                  >
+                    <div className="flex items-center justify-between mb-3 px-3 pt-3">
+                      <div className="flex items-center gap-2 text-gray-700 font-semibold">
+                        <PieChart className="w-4 h-4 text-purple-600" />
+                        <span>User Distribution</span>
+                      </div>
+                    </div>
+                    <UserDistributionChart />
                   </motion.div>
                 )}
               </div>
