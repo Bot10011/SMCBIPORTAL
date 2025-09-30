@@ -17,7 +17,8 @@ import {
   BarChart2,
   Bell,
   Shield,
-  Clock
+  Clock,
+  ArrowUp
 } from 'lucide-react';
 
 const MainLandingPage: React.FC = () => {
@@ -26,6 +27,7 @@ const MainLandingPage: React.FC = () => {
   const [activeSection, setActiveSection] = useState<'home' | 'features' | 'about'>('home');
   const [activeFeature, setActiveFeature] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
+  const [showToTop, setShowToTop] = useState(false);
   const heroRef = useRef<HTMLDivElement>(null);
   const featuresRef = useRef<HTMLDivElement>(null);
   const statsRef = useRef<HTMLDivElement>(null);
@@ -117,15 +119,45 @@ const MainLandingPage: React.FC = () => {
       const aboutTop = statsRef.current?.offsetTop ?? 0;
       if (y >= aboutTop) {
         setActiveSection('about');
+        setShowToTop(true);
       } else if (y >= featTop) {
         setActiveSection('features');
+        setShowToTop(true);
       } else {
         setActiveSection('home');
+        setShowToTop(false);
       }
     };
     handleScroll();
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Robustly toggle the "to top" button using IntersectionObserver (mobile friendly)
+  useEffect(() => {
+    const featuresEl = featuresRef.current;
+    const aboutEl = statsRef.current;
+    if (!featuresEl && !aboutEl) return;
+    let inFeatures = false;
+    let inAbout = false;
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.target === featuresEl) inFeatures = entry.isIntersecting;
+          if (entry.target === aboutEl) inAbout = entry.isIntersecting;
+        });
+        setShowToTop(inFeatures || inAbout);
+      },
+      {
+        root: null,
+        threshold: 0.05,
+        // Trigger slightly before the section fully enters
+        rootMargin: "-64px 0px -40% 0px",
+      }
+    );
+    if (featuresEl) io.observe(featuresEl);
+    if (aboutEl) io.observe(aboutEl);
+    return () => io.disconnect();
   }, []);
 
   // Fetch statistics from database
@@ -415,6 +447,83 @@ const MainLandingPage: React.FC = () => {
         </div>
       </section>
 
+      {/* Mobile Availability Section */}
+      <section className="py-16 md:py-24 px-4 bg-[#00171F]">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6 }}
+            >
+              <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Mobile App Coming Soon</h2>
+              <p className="text-lg text-gray-300 max-w-3xl mx-auto">
+                We're working on mobile apps for Android and iOS. Stay tuned for updates, though availability is not guaranteed.
+              </p>
+            </motion.div>
+          </div>
+          
+          <div className="flex justify-center">
+            {/* Mobile App Icons */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+              className="flex flex-col items-center space-y-8"
+            >
+              <div className="text-center">
+         
+                <div className="flex flex-row gap-3 justify-center items-center">
+                  {/* Android App Store */}
+                  <motion.div
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="bg-[#1F2937] p-3 rounded-lg border border-gray-700/40 hover:border-[#4ade80]/50 transition-all cursor-pointer opacity-60"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <div className="w-8 h-8 bg-[#4ade80] rounded-md flex items-center justify-center">
+                        <svg className="w-5 h-5 text-gray-900" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M17.523 15.3414c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9993.4482.9993.9993.0001.5511-.4482.9997-.9993.9997m-11.046 0c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9993.4482.9993.9993 0 .5511-.4482.9997-.9993.9997m11.4045-6.02l1.9973-3.4592a.416.416 0 00-.1521-.5676.416.416 0 00-.5676.1521l-2.0223 3.503C15.5902 8.0589 13.8533 7.2655 12 7.2655s-3.5902.7934-5.1367 2.1812L4.841 5.9435a.416.416 0 00-.5676-.1521.416.416 0 00-.1521.5676l1.9973 3.4592C2.6889 11.1867.3432 14.6589 0 18.761h24c-.3432-4.1021-2.6889-7.5743-6.1185-9.4396"/>
+                        </svg>
+                      </div>
+                      <div className="text-left">
+               
+                        <div className="text-sm font-semibold text-white">Google Play</div>
+                        <div className="text-xs text-yellow-400">Coming Soon</div>
+                      </div>
+                    </div>
+                  </motion.div>
+                  
+                  {/* iOS App Store */}
+                  <motion.div
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="bg-[#1F2937] p-3 rounded-lg border border-gray-700/40 hover:border-[#4ade80]/50 transition-all cursor-pointer opacity-60"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <div className="w-8 h-8 bg-[#4ade80] rounded-md flex items-center justify-center">
+                        <svg className="w-5 h-5 text-gray-900" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+                        </svg>
+                      </div>
+                      <div className="text-left">
+                  
+                        <div className="text-sm font-semibold text-white">App Store</div>
+                        <div className="text-xs text-yellow-400">Coming Soon</div>
+                      </div>
+                    </div>
+                  </motion.div>
+                </div>
+        
+              </div>
+              
+            </motion.div>
+          </div>
+        </div>
+      </section>
+
       {/* CTA Section */}
       <section className="py-16 md:py-24 px-4 bg-[#4ade80 ]">
         <div className="max-w-7xl mx-auto">
@@ -499,6 +608,17 @@ const MainLandingPage: React.FC = () => {
           100% { transform: translateY(0px) rotate3d(1, 1, 1, 0deg); }
         }
       `}</style>
+      {/* To Top button */}
+      {showToTop && (
+        <button
+          onClick={() => document.getElementById('home')?.scrollIntoView({ behavior: 'smooth' })}
+          aria-label="Back to top"
+          className="fixed right-3 z-[99998] bg-[#4ade80] text-gray-900 rounded-full p-3.5 shadow-[0_10px_20px_rgba(0,0,0,0.35)] hover:shadow-[0_14px_28px_rgba(0,0,0,0.45)] transition-transform hover:-translate-y-0.5 backdrop-blur-md border border-white/20 focus:outline-none"
+          style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 1.25rem)' }}
+        >
+          <ArrowUp className="w-6 h-6" />
+        </button>
+      )}
     </div>
   );
 };
