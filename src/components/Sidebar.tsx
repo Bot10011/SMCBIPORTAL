@@ -701,13 +701,13 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           initial={isMobile ? 'hidden' : (isCollapsed ? 'collapsed' : 'expanded')}
           animate={isMobile ? 'visible' : (isCollapsed ? 'collapsed' : 'expanded')}
           exit={isMobile ? 'hidden' : undefined}
-          className={`fixed top-0 left-0 h-screen ${isCollapsed ? 'w-16' : 'w-64'} flex flex-col  bg-[#00171F]  backdrop-blur-xl z-[40] sidebar-blur border-r border-white/20 rounded-tr-3xl rounded-br-3xl overflow-hidden ${isMobile && isCollapsed ? 'hidden' : ''}`}
+          className={`fixed top-0 left-0 h-screen ${isCollapsed ? 'w-16' : 'w-64'} flex flex-col bg-gray-100 backdrop-blur-xl z-[40] sidebar-blur rounded-tr-3xl rounded-br-3xl overflow-hidden ${isMobile && isCollapsed ? 'hidden' : ''}`}
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
           style={{
             filter: (shouldBlur() || showLogoutConfirm) ? 'blur(4px)' : 'none',
             pointerEvents: showLogoutConfirm ? 'none' : 'auto',
-            borderRight: '1px solid rgba(255, 255, 255, 0.2)'
+            boxShadow: '8px 8px 16px rgba(0, 0, 0, 0.1), -8px -8px 16px rgba(255, 255, 255, 0.7), inset 2px 2px 4px rgba(0, 0, 0, 0.05)'
           }}
         >
           {/* Header, nav, and footer as before */}
@@ -736,7 +736,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
               </div>
             </div>
           </div>
-          <nav className="flex-1 py-4 space-y-1 nav-item-spacing">
+          <nav className="flex-1 py-4 space-y-1 nav-item-spacing custom-scrollbar sidebar-nav overflow-y-auto overflow-x-hidden">
             {filteredSidebarItems.map((item) => (
               <div
                 key={item.path}
@@ -745,36 +745,44 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                 <Link
                   to={item.path}
                   onClick={handleNavigationClick}
-                  className={`group flex items-center px-2 py-2 rounded-md relative nav-item-fixed-height
+                  className={`group flex items-center px-2 py-2 rounded-xl relative nav-item-fixed-height transition-all duration-300
                     ${isExactPathActive(item.path)
                       ? 'text-white font-medium'
-                      : 'text-gray-300'}
+                      : 'text-gray-700'}
                     ${isCollapsed ? 'justify-center' : 'justify-start'}`}
                   style={{
-                    backgroundColor: isExactPathActive(item.path) ? '#007EA7' : 'transparent',
-                    border: isExactPathActive(item.path) ? '1px solid #007EA7' : 'none'
+                    backgroundColor: isExactPathActive(item.path) ? '#00A7E1' : 'transparent',
+                    boxShadow: isExactPathActive(item.path) 
+                      ? 'inset 4px 4px 8px rgba(0, 0, 0, 0.2), inset -4px -4px 8px rgba(255, 255, 255, 0.1)'
+                      : 'none'
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = isExactPathActive(item.path) ? '#2a5362' : '#1f2937';
+                    if (!isExactPathActive(item.path)) {
+                      e.currentTarget.style.backgroundColor = '#f3f4f6';
+                      e.currentTarget.style.boxShadow = '4px 4px 8px rgba(0, 0, 0, 0.08), -4px -4px 8px rgba(255, 255, 255, 0.5)';
+                    }
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = isExactPathActive(item.path) ? '#00506c' : 'transparent';
+                    if (!isExactPathActive(item.path)) {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }
                   }}
                   title={isCollapsed ? item.label : undefined}
                 >
                   <div className="nav-icon-fixed">
                     <div 
-                      className={`p-1 rounded-sm
+                      className={`p-1 rounded-lg transition-all duration-300
                       ${isExactPathActive(item.path)
                         ? 'text-white' 
-                        : 'text-gray-400 group-hover:text-gray-200'}`}
+                        : 'text-gray-600 group-hover:text-gray-800'}`}
                     >
                       {item.icon}
                     </div>
                   </div>
                   {!isCollapsed && (
                     <span 
-                      className={`text-sm font-medium overflow-hidden whitespace-nowrap ${isExactPathActive(item.path) ? 'text-white' : 'text-gray-300'}`}
+                      className={`text-sm font-medium overflow-hidden whitespace-nowrap ${isExactPathActive(item.path) ? 'text-white' : 'text-gray-700'}`}
                       style={{
                         marginLeft: '0.5rem'
                       }}
@@ -786,18 +794,25 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
               </div>
             ))}
           </nav>
-          <div className="sticky bottom-0  bg-[#00171F]  p-4">
+          <div 
+            className="sticky bottom-0 bg-gray-100 backdrop-blur-sm border-t border-gray-200/30 p-4"
+            style={{
+              boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 -2px 4px rgba(0, 0, 0, 0.05)'
+            }}
+          >
             {!isCollapsed && (
               <div 
-                className="profile-section flex items-center gap-3 mb-3 overflow-hidden"
+                className="profile-section flex items-center gap-3 mb-4 overflow-hidden"
                 style={{
-                  position: 'absolute',
-                  bottom: '3rem',
-                  left: '1rem',
-                  right: '1rem'
+                  position: 'relative'
                 }}
               >
-                <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center overflow-hidden">
+                <div 
+                  className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center overflow-hidden"
+                  style={{
+                    boxShadow: '3px 3px 6px rgba(0, 0, 0, 0.1), -3px -3px 6px rgba(255, 255, 255, 0.7)'
+                  }}
+                >
                   {isProfileLoading ? (
                     <div className="w-full h-full bg-gray-300 animate-pulse rounded-full flex items-center justify-center">
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
@@ -813,26 +828,33 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                   )}
                 </div>
                 <div className="flex-1 min-w-0 overflow-hidden">
-                  <p className="text-sm font-medium text-white truncate">
+                  <p className="text-sm font-medium text-black truncate">
                     {authDisplayName || user.email?.split('@')[0]}
                   </p>
                
                 </div>
               </div>
             )}
-            <div className={`logout-button-container ${isCollapsed ? 'flex justify-center' : 'flex justify-start w-full'}`}>
+            <div className={`logout-button-container mt-3 ${isCollapsed ? 'flex justify-center' : 'flex justify-start w-full'}`}>
               <button
                 ref={logoutButtonRef}
                 onClick={handleLogoutClick}
-                className={`flex items-center text-sm font-medium text-gray-200 
-                  bg-[#1f2937] border border-gray-600 rounded-lg hover:bg-[#2a2a2b] hover:border-gray-500
-                  shadow-sm active:scale-95
+                className={`flex items-center text-sm font-medium text-white 
+                  bg-[#00171f] rounded-lg hover:bg-[#003344] transition-all duration-300
+                  active:scale-95
                   ${isCollapsed 
                     ? 'w-8 h-8 p-1.5 rounded-md justify-center' 
                     : 'w-full px-3 py-2 gap-2 justify-start'}`}
                 style={{
                   height: '2.5rem',
-                  minHeight: '2.5rem'
+                  minHeight: '2.5rem',
+                  boxShadow: '4px 4px 8px rgba(0, 0, 0, 0.2), -4px -4px 8px rgba(255, 255, 255, 0.1), inset 1px 1px 2px rgba(255, 255, 255, 0.1)'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.boxShadow = 'inset 4px 4px 8px rgba(0, 0, 0, 0.3), inset -4px -4px 8px rgba(255, 255, 255, 0.05)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.boxShadow = '4px 4px 8px rgba(0, 0, 0, 0.2), -4px -4px 8px rgba(255, 255, 255, 0.1), inset 1px 1px 2px rgba(255, 255, 255, 0.1)';
                 }}
                 title={isCollapsed ? 'Logout' : undefined}
               >
