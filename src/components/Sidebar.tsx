@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext'; 
+import { useAuth } from '../contexts/AuthContext';
 import { useModal } from '../contexts/ModalContext';
 import { UserRole } from '../types/auth';
 import { supabase } from '../lib/supabase';
@@ -11,7 +11,6 @@ import {
   Settings,
   FileText,
   CheckSquare, 
-  Users2,
   ClipboardList, 
   User,
   LogOut,
@@ -25,6 +24,8 @@ import {
   Mail,
   BookOpen,
 } from 'lucide-react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faPersonChalkboard } from '@fortawesome/free-solid-svg-icons';
 import { PiCertificateBold  } from "react-icons/pi";
 import { PiBookOpenTextBold } from "react-icons/pi";
 import { PiChartLineUpBold } from "react-icons/pi";
@@ -116,13 +117,13 @@ const sidebarItems: SidebarItem[] = [
   {
     label: 'Instructor Management',
     path: '/dashboard/instructor-management',
-    icon: <Users2 className="w-5 h-5" />,
+    icon: <FontAwesomeIcon icon={faPersonChalkboard} className="w-5 h-5" />,
     roles: ['admin'],
   },
   {
     label: 'Class Management',
     path: '/dashboard/class-management',
-    icon: <Users2 className="w-5 h-5" />,
+    icon: <BookOpen className="w-5 h-5" />,
     roles: ['admin'],
   },
   {
@@ -171,7 +172,7 @@ const sidebarItems: SidebarItem[] = [
   {
     label: 'Instructor Management',
     path: '/dashboard/instructor-management',
-    icon: <Users2 className="w-5 h-5" />,
+    icon: <FontAwesomeIcon icon={faPersonChalkboard} className="w-5 h-5" />,
     roles: ['program_head'],
   },
   {
@@ -252,7 +253,7 @@ const sidebarItems: SidebarItem[] = [
   {
     label: 'Class Management',
     path: '/dashboard/class-management',
-    icon: <Users2 className="w-5 h-5" />, 
+    icon: <BookOpen className="w-5 h-5" />, 
     roles: ['instructor'],
   },
   {
@@ -695,12 +696,12 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
     <AnimatePresence mode="wait">
       {(!isMobile || !isCollapsed) && (
         <motion.aside
-          key={isCollapsed ? 'collapsed' : 'expanded'}
+          key={isCollapsed ? 'collapsed' : 'expanded'}  
           variants={isMobile ? mobileVariants : sidebarVariants}
           initial={isMobile ? 'hidden' : (isCollapsed ? 'collapsed' : 'expanded')}
           animate={isMobile ? 'visible' : (isCollapsed ? 'collapsed' : 'expanded')}
           exit={isMobile ? 'hidden' : undefined}
-          className={`fixed top-0 left-0 h-screen ${isCollapsed ? 'w-16' : 'w-64'} flex flex-col bg-[#1c1c1d] backdrop-blur-xl z-[40] sidebar-blur border-r border-white/20 ${isMobile && isCollapsed ? 'hidden' : ''}`}
+          className={`fixed top-0 left-0 h-screen ${isCollapsed ? 'w-16' : 'w-64'} flex flex-col  bg-[#00171F]  backdrop-blur-xl z-[40] sidebar-blur border-r border-white/20 rounded-tr-3xl rounded-br-3xl overflow-hidden ${isMobile && isCollapsed ? 'hidden' : ''}`}
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
           style={{
@@ -750,14 +751,14 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                       : 'text-gray-300'}
                     ${isCollapsed ? 'justify-center' : 'justify-start'}`}
                   style={{
-                    backgroundColor: isExactPathActive(item.path) ? '#3b82f6' : 'transparent',
-                    border: isExactPathActive(item.path) ? '1px solid #3b82f6' : 'none'
+                    backgroundColor: isExactPathActive(item.path) ? '#007EA7' : 'transparent',
+                    border: isExactPathActive(item.path) ? '1px solid #007EA7' : 'none'
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = isExactPathActive(item.path) ? '#3b82f6' : '#374151';
+                    e.currentTarget.style.backgroundColor = isExactPathActive(item.path) ? '#2a5362' : '#1f2937';
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = isExactPathActive(item.path) ? '#3b82f6' : 'transparent';
+                    e.currentTarget.style.backgroundColor = isExactPathActive(item.path) ? '#00506c' : 'transparent';
                   }}
                   title={isCollapsed ? item.label : undefined}
                 >
@@ -785,7 +786,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
               </div>
             ))}
           </nav>
-          <div className="sticky bottom-0 bg-[#1c1c1d] p-4">
+          <div className="sticky bottom-0  bg-[#00171F]  p-4">
             {!isCollapsed && (
               <div 
                 className="profile-section flex items-center gap-3 mb-3 overflow-hidden"
@@ -824,7 +825,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                 ref={logoutButtonRef}
                 onClick={handleLogoutClick}
                 className={`flex items-center text-sm font-medium text-gray-200 
-                  bg-[#374151] border border-gray-600 rounded-lg hover:bg-[#2a2a2b] hover:border-gray-500
+                  bg-[#1f2937] border border-gray-600 rounded-lg hover:bg-[#2a2a2b] hover:border-gray-500
                   shadow-sm active:scale-95
                   ${isCollapsed 
                     ? 'w-8 h-8 p-1.5 rounded-md justify-center' 
@@ -918,12 +919,28 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
         <button
           onClick={handleHamburgerClick}
           aria-label="Toggle sidebar"
+          aria-pressed={!isCollapsed}
           className="fixed top-4 right-4 z-[60] w-12 h-12 rounded-lg bg-white text-gray-700 shadow-lg border border-gray-300 hover:bg-white active:scale-95 flex items-center justify-center"
         >
-          <div className="w-7 h-7 flex flex-col justify-center items-center">
-            <div className="w-6 h-0.5 bg-gray-600 rounded-sm mb-1"></div>
-            <div className="w-6 h-0.5 bg-gray-600 rounded-sm mb-1"></div>
-            <div className="w-6 h-0.5 bg-gray-600 rounded-sm"></div>
+          <div className="w-7 h-7 relative flex items-center justify-center">
+            <div
+              className="absolute w-6 h-0.5 bg-gray-600 rounded-sm transition-transform duration-200 ease-out"
+              style={{
+                transform: isCollapsed ? 'translateY(-6px) rotate(0deg)' : 'translateY(0px) rotate(45deg)'
+              }}
+            ></div>
+            <div
+              className="absolute w-6 h-0.5 bg-gray-600 rounded-sm transition-opacity duration-200 ease-out"
+              style={{
+                opacity: isCollapsed ? 1 : 0
+              }}
+            ></div>
+            <div
+              className="absolute w-6 h-0.5 bg-gray-600 rounded-sm transition-transform duration-200 ease-out"
+              style={{
+                transform: isCollapsed ? 'translateY(6px) rotate(0deg)' : 'translateY(0px) rotate(-45deg)'
+              }}
+            ></div>
           </div>
         </button>,
         document.body
@@ -969,19 +986,19 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           width: 'auto',
           minWidth: 'none',
           maxWidth: 'none',
-          backgroundColor: '#1c1c1d'
+          backgroundColor: ' bg-[#FFFFFF] '
         }}
         data-modal="true"
         className={`min-h-screen ${shouldBlur() ? 'pointer-events-none [&:not(.course-modal):not(.subject-modal)]' : ''} z-[30] ${mainContentScrollLock}`}
       >
-        <div className="h-full lg:pt-0" style={{ width: 'auto', minWidth: 'none', maxWidth: 'none', backgroundColor: '#1c1c1d' }}>
+        <div className="h-full lg:pt-0" style={{ width: 'auto', minWidth: 'none', maxWidth: 'none', backgroundColor: ' bg-[#FFFFFF] ' }}>
           <div className={`rounded-l-lg p-3 sm:p-4 md:p-6 h-full relative ${shouldBlur() ? 'opacity-80' : ''}`}
             style={{
               paddingBottom: 0,
               width: 'auto',
               minWidth: 'none',
               maxWidth: 'none',
-              backgroundColor: '#1c1c1d'
+              backgroundColor: ' bg-[#FFFFFF] '
             }}
           >
             {/* In-content hamburger removed in favor of global fixed button */}
