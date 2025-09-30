@@ -8,6 +8,20 @@
   perspective: 1000px;
 }
 
+/* Subtle white-to-blue gradient overlay for the sidebar */
+.sidebar-gradient {
+  background-image: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.10) 0%,
+    rgba(59, 130, 246, 0.18) 100%
+  );
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: top left;
+  /* Blend with existing base bg color to keep text legible */
+  background-blend-mode: overlay;
+}
+
 /* Simplified gradient animation - reduced complexity */
 @keyframes gradient-x {
   0%, 100% { background-position: 0% 50%; }
@@ -146,6 +160,17 @@
   will-change: transform;
 }
 
+/* Continuous slow spin for icons (e.g., theme sun icon) */
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.spin-slow {
+  animation: spin-slow 3s linear infinite;
+  will-change: transform;
+}
+
 /* Optimized backdrop blur */
 .backdrop-blur-custom {
   backdrop-filter: blur(4px);
@@ -168,7 +193,7 @@
   transition: transform 0.2s ease-out, opacity 0.2s ease-out;
 }
 
-/* Simplified nav item transitions */
+/* Simplified nav item transitions */ 
 .nav-item, .sidebar-item {
   transition: background-color 0.2s ease-out, color 0.2s ease-out;
   will-change: background-color, color;
@@ -176,7 +201,7 @@
 
 /* Ensure consistent background color */
 html, body {
-  background-color: #1c1c1d !important;
+  background-color:#f4f4f4  !important;
 }
 
 /* Sidebar right border for visual separation */
@@ -186,7 +211,7 @@ html, body {
 
 /* Optimized sidebar gap fix */
 .sidebar-gap-fix {
-  background-color: #1c1c1d;
+  background-color:#FFFFFF ;
   position: fixed;
   top: 0;
   left: 0;
@@ -353,6 +378,22 @@ html, body {
   height: 2.5rem !important;
   min-height: 2.5rem !important;
   max-height: 2.5rem !important;
+}
+
+/* Active item check badge (blue circle with white check) */
+.active-check-badge {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1.25rem; /* 20px */
+  height: 1.25rem;
+  border-radius: 9999px;
+  background-color: #3b82f6; /* Tailwind blue-500 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(59, 130, 246, 0.4);
 }
 
 /* Ensure consistent sidebar spacing */
