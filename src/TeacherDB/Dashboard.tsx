@@ -33,20 +33,20 @@ const DashboardCard: React.FC<{
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay }}
-      className={`bg-[#00A7E1] rounded-2xl p-4 relative ${onClick ? 'cursor-pointer' : ''} ${className}`}
+      className={`bg-[#00A7E1] rounded-xl sm:rounded-2xl p-3 sm:p-4 relative ${onClick ? 'cursor-pointer' : ''} ${className}`}
       style={{
         boxShadow: '4px 4px 8px rgba(0, 0, 0, 0.15), -4px -4px 8px rgba(0, 0, 0, 0.05), inset 1px 1px 2px rgba(255, 255, 255, 0.1)',
         height: height || ''
       }}
       onClick={onClick}
     >
-      <div className="p-4">
+      <div className="p-2 sm:p-4">
         <div className="flex items-center justify-between">
-          <div className="flex-1">
-            <p className="text-sm font-medium text-white/90">{title}</p>
-            <p className="mt-1 text-xs text-white/70">{subtitle}</p>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs sm:text-sm font-medium text-white/90 break-words">{title}</p>
+            <p className="mt-1 text-xs text-white/70 break-words">{subtitle}</p>
             {status && (
-              <div className="flex items-center gap-2 mt-2">
+              <div className="flex items-center gap-1 sm:gap-2 mt-2">
                 <span className="text-xs font-medium text-white">
                   {status === 'checking' ? 'Checking...' : 
                    status === 'connected' ? 'Connected' : 
@@ -60,7 +60,7 @@ const DashboardCard: React.FC<{
           </div>
           {icon && (
             <div 
-              className="p-3 rounded-xl bg-white/10 backdrop-blur-sm flex-shrink-0"
+              className="p-2 sm:p-3 rounded-lg sm:rounded-xl bg-white/10 backdrop-blur-sm flex-shrink-0"
               style={{
                 boxShadow: 'inset 2px 2px 4px rgba(0, 0, 0, 0.1), inset -2px -2px 4px rgba(255, 255, 255, 0.1)'
               }}
@@ -1415,17 +1415,17 @@ const TeacherDashboardOverview: React.FC = () => {
   return (
     <div className="flex flex-col h-full min-h-screen will-change-transform">
       <div className="flex-1 overflow-auto transform-gpu">
-        <div className="p-6 sm:p-8 max-w-none w-full mx-auto transform-gpu">
+        <div className="p-3 sm:p-4 md:p-6 lg:p-8 max-w-none w-full mx-auto transform-gpu">
           {/* Search Bar */}
-          <div className="mb-6 contain-layout">
+          <div className="mb-4 sm:mb-6 contain-layout">
             <form onSubmit={handleSearch} className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none z-10" />
+              <Search className="absolute left-2 sm:left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5 pointer-events-none z-10" />
               <input
                 type="text"
                 placeholder="Search classes, documents, notes, students..."
                 value={searchQuery}
                 onChange={handleSearchChange}
-                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-200 focus:border-blue-500 transition-all duration-300 ease-out bg-white/80 shadow-inner transform-gpu will-change-transform shadow-lg hover:shadow-xl focus:shadow-2xl focus:shadow-blue-500/25"
+                className="w-full pl-8 sm:pl-10 pr-8 sm:pr-12 py-2 sm:py-3 border border-gray-200 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-blue-200 focus:border-blue-500 transition-all duration-300 ease-out bg-white/80 shadow-inner transform-gpu will-change-transform shadow-lg hover:shadow-xl focus:shadow-2xl focus:shadow-blue-500/25 text-sm sm:text-base"
                 style={{
                   boxShadow: `
                     inset 0 2px 4px 0 rgba(0, 0, 0, 0.06), 
@@ -1442,9 +1442,9 @@ const TeacherDashboardOverview: React.FC = () => {
                 <button
                   type="button"
                   onClick={clearSearch}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors duration-200 z-10"
+                  className="absolute right-2 sm:right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors duration-200 z-10 p-1"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
@@ -1453,17 +1453,17 @@ const TeacherDashboardOverview: React.FC = () => {
             
             {/* Search Results */}  
             {showSearchResults && (
-              <div className="mt-4 backdrop-blur-xl rounded-2xl p-6 shadow-xl border border-white/20 transform-gpu will-change-transform transition-all duration-300 ease-out" style={{
+              <div className="mt-3 sm:mt-4 backdrop-blur-xl rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-6 shadow-xl border border-white/20 transform-gpu will-change-transform transition-all duration-300 ease-out" style={{
                 backgroundColor: '#FFFFFFE6',
                 boxShadow: '8px 8px 16px rgba(0, 0, 0, 0.1), -8px -8px 16px rgba(255, 255, 255, 0.7), inset 2px 2px 4px rgba(0, 0, 0, 0.05)'
               }}>
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-bold text-gray-700">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 sm:mb-4 gap-2">
+                  <h3 className="font-bold text-gray-700 text-sm sm:text-base break-words">
                     Search Results for "{searchQuery}"
                   </h3>
                   <button
                     onClick={clearSearch}
-                    className="text-gray-400 hover:text-gray-600 text-sm"
+                    className="text-gray-400 hover:text-gray-600 text-xs sm:text-sm self-start sm:self-auto flex-shrink-0"
                   >
                     Clear Search
                   </button>
@@ -1479,23 +1479,23 @@ const TeacherDashboardOverview: React.FC = () => {
                     {/* Classes Results */}
                     {searchResults.classes.length > 0 && (
                       <div>
-                        <h4 className="font-semibold text-gray-700 mb-3 flex items-center">
-                          <BookOpen className="w-4 h-4 mr-2" />
+                        <h4 className="font-semibold text-gray-700 mb-2 sm:mb-3 flex items-center text-sm sm:text-base">
+                          <BookOpen className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 flex-shrink-0" />
                           Classes ({searchResults.classes.length})
                         </h4>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
                           {searchResults.classes.map((classItem) => (
                             <div
                               key={classItem.id}
                               onClick={() => handleClassClick(classItem.id)}
-                              className="bg-white/80 backdrop-blur-sm border border-white/80 rounded-xl p-3 flex items-center justify-between shadow-lg cursor-pointer hover:bg-white/80 transition-all duration-200"
+                              className="bg-white/80 backdrop-blur-sm border border-white/80 rounded-lg sm:rounded-xl p-2 sm:p-3 flex items-center justify-between shadow-lg cursor-pointer hover:bg-white/80 transition-all duration-200"
                             >
-                              <div className="flex items-center space-x-3">
-                                <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-blue-600 rounded-lg flex items-center justify-center shadow-lg">
-                                  <BookOpen className="w-4 h-4 text-white" />
+                              <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
+                                <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gradient-to-br from-purple-500 to-blue-600 rounded-md sm:rounded-lg flex items-center justify-center shadow-lg flex-shrink-0">
+                                  <BookOpen className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
                                 </div>
-                                <div>
-                                  <h5 className="font-medium text-gray-700 text-sm">
+                                <div className="min-w-0 flex-1">
+                                  <h5 className="font-medium text-gray-700 text-xs sm:text-sm break-words">
                                     {highlightText(classItem.name, searchQuery)}
                                   </h5>
                                   <p className="text-xs text-gray-500">
@@ -1627,45 +1627,45 @@ const TeacherDashboardOverview: React.FC = () => {
           </div>
 
           {/* Main Content Grid */}
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 lg:gap-6 contain-layout">
+          <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-3 gap-3 sm:gap-4 lg:gap-6 contain-layout">
             {/* Left Column - Main Content */}
-            <div className="xl:col-span-2 space-y-4 lg:space-y-3 contain-layout">
+            <div className="lg:col-span-2 xl:col-span-2 space-y-3 sm:space-y-4 lg:space-y-3 contain-layout">
               {/* Daily Bible Verse Card */}
               <DashboardCard
                 title={
-                  <div className="flex items-center gap-2">
-                    <BookOpen className="w-4 h-4 text-white" />
-                    <span className="text-white">Daily Bible Verse</span>
+                  <div className="flex items-center gap-1 sm:gap-2">
+                    <BookOpen className="w-3 h-3 sm:w-4 sm:h-4 text-white flex-shrink-0" />
+                    <span className="text-white text-sm sm:text-base">Daily Bible Verse</span>
                   </div>
                 }
                 subtitle="Today's guidance for your teaching journey"
                 delay={0.2}
-                className="h-[220px]"
+                className="h-auto sm:h-[220px]"
               >
-                <div className="mt-4 h-full flex flex-col">
-                  <div className="flex items-center flex-1">
+                <div className="mt-3 sm:mt-4 h-full flex flex-col">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center flex-1 gap-3 sm:gap-0">
                     <div className="flex-1 flex flex-col h-full">
                       <div className="flex-1">
-                        <p className="text-xs sm:text-xs md:text-sm text-white/95 italic leading-relaxed font-medium break-words hyphens-auto">
+                        <p className="text-xs sm:text-sm md:text-sm text-white/95 italic leading-relaxed font-medium break-words hyphens-auto">
                           "{dailyBibleVerse?.verse || 'Loading...'}"
                         </p>
                       </div>
-                      <div className="mt-auto pt-3 mt-4">
-                        <p className="text-xs sm:text-xs md:text-xs lg:text-sm text-blue-200 font-semibold">
+                      <div className="mt-auto pt-2 sm:pt-3 mt-3 sm:mt-4">
+                        <p className="text-xs sm:text-sm text-blue-200 font-semibold">
                           "{dailyBibleVerse?.reference || ''}"
                         </p>
                       </div>
                     </div>
-                    <div className="hidden md:block ml-4 flex-shrink-0 -mt-8">
+                    <div className="hidden sm:block sm:ml-4 flex-shrink-0 -mt-0 sm:-mt-8">
                       {/* Teacher Profile Picture */}
-                      <div className="w-28 h-28 bg-white/20 rounded-full flex items-center justify-center overflow-hidden backdrop-blur-sm border border-white/20">
+                      <div className="w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 bg-white/20 rounded-full flex items-center justify-center overflow-hidden backdrop-blur-sm border border-white/20">
                         {profileLoading ? (
-                          <div className="w-24 h-24 bg-white/30 rounded-full animate-pulse" />
+                          <div className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 bg-white/30 rounded-full animate-pulse" />
                         ) : (
                           <img
                             src={profilePictureUrl || userAvatar}
                             alt="Teacher Profile"
-                            className="w-26 h-26 object-cover shadow-lg rounded-full"
+                            className="w-18 h-18 sm:w-22 sm:h-22 md:w-26 md:h-26 object-cover shadow-lg rounded-full"
                             onError={(e) => {
                               const target = e.currentTarget as HTMLImageElement;
                               target.onerror = null; // prevent infinite loop
@@ -1682,51 +1682,51 @@ const TeacherDashboardOverview: React.FC = () => {
 
 
               {/* My Classes Section */}
-              <div className="backdrop-blur-xl rounded-2xl p-6 shadow-xl border border-white/20 transform-gpu will-change-transform transition-all duration-300 ease-out" style={{
+              <div className="backdrop-blur-xl rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-6 shadow-xl border border-white/20 transform-gpu will-change-transform transition-all duration-300 ease-out" style={{
                 backgroundColor: '#FFFFFFE6',
                 boxShadow: '8px 8px 16px rgba(0, 0, 0, 0.1), -8px -8px 16px rgba(255, 255, 255, 0.7), inset 2px 2px 4px rgba(0, 0, 0, 0.05)'
               }}>
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center space-x-3">
-                    <h3 className="font-bold text-gray-700 text-xl">My Classes</h3>
-                    <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6 gap-3">
+                  <div className="flex items-center space-x-2 sm:space-x-3">
+                    <h3 className="font-bold text-gray-700 text-lg sm:text-xl">My Classes</h3>
+                    <span className="text-xs sm:text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded-full whitespace-nowrap">
                       {classesLoading ? 'Loading...' : `(${classes.length} classes)`}
                     </span>
                   </div>
-                  <div className="flex items-center space-x-3 text-xs">
-                    <div className="flex items-center space-x-1">
-                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <div className="flex items-center space-x-2 sm:space-x-3 text-xs overflow-x-auto">
+                    <div className="flex items-center space-x-1 whitespace-nowrap">
+                      <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
                       <span className="text-gray-600">Current</span>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                    <div className="flex items-center space-x-1 sm:space-x-2 whitespace-nowrap">
+                      <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
                       <span className="text-gray-600">Upcoming</span>
                     </div>
-                    <div className="flex items-center space-x-1">
-                      <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                    <div className="flex items-center space-x-1 whitespace-nowrap">
+                      <div className="w-2 h-2 bg-yellow-500 rounded-full flex-shrink-0"></div>
                       <span className="text-gray-600">Today</span>
                     </div>
                   </div>
                 </div>
-                {/* Scrollable list with fixed height to prevent container resizing */}
-                <div className="h-[520px] overflow-y-auto pr-1">
+                {/* Scrollable list with responsive height */}
+                <div className="h-[400px] sm:h-[480px] lg:h-[520px] overflow-y-auto pr-1">
                 {classesLoading ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 lg:gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-2 sm:gap-3 lg:gap-4">
                     {[1, 2, 3].map(i => (
                       <div key={i} className="animate-pulse">
-                        <div className="h-48 bg-gray-200 rounded-xl"></div>
+                        <div className="h-40 sm:h-48 bg-gray-200 rounded-lg sm:rounded-xl"></div>
                       </div>
                     ))}
                   </div>
                   ) : classes.length > 0 ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 lg:gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-2 sm:gap-3 lg:gap-4">
                     {sortedClasses}
                   </div>
                   ) : (
-                    <div className="h-full flex flex-col items-center justify-center text-center py-8">
-                      <div className="text-gray-400 text-6xl mb-4">📚</div>
-                      <h4 className="text-gray-600 font-medium mb-2">No Classes Yet</h4>
-                      <p className="text-gray-500 text-sm">Your assigned classes will appear here</p>
+                    <div className="h-full flex flex-col items-center justify-center text-center py-6 sm:py-8">
+                      <div className="text-gray-400 text-4xl sm:text-5xl md:text-6xl mb-3 sm:mb-4">📚</div>
+                      <h4 className="text-gray-600 font-medium mb-2 text-sm sm:text-base">No Classes Yet</h4>
+                      <p className="text-gray-500 text-xs sm:text-sm">Your assigned classes will appear here</p>
                     </div>
                   )}
                 </div>
@@ -1734,19 +1734,19 @@ const TeacherDashboardOverview: React.FC = () => {
             </div>
 
                       {/* Right Column - Sidebar */}
-            <div className="xl:col-span-1 space-y-3 contain-layout">
+            <div className="lg:col-span-1 xl:col-span-1 space-y-2 sm:space-y-3 contain-layout">
               {/* Google Classroom Integration */}
               <DashboardCard
-                title={<span className="text-white">Google Classroom</span>}
+                title={<span className="text-white text-sm sm:text-base">Google Classroom</span>}
                 subtitle="Access and organize classwork easily"
                 icon={
-                  <div className="w-6 h-6 flex items-center justify-center">
-                    <span className="text-white font-bold text-lg">G</span>
+                  <div className="w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center">
+                    <span className="text-white font-bold text-base sm:text-lg">G</span>
                   </div>
                 }
                 status={googleClassroomStatus}
                 delay={0.1}
-                height="120px"
+                height="100px sm:120px"
                 onClick={() => { 
                   setActivePanel('calendar');
                   navigate('/dashboard/google-classroom');
@@ -1782,7 +1782,7 @@ const TeacherDashboardOverview: React.FC = () => {
                       </div>
                       {/* Notes Icon */}
                       <div className="relative flex flex-col items-center">
-                        <button onClick={() => setActivePanel('notes')} className={`relative cursor-pointer group rounded-xl p-3 border transition-all duration-200 ${
+                        <button onClick={() => setActivePanel('notes')} className={`relative cursor-pointer group rounded-lg sm:rounded-xl p-2 sm:p-3 border transition-all duration-200 ${
                           activePanel === 'notes' 
                             ? 'bg-yellow-100 border-yellow-300 text-yellow-600' 
                             : 'border-white/80 text-gray-600 hover:text-gray-800'
@@ -1838,7 +1838,7 @@ const TeacherDashboardOverview: React.FC = () => {
 
 
               {/* Unified panel container controlled by activePanel */}
-              <div className="backdrop-blur-xl rounded-2xl p-6 shadow-xl border border-white/20 relative glassmorphism transform-gpu will-change-transform transition-all duration-300 ease-out mt-8 h-[300px] overflow-y-auto" style={{
+              <div className="backdrop-blur-xl rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-6 shadow-xl border border-white/20 relative glassmorphism transform-gpu will-change-transform transition-all duration-300 ease-out mt-4 sm:mt-6 lg:mt-8 h-[250px] sm:h-[280px] md:h-[300px] overflow-y-auto" style={{
                 backgroundColor: '#FFFFFFE6',
                 boxShadow: '8px 8px 16px rgba(0, 0, 0, 0.1), -8px -8px 16px rgba(255, 255, 255, 0.7), inset 2px 2px 4px rgba(0, 0, 0, 0.05)'
               }}>
@@ -2606,23 +2606,23 @@ const TeacherDashboardOverview: React.FC = () => {
               </div>
 
               {/* Registrar Grade Edit Confirmation Card - placed under the unified panel */}
-              <div className="backdrop-blur-xl rounded-2xl p-4 shadow-xl border border-white/20 relative glassmorphism transform-gpu will-change-transform transition-all duration-300 ease-out mt-3 h-[310px] overflow-y-auto" style={{
+              <div className="backdrop-blur-xl rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-xl border border-white/20 relative glassmorphism transform-gpu will-change-transform transition-all duration-300 ease-out mt-2 sm:mt-3 h-[250px] sm:h-[280px] md:h-[310px] overflow-y-auto" style={{
                 backgroundColor: '#FFFFFFE6',
                 boxShadow: '8px 8px 16px rgba(0, 0, 0, 0.1), -8px -8px 16px rgba(255, 255, 255, 0.7), inset 2px 2px 4px rgba(0, 0, 0, 0.05)'
               }}>
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-bold text-gray-700 text-sm">Grade Edit Requests</h3>
-                  <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-2 gap-2">
+                  <h3 className="font-bold text-gray-700 text-sm sm:text-base">Grade Edit Requests</h3>
+                  <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full self-start sm:self-auto">
                     {gradeEditRequests.length} request{gradeEditRequests.length !== 1 ? 's' : ''}
                   </span>
                 </div>
                 
                 {gradeEditRequests.length === 0 ? (
-                  <div className="text-center py-8">
+                  <div className="text-center py-6 sm:py-8">
                     <div className="text-gray-400 mb-2">
-                      <Clock className="w-8 h-8 mx-auto" />
+                      <Clock className="w-6 h-6 sm:w-8 sm:h-8 mx-auto" />
                     </div>
-                    <p className="text-xs text-gray-500">No grade edit requests</p>
+                    <p className="text-xs sm:text-sm text-gray-500">No grade edit requests</p>
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -2634,7 +2634,7 @@ const TeacherDashboardOverview: React.FC = () => {
                             navigate(`/dashboard/class-management?studentId=${request.student_id}&subjectId=${request.subject_id}`);
                           }
                         }}
-                        className={`p-3 rounded-lg border cursor-pointer transition-all duration-200 hover:shadow-md ${
+                        className={`p-2 sm:p-3 rounded-lg border cursor-pointer transition-all duration-200 hover:shadow-md ${
                           request.edit_status === 'granted' 
                             ? 'bg-emerald-50 border-emerald-200 hover:bg-emerald-100' 
                             : request.edit_status === 'denied'
@@ -2642,40 +2642,40 @@ const TeacherDashboardOverview: React.FC = () => {
                             : 'bg-amber-50 border-amber-200 hover:bg-amber-100'
                         }`}
                       >
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="font-medium text-xs text-gray-800">
+                        <div className="flex flex-col sm:flex-row sm:items-start justify-between mb-2 gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mb-1">
+                              <span className="font-medium text-xs sm:text-sm text-gray-800 break-words">
                                 {request.student_name || 'Unknown Student'}
                               </span>
                               {request.edit_status === 'granted' && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-700">
-                                  <CheckCircle className="w-3 h-3" /> Approved
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-700 self-start">
+                                  <CheckCircle className="w-3 h-3 flex-shrink-0" /> Approved
                                 </span>
                               )}
                               {request.edit_status === 'denied' && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-700">
-                                  <XCircle className="w-3 h-3" /> Denied
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-700 self-start">
+                                  <XCircle className="w-3 h-3 flex-shrink-0" /> Denied
                                 </span>
                               )}
                               {request.edit_status === 'pending' && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-700">
-                                  <Clock className="w-3 h-3" /> Pending
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-700 self-start">
+                                  <Clock className="w-3 h-3 flex-shrink-0" /> Pending
                                 </span>
                               )}
                             </div>
                             <div className="text-xs text-gray-600 space-y-1">
-                              <div>Subject: {request.course_code || 'Unknown'} - {request.course_name || 'Unknown'}</div>
-                              <div>Section: {request.section || 'N/A'} • Year: {request.year_level || 'N/A'}</div>
+                              <div className="break-words">Subject: {request.course_code || 'Unknown'} - {request.course_name || 'Unknown'}</div>
+                              <div className="break-words">Section: {request.section || 'N/A'} • Year: {request.year_level || 'N/A'}</div>
                               {request.edit_reason && (
-                                <div className="text-gray-500 italic">"{request.edit_reason}"</div>
+                                <div className="text-gray-500 italic break-words">"{request.edit_reason}"</div>
                               )}
                             </div>
                           </div>
                           {request.edit_status === 'granted' && (
-                            <div className="flex-shrink-0 ml-2">
-                              <div className="w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center">
-                                <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <div className="flex-shrink-0 sm:ml-2 self-end sm:self-start">
+                              <div className="w-5 h-5 sm:w-6 sm:h-6 bg-emerald-500 rounded-full flex items-center justify-center">
+                                <svg className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                 </svg>
                               </div>
