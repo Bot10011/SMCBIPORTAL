@@ -195,7 +195,7 @@ const COEModal = ({ coe, open, onClose }: { coe: COERecord, open: boolean, onClo
           {/* Global Close Button pinned to top-right */}
           <button
             onClick={onClose}
-            className="absolute top-2 right-2 sm:top-3 sm:right-3 w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors z-20"
+            className="absolute top-2 right-2 sm:top-4 sm:right-6 w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors z-20"
             aria-label="Close"
           >
             <span className="text-xl font-bold">&times;</span>
@@ -215,7 +215,7 @@ const COEModal = ({ coe, open, onClose }: { coe: COERecord, open: boolean, onClo
                   <p className="text-sm text-gray-600">Certificate of Enrollment</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 mr-12">
                 <button
                   onClick={handleDownload}
                   className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
@@ -702,30 +702,52 @@ export const CertificateOfEnrollment: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br  to-blue-100">
+    <div className="min-h-screen bg-gradient-to-br to-blue-100">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Premium Header Section */}
         <motion.div 
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 via-white to-purple-50 shadow-inner shadow-inner-strong border border-blue-100 mb-12"
+          className="relative overflow-hidden rounded-3xl mb-12"
+          style={{
+            backgroundColor: '#00171f',
+            boxShadow: '8px 8px 16px rgba(0, 0, 0, 0.4), -8px -8px 16px rgba(255, 255, 255, 0.05)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            transition: 'all 0.3s ease'
+          }}
         >
-          <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4">
+          <div className="px-6 py-8">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
+              <div className="flex items-center gap-4">
+                <div 
+                  className="p-3 rounded-2xl"
+                  style={{
+                    backgroundColor: '#00171f',
+                    boxShadow: '4px 4px 8px rgba(0, 0, 0, 0.3), -4px -4px 8px rgba(255, 255, 255, 0.08)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    transition: 'all 0.3s ease'
+                  }}
+                >
                   <FileText className="w-6 h-6 text-white" />
                 </div>
                 <div>
                   <h1 className="text-2xl font-bold text-white tracking-tight">Certificate of Enrollment</h1>
-                  <p className="text-white/80 text-sm font-medium">View, download, and print your official Certificate of Enrollment</p>
+                  <p className="text-gray-300 text-sm font-medium">View, download, and print your official Certificate of Enrollment</p>
                 </div>
               </div>
             </div>
           </div>
         </motion.div>
-        <div className="bg-white/90 rounded-2xl shadow-lg p-6 border border-gray-100 w-full">
+        <div 
+          className="rounded-2xl p-6 w-full"
+          style={{
+            backgroundColor: '#FFFFFFE6',
+            boxShadow: '8px 8px 16px rgba(0, 0, 0, 0.22), -8px -8px 16px rgba(255, 255, 255, 0.1)',
+            border: '1px solid rgba(255, 255, 255, 0.3)',
+            transition: 'all 0.3s ease'
+          }}
+        >
           <h3 className="text-lg font-semibold text-gray-900 mb-4">COE History</h3>
           {coeList.length === 0 ? (
             <div className="text-center text-gray-500">No Certificate of Enrollment records found.</div>
@@ -734,11 +756,20 @@ export const CertificateOfEnrollment: React.FC = () => {
               {/* Mobile list - no horizontal scroll */}
               <div className="sm:hidden space-y-3">
                 {processedCOEList.map((coe, idx) => (
-                  <div key={coe.id || idx} className="rounded-xl border border-gray-200 p-4 bg-white">
+                  <div 
+                    key={coe.id || idx} 
+                    className="rounded-xl p-4"
+                    style={{
+                      backgroundColor: '#FFFFFFE6',
+                      boxShadow: '6px 6px 12px rgba(0, 0, 0, 0.15), -6px -6px 12px rgba(255, 255, 255, 0.8)',
+                      border: '1px solid rgba(255, 255, 255, 0.5)',
+                      transition: 'all 0.3s ease'
+                    }}
+                  >
                     <div className="flex items-center justify-between mb-2">
                       <div className="text-sm font-semibold text-gray-900">{coe.school_year}</div>
                       <button
-                        className="coe-view-button inline-flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                        className="coe-view-button inline-flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors shadow-sm"
                         onClick={() => handleViewCOE(coe)}
                       >
                         <Eye className="w-4 h-4" /> View
@@ -753,9 +784,17 @@ export const CertificateOfEnrollment: React.FC = () => {
 
               {/* Desktop/tablet table */}
               <div className="hidden sm:block">
-                <div className="overflow-x-auto">
+                <div 
+                  className="overflow-x-auto rounded-xl"
+                  style={{
+                    backgroundColor: '#FFFFFFE6',
+                    boxShadow: '6px 6px 12px rgba(0, 0, 0, 0.15), -6px -6px 12px rgba(255, 255, 255, 0.8)',
+                    border: '1px solid rgba(255, 255, 255, 0.5)',
+                    transition: 'all 0.3s ease'
+                  }}
+                >
                   <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
+                    <thead className="bg-gray-50/50">
                       <tr>
                         <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">School Year</th>
                         <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Semester</th>
@@ -764,16 +803,16 @@ export const CertificateOfEnrollment: React.FC = () => {
                         <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
                       </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
+                    <tbody className="bg-white/60 divide-y divide-gray-200">
                       {processedCOEList.map((coe, idx) => (
-                        <tr key={coe.id || idx} className="coe-table-row hover:bg-gray-50 transition-colors duration-200">
+                        <tr key={coe.id || idx} className="coe-table-row hover:bg-gray-50/80 transition-colors duration-200">
                           <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">{coe.school_year}</td>
                           <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">{coe.semester}</td>
                           <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">{coe.year_level || 'N/A'}</td>
                           <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">{coe.formattedDate}</td>
                           <td className="px-4 py-2 whitespace-nowrap">
                             <button
-                              className="coe-view-button inline-flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                              className="coe-view-button inline-flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors shadow-sm"
                               onClick={() => handleViewCOE(coe)}
                             >
                               <Eye className="w-4 h-4" /> View
