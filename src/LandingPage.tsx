@@ -200,7 +200,16 @@ const LandingPage = () => {
         link.setAttribute('fetchpriority', 'high');
         document.head.appendChild(link);
         // Cleanup
-        setTimeout(() => { if (link.parentNode) link.parentNode.removeChild(link); }, 3000);
+        const cleanup = () => { 
+          try {
+            if (link && link.parentNode) {
+              link.parentNode.removeChild(link);
+            }
+          } catch {
+            // Ignore cleanup errors
+          }
+        };
+        setTimeout(cleanup, 3000);
       }
 
       const idle = (cb: () => void) => {
@@ -217,7 +226,16 @@ const LandingPage = () => {
         link.rel = 'preconnect';
         link.href = location.origin;
         document.head.appendChild(link);
-        setTimeout(() => { if (link.parentNode) link.parentNode.removeChild(link); }, 5000);
+        const cleanup = () => {
+          try {
+            if (link && link.parentNode) {
+              link.parentNode.removeChild(link);
+            }
+          } catch {
+            // Ignore cleanup errors
+          }
+        };
+        setTimeout(cleanup, 5000);
       });
     } catch { /* noop */ }
   }, [showDevModal, currentDevIndex, devs, isMobile]);
@@ -337,6 +355,136 @@ const LandingPage = () => {
 
   // Remove touch state and handlers
 
+  // Build Feedback UI once and portal it on desktop so it stays fixed while scrolling
+  const feedbackUI = (
+    <div>
+      {/* Overlay */}
+      {showFeedback && (
+        <div 
+          className="fixed inset-0 bg-black/30 z-30 transition-opacity duration-300"
+          onClick={() => setShowFeedback(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Feedback Tab */}
+      <button
+        onClick={() => setShowFeedback(true)}
+        disabled={showLogin}
+        className={`fixed z-40 bg-gradient-to-b from-green-400 to-green-500 text-white px-6 py-3 shadow-lg font-semibold text-sm transition-all duration-300 flex items-center gap-3 rounded-full hover:scale-105
+            ${showLogin ? 'opacity-50 cursor-not-allowed' : ''}
+            ${windowWidth <= 640 ? 'top-[20%]' : 'top-[40%]'}
+          `}
+        style={{
+          right: showFeedback ? (windowWidth <= 640 ? 'calc(100vw - 60px)' : '420px') : '20px',
+          transform: 'translateY(-50%) rotate(-90deg)',
+          transformOrigin: 'right center',
+          width: 'fit-content',
+          whiteSpace: 'nowrap',
+          boxShadow: '0 4px 16px 0 rgba(34,197,94,0.25)',
+          borderTopLeftRadius: '20px',
+          borderBottomLeftRadius: '5px',
+          borderTopRightRadius: '20px',
+          borderBottomRightRadius: '5px',
+          minHeight: '50px',
+        }}
+        aria-label="Give Feedback"
+      >
+        <svg 
+          xmlns="http://www.w3.org/2000/svg" 
+          width="20" 
+          height="20" 
+          viewBox="0 0 24 24" 
+          fill="none" 
+          stroke="currentColor" 
+          strokeWidth="2" 
+          strokeLinecap="round" 
+          strokeLinejoin="round"
+          className={`transform rotate-90 transition-transform duration-300 ${showFeedback ? 'rotate-0' : ''}`}
+        >
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+        </svg>
+        Give Feedback
+      </button>
+
+      {/* Feedback Panel */}
+      <div 
+        className={`fixed z-40 transition-all duration-300 ease-in-out ${
+            showFeedback ? 'opacity-100' : 'opacity-0'
+          }`} 
+        style={{
+          width: windowWidth <= 640 ? 'calc(100vw - 80px)' : '400px',
+          height: windowWidth <= 640 ? 'auto' : '530px',
+          maxHeight: windowWidth <= 640 ? '80vh' : '530px',
+          top: windowWidth <= 640 ? '40%' : '50%',
+          transform: 'translateY(-50%)',
+          right: showFeedback ? '0px' : (windowWidth <= 640 ? '-100vw' : '-400px'),
+          borderRadius: '1.5rem 0 1.5rem 1.5rem',
+          borderTopLeftRadius: '1.5rem',
+          borderBottomLeftRadius: '1.5rem',
+          borderTopRightRadius: '0',
+          borderBottomRightRadius: '0',
+          background: 'linear-gradient(135deg, #f8fafc 0%, #e0e7ef 100%)',
+          boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.15)',
+          border: '1px solid #e5e7eb',
+          pointerEvents: showFeedback ? 'auto' : 'none',
+          position: 'fixed'
+        }}
+      >
+        <div className="bg-transparent h-full shadow-none flex flex-col relative rounded-l-xl border-l-0">
+          {/* Close Button */}
+          <button
+            className="absolute w-6 h-6 flex items-center justify-center text-lg font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-full transition-colors duration-200 top-3 right-3"
+            onClick={() => setShowFeedback(false)}
+            aria-label="Close Feedback"
+          >
+            ×
+          </button>
+          {/* Branding */}
+          <div className="flex flex-col items-center justify-center gap-1 px-8 pt-4 pb-0">
+            <img src="/img/logo1.png" alt="SMCBI Logo" className="w-10 h-10" />
+            <span className="font-medium text-sm text-[#2C3E50]">Feedback Form</span>
+          </div>
+          {/* Horizontal Line Separator */}
+          <div className="px-8 pb-3">
+            <div className="w-full h-1 bg-gray-300 rounded-full"></div>
+          </div>
+          {/* Feedback Content */}
+          <div className="flex-1 overflow-y-auto px-8 py-0">
+            {/* Google Form Button */}
+            <div className="flex flex-col items-center justify-center h-full text-center">
+              <div className="mb-6">
+                <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full flex items-center justify-center">
+                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-[#2C3E50] mb-2">Share Your Feedback</h3>
+                <p className="text-sm text-gray-600 mb-6">
+                  Help us improve the SMCBI School Portal & Enrollment System by sharing your thoughts and suggestions.
+                </p>
+              </div>
+              
+              <button 
+                onClick={() => window.open('https://docs.google.com/forms/d/e/1FAIpQLSewLjzE-7HgqN71u1_hMl8u0yX5I0cLUzFfJ7CEGf1z0Y4Xvw/viewform?usp=header', '_blank')}
+                className="w-full py-3 px-6 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-105 flex items-center justify-center gap-3"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+                Open Feedback Form
+              </button>
+              
+              <p className="text-xs text-gray-500 mt-4">
+                Opens in a new tab • Takes 2-3 minutes to complete
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className={`min-h-screen flex flex-col font-sans relative ${showDevStatus ? 'pt-12' : ''}`}>
       {/* Development Status Popup */}
@@ -439,7 +587,7 @@ const LandingPage = () => {
                   loading="eager"
                   decoding="async"
                   ref={logoRef}
-                  className={`w-32 h-auto mb-6 relative z-10 drop-shadow-2xl ${logoLoaded ? 'opacity-100' : 'opacity-0'}`}
+                  className={`w-32 h-auto mb-6 relative z-10 drop-shadow-2xl cursor-pointer ${logoLoaded ? 'opacity-100' : 'opacity-0'}`}
                   style={{
                     rotateX: springRotateX,
                     rotateY: springRotateY,
@@ -465,6 +613,15 @@ const LandingPage = () => {
                   }}
                   onLoad={() => setLogoLoaded(true)}
                   onError={() => setLogoLoaded(true)}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    requestAnimationFrame(() => {
+                      window.location.assign('/');
+                    });
+                  }}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
                 />
               </div>
               
@@ -478,7 +635,10 @@ const LandingPage = () => {
             <div className="w-full max-w-xs flex flex-col items-center">
               <motion.button
                 className="group relative w-full py-3.5 px-8 rounded-xl bg-gradient-to-r from-[#2C3E50] via-[#34495E] to-[#2C3E50] text-white text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300 mb-8 overflow-hidden"
-                onClick={() => setShowLogin(true)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  requestAnimationFrame(() => setShowLogin(true));
+                }}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 initial={{ opacity: 0, y: 20 }}
@@ -866,123 +1026,16 @@ const LandingPage = () => {
           />
         )}
 
-        {/* Feedback Tab */}
-        <button
-          onClick={() => setShowFeedback(true)}
-          disabled={showLogin}
-          className={`fixed z-40 bg-gradient-to-b from-green-400 to-green-500 text-white px-6 py-3 shadow-lg font-semibold text-sm transition-all duration-300 flex items-center gap-3 rounded-full hover:scale-105
-            ${showLogin ? 'opacity-50 cursor-not-allowed' : ''}
-            ${windowWidth <= 640 ? 'top-[20%]' : 'top-[40%]'}
-          `}
-          style={{
-            right: showFeedback ? (windowWidth <= 640 ? 'calc(100vw - 60px)' : '420px') : '20px',
-            transform: 'translateY(-50%) rotate(-90deg)',
-            transformOrigin: 'right center',
-            width: 'fit-content',
-            whiteSpace: 'nowrap',
-            boxShadow: '0 4px 16px 0 rgba(34,197,94,0.25)',
-            borderTopLeftRadius: '20px',
-            borderBottomLeftRadius: '5px',
-            borderTopRightRadius: '20px',
-            borderBottomRightRadius: '5px',
-            minHeight: '50px',
-          }}
-          aria-label="Give Feedback"
-        >
-          <svg 
-            xmlns="http://www.w3.org/2000/svg" 
-            width="20" 
-            height="20" 
-            viewBox="0 0 24 24" 
-            fill="none" 
-            stroke="currentColor" 
-            strokeWidth="2" 
-            strokeLinecap="round" 
-            strokeLinejoin="round"
-            className={`transform rotate-90 transition-transform duration-300 ${showFeedback ? 'rotate-0' : ''}`}
-          >
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-          </svg>
-          Give Feedback
-        </button>
-
-        {/* Feedback Panel */}
-        <div 
-          className={`fixed z-40 transition-all duration-300 ease-in-out ${
-            showFeedback ? 'opacity-100' : 'opacity-0'
-          }`} 
-          style={{
-            width: windowWidth <= 640 ? 'calc(100vw - 80px)' : '400px',
-            height: windowWidth <= 640 ? 'auto' : '530px',
-            maxHeight: windowWidth <= 640 ? '80vh' : '530px',
-            top: windowWidth <= 640 ? '40%' : '50%',
-            transform: 'translateY(-50%)',
-            right: showFeedback ? '0px' : (windowWidth <= 640 ? '-100vw' : '-400px'),
-            borderRadius: '1.5rem 0 1.5rem 1.5rem',
-            borderTopLeftRadius: '1.5rem',
-            borderBottomLeftRadius: '1.5rem',
-            borderTopRightRadius: '0',
-            borderBottomRightRadius: '0',
-            background: 'linear-gradient(135deg, #f8fafc 0%, #e0e7ef 100%)',
-            boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.15)',
-            border: '1px solid #e5e7eb',
-            pointerEvents: showFeedback ? 'auto' : 'none',
-            position: 'fixed'
-          }}
-        >
-          <div className="bg-transparent h-full shadow-none flex flex-col relative rounded-l-xl border-l-0">
-            {/* Close Button */}
-            <button
-              className="absolute w-6 h-6 flex items-center justify-center text-lg font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-full transition-colors duration-200 top-3 right-3"
-              onClick={() => setShowFeedback(false)}
-              aria-label="Close Feedback"
-            >
-              ×
-            </button>
-            {/* Branding */}
-            <div className="flex flex-col items-center justify-center gap-1 px-8 pt-4 pb-0">
-              <img src="/img/logo1.png" alt="SMCBI Logo" className="w-10 h-10" />
-              <span className="font-medium text-sm text-[#2C3E50]">Feedback Form</span>
-            </div>
-            {/* Horizontal Line Separator */}
-            <div className="px-8 pb-3">
-              <div className="w-full h-1 bg-gray-300 rounded-full"></div>
-            </div>
-            {/* Feedback Content */}
-            <div className="flex-1 overflow-y-auto px-8 py-0">
-              {/* Google Form Button */}
-              <div className="flex flex-col items-center justify-center h-full text-center">
-                <div className="mb-6">
-                  <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full flex items-center justify-center">
-                    <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                  </div>
-                  <h3 className="text-lg font-semibold text-[#2C3E50] mb-2">Share Your Feedback</h3>
-                  <p className="text-sm text-gray-600 mb-6">
-                    Help us improve the SMCBI School Portal & Enrollment System by sharing your thoughts and suggestions.
-                  </p>
-                </div>
-                
-                <button 
-                  onClick={() => window.open('https://docs.google.com/forms/d/e/1FAIpQLSewLjzE-7HgqN71u1_hMl8u0yX5I0cLUzFfJ7CEGf1z0Y4Xvw/viewform?usp=header', '_blank')}
-                  className="w-full py-3 px-6 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-105 flex items-center justify-center gap-3"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                  </svg>
-                  Open Feedback Form
-                </button>
-                
-                <p className="text-xs text-gray-500 mt-4">
-                  Opens in a new tab • Takes 2-3 minutes to complete
-                </p>
-              </div>
-            </div>
+     
+     
           </div>
-        </div>
-      </div>
+     
+    
 
+      {/* Feedback Tab and Panel */}
+      {typeof window !== 'undefined' && windowWidth > 640
+        ? createPortal(feedbackUI, document.body)
+        : feedbackUI}
 
       {/* Optimized Animations */}
       <style>{`
