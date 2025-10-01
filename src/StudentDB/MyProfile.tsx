@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import ReactDOM from 'react-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { syncGoogleProfileData } from '../lib/googleProfileSync';
@@ -525,7 +526,7 @@ export const MyProfile: React.FC = () => {
   if (loading) {
     if (isOffline) {
       return (
-        <div className="flex flex-col items-center justify-center min-h-screen bg-[#1c1c1d]">
+        <div className="flex flex-col items-center justify-center min-h-screen bg-[#f4f4f4]">
           <svg xmlns="http://www.w3.org/2000/svg" className="w-16 h-16 text-blue-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657A8 8 0 1 0 7.05 7.05m10.607 9.607A8 8 0 0 1 7.05 7.05m9.9 9.9L7.05 7.05" />
           </svg>
@@ -535,11 +536,10 @@ export const MyProfile: React.FC = () => {
       );
     }
     return (
-      <div className="min-h-screen bg-[#1c1c1d] py-10 px-2 sm:px-0">
+      <div className="min-h-screen py-10 px-2 sm:px-0">
         <div className="max-w-3xl mx-auto space-y-10">
           {/* Enhanced Profile Card Skeleton */}
-          <div className="relative overflow-visible rounded-3xl bg-gradient-to-br from-white via-blue-50 to-purple-50 shadow-xl border border-blue-100 p-0">
-            <div className="absolute inset-0 bg-gradient-to-br from-blue-100/20 to-purple-100/20 pointer-events-none rounded-3xl" />
+          <div className="relative overflow-visible rounded-3xl p-0">
             <div className="relative flex flex-col sm:flex-row items-center gap-8 px-8 sm:px-14 pt-10 sm:pt-14 pb-2">
               {/* Profile Picture Skeleton with shimmer effect */}
               <div className="relative w-36 h-36 sm:w-44 sm:h-44 rounded-full bg-gray-200 animate-pulse overflow-hidden">
@@ -582,15 +582,20 @@ export const MyProfile: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#1c1c1d] py-10 px-2 sm:px-0">
+    <div className="min-h-screen py-10 px-2 sm:px-0">
       <div className="max-w-3xl mx-auto space-y-10">
         {/* Profile Card */}
         <motion.div
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="profile-card relative overflow-visible rounded-3xl bg-white/90 p-0"
-          style={{ boxShadow: '-6px -6px 12px rgba(255,255,255,0.03), 6px 6px 12px rgba(0,0,0,0.4)' }}
+          className="profile-card relative overflow-visible rounded-3xl p-0"
+          style={{ 
+            backgroundColor: '#FFFFFFE6',
+            borderRadius: '16px',
+            boxShadow: '6px 6px 12px rgba(0, 0, 0, 0.22), -6px -6px 12px rgba(255, 255, 255, 0.1)',
+            transition: 'box-shadow 200ms ease, transform 200ms ease'
+          }}
         >
           
           <div className="relative flex flex-col sm:flex-row items-center gap-8 px-8 sm:px-14 pt-10 sm:pt-14 pb-2">
@@ -698,7 +703,15 @@ export const MyProfile: React.FC = () => {
             px-8 py-4 min-h-[80px] z-10 mb-3
           ">
             {/* Student ID */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-center items-center justify-center min-w-[130px] min-h-[48px] rounded-xl px-4 py-2 bg-white/90" style={{ boxShadow: '-4px -4px 8px rgba(255,255,255,0.03), 4px 4px 8px rgba(0,0,0,0.35)' }}>
+            <div 
+              className="flex flex-col sm:flex-row sm:items-center sm:justify-center items-center justify-center min-w-[130px] min-h-[48px] rounded-xl px-4 py-2"
+              style={{ 
+                backgroundColor: '#FFFFFFE6',
+                borderRadius: '16px',
+                boxShadow: '6px 6px 12px rgba(0, 0, 0, 0.22), -6px -6px 12px rgba(255, 255, 255, 0.1)',
+                transition: 'box-shadow 200ms ease, transform 200ms ease'
+              }}
+            >
               <span className="flex items-center gap-1 text-[11px] sm:text-xs text-black mb-0.5 sm:mb-0 sm:mr-1">
                 <Hash className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
                 Student ID:
@@ -706,7 +719,15 @@ export const MyProfile: React.FC = () => {
               <span className="text-sm sm:text-base font-bold text-black truncate">{profile?.student_id ?? 'N/A'}</span>
             </div>
             {/* Program */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-center items-center justify-center min-w-[130px] min-h-[48px] rounded-xl px-4 py-2 bg-white/90" style={{ boxShadow: '-4px -4px 8px rgba(255,255,255,0.03), 4px 4px 8px rgba(0,0,0,0.35)' }}>
+            <div 
+              className="flex flex-col sm:flex-row sm:items-center sm:justify-center items-center justify-center min-w-[130px] min-h-[48px] rounded-xl px-4 py-2"
+              style={{ 
+                backgroundColor: '#FFFFFFE6',
+                borderRadius: '16px',
+                boxShadow: '6px 6px 12px rgba(0, 0, 0, 0.22), -6px -6px 12px rgba(255, 255, 255, 0.1)',
+                transition: 'box-shadow 200ms ease, transform 200ms ease'
+              }}
+            >
               <span className="flex items-center gap-1 text-[11px] sm:text-xs text-black mb-0.5 sm:mb-0 sm:mr-1">
                 <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600" />
                 Program:
@@ -714,15 +735,31 @@ export const MyProfile: React.FC = () => {
               <span className="text-sm sm:text-base font-bold text-black truncate">{profile?.department ?? 'N/A'}</span>
             </div>
             {/* Year Level */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-center items-center justify-center min-w-[130px] min-h-[48px] rounded-xl px-4 py-2 bg-white/90" style={{ boxShadow: '-4px -4px 8px rgba(255,255,255,0.03), 4px 4px 8px rgba(0,0,0,0.35)' }}>
-                            <span className="flex items-center gap-1 text-[11px] sm:text-xs text-black mb-0.5 sm:mb-0 sm:mr-1">
+            <div 
+              className="flex flex-col sm:flex-row sm:items-center sm:justify-center items-center justify-center min-w-[130px] min-h-[48px] rounded-xl px-4 py-2"
+              style={{ 
+                backgroundColor: '#FFFFFFE6',
+                borderRadius: '16px',
+                boxShadow: '6px 6px 12px rgba(0, 0, 0, 0.22), -6px -6px 12px rgba(255, 255, 255, 0.1)',
+                transition: 'box-shadow 200ms ease, transform 200ms ease'
+              }}
+            >
+              <span className="flex items-center gap-1 text-[11px] sm:text-xs text-black mb-0.5 sm:mb-0 sm:mr-1">
                 <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-green-600" />
                 Year Level:
               </span>
               <span className="text-sm sm:text-base font-bold text-black truncate">{profile?.year_level ?? 'N/A'}</span>
             </div>
             {/* Section */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-center items-center justify-center min-w-[130px] min-h-[48px] rounded-xl px-4 py-2 bg-white/90" style={{ boxShadow: '-4px -4px 8px rgba(255,255,255,0.03), 4px 4px 8px rgba(0,0,0,0.35)' }}>
+            <div 
+              className="flex flex-col sm:flex-row sm:items-center sm:justify-center items-center justify-center min-w-[130px] min-h-[48px] rounded-xl px-4 py-2"
+              style={{ 
+                backgroundColor: '#FFFFFFE6',
+                borderRadius: '16px',
+                boxShadow: '6px 6px 12px rgba(0, 0, 0, 0.22), -6px -6px 12px rgba(255, 255, 255, 0.1)',
+                transition: 'box-shadow 200ms ease, transform 200ms ease'
+              }}
+            >
               <span className="flex items-center gap-1 text-[11px] sm:text-xs text-black mb-0.5 sm:mb-0 sm:mr-1">
                 <Users className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-600" />
                 Section:
@@ -744,7 +781,14 @@ export const MyProfile: React.FC = () => {
               resetPasswordForm();
               setShowPasswordModal(true);
             }}
-            className="inline-flex items-center gap-3 px-6 py-3 rounded-xl shadow bg-blue-600  border-blue-200 "
+            className="inline-flex items-center gap-3 px-6 py-3 rounded-xl transition-all duration-200 hover:scale-105 active:scale-95"
+            style={{
+              background: 'linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)',
+              borderRadius: '16px',
+              boxShadow: '6px 6px 12px rgba(0, 0, 0, 0.22), -6px -6px 12px rgba(255, 255, 255, 0.1)',
+              transition: 'box-shadow 200ms ease, transform 200ms ease',
+              border: 'none'
+            }}
           >
             <Lock className="w-6 h-6 text-white" />
             <span className="text-lg font-semibold text-white">{requireOldPassword ? 'Change Password' : 'Set Password'}</span>
@@ -753,14 +797,27 @@ export const MyProfile: React.FC = () => {
       </div>
 
       {/* Password Change Modal */}
-      {showPasswordModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6"
-          >
+      {typeof window !== 'undefined' && showPasswordModal && ReactDOM.createPortal(
+        <AnimatePresence>
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => {
+                setShowPasswordModal(false);
+                resetPasswordForm();
+              }}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]"
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.8, y: 20 }}
+                transition={{ type: "spring", duration: 0.3 }}
+                className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 p-6 relative transform"
+                onClick={(e) => e.stopPropagation()}
+              >
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-gray-900">{requireOldPassword ? 'Change Password' : 'Set Password'}</h2>
               <button
@@ -960,51 +1017,67 @@ export const MyProfile: React.FC = () => {
                 </button>
               </div>
             </div>
-          </motion.div>
-        </div>
+              </motion.div>
+            </motion.div>
+          </>
+        </AnimatePresence>,
+        document.body
       )}
 
       {/* Post-change modal: offer Stay or Logout to test new password */}
-      {showPostChangeModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6"
-          >
-            <div className="text-center">
-              <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
-                <CheckCircle2 className="w-8 h-8 text-green-600" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Password changed</h3>
-              <p className="text-gray-600 mb-6">Do you want to stay, or log out now to test your new password?</p>
-              <div className="flex gap-3 justify-center">
-                <button
-                  onClick={() => setShowPostChangeModal(false)}
-                  className="px-6 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-                >
-                  Stay
-                </button>
-                <button
-                  onClick={async () => {
-                    try {
-                      await supabase.auth.signOut();
-                      // Clear local user storage if present
-                      try { localStorage.removeItem('user'); } catch { /* ignore */ }
-                      window.location.href = '/';
-                    } catch {
-                      setShowPostChangeModal(false);
-                    }
-                  }}
-                  className="px-6 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
-                >
-                  Logout to test
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        </div>
+      {typeof window !== 'undefined' && showPostChangeModal && ReactDOM.createPortal(
+        <AnimatePresence>
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowPostChangeModal(false)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]"
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.8, y: 20 }}
+                transition={{ type: "spring", duration: 0.3 }}
+                className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 p-6 relative transform"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="text-center">
+                  <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
+                    <CheckCircle2 className="w-8 h-8 text-green-600" />
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">Password changed</h3>
+                  <p className="text-gray-600 mb-6">Do you want to stay, or log out now to test your new password?</p>
+                  <div className="flex gap-3 justify-center">
+                    <button
+                      onClick={() => setShowPostChangeModal(false)}
+                      className="px-6 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                    >
+                      Stay
+                    </button>
+                    <button
+                      onClick={async () => {
+                        try {
+                          await supabase.auth.signOut();
+                          // Clear local user storage if present
+                          try { localStorage.removeItem('user'); } catch { /* ignore */ }
+                          window.location.href = '/';
+                        } catch {
+                          setShowPostChangeModal(false);
+                        }
+                      }}
+                      className="px-6 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                    >
+                      Logout to test
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          </>
+        </AnimatePresence>,
+        document.body
       )}
     </div>
   );
