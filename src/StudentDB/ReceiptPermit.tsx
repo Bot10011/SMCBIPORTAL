@@ -473,9 +473,13 @@ const ReceiptPermit: React.FC = () => {
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="receipt-permit-header relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 via-white to-purple-50 shadow-inner shadow-inner-strong border border-blue-100 mb-12"
+          className="receipt-permit-header relative overflow-hidden rounded-3xl border border-gray-200 mb-12"
+          style={{
+            background: 'linear-gradient(145deg, #f0f0f0, #ffffff)',
+            boxShadow: 'inset 20px 20px 60px #d9d9d9, inset -20px -20px 60px #ffffff, 0 8px 32px rgba(0,0,0,0.1)'
+          }}
         >
-          <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4">
+          <div className="px-6 py-4" style={{ backgroundColor: '#00171f' }}>
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
@@ -537,12 +541,19 @@ const ReceiptPermit: React.FC = () => {
                 {/* Main Content Section - Horizontal Layout */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 mb-12">
           {/* Tuition Receipts */}
-          <div data-section="receipt" className="bg-white/90 rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
-            <div className="px-6 py-4 bg-gradient-to-r from-blue-50 to-blue-100 border-b border-gray-200">
-              <h3 className="text-xl font-semibold text-blue-900 flex items-center gap-2">
-                <FileText className="w-5 h-5" />
+          <div 
+            data-section="receipt" 
+            className="rounded-2xl border border-gray-200 overflow-hidden"
+            style={{
+              backgroundColor: '#FFFFFFE6',
+              boxShadow: '20px 20px 60px #d9d9d9, -20px -20px 60px #ffffff'
+            }}
+          >
+            <div className="px-6 py-4 border-b border-gray-200" style={{ backgroundColor: '#00A7E1' }}>
+              <h3 className="text-xl font-semibold text-white flex items-center gap-2">
+                <FileText className="w-5 h-5 text-white" />
                 Tuition Receipts
-                <span className="ml-auto text-sm font-medium text-blue-700 bg-blue-200 px-2 py-1 rounded-full">
+                <span className="ml-auto text-sm font-medium text-white bg-white/20 px-2 py-1 rounded-full backdrop-blur-sm">
                   {receiptFiles.length}
                 </span>
               </h3>
@@ -630,7 +641,13 @@ const ReceiptPermit: React.FC = () => {
           </div>
 
           {/* Upload Section */}
-          <div className="bg-white/90 rounded-2xl border-2 border-dashed border-gray-300 p-6 text-center">
+          <div 
+            className="rounded-2xl border-2 border-dashed border-gray-300 p-6 text-center"
+            style={{
+              backgroundColor: '#FFFFFFE6',
+              boxShadow: 'inset 10px 10px 20px #d9d9d9, inset -10px -10px 20px #ffffff'
+            }}
+          >
             {/* Document Type Selector */}
             <div className="mb-4">
               <div className="inline-block p-3 bg-gray-50 rounded-xl border border-gray-200">
@@ -720,12 +737,19 @@ const ReceiptPermit: React.FC = () => {
           </div>
 
           {/* Exam Permits */}
-          <div data-section="permit" className="bg-white/90 rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
-            <div className="px-6 py-4 bg-gradient-to-r from-green-50 to-green-100 border-b border-gray-200">
-              <h3 className="text-xl font-semibold text-green-900 flex items-center gap-2">
-                <FileText className="w-5 h-5" />
+          <div 
+            data-section="permit" 
+            className="rounded-2xl border border-gray-200 overflow-hidden"
+            style={{
+              backgroundColor: '#FFFFFFE6',
+              boxShadow: '20px 20px 60px #d9d9d9, -20px -20px 60px #ffffff'
+            }}
+          >
+            <div className="px-6 py-4 border-b border-gray-200" style={{ backgroundColor: '#00A7E1' }}>
+              <h3 className="text-xl font-semibold text-white flex items-center gap-2">
+                <FileText className="w-5 h-5 text-white" />
                 Exam Permits
-                <span className="ml-auto text-sm font-medium text-green-700 bg-green-200 px-2 py-1 rounded-full">
+                <span className="ml-auto text-sm font-medium text-white bg-white/20 px-2 py-1 rounded-full backdrop-blur-sm">
                   {permitFiles.length}
                 </span>
               </h3>
@@ -822,37 +846,40 @@ const ReceiptPermit: React.FC = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[9998] bg-black/50 backdrop-blur-sm pointer-events-auto"
+              onClick={handleDeleteCancel}
+              className="fixed inset-0 z-[9998] bg-black/60 backdrop-blur-sm pointer-events-auto flex items-center justify-center p-4"
               aria-hidden="true"
-            />
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[9999] flex items-center justify-center modal-allow"
-              aria-modal="true"
-              role="dialog"
-              tabIndex={-1}
             >
               <motion.div 
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                className="bg-white/90 rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden"
+                initial={{ scale: 0.8, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.8, opacity: 0, y: 20 }}
+                transition={{ type: "spring", duration: 0.3 }}
+                className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden transform"
                 onClick={(e) => e.stopPropagation()}
               >
-                <div className="p-6">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="flex-shrink-0">
-                      <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                        <Trash2 className="w-6 h-6 text-red-600" />
+                <div className="relative">
+                  {/* Close button */}
+                  <button
+                    onClick={handleDeleteCancel}
+                    className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-all duration-200 z-10"
+                    aria-label="Close"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                  
+                  <div className="p-6">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="flex-shrink-0">
+                        <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                          <Trash2 className="w-6 h-6 text-red-600" />
+                        </div>
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900">Delete File</h3>
+                        <p className="text-sm text-gray-500">This action cannot be undone</p>
                       </div>
                     </div>
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900">Delete File</h3>
-                      <p className="text-sm text-gray-500">This action cannot be undone</p>
-                    </div>
-                  </div>
                   {/* Show image preview or file icon */}
                   <div className="flex flex-col items-center mb-4">
                     {(() => {
@@ -875,37 +902,42 @@ const ReceiptPermit: React.FC = () => {
                       }
                     })()}
                   </div>
-                  <p className="text-gray-600 mb-6 text-center">
-                    Are you sure you want to delete this file?
-                  </p>
-                  <div className="flex gap-3">
-                    <button
-                      onClick={handleDeleteCancel}
-                      className="flex-1 px-4 py-3 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleDeleteConfirm}
-                      disabled={uploading}
-                      className="flex-1 px-4 py-3 text-sm font-medium text-white bg-red-600 border border-transparent rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
-                    >
-                      {uploading ? (
-                        <div className="flex items-center justify-center gap-2">
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          Deleting...
-                        </div>
-                      ) : (
-                        'Delete'
-                      )}
-                    </button>
+                    <p className="text-gray-600 mb-6 text-center font-medium">
+                      Are you sure you want to delete <span className="font-semibold text-gray-900">"{deleteConfirm.fileName}"</span>?
+                    </p>
+                    
+                    <div className="flex gap-3">
+                      <button
+                        onClick={handleDeleteCancel}
+                        className="flex-1 px-4 py-3 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400 transition-all duration-200"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleDeleteConfirm}
+                        disabled={uploading}
+                        className="flex-1 px-4 py-3 text-sm font-medium text-white bg-red-600 border border-transparent rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                      >
+                        {uploading ? (
+                          <div className="flex items-center justify-center gap-2">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Deleting...
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-center gap-2">
+                            <Trash2 className="w-4 h-4" />
+                            Delete
+                          </div>
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </motion.div>
             </motion.div>
           </>
         </AnimatePresence>,
-        document.getElementById('modal-root') as HTMLElement
+        document.body
       )}
 
       {/* Upload Animation */}
@@ -979,61 +1011,75 @@ const ReceiptPermit: React.FC = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[9998] bg-black/50 backdrop-blur-sm pointer-events-auto"
+              onClick={() => setModalImage(null)}
+              className="fixed inset-0 z-[9998] bg-black/70 backdrop-blur-sm pointer-events-auto flex items-center justify-center p-4"
               aria-hidden="true"
-            />
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="fixed inset-0 z-[9999] flex items-center justify-center"
             >
-              <div className="bg-white/90 rounded-2xl shadow-2xl max-w-md w-auto mx-4 relative overflow-hidden">
-                <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <motion.div 
+                initial={{ scale: 0.8, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.8, opacity: 0, y: 20 }}
+                transition={{ type: "spring", duration: 0.3 }}
+                className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden relative transform"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Header */}
+                <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50">
                   <div className="flex items-center gap-3">
                     <div className="p-2 rounded-lg bg-blue-50">
                       <ImageIcon className="w-5 h-5 text-blue-600" />
                     </div>
                     <div>
                       <h3 className="text-lg font-semibold text-gray-900">Image Preview</h3>
+                      <p className="text-sm text-gray-500 truncate max-w-xs">{modalImage.name}</p>
                     </div>
                   </div>
                   <button
                     onClick={() => setModalImage(null)}
-                    className="absolute w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center text-lg sm:text-xl font-bold text-white bg-red-500 hover:bg-red-600 rounded-full shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 animate-pop-in hover:scale-110 hover:rotate-90 top-2 right-2 sm:top-3 sm:right-3"
+                    className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded-full transition-all duration-200"
                     aria-label="Close Image Preview"
-                    style={{ backgroundColor: 'rgb(239, 68, 68)', boxShadow: 'rgba(239, 68, 68, 0.3) 0px 2px 8px', zIndex: 50 }}
                   >
-                    ×
+                    <X className="w-5 h-5" />
                   </button>
                 </div>
-                <div className="p-4">
-                  <div className="flex justify-center">
-                    <img
-                      src={modalImage.url}
-                      alt={modalImage.name}
-                      className="max-h-[60vh] max-w-[90vw] rounded-lg shadow-lg object-contain"
-                      style={{ maxWidth: '400px' }}
-                      onLoad={() => console.log('Image loaded successfully:', modalImage.url)}
-                      onError={() => console.error('Image failed to load:', modalImage.url)}
-                    />
+                
+                {/* Image Container */}
+                <div className="p-6 flex items-center justify-center bg-gray-50" style={{ minHeight: '400px', maxHeight: 'calc(90vh - 140px)' }}>
+                  <img
+                    src={modalImage.url}
+                    alt={modalImage.name}
+                    className="max-h-full max-w-full rounded-lg shadow-lg object-contain"
+                    onLoad={() => console.log('Image loaded successfully:', modalImage.url)}
+                    onError={() => console.error('Image failed to load:', modalImage.url)}
+                  />
+                </div>
+                
+                {/* Footer */}
+                <div className="flex justify-between items-center gap-3 p-4 border-t border-gray-200 bg-white">
+                  <p className="text-sm text-gray-500 truncate flex-1">{modalImage.name}</p>
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setModalImage(null)}
+                      className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-gray-400"
+                    >
+                      Close
+                    </button>
+                    <button
+                      type="button"
+                      onClick={downloadImage}
+                      className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium shadow-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <Download className="w-4 h-4" />
+                      Download
+                    </button>
                   </div>
                 </div>
-                <div className="flex justify-center gap-3 p-4 border-t border-gray-200">
-                  <button
-                    type="button"
-                    onClick={downloadImage}
-                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium shadow-lg transition-colors"
-                  >
-                    <Download className="w-4 h-4" />
-                    Download
-                  </button>
-                </div>
-              </div>
+              </motion.div>
             </motion.div>
           </>
         </AnimatePresence>,
-        document.getElementById('modal-root') as HTMLElement
+        document.body
       )}
     </div>
   );
