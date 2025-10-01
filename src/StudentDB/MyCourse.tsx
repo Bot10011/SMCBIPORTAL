@@ -141,27 +141,57 @@ const MyCourse: React.FC<MyCourseProps> = ({ enrollments, courseImages, loading 
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 via-white to-purple-50 shadow-inner shadow-inner-strong border border-blue-100"
+        className="relative overflow-hidden rounded-3xl mb-12"
+        style={{
+          backgroundColor: '#00171f',
+          boxShadow: '8px 8px 16px rgba(0, 0, 0, 0.4), -8px -8px 16px rgba(255, 255, 255, 0.05)',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
+          transition: 'all 0.3s ease'
+        }}
       >
-        <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4">
+        <div className="px-6 py-8">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
+            <div className="flex items-center gap-4">
+              <div 
+                className="p-3 rounded-2xl"
+                style={{
+                  backgroundColor: '#00171f',
+                  boxShadow: '4px 4px 8px rgba(0, 0, 0, 0.3), -4px -4px 8px rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  transition: 'all 0.3s ease'
+                }}
+              >
                 <BookOpen className="w-6 h-6 text-white" />
               </div>
               <div>
                 <h2 className="text-2xl font-bold text-white tracking-tight">My Subjects</h2>
-                <p className="text-white/80 text-sm font-medium mt-1">View and manage your enrolled Subjects</p>
+                <p className="text-gray-300 text-sm font-medium mt-1">View and manage your enrolled Subjects</p>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2 sm:flex sm:gap-3 mt-4 sm:mt-0 ml-0 sm:ml-auto w-full sm:w-auto">
-              <div className="w-full sm:w-auto px-2.5 py-1.5 sm:px-4 sm:py-2 bg-white rounded-lg border border-gray-200 shadow-inner flex items-center justify-center gap-1.5 sm:gap-2">
-                <BookMarked className="w-3 h-3 sm:w-4 sm:h-4 text-[#1a73e8]" />
-                <span className="text-xs sm:text-sm font-medium text-gray-700">{stats.activeCourses} Active Subjects</span>
+              <div 
+                className="w-full sm:w-auto px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-lg flex items-center justify-center gap-1.5 sm:gap-2"
+                style={{
+                  backgroundColor: '#00171f',
+                  boxShadow: '3px 3px 6px rgba(0, 0, 0, 0.3), -3px -3px 6px rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  transition: 'all 0.3s ease'
+                }}
+              >
+                <BookMarked className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
+                <span className="text-xs sm:text-sm font-medium text-gray-200">{stats.activeCourses} Active Subjects</span>
               </div>
-              <div className="w-full sm:w-auto px-2.5 py-1.5 sm:px-4 sm:py-2 bg-white rounded-lg border border-gray-200 shadow-inner flex items-center justify-center gap-1.5 sm:gap-2">
-                <GraduationCap className="w-3 h-3 sm:w-4 sm:h-4 text-[#1a73e8]" />
-                <span className="text-xs sm:text-sm font-medium text-gray-700">{stats.totalUnits} Total Units</span>
+              <div 
+                className="w-full sm:w-auto px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-lg flex items-center justify-center gap-1.5 sm:gap-2"
+                style={{
+                  backgroundColor: '#00171f',
+                  boxShadow: '3px 3px 6px rgba(0, 0, 0, 0.3), -3px -3px 6px rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  transition: 'all 0.3s ease'
+                }}
+              >
+                <GraduationCap className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
+                <span className="text-xs sm:text-sm font-medium text-gray-200">{stats.totalUnits} Total Units</span>
               </div>
             </div>
           </div>
@@ -244,10 +274,16 @@ const MyCourse: React.FC<MyCourseProps> = ({ enrollments, courseImages, loading 
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
-                  whileHover={{ y: -2 }}
-                  className={`course-card group relative bg-white rounded-md border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden h-full min-h-[180px] sm:min-h-[200px] flex flex-col ${
+                  className={`course-card group relative overflow-hidden h-full min-h-[180px] sm:min-h-[200px] flex flex-col ${
                     modalCourse?.id === enrollment.id ? "ring-2 ring-[#1a73e8]" : ""
                   }`}
+                  style={{
+                    backgroundColor: '#f0f0f0',
+                    borderRadius: '16px',
+                    boxShadow: '8px 8px 16px rgba(0, 0, 0, 0.15), -8px -8px 16px rgba(255, 255, 255, 0.7)',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    transition: 'all 0.3s ease'
+                  }}
                 >
                   {/* Course Header */}
                   <div className="relative h-16 sm:h-20">
@@ -308,7 +344,12 @@ const MyCourse: React.FC<MyCourseProps> = ({ enrollments, courseImages, loading 
                     {/* View Details Button */}
                     <button 
                       onClick={() => handleOpenModal(enrollment)}
-                      className="course-button w-full mt-auto px-3 py-1.5 sm:py-2 text-sm font-medium text-[#1a73e8] bg-[#e8f0fe] rounded-md hover:bg-[#d2e3fc] transition-colors duration-200 flex items-center justify-center gap-2"
+                      className="course-button w-full mt-auto px-3 py-1.5 sm:py-2 text-sm font-medium text-white rounded-md transition-all duration-200 flex items-center justify-center gap-2"
+                      style={{
+                        backgroundColor: '#2563eb',
+                        boxShadow: '4px 4px 8px rgba(37, 99, 235, 0.3), -4px -4px 8px rgba(255, 255, 255, 0.5), inset 2px 2px 4px rgba(255, 255, 255, 0.2), inset -2px -2px 4px rgba(37, 99, 235, 0.2)',
+                        border: '1px solid rgba(255, 255, 255, 0.2)'
+                      }}
                     >
                       View Details
                       <ChevronRight className="w-4 h-4" />
