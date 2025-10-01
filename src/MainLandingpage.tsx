@@ -74,19 +74,34 @@ const MainLandingPage: React.FC = () => {
     { value: dbStats.satisfaction, label: "Satisfaction %", icon: <CheckCircle2 className="w-5 h-5" />, meta: { hasData: dbStats.hasSatisfactionData } }
   ];
 
-  // Parallax effects
+  // Optimized parallax effects with smooth transforms
   const heroY = useTransform(scrollYProgress, [0, 0.3], [0, -150]);
   const heroOpacity = useTransform(scrollYProgress, [0, 0.3], [1, 0.3]);
   
 // Removed floating animation for the showcase image
 
-  // Check if elements are in viewport for animations
+  // Optimized intersection observer with performance improvements
   useEffect(() => {
+    let ticking = false;
+    
     const observer = new IntersectionObserver(
-      ([entry]) => {
-        setIsVisible(entry.isIntersecting);
+      (entries) => {
+        if (!ticking) {
+          requestAnimationFrame(() => {
+            entries.forEach(entry => {
+              if (entry.target === statsRef.current) {
+                setIsVisible(entry.isIntersecting);
+              }
+            });
+            ticking = false;
+          });
+          ticking = true;
+        }
       },
-      { threshold: 0.1 }
+      { 
+        threshold: [0, 0.1, 0.5, 1],
+        rootMargin: '-10% 0px -10% 0px'
+      }
     );
 
     const currentStatsRef = statsRef.current;
@@ -194,22 +209,91 @@ const MainLandingPage: React.FC = () => {
     return () => { isMounted = false; };
   }, []);
 
-  // Handle navigation
-  const handleLogin = () => {
-    const url = `${window.location.origin}/loginpage`;
-    window.open(url, '_blank', 'noopener,noreferrer');
+  // Handle navigation with flicker prevention
+  const handleLogin = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    // Add small delay to prevent visual glitches during transition
+    requestAnimationFrame(() => {
+      window.location.assign('/loginpage');
+    });
   };
 
-  // Scroll to section
+  // Professional smooth scroll with active section detection
   const scrollToSection = (ref: React.RefObject<HTMLDivElement>) => {
-    if (ref.current) {
-      ref.current.scrollIntoView({ behavior: 'smooth' });
-    }
+    if (!ref.current) return;
+    
+    // Close menu immediately
     setIsMenuOpen(false);
+    
+    // Calculate optimal scroll position
+    const element = ref.current;
+    const headerOffset = 120; // Account for sticky header
+    const elementPosition = element.getBoundingClientRect().top;
+    const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+    
+    // Use requestAnimationFrame for smooth scroll
+    const smoothScroll = () => {
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: 'smooth'
+      });
+    };
+    
+    requestAnimationFrame(smoothScroll);
   };
+  
+  // Active section detection based on scroll position
+  useEffect(() => {
+    let ticking = false;
+    
+    const updateActiveSection = () => {
+      if (!ticking) {
+        requestAnimationFrame(() => {
+          const scrollY = window.scrollY;
+          const sections = [
+            { ref: heroRef, name: 'home' as const },
+            { ref: featuresRef, name: 'features' as const },
+            { ref: statsRef, name: 'about' as const }
+          ];
+          
+          let currentSection: 'home' | 'features' | 'about' = 'home';
+          
+          sections.forEach(({ ref, name }) => {
+            if (ref.current) {
+              const rect = ref.current.getBoundingClientRect();
+              const sectionTop = rect.top + scrollY;
+              const sectionHeight = rect.height;
+              
+              if (scrollY >= sectionTop - 200 && scrollY < sectionTop + sectionHeight - 200) {
+                currentSection = name;
+              }
+            }
+          });
+          
+          setActiveSection(currentSection);
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+    
+    const handleScroll = () => updateActiveSection();
+    
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    updateActiveSection(); // Initial check
+    
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   return (
-    <div className="min-h-screen bg-[#00171F] overflow-x-hidden text-white">
+    <div className="min-h-screen bg-[#00171F] overflow-x-hidden text-white smooth-scroll" style={{
+      willChange: 'scroll-position',
+      WebkitOverflowScrolling: 'touch',
+      scrollBehavior: 'smooth'
+    }}>
       {/* Navigation via Portal to ensure always on top */}
       <StickyHeader 
         isMenuOpen={isMenuOpen}
@@ -217,14 +301,20 @@ const MainLandingPage: React.FC = () => {
         onHome={() => scrollToSection(heroRef)}
         onFeatures={() => scrollToSection(featuresRef)}
         onAbout={() => scrollToSection(statsRef)}
-        onLogin={handleLogin}
         activeSection={activeSection}
+        onLogin={handleLogin}
       />
 
       {/* Hero Section */}
       <motion.section id="home"
         ref={heroRef}
-        style={{ y: heroY, opacity: heroOpacity }}
+        style={{ 
+          y: heroY, 
+          opacity: heroOpacity,
+          willChange: 'transform, opacity',
+          backfaceVisibility: 'hidden',
+          transform: 'translateZ(0)'
+        }}
         className="pt-40 md:pt-52 pb-10 md:pb-24 px-4 relative overflow-hidden scroll-mt-28 md:scroll-mt-36"
       >
         <div className="max-w-7xl mx-auto">
@@ -267,8 +357,16 @@ const MainLandingPage: React.FC = () => {
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6 }}
+              viewport={{ once: true, margin: "-100px" }}
+              transition={{ 
+                duration: 0.6,
+                ease: "easeOut",
+                type: "tween"
+              }}
+              style={{
+                willChange: 'transform, opacity',
+                backfaceVisibility: 'hidden'
+              }}
             >
               <h2 className="text-3xl md:text-4xl font-bold text-white">Features</h2>
               <p className="mt-4 text-lg text-gray-300 max-w-3xl mx-auto">
@@ -286,13 +384,34 @@ const MainLandingPage: React.FC = () => {
                   initial={{ opacity: 0, x: -20 }}
                   whileInView={{ opacity: 1, x: 0 }}
                   viewport={{ once: true }}
-                  transition={{ duration: 0.5, delay: index * 0.1 }}
-                  className={`p-4 rounded-xl cursor-pointer transition-all duration-300 ${
+                  transition={{ 
+                    duration: 0.5, 
+                    delay: index * 0.08,
+                    ease: "easeOut",
+                    type: "tween"
+                  }}
+                  style={{
+                    willChange: 'transform, opacity, background-color',
+                    backfaceVisibility: 'hidden',
+                    transform: 'translateZ(0)'
+                  }}
+                  className={`p-4 rounded-xl cursor-pointer transition-all duration-200 ${
                     activeFeature === index 
                       ? 'bg-[#4ade80] text-gray-900 shadow-lg' 
                       : 'bg-[#1F2937] hover:bg-[#374151] text-white'
                   }`}
-                  onClick={() => setActiveFeature(index)}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    requestAnimationFrame(() => setActiveFeature(index));
+                  }}
+                  whileHover={{ 
+                    scale: 1.02,
+                    transition: { duration: 0.2, ease: "easeOut" }
+                  }}
+                  whileTap={{ 
+                    scale: 0.98,
+                    transition: { duration: 0.1, ease: "easeOut" }
+                  }}
                 >
                   <div className="flex items-center">
                     <div className={`p-2 rounded-lg ${
@@ -417,8 +536,18 @@ const MainLandingPage: React.FC = () => {
                 key={stat.label}
                 initial={{ opacity: 0, scale: 0.8 }}
                 whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: index * 0.1 }}
+                viewport={{ once: true, margin: "-50px" }}
+                transition={{ 
+                  duration: 0.5, 
+                  delay: index * 0.08,
+                  ease: "easeOut",
+                  type: "tween"
+                }}
+                style={{
+                  willChange: 'transform, opacity',
+                  backfaceVisibility: 'hidden',
+                  transform: 'translateZ(0)'
+                }}
                 className="bg-[#1F2937] p-4 md:p-5 rounded-xl text-center border border-gray-700/40 shadow-md"
               >
                 <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3 text-white">
@@ -428,9 +557,17 @@ const MainLandingPage: React.FC = () => {
                   {isVisible && (
                     <CountUp 
                       end={stat.value} 
-                      duration={2.5} 
+                      duration={2.2} 
                       separator="," 
                       suffix={stat.label === "Satisfaction %" ? "%" : ""} 
+                      useEasing={true}
+                      easingFn={(t, b, c, d) => {
+                        // Custom easing function for smooth animation
+                        t /= d / 2;
+                        if (t < 1) return c / 2 * t * t + b;
+                        t--;
+                        return -c / 2 * (t * (t - 2) - 1) + b;
+                      }}
                     />
                   )}
                 </div>
@@ -611,7 +748,12 @@ const MainLandingPage: React.FC = () => {
       {/* To Top button */}
       {showToTop && (
         <button
-          onClick={() => document.getElementById('home')?.scrollIntoView({ behavior: 'smooth' })}
+          onClick={(e) => {
+            e.preventDefault();
+            requestAnimationFrame(() => {
+              document.getElementById('home')?.scrollIntoView({ behavior: 'smooth' });
+            });
+          }}
           aria-label="Back to top"
           className="fixed right-3 z-[99998] bg-[#4ade80] text-gray-900 rounded-full p-3.5 shadow-[0_10px_20px_rgba(0,0,0,0.35)] hover:shadow-[0_14px_28px_rgba(0,0,0,0.45)] transition-transform hover:-translate-y-0.5 backdrop-blur-md border border-white/20 focus:outline-none"
           style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 1.25rem)' }}
@@ -632,64 +774,143 @@ function StickyHeader({
   onHome,
   onFeatures,
   onAbout,
-  onLogin,
-  activeSection
+  activeSection,
+  onLogin
 }: {
   isMenuOpen: boolean;
   toggleMenu: () => void;
   onHome: () => void;
   onFeatures: () => void;
   onAbout: () => void;
-  onLogin: () => void;
   activeSection: 'home' | 'features' | 'about';
+  onLogin: (e?: React.MouseEvent) => void;
 }) {
   const handleNavClick = (targetId: 'home' | 'features' | 'about') => {
-    // Close menu first, then perform scroll to avoid layout jank on mobile
-    toggleMenu();
-    const performScroll = () => {
-      const el = document.getElementById(targetId);
-      if (!el) return;
-      const headerOffset = 96; // approximate sticky header height on mobile
-      const y = el.getBoundingClientRect().top + window.pageYOffset - headerOffset;
-      window.scrollTo({ top: y, behavior: 'smooth' });
+    // Prevent event propagation and default behavior
+    const performNavigation = () => {
+      // Close menu first with immediate state update
+      toggleMenu();
+      
+      // Defer scroll to prevent layout conflicts
+      requestAnimationFrame(() => {
+        const el = document.getElementById(targetId);
+        if (!el) return;
+        
+        const headerOffset = 96; // approximate sticky header height on mobile
+        const y = el.getBoundingClientRect().top + window.pageYOffset - headerOffset;
+        
+        // Use requestAnimationFrame for smooth scrolling
+        requestAnimationFrame(() => {
+          window.scrollTo({ top: y, behavior: 'smooth' });
+        });
+      });
     };
-    // Defer to next frame so menu close animation doesn't absorb the scroll
-    window.requestAnimationFrame(performScroll);
+    
+    // Defer entire operation to next frame
+    requestAnimationFrame(performNavigation);
   };
   const header = (
     <header className="fixed top-2 sm:top-3 md:top-6 left-0 right-0 z-[99999]">
-      <motion.div className="relative mx-auto w-[92%] md:w-[80%] bg-[#00171F]/90 backdrop-blur-md backdrop-saturate-150 rounded-2xl ring-1 ring-gray-800/30 shadow-[0_8px_24px_rgba(0,0,0,0.25)] pointer-events-auto">
+      <motion.div className="relative mx-auto w-full max-w-5xl bg-[#00171F]/90 backdrop-blur-md backdrop-saturate-150 rounded-2xl ring-1 ring-[#242424]/50 shadow-[0_8px_24px_rgba(0,0,0,0.25)] pointer-events-auto">
         <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center py-3">
             <div className="flex items-center">
               <img src="/img/logo1.png" alt="SMCBI Logo" className="h-10 w-auto" />
             </div>
             <nav className="hidden md:flex flex-1 items-center justify-center gap-10">
-              <button onClick={onHome} className={`nav-3d text-white font-medium rounded-md px-3 py-1.5 bg-transparent transition-shadow duration-200 hover:bg-gray-800/50 shadow-none hover:shadow-[0_4px_12px_rgba(0,0,0,0.2)] border-b-2 ${activeSection==='home' ? 'border-[#4ade80]' : 'border-transparent'}`}>Home</button>
-              <button onClick={onFeatures} className={`nav-3d text-white font-medium rounded-md px-3 py-1.5 bg-transparent transition-shadow duration-200 hover:bg-gray-800/50 shadow-none hover:shadow-[0_4px_12px_rgba(0,0,0,0.2)] border-b-2 ${activeSection==='features' ? 'border-[#4ade80]' : 'border-transparent'}`}>Features</button>
-              <button onClick={onAbout} className={`nav-3d text-white font-medium rounded-md px-3 py-1.5 bg-transparent transition-shadow duration-200 hover:bg-gray-800/50 shadow-none hover:shadow-[0_4px_12px_rgba(0,0,0,0.2)] border-b-2 ${activeSection==='about' ? 'border-[#4ade80]' : 'border-transparent'}`}>About</button>
+              <button onClick={(e) => { e.preventDefault(); requestAnimationFrame(onHome); }} className={`nav-3d text-white font-medium rounded-md px-3 py-1.5 bg-transparent transition-shadow duration-200 hover:bg-gray-800/50 shadow-none hover:shadow-[0_4px_12px_rgba(0,0,0,0.2)] border-b-2 ${activeSection==='home' ? 'border-[#4ade80]' : 'border-transparent'}`}>Home</button>
+              <button onClick={(e) => { e.preventDefault(); requestAnimationFrame(onFeatures); }} className={`nav-3d text-white font-medium rounded-md px-3 py-1.5 bg-transparent transition-shadow duration-200 hover:bg-gray-800/50 shadow-none hover:shadow-[0_4px_12px_rgba(0,0,0,0.2)] border-b-2 ${activeSection==='features' ? 'border-[#4ade80]' : 'border-transparent'}`}>Features</button>
+              <button onClick={(e) => { e.preventDefault(); requestAnimationFrame(onAbout); }} className={`nav-3d text-white font-medium rounded-md px-3 py-1.5 bg-transparent transition-shadow duration-200 hover:bg-gray-800/50 shadow-none hover:shadow-[0_4px_12px_rgba(0,0,0,0.2)] border-b-2 ${activeSection==='about' ? 'border-[#4ade80]' : 'border-transparent'}`}>About</button>
             </nav>
             <button onClick={onLogin} className="hidden md:inline-flex bg-gray-800 hover:bg-gray-700 text-white px-5 py-2 rounded-lg font-medium transition-colors shadow-md hover:shadow-lg">Log In</button>
-            <button className="md:hidden ml-auto rounded-md p-2 text-white hover:text-gray-300 hover:bg-gray-800/50" onClick={toggleMenu}>
+            <button 
+              className="md:hidden ml-auto rounded-md p-2 text-white hover:text-gray-300 hover:bg-gray-800/50 transition-all duration-150" 
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                requestAnimationFrame(toggleMenu);
+              }}
+              style={{
+                willChange: 'transform, background-color',
+                backfaceVisibility: 'hidden',
+                transform: 'translateZ(0)'
+              }}
+            >
               {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
           </div>
         </div>
       </motion.div>
-      <AnimatePresence>
+      <AnimatePresence mode="wait">
         {isMenuOpen && (
           <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.3 }}
-            className="md:hidden overflow-hidden bg-[#00171F]/95 backdrop-blur-md ring-1 ring-gray-800/30 w-[92%] mx-auto rounded-2xl"
+            initial={{ height: 0, opacity: 0, y: -10 }}
+            animate={{ height: 'auto', opacity: 1, y: 0 }}
+            exit={{ height: 0, opacity: 0, y: -10 }}
+            transition={{ 
+              duration: 0.2, 
+              ease: "easeOut",
+              opacity: { duration: 0.15 },
+              height: { duration: 0.2 }
+            }}
+            className="md:hidden overflow-hidden bg-[#00171F]/95 backdrop-blur-md ring-1 ring-[#4ade80]/50 w-full max-w-5xl mx-auto rounded-2xl"
+            style={{
+              willChange: 'height, opacity, transform',
+              backfaceVisibility: 'hidden',
+              transform: 'translateZ(0)'
+            }}
           >
             <div className="px-4 py-2 space-y-1 text-center w-full">
-              <a href="#home" onClick={(e)=>{e.preventDefault(); handleNavClick('home');}} className="block w-full text-center px-3 py-2 rounded-md text-white hover:text-gray-300 hover:bg-gray-800/50 font-medium transition-colors" aria-label="Go to Home">Home</a>
-              <a href="#features" onClick={(e)=>{e.preventDefault(); handleNavClick('features');}} className="block w-full text-center px-3 py-2 rounded-md text-white hover:text-gray-300 hover:bg-gray-800/50 font-medium transition-colors" aria-label="Go to Features">Features</a>
-              <a href="#about" onClick={(e)=>{e.preventDefault(); handleNavClick('about');}} className="block w-full text-center px-3 py-2 rounded-md text-white hover:text-gray-300 hover:bg-gray-800/50 font-medium transition-colors" aria-label="Go to About">About</a>
-              <button onClick={onLogin} className="block w-full text-center px-3 py-2 rounded-md bg-gray-800 text-white font-medium hover:bg-gray-700 transition-colors mt-2">Log In</button>
+              <a 
+                href="#home" 
+                onClick={(e) => {
+                  e.preventDefault(); 
+                  e.stopPropagation();
+                  requestAnimationFrame(() => handleNavClick('home'));
+                }} 
+                className="block w-full text-center px-3 py-2 rounded-md text-white hover:text-gray-300 hover:bg-gray-800/50 font-medium transition-colors duration-150" 
+                aria-label="Go to Home"
+                style={{ willChange: 'background-color, transform', backfaceVisibility: 'hidden' }}
+              >
+                Home
+              </a>
+              <a 
+                href="#features" 
+                onClick={(e) => {
+                  e.preventDefault(); 
+                  e.stopPropagation();
+                  requestAnimationFrame(() => handleNavClick('features'));
+                }} 
+                className="block w-full text-center px-3 py-2 rounded-md text-white hover:text-gray-300 hover:bg-gray-800/50 font-medium transition-colors duration-150" 
+                aria-label="Go to Features"
+                style={{ willChange: 'background-color, transform', backfaceVisibility: 'hidden' }}
+              >
+                Features
+              </a>
+              <a 
+                href="#about" 
+                onClick={(e) => {
+                  e.preventDefault(); 
+                  e.stopPropagation();
+                  requestAnimationFrame(() => handleNavClick('about'));
+                }} 
+                className="block w-full text-center px-3 py-2 rounded-md text-white hover:text-gray-300 hover:bg-gray-800/50 font-medium transition-colors duration-150" 
+                aria-label="Go to About"
+                style={{ willChange: 'background-color, transform', backfaceVisibility: 'hidden' }}
+              >
+                About
+              </a>
+              <button 
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  requestAnimationFrame(() => onLogin(e));
+                }} 
+                className="block w-full text-center px-3 py-2 rounded-md bg-gray-800 text-white font-medium hover:bg-gray-700 transition-colors duration-150 mt-2"
+                style={{ willChange: 'background-color, transform', backfaceVisibility: 'hidden' }}
+              >
+                Log In
+              </button>
             </div>
           </motion.div>
         )}
@@ -728,8 +949,13 @@ const Carousel: React.FC = () => {
       const dx = e.touches[0].clientX - startX;
       if (Math.abs(dx) > 40) {
         isDown = false;
-        if (timerRef.current) window.clearInterval(timerRef.current);
+        // Clear existing timer before setting new one
+        if (timerRef.current) {
+          window.clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
         setIndex(prev => (dx > 0 ? (prev - 1 + images.length) % images.length : (prev + 1) % images.length));
+        // Set new timer with null check
         timerRef.current = window.setInterval(() => setIndex(p => (p + 1) % images.length), 4000);
       }
     };
@@ -746,7 +972,16 @@ const Carousel: React.FC = () => {
 
   return (
     <div className="relative mx-auto w-full max-w-4xl md:max-w-3xl perspective-[1000px]">
-     <div ref={containerRef} className="relative overflow-hidden rounded-2xl border border-gray-800/20 shadow-[0_20px_50px_rgba(0,0,0,0.4)] min-h-[180px] sm:min-h-[240px] md:min-h-[380px] transform hover:translate-y-[-5px] transition-all duration-500" style={{ animation: 'float 6s ease-in-out infinite' }}>
+     <div 
+       ref={containerRef} 
+       className="relative overflow-hidden rounded-2xl border border-gray-800/20 shadow-[0_20px_50px_rgba(0,0,0,0.4)] min-h-[180px] sm:min-h-[240px] md:min-h-[380px] transform hover:translate-y-[-5px] transition-all duration-300" 
+       style={{ 
+         animation: 'float 6s ease-in-out infinite',
+         willChange: 'transform',
+         backfaceVisibility: 'hidden',
+         transform: 'translateZ(0)'
+       }}
+     >
         <AnimatePresence mode="wait" initial={false}>
           <motion.img
             key={images[index]}
@@ -755,9 +990,18 @@ const Carousel: React.FC = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.4, ease: 'easeInOut' }}
+            transition={{ 
+              duration: 0.3, 
+              ease: 'easeInOut',
+              type: 'tween'
+            }}
             onError={(e) => { (e.target as HTMLImageElement).src = '/img/logo3.png'; }}
             className="w-full h-full object-cover object-center select-none"
+            style={{
+              willChange: 'opacity',
+              backfaceVisibility: 'hidden',
+              transform: 'translateZ(0)'
+            }}
           />
         </AnimatePresence>
         {/* Soft vignette for depth */}
@@ -795,3 +1039,191 @@ function GoogleClassroomIcon({ className }: { className?: string }) {
     </svg>
   );
 }
+
+// Professional-grade performance optimizations for smooth animations
+const performanceStyles = `
+  /* Root optimizations for smooth scrolling */
+  html {
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    -webkit-text-size-adjust: 100%;
+  }
+  
+  /* Universal performance optimizations */
+  *, *::before, *::after {
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    -webkit-perspective: 1000px;
+    perspective: 1000px;
+  }
+  
+  /* Enhanced smooth scrolling */
+  .smooth-scroll {
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Parallax optimizations */
+  [data-parallax] {
+    will-change: transform;
+    -webkit-transform: translate3d(0, 0, 0);
+    transform: translate3d(0, 0, 0);
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+  }
+  
+  /* Motion component optimizations */
+  [data-framer-name], .motion-safe {
+    will-change: transform, opacity;
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+  }
+  
+  /* Navigation optimizations */
+  .nav-3d, .transition-colors, .transition-all, .transition-shadow {
+    will-change: transform, opacity, background-color, box-shadow;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+  }
+  
+  /* Enhanced button interactions */
+  button, a {
+    -webkit-tap-highlight-color: transparent;
+    will-change: transform, opacity, background-color;
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+  }
+  
+  /* Optimized transitions */
+  .transition-colors {
+    transition-duration: 150ms;
+    transition-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    transition-property: background-color, border-color, color, fill, stroke;
+  }
+  
+  .transition-all {
+    transition-duration: 200ms;
+    transition-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+  
+  .transition-shadow {
+    transition: box-shadow 150ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+  
+  /* Image optimizations */
+  img {
+    will-change: transform;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+  }
+  
+  /* Scroll optimizations */
+  .overflow-x-hidden {
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Enhanced mobile optimizations */
+  @media (max-width: 768px) {
+    /* Optimize mobile scrolling */
+    body {
+      -webkit-overflow-scrolling: touch;
+      scroll-behavior: smooth;
+    }
+    
+    /* Mobile menu optimizations */
+    .md\\:hidden {
+      -webkit-transform: translateZ(0);
+      transform: translateZ(0);
+      -webkit-backface-visibility: hidden;
+      backface-visibility: hidden;
+      will-change: transform, opacity;
+    }
+    
+    /* Smooth mobile interactions */
+    button:active, a:active {
+      -webkit-transform: translateZ(0) scale(0.98);
+      transform: translateZ(0) scale(0.98);
+      transition: transform 0.1s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    }
+    
+    /* Prevent mobile flicker */
+    button, a {
+      touch-action: manipulation;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
+    }
+    
+    /* Mobile viewport optimizations */
+    .relative, .absolute, .fixed {
+      -webkit-transform: translateZ(0);
+      transform: translateZ(0);
+    }
+  }
+  
+  /* High-DPI display optimizations */
+  @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+    * {
+      -webkit-transform: translateZ(0);
+      transform: translateZ(0);
+    }
+  }
+  
+  /* Reduce motion for accessibility */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+      will-change: transform, opacity;
+    }
+    
+    /* Reduce mobile menu transition flickering */
+    .overflow-hidden {
+      -webkit-transform: translateZ(0);
+      transform: translateZ(0);
+    }
+    
+    /* Optimize mobile touch interactions */
+    button:active, a:active {
+      transform: translateZ(0) scale(0.98);
+      transition: transform 0.1s ease-out;
+    }
+    
+    /* Prevent double-tap zoom flicker */
+    button, a {
+      touch-action: manipulation;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+  }
+`;
+
+// Inject styles with proper cleanup
+if (typeof document !== 'undefined') {
+  const existingStyles = document.getElementById('performance-styles');
+  if (!existingStyles) {
+    const styleElement = document.createElement('style');
+    styleElement.id = 'performance-styles';
+    styleElement.textContent = performanceStyles;
+    document.head.appendChild(styleElement);
+  }
+}
+
