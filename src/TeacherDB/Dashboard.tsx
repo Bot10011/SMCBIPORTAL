@@ -7,14 +7,84 @@ import { BookOpen, Search, Bell, Download, Trash2, FileText, StickyNote, Calenda
 import { useAuth } from '../contexts/AuthContext';
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
+import toast from 'react-hot-toast';
 import { getGoogleClassroomConnectionInfo } from '../lib/services/googleClassroomService';
 import { googleDriveService, DriveItem } from '../lib/services/googleDriveService';
 import { StudentGoogleClassroom } from '../components/StudentGoogleClassroom';
 import userAvatar from '../../img/user-avatar.png';
 import { LuNotebookPen } from 'react-icons/lu';
 import { IoDocuments } from 'react-icons/io5';
+import { motion } from 'framer-motion';
 
-
+// Dashboard Card Component matching AdminDB styling
+const DashboardCard: React.FC<{
+  title: React.ReactNode;
+  subtitle: string;
+  icon?: React.ReactNode;
+  delay?: number;
+  onClick?: () => void;
+  status?: 'connected' | 'disconnected' | 'checking';
+  className?: string;
+  children?: React.ReactNode;
+  height?: string;
+}> = ({ title, subtitle, icon, delay = 0, onClick, status, className = "", children, height }) => {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, delay }}
+      className={`bg-[#00A7E1] rounded-2xl p-4 relative ${onClick ? 'cursor-pointer' : ''} ${className}`}
+      style={{
+        boxShadow: '4px 4px 8px rgba(0, 0, 0, 0.15), -4px -4px 8px rgba(0, 0, 0, 0.05), inset 1px 1px 2px rgba(255, 255, 255, 0.1)',
+        height: height || ''
+      }}
+      onClick={onClick}
+    >
+      <div className="p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex-1">
+            <p className="text-sm font-medium text-white/90">{title}</p>
+            <p className="mt-1 text-xs text-white/70">{subtitle}</p>
+            {status && (
+              <div className="flex items-center gap-2 mt-2">
+                <span className="text-xs font-medium text-white">
+                  {status === 'checking' ? 'Checking...' : 
+                   status === 'connected' ? 'Connected' : 
+                   'Not Connected'}
+                </span>
+                {status === 'connected' && <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />}
+                {status === 'disconnected' && <span className="w-2 h-2 bg-[#f43e19] rounded-full" />}
+                {status === 'checking' && <span className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />}
+              </div>
+            )}
+          </div>
+          {icon && (
+            <div 
+              className="p-3 rounded-xl bg-white/10 backdrop-blur-sm flex-shrink-0"
+              style={{
+                boxShadow: 'inset 2px 2px 4px rgba(0, 0, 0, 0.1), inset -2px -2px 4px rgba(255, 255, 255, 0.1)'
+              }}
+            >
+              <motion.div 
+                initial={{ scale: 1 }}
+                animate={{ scale: [1, 1.2, 1] }}
+                transition={{ 
+                  duration: 2, 
+                  repeat: Infinity, 
+                  repeatDelay: 3,
+                  ease: "easeInOut" 
+                }}
+              >
+                {icon}
+              </motion.div>
+            </div>
+          )}
+        </div>
+        {children}
+      </div>
+    </motion.div>
+  );
+};
 
 interface ClassData {
   id: string;
@@ -66,10 +136,12 @@ interface NotificationItem {
   title: string;
   message: string;
   severity: string;
+  audience?: string;
   created_at: string;
   expires_at?: string | null;
   created_by?: string | null;
   created_by_name?: string | null;
+  time?: string;
 }
 
 const TeacherDashboardOverview: React.FC = () => {
@@ -96,7 +168,6 @@ const TeacherDashboardOverview: React.FC = () => {
   const [instructorNotifications, setInstructorNotifications] = useState<NotificationItem[]>([]);
   const [classes, setClasses] = useState<ClassData[]>([]);
   const [students, setStudents] = useState<StudentData[]>([]);
-  const [notifications] = useState(3);
   const [selectedDate, setSelectedDate] = useState(new Date().getDate());
   const [googleClassroomStatus, setGoogleClassroomStatus] = useState<'connected' | 'disconnected' | 'checking'>('checking');
   const [activePanel, setActivePanel] = useState<'notifications' | 'notes' | 'documents' | 'calendar'>('calendar');
@@ -117,56 +188,86 @@ const TeacherDashboardOverview: React.FC = () => {
   // Notification form state
   const [showNotificationForm, setShowNotificationForm] = useState(false);
   const [creatingNotification, setCreatingNotification] = useState(false);
+  const [notificationRefresh, setNotificationRefresh] = useState(0);
   type NotificationSeverity = 'announcement' | 'reminder' | 'deadline' | 'exam' | 'meeting' | 'advisory' | 'info' | 'success' | 'warning' | 'error';
   
   const [notificationForm, setNotificationForm] = useState({
     title: '',
     message: '',
     severity: 'announcement' as NotificationSeverity,
-    audience: 'student' as const,
-    durationMinutes: 60 as number | null // default 1 hour, null means never expires
+    audience: 'all',
+    priority: 1,
+    timeInterval: 'none',
+    timeValue: 1
   });
   
   // Handle notification creation
   const handleCreateNotification = async () => {
     try {
       if (!user?.id) {
-        console.error('No user found');
+        toast.error('No user found');
         return;
       }
       if (!notificationForm.title || !notificationForm.message) {
-        console.error('Please fill out all notification fields');
+        toast.error('Please fill out all notification fields');
         return;
       }
 
       setCreatingNotification(true);
 
-      const expiresAt = notificationForm.durationMinutes
-        ? new Date(Date.now() + notificationForm.durationMinutes * 60 * 1000).toISOString()
-        : null;
+      // Calculate expiration date if time interval is set
+      let expiresAt = null;
+      if (notificationForm.timeInterval !== 'none' && notificationForm.timeValue > 0) {
+        const now = new Date();
+        switch (notificationForm.timeInterval) {
+          case 'hours':
+            expiresAt = new Date(now.getTime() + (notificationForm.timeValue * 60 * 60 * 1000));
+            break;
+          case 'days':
+            expiresAt = new Date(now.getTime() + (notificationForm.timeValue * 24 * 60 * 60 * 1000));
+            break;
+          case 'weeks':
+            expiresAt = new Date(now.getTime() + (notificationForm.timeValue * 7 * 24 * 60 * 60 * 1000));
+            break;
+          default:
+            expiresAt = null;
+        }
+      }
+
+      // Sanitize audience to supported enum
+      type AllowedAudience = 'all' | 'instructor' | 'student';
+      const allowedAudience: readonly AllowedAudience[] = ['all', 'instructor', 'student'] as const;
+      const selectedAudience = String(notificationForm.audience);
+      const audience: AllowedAudience = (allowedAudience as readonly string[]).includes(selectedAudience)
+        ? (selectedAudience as AllowedAudience)
+        : 'all';
 
       const { error } = await supabase
         .from('notifications')
-        .insert([{ 
+        .insert([{
           title: notificationForm.title,
           message: notificationForm.message,
           severity: notificationForm.severity,
-          audience: notificationForm.audience,
+          audience,
+          expires_at: expiresAt,
           created_by: user.id,
-          is_active: true,
-          expires_at: expiresAt
+          is_active: true
         }]);
 
       if (error) {
         throw error;
       }
 
-      console.log('Notification sent successfully to your students!');
-      setNotificationForm({ title: '', message: '', severity: 'announcement', audience: 'student', durationMinutes: 60 });
+      toast.success('Notification sent successfully to all users!');
+      setNotificationForm({ title: '', message: '', severity: 'announcement', audience: 'all', priority: 1, timeInterval: 'none', timeValue: 1 });
       setShowNotificationForm(false);
+      
+      // Trigger a notification refresh by calling the effect
+      setNotificationRefresh(prev => prev + 1);
       
     } catch (err) {
       console.error('Error creating notification:', err);
+      toast.error('Failed to send notification');
     } finally {
       setCreatingNotification(false);
     }
@@ -334,7 +435,7 @@ const TeacherDashboardOverview: React.FC = () => {
       }
     };
     fetchNotifications();
-  }, [user?.id]);
+  }, [user?.id, notificationRefresh]);
 
   // Periodic cleanup of expired notifications created by current user
   useEffect(() => {
@@ -1352,7 +1453,10 @@ const TeacherDashboardOverview: React.FC = () => {
             
             {/* Search Results */}  
             {showSearchResults && (
-              <div className="mt-4 bg-white/80 backdrop-blur-xl rounded-2xl p-6 shadow-xl border border-white/20">
+              <div className="mt-4 backdrop-blur-xl rounded-2xl p-6 shadow-xl border border-white/20 transform-gpu will-change-transform transition-all duration-300 ease-out" style={{
+                backgroundColor: '#FFFFFFE6',
+                boxShadow: '8px 8px 16px rgba(0, 0, 0, 0.1), -8px -8px 16px rgba(255, 255, 255, 0.7), inset 2px 2px 4px rgba(0, 0, 0, 0.05)'
+              }}>
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="font-bold text-gray-700">
                     Search Results for "{searchQuery}"
@@ -1526,66 +1630,62 @@ const TeacherDashboardOverview: React.FC = () => {
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 lg:gap-6 contain-layout">
             {/* Left Column - Main Content */}
             <div className="xl:col-span-2 space-y-4 lg:space-y-3 contain-layout">
-              {/* Promotional Banner */}
-              <div className="bg-gradient-to-r from-blue-600/90 to-purple-600/90 backdrop-blur-xl rounded-2xl p-6 py-8 text-white relative overflow-hidden border border-white/20 shadow-xl transform-gpu will-change-transform transition-all duration-500 ease-out min-h-fit">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                  
-                                          <div className="mb-0">
-                        <div className="flex items-start ">
-                          {/* Removed left-icon/gif placeholder as requested */}
-                          <div className="flex-1">
-                            <p className="text-xs sm:text-sm md:text-base lg:text-lg text-white/95 italic mb-1 leading-relaxed font-medium break-words hyphens-auto">
-                              "{dailyBibleVerse?.verse || 'Loading...'}"
-                            </p>
-                       
-                            <p className="text-xs sm:text-xs md:text-sm lg:text-sm text-blue-200 font-semibold mb-0">
-                            "{dailyBibleVerse?.reference || ''}"
-      
-                            </p>
-                            <p className="text-xs sm:text-xs md:text-sm text-white/80 mt-2 font-medium">
-                              Today's guidance for your teaching journey
-                            </p>
-                            
-                          </div>
-                        </div>
-                        </div>
-                    
-                    
-                                          {/* Stats and Button in horizontal layout */}
-                      <div className="flex items-center gap-4 mb-6">
-                          {/* Get Started Button */}
-                      
-                          
-
-                        </div>
+              {/* Daily Bible Verse Card */}
+              <DashboardCard
+                title={
+                  <div className="flex items-center gap-2">
+                    <BookOpen className="w-4 h-4 text-white" />
+                    <span className="text-white">Daily Bible Verse</span>
                   </div>
-                  <div className="hidden md:block">
-                    {/* Teacher Profile Picture */}
-                    <div className="w-32 h-32 bg-white/20 rounded-full flex items-center justify-center overflow-hidden backdrop-blur-sm border border-white/20">
-                      {profileLoading ? (
-                        <div className="w-16 h-16 bg-white/30 rounded-full animate-pulse" />
-                      ) : (
-                        <img
-                          src={profilePictureUrl || userAvatar}
-                          alt="Teacher Profile"
-                          className="w-28 h-28 object-cover shadow-lg rounded-full"
-                          onError={(e) => {
-                            const target = e.currentTarget as HTMLImageElement;
-                            target.onerror = null; // prevent infinite loop
-                            target.src = userAvatar;
-                          }}
-                        />
-                      )}
+                }
+                subtitle="Today's guidance for your teaching journey"
+                delay={0.2}
+                className="h-[220px]"
+              >
+                <div className="mt-4 h-full flex flex-col">
+                  <div className="flex items-center flex-1">
+                    <div className="flex-1 flex flex-col h-full">
+                      <div className="flex-1">
+                        <p className="text-xs sm:text-xs md:text-sm text-white/95 italic leading-relaxed font-medium break-words hyphens-auto">
+                          "{dailyBibleVerse?.verse || 'Loading...'}"
+                        </p>
+                      </div>
+                      <div className="mt-auto pt-3 mt-4">
+                        <p className="text-xs sm:text-xs md:text-xs lg:text-sm text-blue-200 font-semibold">
+                          "{dailyBibleVerse?.reference || ''}"
+                        </p>
+                      </div>
+                    </div>
+                    <div className="hidden md:block ml-4 flex-shrink-0 -mt-8">
+                      {/* Teacher Profile Picture */}
+                      <div className="w-28 h-28 bg-white/20 rounded-full flex items-center justify-center overflow-hidden backdrop-blur-sm border border-white/20">
+                        {profileLoading ? (
+                          <div className="w-24 h-24 bg-white/30 rounded-full animate-pulse" />
+                        ) : (
+                          <img
+                            src={profilePictureUrl || userAvatar}
+                            alt="Teacher Profile"
+                            className="w-26 h-26 object-cover shadow-lg rounded-full"
+                            onError={(e) => {
+                              const target = e.currentTarget as HTMLImageElement;
+                              target.onerror = null; // prevent infinite loop
+                              target.src = userAvatar;
+                            }}
+                          />
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              </DashboardCard>
 
 
 
               {/* My Classes Section */}
-              <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 shadow-xl border border-white/20 transform-gpu will-change-transform transition-all duration-300 ease-out">
+              <div className="backdrop-blur-xl rounded-2xl p-6 shadow-xl border border-white/20 transform-gpu will-change-transform transition-all duration-300 ease-out" style={{
+                backgroundColor: '#FFFFFFE6',
+                boxShadow: '8px 8px 16px rgba(0, 0, 0, 0.1), -8px -8px 16px rgba(255, 255, 255, 0.7), inset 2px 2px 4px rgba(0, 0, 0, 0.05)'
+              }}>
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center space-x-3">
                     <h3 className="font-bold text-gray-700 text-xl">My Classes</h3>
@@ -1636,66 +1736,62 @@ const TeacherDashboardOverview: React.FC = () => {
                       {/* Right Column - Sidebar */}
             <div className="xl:col-span-1 space-y-3 contain-layout">
               {/* Google Classroom Integration */}
-              <div className="bg-gradient-to-r from-blue-500/90 to-purple-600/90 backdrop-blur-xl rounded-2xl py-6 px-4 shadow-xl border border-white/20 relative glassmorphism transform-gpu will-change-transform transition-all duration-300 ease-out">
-                <div className="flex items-center justify-between"> 
-                  <div className="flex items-center space-x-3">
-                    <div className="bg-white/ rounded-full p-2">
-                      <ExternalLink className="w-5 h-5 text-white" />
-                    </div>
-                    <div>
-                                              <div className="flex items-center gap-2">
-                          <h3 className="text-white font-semibold text-sm">Google Classroom</h3>
-                        </div>
-                      <p className="text-white/80 text-xs">Access and organize classwork easily</p>
-                    
-                      
-                    
-                    </div>
+              <DashboardCard
+                title={<span className="text-white">Google Classroom</span>}
+                subtitle="Access and organize classwork easily"
+                icon={
+                  <div className="w-6 h-6 flex items-center justify-center">
+                    <span className="text-white font-bold text-lg">G</span>
                   </div>
-                  <button className="bg-white/20 hover:bg-white/30 text-white px-3 py-1 rounded-lg transition-colors flex items-center space-x-1"
-                          onClick={() => {
-                            setActivePanel('calendar');
-                            navigate('/dashboard/google-classroom');
-                          }}>
-                    <ExternalLink className="w-3 h-3" />
-                    <span className="text-xs font-medium">
-                      {googleClassroomStatus === 'checking' ? 'Checking...' : 
-                       googleClassroomStatus === 'connected' ? 'Connected' : 
-                       'Not Connected'}
-                    </span>
-                    {googleClassroomStatus === 'connected' && <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse ml-1" />}
-                    {googleClassroomStatus === 'disconnected' && <span className="w-2 h-2 bg-red-400 rounded-full ml-1" />}
-                    {googleClassroomStatus === 'checking' && <span className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse ml-1" />}
-                  </button>
-                </div>
-              </div>
+                }
+                status={googleClassroomStatus}
+                delay={0.1}
+                height="120px"
+                onClick={() => { 
+                  setActivePanel('calendar');
+                  navigate('/dashboard/google-classroom');
+                }}
+              />
 
               {/* User Profile & Notifications + Notes/Documents Icons */}
-              <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-4 shadow-xl border border-white/20 relative glassmorphism transform-gpu will-change-transform transition-all duration-300 ease-out">
+                <div className="backdrop-blur-xl rounded-2xl p-4 shadow-xl border border-white/20 relative glassmorphism transform-gpu will-change-transform transition-all duration-300 ease-out h-[88px]" style={{
+                  backgroundColor: '#FFFFFFE6',
+                  boxShadow: '8px 8px 16px rgba(0, 0, 0, 0.1), -8px -8px 16px rgba(255, 255, 255, 0.7), inset 2px 2px 4px rgba(0, 0, 0, 0.05)'
+                }}>
                                   <div className="flex items-center justify-center">
                     <div className="flex items-center space-x-4">
                       {/* Bell Icon */}
                       <div className="relative flex flex-col items-center">
-                        <button onClick={() => setActivePanel('notifications')} className={`relative cursor-pointer group rounded-xl p-3 shadow-lg border transition-all duration-200 hover:shadow-xl ${
+                        <button onClick={() => setActivePanel('notifications')} className={`relative cursor-pointer group rounded-xl p-3 border transition-all duration-200 ${
                           activePanel === 'notifications' 
-                            ? 'bg-blue-100 border-blue-300 shadow-blue-200' 
-                            : 'bg-white/80 hover:bg-white/80 border-white/80'
-                        }`}>
+                            ? 'bg-blue-100 border-blue-300 text-blue-600' 
+                            : 'border-white/80 text-gray-600 hover:text-gray-800'
+                        }`} style={{
+                          backgroundColor: activePanel === 'notifications' ? undefined : '#FFFFFFE6',
+                          boxShadow: activePanel === 'notifications' 
+                            ? 'inset 4px 4px 8px rgba(0, 0, 0, 0.1), inset -4px -4px 8px rgba(255, 255, 255, 0.7)'
+                            : '4px 4px 8px rgba(0, 0, 0, 0.1), -4px -4px 8px rgba(255, 255, 255, 0.7)'
+                        }}>
                           <Bell className={`w-6 h-6 transition-colors ${
                             activePanel === 'notifications' ? 'text-blue-600' : 'text-gray-600 hover:text-gray-800'
                           }`} />
-                          {notifications > 0 && activePanel !== 'notifications' && (
+                          {instructorNotifications.length > 0 && activePanel !== 'notifications' && (
                             <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full shadow-lg animate-pulse"></div>
                           )}
                         </button>
                       </div>
                       {/* Notes Icon */}
                       <div className="relative flex flex-col items-center">
-                        <button onClick={() => setActivePanel('notes')} className={`relative cursor-pointer group rounded-xl p-3 shadow-lg border transition-all duration-200 hover:shadow-xl ${
+                        <button onClick={() => setActivePanel('notes')} className={`relative cursor-pointer group rounded-xl p-3 border transition-all duration-200 ${
                           activePanel === 'notes' 
-                            ? 'bg-yellow-100 border-yellow-300 shadow-yellow-200' 
-                            : 'bg-white/80 hover:bg-white/80 border-white/80'
-                        }`}>
+                            ? 'bg-yellow-100 border-yellow-300 text-yellow-600' 
+                            : 'border-white/80 text-gray-600 hover:text-gray-800'
+                        }`} style={{
+                          backgroundColor: activePanel === 'notes' ? undefined : '#FFFFFFE6',
+                          boxShadow: activePanel === 'notes' 
+                            ? 'inset 4px 4px 8px rgba(0, 0, 0, 0.1), inset -4px -4px 8px rgba(255, 255, 255, 0.7)'
+                            : '4px 4px 8px rgba(0, 0, 0, 0.1), -4px -4px 8px rgba(255, 255, 255, 0.7)'
+                        }}>
                           <LuNotebookPen className={`w-6 h-6 transition-colors ${
                             activePanel === 'notes' ? 'text-yellow-600' : 'text-gray-600 hover:text-gray-800'
                           }`} />
@@ -1703,11 +1799,16 @@ const TeacherDashboardOverview: React.FC = () => {
                       </div>
                       {/* Documents Icon */}
                       <div className="relative flex flex-col items-center">
-                        <button onClick={() => setActivePanel('documents')} className={`relative cursor-pointer group rounded-xl p-3 shadow-lg border transition-all duration-200 hover:shadow-xl ${
+                        <button onClick={() => setActivePanel('documents')} className={`relative cursor-pointer group rounded-xl p-3 border transition-all duration-200 ${
                           activePanel === 'documents' 
-                            ? 'bg-red-100 border-red-300 shadow-red-200' 
-                            : 'bg-white/80 hover:bg-white/80 border-white/80'
-                        }`}>
+                            ? 'bg-red-100 border-red-300 text-red-600' 
+                            : 'border-white/80 text-gray-600 hover:text-gray-800'
+                        }`} style={{
+                          backgroundColor: activePanel === 'documents' ? undefined : '#FFFFFFE6',
+                          boxShadow: activePanel === 'documents' 
+                            ? 'inset 4px 4px 8px rgba(0, 0, 0, 0.1), inset -4px -4px 8px rgba(255, 255, 255, 0.7)'
+                            : '4px 4px 8px rgba(0, 0, 0, 0.1), -4px -4px 8px rgba(255, 255, 255, 0.7)'
+                        }}>
                           <IoDocuments className={`w-6 h-6 transition-colors ${
                             activePanel === 'documents' ? 'text-red-600' : 'text-gray-600 hover:text-gray-800'
                           }`} />
@@ -1715,11 +1816,16 @@ const TeacherDashboardOverview: React.FC = () => {
                       </div>
                       {/* Calendar Icon */}
                       <div className="relative flex flex-col items-center">
-                        <button onClick={() => setActivePanel('calendar')} className={`relative cursor-pointer group rounded-xl p-3 shadow-lg border transition-all duration-200 hover:shadow-xl ${
+                        <button onClick={() => setActivePanel('calendar')} className={`relative cursor-pointer group rounded-xl p-3 border transition-all duration-200 ${
                           activePanel === 'calendar' 
-                            ? 'bg-green-100 border-green-300 shadow-green-200' 
-                            : 'bg-white/80 hover:bg-white/80 border-white/80'
-                        }`}>
+                            ? 'bg-green-100 border-green-300 text-green-600' 
+                            : 'border-white/80 text-gray-600 hover:text-gray-800'
+                        }`} style={{
+                          backgroundColor: activePanel === 'calendar' ? undefined : '#FFFFFFE6',
+                          boxShadow: activePanel === 'calendar' 
+                            ? 'inset 4px 4px 8px rgba(0, 0, 0, 0.1), inset -4px -4px 8px rgba(255, 255, 255, 0.7)'
+                            : '4px 4px 8px rgba(0, 0, 0, 0.1), -4px -4px 8px rgba(255, 255, 255, 0.7)'
+                        }}>
                           <Calendar className={`w-6 h-6 transition-colors ${
                             activePanel === 'calendar' ? 'text-green-600' : 'text-gray-600 hover:text-gray-800'
                           }`} />
@@ -1732,238 +1838,206 @@ const TeacherDashboardOverview: React.FC = () => {
 
 
               {/* Unified panel container controlled by activePanel */}
-              <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 shadow-xl border border-white/20 relative glassmorphism transform-gpu will-change-transform transition-all duration-300 ease-out mt-8 h-[300px] overflow-y-auto">
+              <div className="backdrop-blur-xl rounded-2xl p-6 shadow-xl border border-white/20 relative glassmorphism transform-gpu will-change-transform transition-all duration-300 ease-out mt-8 h-[300px] overflow-y-auto" style={{
+                backgroundColor: '#FFFFFFE6',
+                boxShadow: '8px 8px 16px rgba(0, 0, 0, 0.1), -8px -8px 16px rgba(255, 255, 255, 0.7), inset 2px 2px 4px rgba(0, 0, 0, 0.05)'
+              }}>
                 {activePanel === 'notifications' && (
                   <div className="h-full overflow-y-auto">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="font-bold text-gray-700 flex items-center">
-                        <Bell className="w-4 h-4 mr-2 text-blue-500" /> 
-                        Notifications
-                      </h3>
-                      <button
-                        onClick={() => setShowNotificationForm(!showNotificationForm)}
-                        className={`p-2 rounded-lg transition-colors duration-200 ${
-                          showNotificationForm 
-                            ? 'bg-gray-600 hover:bg-gray-700 text-white' 
-                            : 'bg-blue-600 hover:bg-blue-700 text-white'
-                        }`}
-                      >
-                        {showNotificationForm ? (
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        ) : (
+                    <div className="flex items-center justify-between mb-3 px-3 pt-3">
+                      <div className="flex items-center gap-2">
+                        <Bell className="w-4 h-4 text-blue-600" />
+                        <h3 className="text-sm font-semibold text-gray-700">Notifications</h3>
+                      </div>
+                      {!showNotificationForm ? (
+                        <button
+                          onClick={() => setShowNotificationForm(true)}
+                          className="p-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white"
+                          style={{
+                            boxShadow: '4px 4px 8px rgba(0, 0, 0, 0.2), -2px -2px 4px rgba(255, 255, 255, 0.1)'
+                          }}
+                          aria-label="Add"
+                        >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                           </svg>
-                        )}
-                      </button>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setShowNotificationForm(false)}
+                          className="p-2 rounded-md text-gray-500 hover:text-gray-700 bg-gray-100 hover:bg-gray-200"
+                          style={{
+                            boxShadow: 'inset 2px 2px 4px rgba(0, 0, 0, 0.1), inset -2px -2px 4px rgba(255, 255, 255, 0.7)'
+                          }}
+                          aria-label="Close"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      )}
                     </div>
 
                     {!showNotificationForm ? (
-                      <div className="space-y-1.5">
+                      <div className="py-1 h-[220px] overflow-y-auto pr-1 px-3 pb-3">
                         {instructorNotifications.length === 0 ? (
-                          <div className="text-sm text-gray-500">No notifications</div>
+                          <p className="text-gray-500 text-sm">No notifications</p>
                         ) : (
-                          instructorNotifications.map((n) => {
-                            // Define severity colors and labels for better understanding
-                            const getSeverityInfo = (severity: string) => {
-                              switch (severity) {
-                                case 'announcement':
-                                  return { 
-                                    color: 'bg-blue-500', 
-                                    label: 'Announcement', 
-                                    icon: '📢',
-                                    bgColor: 'bg-gradient-to-r from-blue-50 to-blue-100/50', 
-                                    borderColor: 'border-blue-200/60',
-                                    textColor: 'text-blue-700'
-                                  };
-                                case 'reminder':
-                                  return { 
-                                    color: 'bg-amber-500', 
-                                    label: 'Reminder', 
-                                    icon: '⏰',
-                                    bgColor: 'bg-gradient-to-r from-amber-50 to-amber-100/50', 
-                                    borderColor: 'border-amber-200/60',
-                                    textColor: 'text-amber-700'
-                                  };
-                                case 'deadline':
-                                  return { 
-                                    color: 'bg-red-500', 
-                                    label: 'Deadline', 
-                                    icon: '⏳',
-                                    bgColor: 'bg-gradient-to-r from-red-50 to-red-100/50', 
-                                    borderColor: 'border-red-200/60',
-                                    textColor: 'text-red-700'
-                                  };
-                                case 'exam':
-                                  return { 
-                                    color: 'bg-purple-500', 
-                                    label: 'Exam', 
-                                    icon: '📝',
-                                    bgColor: 'bg-gradient-to-r from-purple-50 to-purple-100/50', 
-                                    borderColor: 'border-purple-200/60',
-                                    textColor: 'text-purple-700'
-                                  };
-                                case 'meeting':
-                                  return { 
-                                    color: 'bg-indigo-500', 
-                                    label: 'Meeting', 
-                                    icon: '🤝',
-                                    bgColor: 'bg-gradient-to-r from-indigo-50 to-indigo-100/50', 
-                                    borderColor: 'border-indigo-200/60',
-                                    textColor: 'text-indigo-700'
-                                  };
-                                case 'advisory':
-                                  return { 
-                                    color: 'bg-teal-500', 
-                                    label: 'Advisory', 
-                                    icon: '💡',
-                                    bgColor: 'bg-gradient-to-r from-teal-50 to-teal-100/50', 
-                                    borderColor: 'border-teal-200/60',
-                                    textColor: 'text-teal-700'
-                                  };
-                                case 'success':
-                                  return { 
-                                    color: 'bg-emerald-500', 
-                                    label: 'Success', 
-                                    icon: '✅',
-                                    bgColor: 'bg-gradient-to-r from-emerald-50 to-emerald-100/50', 
-                                    borderColor: 'border-emerald-200/60',
-                                    textColor: 'text-emerald-700'
-                                  };
-                                case 'warning':
-                                  return { 
-                                    color: 'bg-orange-500', 
-                                    label: 'Warning', 
-                                    icon: '⚠️',
-                                    bgColor: 'bg-gradient-to-r from-orange-50 to-orange-100/50', 
-                                    borderColor: 'border-orange-200/60',
-                                    textColor: 'text-orange-700'
-                                  };
-                                case 'error':
-                                  return { 
-                                    color: 'bg-red-500', 
-                                    label: 'Error', 
-                                    icon: '❌',
-                                    bgColor: 'bg-gradient-to-r from-red-50 to-red-100/50', 
-                                    borderColor: 'border-red-200/60',
-                                    textColor: 'text-red-700'
-                                  };
-                                case 'info':
-                                default:
-                                  return { 
-                                    color: 'bg-sky-500', 
-                                    label: 'Information', 
-                                    icon: 'ℹ️',
-                                    bgColor: 'bg-gradient-to-r from-sky-50 to-sky-100/50', 
-                                    borderColor: 'border-sky-200/60',
-                                    textColor: 'text-sky-700'
-                                  };
-                              }
-                            };
-
-                            const severityInfo = getSeverityInfo(n.severity);
-                            
-                            return (
-                              <div key={n.id} className={`group relative overflow-hidden rounded-lg border ${severityInfo.bgColor} ${severityInfo.borderColor} hover:shadow-md hover:scale-[1.01] transition-all duration-200 ease-out backdrop-blur-sm`}>
-                                {/* Subtle gradient overlay */}
-                                <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
-                                
-                                <div className="relative p-2">
-                                  <div className="flex items-start gap-2">
-                                    {/* Icon and status indicator */}
-                                    <div className="flex-shrink-0">
-                                      <div className="flex items-center justify-center w-6 h-6 rounded-full bg-white/80 shadow-sm border border-white/60">
-                                        <span className="text-xs">{severityInfo.icon}</span>
-                                      </div>
-                                    </div>
-                                    
-                                    {/* Content */}
-                                    <div className="flex-1 min-w-0">
-                                      {/* Status badge */}
-                                      <div className="inline-flex items-center gap-1">
-                                        <div className={`w-1 h-1 rounded-full ${severityInfo.color} shadow-sm`}></div>
-                                        <span className={`text-xs font-semibold uppercase tracking-wide ${severityInfo.textColor}`}>
-                                          {severityInfo.label}
-                                        </span>
-                                      </div>
-                                      {n.created_by && (
-                                        <div className="mt-0.5 text-[10px] text-gray-500 inline-flex items-center gap-1 max-w-[200px]">
-                                          <span className="opacity-70">by</span>
-                                          <span className="font-medium text-gray-700 truncate" title={n.created_by_name || n.created_by}>
-                                            {n.created_by_name || n.created_by.slice(0, 8) + '…'}
-                                          </span>
-                                        </div>
-                                      )}
-                                      
-                                      {/* Title */}
-                                      <h4 className="font-semibold text-gray-800 text-xs mb-0.5 leading-tight">
-                                        {n.title}
-                                      </h4>
-                                      
-                                      {/* Message */}
-                                      <p className="text-gray-600 text-xs leading-relaxed line-clamp-2">
-                                        {n.message}
-                                      </p>
-                                    </div>
-                                    
-                                    {/* Timestamp and expiry */}
-                                    <div className="flex-shrink-0 text-right">
-                                      <div className="text-xs text-gray-400 font-medium">
-                                        {new Date(n.created_at).toLocaleDateString('en-US', { 
-                                          month: 'short', 
-                                          day: 'numeric',
-                                          hour: '2-digit',
-                                          minute: '2-digit',
-                                          hour12: true
-                                        })}
-                                      </div>
-                                      {n.expires_at && (
-                                        <div className="text-[10px] text-gray-400 mt-0.5">
-                                          Expires in {(() => {
-                                            const ms = new Date(n.expires_at).getTime() - Date.now();
-                                            if (ms <= 0) return '0m';
-                                            const mins = Math.ceil(ms / 60000);
-                                            if (mins < 60) return `${mins}m`;
-                                            const hrs = Math.floor(mins / 60);
-                                            const rem = mins % 60;
-                                            return rem ? `${hrs}h ${rem}m` : `${hrs}h`;
-                                          })()}
-                                        </div>
-                                      )}
-                                    </div>
+                          <div className="space-y-1">
+                            {instructorNotifications.map(n => (
+                              <div 
+                                key={n.id} 
+                                className="bg-blue-50 rounded p-2.5"
+                                style={{
+                                  boxShadow: 'inset 2px 2px 4px rgba(0, 0, 0, 0.08), inset -2px -2px 4px rgba(255, 255, 255, 0.5)'
+                                }}
+                              >
+                                <div className="flex items-start justify-between gap-1">
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-[11px] font-semibold text-gray-800 leading-tight">{n.title || 'Untitled'}</p>
+                                    <p className="text-xs text-gray-600 mt-0.5 break-words leading-snug whitespace-normal">{n.message}</p>
+                                  </div>
+                                  <div className="flex items-center gap-0.5 ml-1 flex-shrink-0">
+                                    <span className="text-[8px] text-gray-500 whitespace-nowrap">
+                                      {new Date(n.created_at).toLocaleDateString('en-US', { 
+                                        month: 'short', 
+                                        day: 'numeric',
+                                        hour: '2-digit',
+                                        minute: '2-digit',
+                                        hour12: true
+                                      })}
+                                    </span>
                                   </div>
                                 </div>
+                                <div className="mt-0.5 flex items-center gap-0.5 flex-wrap">
+                                  <span 
+                                    className="text-[7px] px-1 py-0.5 rounded-full bg-gray-200 text-gray-700"
+                                    style={{
+                                      boxShadow: 'inset 1px 1px 2px rgba(0, 0, 0, 0.1), inset -1px -1px 2px rgba(255, 255, 255, 0.7)'
+                                    }}
+                                  >
+                                    {n.severity}
+                                  </span>
+                                  {n.audience && (
+                                    <span 
+                                      className="text-[7px] px-1 py-0.5 rounded-full bg-gray-200 text-gray-700"
+                                      style={{
+                                        boxShadow: 'inset 1px 1px 2px rgba(0, 0, 0, 0.1), inset -1px -1px 2px rgba(255, 255, 255, 0.7)'
+                                      }}
+                                    >
+                                      {n.audience === 'all' ? 'All' : n.audience}
+                                    </span>
+                                  )}
+                                  {n.expires_at ? (
+                                    <span 
+                                      className="text-[7px] px-1 py-0.5 rounded-full bg-orange-100 text-orange-700"
+                                      style={{
+                                        boxShadow: 'inset 1px 1px 2px rgba(0, 0, 0, 0.1), inset -1px -1px 2px rgba(255, 255, 255, 0.7)'
+                                      }}
+                                    >
+                                      {(() => {
+                                        const now = new Date();
+                                        const expires = new Date(n.expires_at);
+                                        const diff = expires.getTime() - now.getTime();
+                                        if (diff <= 0) return 'Expired';
+                                        const hours = Math.floor(diff / (1000 * 60 * 60));
+                                        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                                        if (hours > 0) return `${hours}h ${minutes}m`;
+                                        return `${minutes}m`;
+                                      })()}
+                                    </span>
+                                  ) : (
+                                    <span 
+                                      className="text-[7px] px-1 py-0.5 rounded-full bg-gray-100 text-gray-600"
+                                      style={{
+                                        boxShadow: 'inset 1px 1px 2px rgba(0, 0, 0, 0.1), inset -1px -1px 2px rgba(255, 255, 255, 0.7)'
+                                      }}
+                                    >
+                                      permanent
+                                    </span>
+                                  )}
+                                </div>
                               </div>
-                            );
-                          })
+                            ))}
+                          </div>
                         )}
                       </div>
                     ) : (
-                      <div className="space-y-2.5">
-                        <div className="grid grid-cols-3 gap-3 items-end">
-                          <div className="col-span-2">
-                            <label className="block text-xs font-medium text-gray-700 mb-1.5">Title *</label>
+                      <div className="h-[252px] overflow-y-auto pr-1 px-3 pb-3">
+                        <div className="space-y-1">
+                        {/* Title + Duration row */}
+                        <div className="grid grid-cols-2 gap-1">
+                          <div>
+                            <label className="block text-[11px] font-medium text-gray-700 mb-0">Title *</label>
                             <input
                               type="text"
                               value={notificationForm.title}
                               onChange={(e) => setNotificationForm(prev => ({ ...prev, title: e.target.value }))}
-                              className="w-full px-2.5 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900 placeholder-gray-400 text-sm"
+                              className="w-full px-2 py-0.5 border border-gray-300 rounded-lg bg-white text-black placeholder-gray-500 text-xs"
+                              style={{
+                                boxShadow: 'inset 2px 2px 4px rgba(0, 0, 0, 0.1), inset -2px -2px 4px rgba(255, 255, 255, 0.7)'
+                              }}
                               placeholder="Enter notification title"
                               required
                             />
                           </div>
-                          <div></div>
-                        </div>
-                        
-                        <div className="grid grid-cols-2 gap-3">
                           <div>
-                            <label className="block text-xs font-medium text-gray-700 mb-1.5">Severity *</label>
+                            <label className="block text-[11px] font-medium text-gray-700 mb-0">Duration</label>
+                            <select
+                              value={`${notificationForm.timeInterval === 'none' ? 'none' : notificationForm.timeValue + (notificationForm.timeInterval === 'hours' ? 'h' : notificationForm.timeInterval === 'days' ? 'd' : notificationForm.timeInterval === 'weeks' ? 'w' : 'm')}`}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                if (v === 'none') return setNotificationForm(prev => ({ ...prev, timeInterval: 'none', timeValue: 1 }));
+                                const n = parseInt(v);
+                                if (v.endsWith('h')) return setNotificationForm(prev => ({ ...prev, timeInterval: 'hours', timeValue: n }));
+                                if (v.endsWith('d')) return setNotificationForm(prev => ({ ...prev, timeInterval: 'days', timeValue: n }));
+                                if (v.endsWith('w')) return setNotificationForm(prev => ({ ...prev, timeInterval: 'weeks', timeValue: n }));
+                                if (v.endsWith('m')) return setNotificationForm(prev => ({ ...prev, timeInterval: 'months', timeValue: n }));
+                              }}
+                              className="w-full px-2 py-0.5 border border-gray-300 rounded-lg bg-white text-black text-xs"
+                              style={{
+                                boxShadow: 'inset 2px 2px 4px rgba(0, 0, 0, 0.1), inset -2px -2px 4px rgba(255, 255, 255, 0.7)'
+                              }}
+                            >
+                              <option value="none">Never</option>
+                              <option value="1h">1h</option>
+                              <option value="3h">3h</option>
+                              <option value="6h">6h</option>
+                              <option value="12h">12h</option>
+                              <option value="1d">1d</option>
+                              <option value="3d">3d</option>
+                              <option value="1w">1w</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Message */}
+                        <div>
+                          <label className="block text-[11px] font-medium text-gray-700 mb-0">Message *</label>
+                          <textarea
+                            value={notificationForm.message}
+                            onChange={(e) => setNotificationForm(prev => ({ ...prev, message: e.target.value }))}
+                            rows={2}
+                            className="w-full px-2 py-0.5 border border-gray-300 rounded-lg bg-white text-black placeholder-gray-500 text-xs resize-none"
+                            style={{
+                              boxShadow: 'inset 2px 2px 4px rgba(0, 0, 0, 0.1), inset -2px -2px 4px rgba(255, 255, 255, 0.7)'
+                            }}
+                            placeholder="Enter notification message..."
+                            required
+                          />
+                        </div>
+
+                        {/* Severity & Audience */}
+                        <div className="grid grid-cols-2 gap-1 pt-0">
+                          <div>
+                            <label className="block text-[11px] font-medium text-gray-700 mb-0">Severity *</label>
                             <select
                               value={notificationForm.severity}
-                              onChange={(e) => setNotificationForm(prev => ({ ...prev, severity: e.target.value as 'announcement' | 'reminder' | 'deadline' | 'exam' | 'meeting' | 'advisory' | 'info' | 'success' | 'warning' | 'error' }))}
-                              className="w-full px-2.5 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900 text-sm"
+                              onChange={(e) => setNotificationForm(prev => ({ ...prev, severity: e.target.value as NotificationSeverity }))}
+                              className="w-full px-2 py-0.5 border border-gray-300 rounded-lg bg-white text-black text-xs"
+                              style={{
+                                boxShadow: 'inset 2px 2px 4px rgba(0, 0, 0, 0.1), inset -2px -2px 4px rgba(255, 255, 255, 0.7)'
+                              }}
                               required
                             >
                               <option value="announcement">Announcement</option>
@@ -1977,83 +2051,43 @@ const TeacherDashboardOverview: React.FC = () => {
                               <option value="warning">Warning</option>
                               <option value="error">Error</option>
                             </select>
-                            <div className="mt-2">
-                              <label className="block text-xs font-medium text-gray-700 mb-1.5">Duration</label>
-                              <select
-                                value={notificationForm.durationMinutes === null ? 'never' : String(notificationForm.durationMinutes)}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setNotificationForm(prev => ({ ...prev, durationMinutes: val === 'never' ? null : parseInt(val, 10) }));
-                                }}
-                                className="w-full px-2 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900 text-xs"
-                              >
-                                <option value="15">15m</option>
-                                <option value="30">30m</option>
-                                <option value="60">1h</option>
-                                <option value="180">3h</option>
-                                <option value="1440">1d</option>
-                                <option value="4320">3d</option>
-                                <option value="10080">7d</option>
-                                <option value="never">Never</option>
-                              </select>
-                            </div>
                           </div>
-
                           <div>
-                            <label className="block text-xs font-medium text-gray-700 mb-1.5">Audience *</label>
+                            <label className="block text-[11px] font-medium text-gray-700 mb-0">Audience *</label>
                             <select
                               value={notificationForm.audience}
-                              onChange={(e) => setNotificationForm(prev => ({ ...prev, audience: e.target.value as 'student' }))}
-                              className="w-full px-2.5 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900 text-sm"
+                              onChange={(e) => setNotificationForm(prev => ({ ...prev, audience: e.target.value }))}
+                              className="w-full px-2 py-0.5 border border-gray-300 rounded-lg bg-white text-black text-xs"
+                              style={{
+                                boxShadow: 'inset 2px 2px 4px rgba(0, 0, 0, 0.1), inset -2px -2px 4px rgba(255, 255, 255, 0.7)'
+                              }}
                               required
                             >
-                              <option value="student">Students Only</option>
+                              <option value="student">Students</option>
                             </select>
                           </div>
                         </div>
 
-                        
-
-                        <div>
-                          <label className="block text-xs font-medium text-gray-700 mb-1.5">Message *</label>
-                          <textarea
-                            value={notificationForm.message}
-                            onChange={(e) => setNotificationForm(prev => ({ ...prev, message: e.target.value }))}
-                            rows={2}
-                            className="w-full px-2.5 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900 placeholder-gray-400 text-sm resize-none"
-                            placeholder="Enter notification message..."
-                            required
-                          />
-                        </div>
-
-                        <div className="flex gap-3 pt-2">
-                          <button
-                            onClick={() => setShowNotificationForm(false)}
-                            className="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white text-sm font-medium rounded-lg transition-colors duration-200"
-                          >
-                            Cancel
-                          </button>
+                        {/* Send button full width */}
+                        <div className="pt-3">
                           <button
                             onClick={handleCreateNotification}
                             disabled={creatingNotification}
-                            className={`flex-1 px-4 py-2 rounded-lg text-white font-medium flex items-center justify-center gap-2 transition-colors duration-200 ${
-                              creatingNotification 
-                                ? 'bg-blue-600 cursor-not-allowed' 
-                                : 'bg-blue-600 hover:bg-blue-700'
+                            className={`w-full px-4 py-2 rounded-lg text-white font-medium flex items-center justify-center gap-2 transition-colors duration-200 ${
+                              creatingNotification ? 'bg-blue-600 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
                             }`}
+                            style={{
+                              boxShadow: '4px 4px 8px rgba(0, 0, 0, 0.2), -2px -2px 4px rgba(255, 255, 255, 0.1)'
+                            }}
                           >
                             {creatingNotification ? (
-                              <>
-                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                <span className="text-sm">Sending...</span>
-                              </>
+                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                             ) : (
-                              <>
-                                <Bell className="w-4 h-4" />
-                                <span className="text-sm">Send</span>
-                              </>
-                              )}
+                              <Bell className="w-4 h-4" />
+                            )}
+                            {creatingNotification ? 'Sending...' : 'Send Notification'}
                           </button>
+                        </div>
                         </div>
                       </div>
                     )}
@@ -2410,14 +2444,7 @@ const TeacherDashboardOverview: React.FC = () => {
                         </div>
                       ) : documents.length === 0 ? (
                         <div className="py-3">
-                          <div className="flex items-center gap-2 text-gray-500 mb-1">
-                            <IoDocuments className="w-6 h-6" />
-                            <p className="text-sm">
-                              {googleClassroomStatus === 'connected' 
-                                ? 'No documents found in Google Drive' 
-                                : 'Connect to Google Drive to view documents'}
-                            </p>
-                          </div>
+                          
                           {googleClassroomStatus !== 'connected' && (
                             <button 
                               onClick={() => navigate('/dashboard/google-classroom')}
@@ -2579,7 +2606,10 @@ const TeacherDashboardOverview: React.FC = () => {
               </div>
 
               {/* Registrar Grade Edit Confirmation Card - placed under the unified panel */}
-              <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-4 shadow-xl border border-white/20 relative glassmorphism transform-gpu will-change-transform transition-all duration-300 ease-out mt-3 h-[310px] overflow-y-auto">
+              <div className="backdrop-blur-xl rounded-2xl p-4 shadow-xl border border-white/20 relative glassmorphism transform-gpu will-change-transform transition-all duration-300 ease-out mt-3 h-[310px] overflow-y-auto" style={{
+                backgroundColor: '#FFFFFFE6',
+                boxShadow: '8px 8px 16px rgba(0, 0, 0, 0.1), -8px -8px 16px rgba(255, 255, 255, 0.7), inset 2px 2px 4px rgba(0, 0, 0, 0.05)'
+              }}>
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="font-bold text-gray-700 text-sm">Grade Edit Requests</h3>
                   <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
