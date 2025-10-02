@@ -42,9 +42,7 @@ import {
   Users,
   Plus,
   X,
-  Eye,
-  FileText,
-  Download
+  Eye
 } from 'lucide-react';
 import SubjectAssignmentModal, { SubjectAssignmentModalProps } from './SubjectAssignmentModal';
 
@@ -56,16 +54,6 @@ interface Instructor {
   last_name: string;
   role: 'teacher' | 'instructor';
   department?: string;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-interface Program {
-  id: number;
-  name: string;
-  description: string;
-  major: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -101,24 +89,6 @@ interface Course {
   semester: string;
 }
 
-interface SubjectTraceRecord {
-  id: string;
-  instructor_id: string;
-  instructor_name: string;
-  instructor_email: string;
-  instructor_department: string;
-  subject_code: string;
-  subject_name: string;
-  subject_units: number;
-  section: string;
-  semester: string;
-  academic_year: string;
-  year_level: string;
-  status: 'Completed' | 'Confirmed by Program Head';
-  confirmed_at: string;
-  created_at: string;
-}
-
 interface TabPanelProps {
   children?: React.ReactNode;
   index: number;
@@ -150,8 +120,6 @@ const InstructorManagement: React.FC = () => {
   const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [programs, setPrograms] = useState<Program[]>([]);
-  const [programsLoading, setProgramsLoading] = useState(true);
   // Removed role/department/status filters from UI
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -161,7 +129,7 @@ const InstructorManagement: React.FC = () => {
     lastName: '',
     email: '',
     role: 'instructor' as 'teacher' | 'instructor', // default to instructor
-    department: '', // will be set when programs are loaded
+    department: 'BSIT', // default to BSIT
     password: 'TempPass@123',
   });
 
@@ -175,7 +143,7 @@ const InstructorManagement: React.FC = () => {
     lastName: '',
     email: '',
     role: 'instructor' as 'teacher' | 'instructor',
-    department: '',
+    department: 'BSIT',
     is_active: true,
   });
 
@@ -221,8 +189,6 @@ const InstructorManagement: React.FC = () => {
   const [assignmentsLoading, setAssignmentsLoading] = useState(true);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [selectedYearLevel, setSelectedYearLevel] = useState<string>('all');
-  const [selectedSections, setSelectedSections] = useState<Record<string, string>>({});
-  const [assignmentSearchTerm, setAssignmentSearchTerm] = useState<string>('');
   
   // Assignment Detail Modal State
   const [assignmentDetailModal, setAssignmentDetailModal] = useState<{
@@ -244,29 +210,17 @@ const InstructorManagement: React.FC = () => {
     loading: false
   });
 
-  // Subject Trace State
-  const [subjectTraceRecords, setSubjectTraceRecords] = useState<SubjectTraceRecord[]>([]);
-  const [subjectTraceLoading, setSubjectTraceLoading] = useState(true);
-  const [subjectTraceSearchTerm, setSubjectTraceSearchTerm] = useState('');
-  const [subjectTraceModal, setSubjectTraceModal] = useState<{
-    isOpen: boolean;
-    instructor: Instructor | null;
-    records: SubjectTraceRecord[];
-  }>({
-    isOpen: false,
-    instructor: null,
-    records: []
-  });
-
   const fetchSections = async () => {
     try {
+      console.log('Fetching sections...');
       const { data, error } = await supabase
         .from('sections')
-        .select('id, name, year_level, academic_year')
-        .order('year_level', { ascending: true })
+        .select('id, name, year_level')
         .order('name', { ascending: true });
  
       if (error) throw error;
+      
+      console.log('Fetched sections:', data);
       
       // Validate that sections have proper year_level data
       const validSections = (data || []).filter(section => 
@@ -276,31 +230,12 @@ const InstructorManagement: React.FC = () => {
         section.name.trim() !== ''
       );
       
+      console.log('Valid sections:', validSections);
       setSections(validSections);
     } catch (error) {
       console.error('Error fetching sections:', error);
       toast.error('Failed to load sections');
       setSections([]);
-    }
-  };
-
-  const fetchPrograms = async () => {
-    try {
-      setProgramsLoading(true);
-      const { data, error } = await supabase
-        .from('programs')
-        .select('*')
-        .eq('is_active', true)
-        .order('name', { ascending: true });
-
-      if (error) throw error;
-      setPrograms(data || []);
-    } catch (error) {
-      console.error('Error fetching programs:', error);
-      toast.error('Failed to load programs');
-      setPrograms([]);
-    } finally {
-      setProgramsLoading(false);
     }
   };
 
@@ -378,19 +313,19 @@ const InstructorManagement: React.FC = () => {
           // Default to 1st Year if no pattern found
           return '1st Year';
         })(),
-        // Preserve original semester value and only use fallback logic if semester is not set
+        // Assign semester based on summer field first, then fallback to existing logic
         semester: (() => {
-          // If semester is already set in the database, use it (don't override based on summer field)
-          if (course.semester) {
-            return course.semester;
-          }
-          
-          // Only use summer field as fallback if semester is not set
+          // Check if course is marked as summer in the database
           if (course.summer === true) {
             return 'Summer';
           }
           
-          // Try to extract semester from course code or name as last resort
+          // If semester is already set, use it
+          if (course.semester) {
+            return course.semester;
+          }
+          
+          // Try to extract semester from course code or name
           const code = String(course.code || '').toLowerCase();
           const name = String(course.name || '').toLowerCase();
           
@@ -529,7 +464,7 @@ const InstructorManagement: React.FC = () => {
       lastName: instructor.last_name,
       email: instructor.email,
       role: instructor.role,
-      department: instructor.department || (programs.length > 0 ? programs[0].name : ''),
+      department: instructor.department || 'BSIT',
       is_active: instructor.is_active,
     });
     setEditDialogOpen(true);
@@ -574,7 +509,7 @@ const InstructorManagement: React.FC = () => {
       lastName: '',
       email: '',
       role: 'instructor',
-      department: programs.length > 0 ? programs[0].name : '',
+      department: 'BSIT',
       is_active: true,
     });
   };
@@ -649,15 +584,7 @@ const InstructorManagement: React.FC = () => {
     fetchInstructors();
     fetchCourses();
     fetchSections();
-    fetchPrograms();
   }, []);
-
-  // Set default department when programs are loaded
-  useEffect(() => {
-    if (programs.length > 0 && !createForm.department) {
-      setCreateForm(prev => ({ ...prev, department: programs[0].name }));
-    }
-  }, [programs, createForm.department]);
 
   // Fetch assignments when tab changes to Year Level Assigned Subjects
   useEffect(() => {
@@ -665,41 +592,6 @@ const InstructorManagement: React.FC = () => {
       fetchAssignments();
     }
   }, [tabValue]);
-
-  // Fetch subject trace records when tab changes to Subject Trace
-  useEffect(() => {
-    if (tabValue === 2) {
-      fetchSubjectTraceRecords();
-    }
-  }, [tabValue]);
-
-  // Add periodic refresh for subject trace records (every 30 seconds when tab is active)
-  useEffect(() => {
-    if (tabValue === 2) {
-      const interval = setInterval(() => {
-        fetchSubjectTraceRecords();
-      }, 30000); // Refresh every 30 seconds
-
-      return () => clearInterval(interval);
-    }
-  }, [tabValue]);
-
-  // Listen for custom events to refresh subject trace records
-  useEffect(() => {
-    const handleSubjectTraceRefresh = () => {
-      if (tabValue === 2) {
-        fetchSubjectTraceRecords();
-      }
-    };
-
-    window.addEventListener('subjectTraceRefresh', handleSubjectTraceRefresh);
-    return () => {
-      window.removeEventListener('subjectTraceRefresh', handleSubjectTraceRefresh);
-    };
-  }, [tabValue]);
-
-
-
 
   const handleCreateInstructor = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -771,7 +663,7 @@ const InstructorManagement: React.FC = () => {
       lastName: '',
       email: '',
       role: 'instructor', // default to instructor
-      department: programs.length > 0 ? programs[0].name : '', // default to first available program
+      department: 'BSIT', // default to BSIT
       password: 'TempPass@123',
     });
   };
@@ -957,41 +849,19 @@ const InstructorManagement: React.FC = () => {
       editingAssignmentId: assignment.id || ''
     });
 
-    // Use the actual assignment data to ensure consistency
+    // Prefer course-derived year_level/semester to guarantee subject appears in filtered list
+    const courseForAssignment = courses.find(c => c.id === assignment.subject_id);
     setNewAssignment({
       teacher_id: assignment.teacher_id,
       subject_id: assignment.subject_id,
       section: assignment.section,
       academic_year: assignment.academic_year,
-      semester: normalizeSemester(assignment.semester),
-      year_level: normalizeYearLevel(assignment.year_level),
+      semester: normalizeSemester(courseForAssignment?.semester || assignment.semester),
+      year_level: normalizeYearLevel((courseForAssignment?.year_level as string) || assignment.year_level),
       is_active: assignment.is_active,
       day: expandDayAbbreviations(assignment.day) || '',
       time: assignment.time || ''
     });
-  };
-
-  // Delete assignment function
-  const handleDeleteAssignment = async (assignment: TeacherSubject) => {
-    if (!assignment.id) {
-      toast.error('Cannot delete assignment: Missing assignment ID');
-      return;
-    }
-
-    try {
-      const { error } = await supabase
-        .from('teacher_subjects')
-        .delete()
-        .eq('id', assignment.id);
-
-      if (error) throw error;
-
-      toast.success('Assignment deleted successfully!');
-      fetchAssignments(); // Refresh the assignments list
-    } catch (error) {
-      console.error('Error deleting assignment:', error);
-      toast.error('Failed to delete assignment');
-    }
   };
 
   const closeEditAssignment = () => {
@@ -1104,124 +974,6 @@ const InstructorManagement: React.FC = () => {
     return sem;
   };
 
-  // Helper function to filter assignments by section
-  const filterAssignmentsBySection = (assignments: TeacherSubject[], yearLevel: string): TeacherSubject[] => {
-    const cardSectionFilter = selectedSections[yearLevel] || 'all';
-    if (cardSectionFilter === 'all') return assignments;
-    
-    // Get the section name from the section ID
-    const selectedSection = sections.find(s => s.id === cardSectionFilter);
-    const filtered = selectedSection ? assignments.filter(assignment => assignment.section === selectedSection.name) : [];
-    
-    // Debug logging
-    console.log('Section filtering debug:', {
-      yearLevel,
-      cardSectionFilter,
-      selectedSection,
-      totalAssignments: assignments.length,
-      filteredCount: filtered.length,
-      assignmentSections: assignments.map(a => a.section),
-      availableSections: sections.map(s => ({ id: s.id, name: s.name }))
-    });
-    
-    return filtered;
-  };
-
-  // Subject Trace Functions
-  const fetchSubjectTraceRecords = async () => {
-    try {
-      setSubjectTraceLoading(true);
-      console.log('Fetching subject trace records...');
-      const { data, error } = await supabase
-        .from('subject_trace_records')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('Error fetching subject trace records:', error);
-        throw error;
-      }
-      
-      console.log(`Fetched ${data?.length || 0} subject trace records:`, data);
-      setSubjectTraceRecords(data || []);
-    } catch (error) {
-      console.error('Error fetching subject trace records:', error);
-      toast.error('Failed to load subject trace records');
-    } finally {
-      setSubjectTraceLoading(false);
-    }
-  };
-
-  const handleViewSubjectTrace = (instructor: Instructor) => {
-    console.log('Viewing subject trace for instructor:', instructor);
-    console.log('All subject trace records:', subjectTraceRecords);
-    const instructorRecords = subjectTraceRecords.filter(record => record.instructor_id === instructor.id);
-    console.log(`Found ${instructorRecords.length} records for instructor ${instructor.id}:`, instructorRecords);
-    setSubjectTraceModal({
-      isOpen: true,
-      instructor,
-      records: instructorRecords
-    });
-  };
-
-  const closeSubjectTraceModal = () => {
-    setSubjectTraceModal({
-      isOpen: false,
-      instructor: null,
-      records: []
-    });
-  };
-
-  const generateSubjectTracePDF = async (instructor: Instructor, records: SubjectTraceRecord[]) => {
-    try {
-      // Dynamically import jsPDF and autoTable
-      const { default: jsPDF } = await import('jspdf');
-      const autoTable = (await import('jspdf-autotable')).default;
-      const doc = new jsPDF();
-
-      // Set up the document
-      doc.setFontSize(20);
-      doc.text('Subject Trace Report', 20, 30);
-      
-      // Instructor details
-      doc.setFontSize(14);
-      doc.text(`Instructor: ${instructor.first_name} ${instructor.middle_name ? instructor.middle_name + ' ' : ''}${instructor.last_name}`, 20, 50);
-      doc.text(`Email: ${instructor.email}`, 20, 60);
-      doc.text(`Department: ${instructor.department || 'N/A'}`, 20, 70);
-      doc.text(`Role: ${instructor.role.charAt(0).toUpperCase() + instructor.role.slice(1)}`, 20, 80);
-
-      // Table headers
-      const tableHeaders = ['Semester', 'Subject Code', 'Subject Name', 'Units', 'Section', 'Status', 'Confirmed At'];
-      const tableData = records.map(record => [
-        `${record.semester} ${record.academic_year}`,
-        record.subject_code,
-        record.subject_name,
-        record.subject_units.toString(),
-        record.section,
-        record.status,
-        new Date(record.confirmed_at).toLocaleDateString()
-      ]);
-
-      // Add table
-      autoTable(doc, {
-        head: [tableHeaders],
-        body: tableData,
-        startY: 90,
-        styles: { fontSize: 10 },
-        headStyles: { fillColor: [102, 126, 234] }
-      });
-
-      // Save the PDF
-      const fileName = `Subject_Trace_${instructor.first_name}_${instructor.last_name}_${new Date().toISOString().split('T')[0]}.pdf`;
-      doc.save(fileName);
-      
-      toast.success('PDF generated successfully!');
-    } catch (error) {
-      console.error('Error generating PDF:', error);
-      toast.error('Failed to generate PDF. Please try again.');
-    }
-  };
-
   return (
     <Box sx={{ 
       minHeight: '100vh',
@@ -1293,14 +1045,6 @@ const InstructorManagement: React.FC = () => {
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <BookOpen className="w-5 h-5" />
                   Year Level Assigned Subjects
-                </Box>
-              } 
-            />
-            <Tab 
-              label={
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <FileText className="w-5 h-5" />
-                  Subject Trace
                 </Box>
               } 
             />
@@ -1448,10 +1192,10 @@ const InstructorManagement: React.FC = () => {
               Year Level Assigned Subjects
             </Typography>
             
-            {/* Year Level Filter and Search */}
+            {/* Year Level Filter */}
             <Card sx={{ mb: 3, p: 2, background: 'rgba(255, 255, 255, 0.8)' }}>
               <Grid container spacing={2} alignItems="center">
-                <Grid item xs={12} sm={3}>
+                <Grid item xs={12} sm={4}>
                   <FormControl fullWidth size="small">
                     <InputLabel>Filter by Year Level</InputLabel>
                     <Select
@@ -1467,56 +1211,15 @@ const InstructorManagement: React.FC = () => {
                     </Select>
                   </FormControl>
                 </Grid>
-                <Grid item xs={12} sm={3}>
-                  <TextField
-                    fullWidth
-                    placeholder="Search assignments..."
-                    value={assignmentSearchTerm}
-                    onChange={(e) => setAssignmentSearchTerm(e.target.value)}
-                    InputProps={{
-                      startAdornment: <Search className="w-4 h-4 text-gray-400 mr-2" />
-                    }}
-                    size="small"
-                  />
-                </Grid>
-                <Grid item xs={12} sm={3}>
+                <Grid item xs={12} sm={4}>
                   <Typography variant="body2" color="textSecondary">
-                    {(() => {
-                      const filteredCount = assignments.filter(assignment => {
-                        if (!assignmentSearchTerm.trim()) return true;
-                        const searchTerm = assignmentSearchTerm.toLowerCase();
-                        return (
-                          assignment.teacher_name?.toLowerCase().includes(searchTerm) ||
-                          assignment.subject_code?.toLowerCase().includes(searchTerm) ||
-                          assignment.subject_name?.toLowerCase().includes(searchTerm) ||
-                          assignment.section?.toLowerCase().includes(searchTerm) ||
-                          assignment.semester?.toLowerCase().includes(searchTerm) ||
-                          assignment.academic_year?.toLowerCase().includes(searchTerm)
-                        );
-                      }).length;
-                      
-                      if (selectedYearLevel === 'all') {
-                        return `${filteredCount} ${assignmentSearchTerm.trim() ? 'filtered' : 'total'} assigned`;
-                      } else {
-                        const yearLevelFiltered = assignments.filter(a => a.year_level === selectedYearLevel);
-                        const yearLevelFilteredCount = yearLevelFiltered.filter(assignment => {
-                          if (!assignmentSearchTerm.trim()) return true;
-                          const searchTerm = assignmentSearchTerm.toLowerCase();
-                          return (
-                            assignment.teacher_name?.toLowerCase().includes(searchTerm) ||
-                            assignment.subject_code?.toLowerCase().includes(searchTerm) ||
-                            assignment.subject_name?.toLowerCase().includes(searchTerm) ||
-                            assignment.section?.toLowerCase().includes(searchTerm) ||
-                            assignment.semester?.toLowerCase().includes(searchTerm) ||
-                            assignment.academic_year?.toLowerCase().includes(searchTerm)
-                          );
-                        }).length;
-                        return `${yearLevelFilteredCount} ${assignmentSearchTerm.trim() ? 'filtered' : ''} assignments in ${selectedYearLevel}`;
-                      }
-                    })()}
+                    {selectedYearLevel === 'all' 
+                      ? `${assignments.length} total assigned`
+                      : `${assignments.filter(a => a.year_level === selectedYearLevel).length} assignments in ${selectedYearLevel}`
+                    }
                   </Typography>
                 </Grid>
-                <Grid item xs={12} sm={3} sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <Grid item xs={12} sm={4} sx={{ display: 'flex', justifyContent: 'flex-end' }}>
                   <Button
                     variant="contained"
                     onClick={() => handleOpenSubjectAssignmentForYear(selectedYearLevel === 'all' ? '' : selectedYearLevel)}
@@ -1534,49 +1237,27 @@ const InstructorManagement: React.FC = () => {
               </Grid>
             </Card>
 
-            {/* Filtered Assignments */}
-            {(() => {
-              // Apply search filter to assignments
-              const filteredAssignments = assignments.filter(assignment => {
-                if (!assignmentSearchTerm.trim()) return true;
-                
-                const searchTerm = assignmentSearchTerm.toLowerCase();
-                return (
-                  assignment.teacher_name?.toLowerCase().includes(searchTerm) ||
-                  assignment.subject_code?.toLowerCase().includes(searchTerm) ||
-                  assignment.subject_name?.toLowerCase().includes(searchTerm) ||
-                  assignment.section?.toLowerCase().includes(searchTerm) ||
-                  assignment.semester?.toLowerCase().includes(searchTerm) ||
-                  assignment.academic_year?.toLowerCase().includes(searchTerm)
-                );
-              });
-
-              return (
-                <>
-                  {/* Assignments Display */}
-                  {assignmentsLoading ? (
+            {/* Assignments Display */}
+            {assignmentsLoading ? (
               <Box sx={{ textAlign: 'center', py: 8 }}>
                 <CircularProgress />
                 <Typography sx={{ mt: 2 }}>Loading assignments...</Typography>
               </Box>
-            ) : filteredAssignments.length === 0 ? (
+            ) : assignments.length === 0 ? (
               <Box sx={{ textAlign: 'center', py: 8 }}>
                 <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                 <Typography variant="h6" color="textSecondary" sx={{ mb: 2 }}>
-                  {assignmentSearchTerm.trim() ? 'No Assignments Found' : 'No Subject Assignments'}
+                  No Subject Assignments
                 </Typography>
                 <Typography variant="body2" color="textSecondary">
-                  {assignmentSearchTerm.trim() 
-                    ? `No assignments match "${assignmentSearchTerm}". Try adjusting your search.`
-                    : 'No subjects have been assigned to instructors yet.'
-                  }
+                  No subjects have been assigned to instructors yet.
                 </Typography>
               </Box>
             ) : selectedYearLevel === 'all' ? (
               // Show collapsible sections for "All Year Levels"
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                 {(() => {
-                  const groupedAssignments = filteredAssignments.reduce((groups, assignment) => {
+                  const groupedAssignments = assignments.reduce((groups, assignment) => {
                     const yearLevel = assignment.year_level || 'Unknown';
                     if (!groups[yearLevel]) {
                       groups[yearLevel] = [];
@@ -1627,7 +1308,7 @@ const InstructorManagement: React.FC = () => {
                             {yearLevel}
                           </Typography>
                           <Chip 
-                            label={`${filterAssignmentsBySection(groupedAssignments[yearLevel], yearLevel).length} ${filterAssignmentsBySection(groupedAssignments[yearLevel], yearLevel).length === 1 ? 'Assignment' : 'Assignments'}`}
+                            label={`${groupedAssignments[yearLevel].length} ${groupedAssignments[yearLevel].length === 1 ? 'Assignment' : 'Assignments'}`}
                             size="small"
                             sx={{ 
                               bg: 'rgba(255, 255, 255, 0.2)', 
@@ -1637,88 +1318,6 @@ const InstructorManagement: React.FC = () => {
                           />
                         </Box>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Box 
-                            onClick={(e) => e.stopPropagation()}
-                            onMouseDown={(e) => e.stopPropagation()}
-                          >
-                            <FormControl size="small" sx={{ minWidth: 120 }}>
-                              <Select
-                              value={selectedSections[yearLevel] || 'all'}
-                              onChange={(e) => {
-                                e.stopPropagation();
-                                setSelectedSections(prev => ({
-                                  ...prev,
-                                  [yearLevel]: e.target.value
-                                }));
-                              }}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                              }}
-                              onMouseDown={(e) => {
-                                e.stopPropagation();
-                              }}
-                              sx={{ 
-                                color: 'white',
-                                '& .MuiOutlinedInput-notchedOutline': {
-                                  borderColor: 'rgba(255,255,255,0.6)',
-                                },
-                                '&:hover .MuiOutlinedInput-notchedOutline': {
-                                  borderColor: 'white',
-                                },
-                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                                  borderColor: 'white',
-                                },
-                                '& .MuiSelect-icon': {
-                                  color: 'white',
-                                }
-                              }}
-                              MenuProps={{
-                                PaperProps: {
-                                  sx: {
-                                    bgcolor: 'white',
-                                    color: 'black',
-                                  }
-                                },
-                                onClick: (e) => {
-                                  e.stopPropagation();
-                                }
-                              }}
-                            >
-                              <MenuItem 
-                                value="all"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                All Sections
-                              </MenuItem>
-                              {sections
-                                .filter(section => {
-                                  // Convert year level string to number for comparison (same as ClassManagement)
-                                  let yearLevelNumber;
-                                  if (yearLevel === '1st Year') yearLevelNumber = 1;
-                                  else if (yearLevel === '2nd Year') yearLevelNumber = 2;
-                                  else if (yearLevel === '3rd Year') yearLevelNumber = 3;
-                                  else if (yearLevel === '4th Year') yearLevelNumber = 4;
-                                  else yearLevelNumber = parseInt(yearLevel.replace(' Year', '').replace('st', '').replace('nd', '').replace('rd', '').replace('th', ''));
-                                  
-                                  return Number(section.year_level) === yearLevelNumber;
-                                })
-                                .map(section => (
-                                  <MenuItem 
-                                    key={section.id} 
-                                    value={section.id}
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    {section.name}
-                                  </MenuItem>
-                                ))}
-                              {sections.length === 0 && (
-                                <MenuItem disabled>
-                                  No sections loaded
-                                </MenuItem>
-                              )}
-                            </Select>
-                            </FormControl>
-                          </Box>
                           <Button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -1753,8 +1352,7 @@ const InstructorManagement: React.FC = () => {
                       {expandedSections[yearLevel] && (
                         <Box sx={{ p: 3 }}>
                           <Grid container spacing={2}>
-                            {filterAssignmentsBySection(groupedAssignments[yearLevel], yearLevel)
-                              .map((assignment) => (
+                            {groupedAssignments[yearLevel].map((assignment) => (
                               <Grid item xs={12} md={6} lg={4} key={assignment.id}>
                                 <Card 
                                   onClick={() => openAssignmentDetail(assignment)}
@@ -1834,29 +1432,8 @@ const InstructorManagement: React.FC = () => {
                                                  bg: 'rgba(59, 130, 246, 0.1)'
                                                }
                                              }}
-                                             title="Edit Assignment"
                                            >
                                              <Edit className="w-4 h-4" />
-                                           </IconButton>
-                                           <IconButton
-                                             size="small"
-                                             onClick={(e) => {
-                                               e.stopPropagation();
-                                               if (window.confirm(`Are you sure you want to delete this assignment for ${assignment.teacher_name} - ${assignment.subject_code}?`)) {
-                                                 handleDeleteAssignment(assignment);
-                                               }
-                                             }}
-                                             sx={{ 
-                                               p: 1,
-                                               color: '#6b7280',
-                                               '&:hover': { 
-                                                 color: '#dc2626',
-                                                 bg: 'rgba(220, 38, 38, 0.1)'
-                                               }
-                                             }}
-                                             title="Delete Assignment"
-                                           >
-                                             <Trash2 className="w-4 h-4" />
                                            </IconButton>
                                            <Box sx={{ 
                                              color: '#6b7280',
@@ -1956,7 +1533,7 @@ const InstructorManagement: React.FC = () => {
                     Assign Instructor
                   </Button>
                 </Box>
-                {filteredAssignments
+                {assignments
                   .filter(a => a.year_level === selectedYearLevel)
                   .map((assignment) => (
                     <Card key={assignment.id} sx={{ p: 2, bg: '#f9fafb', border: '1px solid #e5e7eb' }}>
@@ -1983,104 +1560,6 @@ const InstructorManagement: React.FC = () => {
                   ))}
               </Box>
             )}
-                </>
-              );
-            })()}
-          </Box>
-        </TabPanel>
-
-        {/* Subject Trace Tab */}
-        <TabPanel value={tabValue} index={2}>
-          <Box sx={{ mb: 3 }}>
-            <Typography variant="h6" sx={{ fontWeight: 600, color: '#374151', mb: 2 }}>
-              Subject Trace Records
-            </Typography>
-            
-            {/* Search Filter */}
-            <Card sx={{ mb: 3, p: 2, background: 'rgba(255, 255, 255, 0.8)' }}>
-              <Grid container spacing={2} alignItems="center">
-                <Grid item xs={12} sm={4} md={3}>
-                  <TextField
-                    fullWidth
-                    placeholder="Search instructors..."
-                    value={subjectTraceSearchTerm}
-                    onChange={(e) => setSubjectTraceSearchTerm(e.target.value)}
-                    InputProps={{
-                      startAdornment: <Search className="w-4 h-4 text-gray-400 mr-2" />
-                    }}
-                    size="small"
-                  />
-                </Grid>
-              </Grid>
-            </Card>
-
-            {/* Instructors Table */}
-            <Card sx={{ borderRadius: 3, overflow: 'hidden' }}>
-              <TableContainer>
-                <Table>
-                  <TableHead sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
-                    <TableRow>
-                      <TableCell sx={{ color: 'white', fontWeight: 600 }}>Name</TableCell>
-                      <TableCell sx={{ color: 'white', fontWeight: 600 }}>Email</TableCell>
-                      <TableCell sx={{ color: 'white', fontWeight: 600 }}>Department</TableCell>
-                      <TableCell sx={{ color: 'white', fontWeight: 600 }}>Role</TableCell>
-                      <TableCell sx={{ color: 'white', fontWeight: 600 }}>Actions</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {subjectTraceLoading ? (
-                      <TableRow>
-                        <TableCell colSpan={5} sx={{ textAlign: 'center', py: 4 }}>
-                          <CircularProgress />
-                          <Typography sx={{ mt: 1 }}>Loading instructors...</Typography>
-                        </TableCell>
-                      </TableRow>
-                    ) : filteredInstructors.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={5} sx={{ textAlign: 'center', py: 4 }}>
-                          <Typography color="textSecondary">No instructors found</Typography>
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      filteredInstructors.map((instructor) => (
-                        <TableRow key={instructor.id} hover>
-                          <TableCell>
-                            <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                              {instructor.first_name} {instructor.middle_name ? instructor.middle_name + ' ' : ''}{instructor.last_name}
-                            </Typography>
-                          </TableCell>
-                          <TableCell>{instructor.email}</TableCell>
-                          <TableCell>{instructor.department || '-'}</TableCell>
-                          <TableCell>
-                            <Chip 
-                              label={instructor.role.charAt(0).toUpperCase() + instructor.role.slice(1)} 
-                              size="small"
-                              color={instructor.role === 'teacher' ? 'primary' : 'secondary'}
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              variant="contained"
-                              size="small"
-                              startIcon={<Eye className="w-4 h-4" />}
-                              onClick={() => handleViewSubjectTrace(instructor)}
-                              sx={{
-                                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                                '&:hover': {
-                                  background: 'linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%)',
-                                }
-                              }}
-                            >
-                              View
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Card>
           </Box>
         </TabPanel>
       </Card>
@@ -2091,13 +1570,10 @@ const InstructorManagement: React.FC = () => {
         onClose={() => setCreateDialogOpen(false)}
         maxWidth="md"
         fullWidth
-        fullScreen={window.innerWidth < 600}
         PaperProps={{
           sx: {
-            borderRadius: { xs: 0, sm: 3 },
-            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)',
-            margin: { xs: 0, sm: 2 },
-            maxHeight: { xs: '100vh', sm: '90vh' }
+            borderRadius: 3,
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)'
           }
         }}
       >
@@ -2105,21 +1581,20 @@ const InstructorManagement: React.FC = () => {
           sx={{
             background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
             color: 'white',
-            py: { xs: 2, sm: 3 },
-            px: { xs: 2, sm: 4 },
+            py: 3,
+            px: 4,
             display: 'flex',
             alignItems: 'center',
-            gap: 2,
-            fontSize: { xs: '1.1rem', sm: '1.25rem' }
+            gap: 2
           }}
         >
-          <UserPlus className="w-5 h-5 sm:w-6 sm:h-6" />
-          <span>Add New Instructor</span>
+          <UserPlus className="w-6 h-6" />
+          Add New Instructor
         </DialogTitle>
         
         <form onSubmit={handleCreateInstructor}>
-          <DialogContent sx={{ p: { xs: 2, sm: 4 }, overflow: 'auto' }}>
-            <Grid container spacing={{ xs: 2, sm: 3 }}>
+          <DialogContent sx={{ p: 4 }}>
+            <Grid container spacing={3}>
               <Grid item xs={12} sm={4}>
                 <TextField
                   fullWidth
@@ -2127,7 +1602,6 @@ const InstructorManagement: React.FC = () => {
                   value={createForm.firstName}
                   onChange={(e) => setCreateForm(f => ({ ...f, firstName: e.target.value }))}
                   required
-                  size="small"
                 />
               </Grid>
               <Grid item xs={12} sm={4}>
@@ -2136,7 +1610,6 @@ const InstructorManagement: React.FC = () => {
                   label="Middle Name"
                   value={createForm.middleName}
                   onChange={(e) => setCreateForm(f => ({ ...f, middleName: e.target.value }))}
-                  size="small"
                 />
               </Grid>
               <Grid item xs={12} sm={4}>
@@ -2146,7 +1619,6 @@ const InstructorManagement: React.FC = () => {
                   value={createForm.lastName}
                   onChange={(e) => setCreateForm(f => ({ ...f, lastName: e.target.value }))}
                   required
-                  size="small"
                 />
               </Grid>
               <Grid item xs={12}>
@@ -2155,11 +1627,10 @@ const InstructorManagement: React.FC = () => {
                   label="Email"
                   value={createForm.email}
                   InputProps={{
-                    endAdornment: <span style={{ color: '#6b7280', fontSize: '0.875rem' }}>@smcbi.edu.ph</span>,
+                    endAdornment: <span style={{ color: '#6b7280' }}>@smcbi.edu.ph</span>,
                     readOnly: true
                   }}
                   disabled
-                  size="small"
                   sx={{
                     '& .MuiOutlinedInput-root': {
                       backgroundColor: '#f3f4f6'
@@ -2169,29 +1640,20 @@ const InstructorManagement: React.FC = () => {
               </Grid>
               {/* Remove Role Dropdown, use hidden input instead */}
               <input type="hidden" name="role" value="instructor" />
-              {/* Department Dropdown */}
+              {/* Remove Department Dropdown, use read-only text field instead */}
               <Grid item xs={12} sm={6}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Department</InputLabel>
-                  <Select
-                    value={createForm.department}
-                    label="Department"
-                    onChange={(e) => setCreateForm(f => ({ ...f, department: e.target.value }))}
-                    disabled={programsLoading}
-                  >
-                    {programsLoading ? (
-                      <MenuItem disabled>Loading departments...</MenuItem>
-                    ) : programs.length === 0 ? (
-                      <MenuItem disabled>No departments available</MenuItem>
-                    ) : (
-                      programs.map((program) => (
-                        <MenuItem key={program.id} value={program.name}>
-                          {program.name}
-                        </MenuItem>
-                      ))
-                    )}
-                  </Select>
-                </FormControl>
+                <TextField
+                  fullWidth
+                  label="Department"
+                  value={createForm.department}
+                  InputProps={{ readOnly: true }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      backgroundColor: '#f9fafb'
+                    }
+                  }}
+                  helperText="Department is set to BSIT by default."
+                />
               </Grid>
               <Grid item xs={12}>
                 <TextField
@@ -2200,7 +1662,6 @@ const InstructorManagement: React.FC = () => {
                   type="text"
                   value={createForm.password}
                   InputProps={{ readOnly: true }}
-                  size="small"
                   sx={{
                     '& .MuiOutlinedInput-root': {
                       backgroundColor: '#f9fafb'
@@ -2212,20 +1673,13 @@ const InstructorManagement: React.FC = () => {
             </Grid>
           </DialogContent>
           
-          <DialogActions sx={{ 
-            p: { xs: 2, sm: 3 }, 
-            background: '#f8fafc',
-            flexDirection: { xs: 'column', sm: 'row' },
-            gap: { xs: 1, sm: 0 }
-          }}>
+          <DialogActions sx={{ p: 3, background: '#f8fafc' }}>
             <Button 
               onClick={() => {
                 setCreateDialogOpen(false);
                 resetCreateForm();
               }}
               disabled={creating}
-              fullWidth={window.innerWidth < 600}
-              size="small"
             >
               Cancel
             </Button>
@@ -2233,8 +1687,6 @@ const InstructorManagement: React.FC = () => {
               type="submit" 
               variant="contained"
               disabled={creating}
-              fullWidth={window.innerWidth < 600}
-              size="small"
               sx={{
                 background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                 '&:hover': {
@@ -2253,16 +1705,12 @@ const InstructorManagement: React.FC = () => {
         open={assignmentDetailModal.isOpen}
         onClose={closeAssignmentDetail}
         maxWidth="sm"
-        fullWidth
-        fullScreen={window.innerWidth < 600}
         PaperProps={{
           sx: {
-            borderRadius: { xs: 0, sm: 2 },
+            borderRadius: 2,
             boxShadow: '0 10px 40px rgba(0, 0, 0, 0.15)',
-            maxWidth: { xs: '100%', sm: '500px' },
-            width: '100%',
-            margin: { xs: 0, sm: 2 },
-            maxHeight: { xs: '100vh', sm: '90vh' }
+            maxWidth: '500px',
+            width: '100%'
           }
         }}
       >
@@ -2272,108 +1720,65 @@ const InstructorManagement: React.FC = () => {
               sx={{
                 background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                 color: 'white',
-                py: { xs: 1.5, sm: 2 },
-                px: { xs: 2, sm: 3 },
+                py: 2,
+                px: 3,
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'space-between',
-                flexWrap: 'wrap',
-                gap: 1
+                justifyContent: 'space-between'
               }}
             >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0, flex: 1 }}>
-                <BookOpen className="w-4 h-4 sm:w-5 sm:h-5" />
-                <Typography variant="h6" sx={{ 
-                  fontWeight: '600', 
-                  fontSize: { xs: '1rem', sm: '1.1rem' },
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap'
-                }}>
-                  Assign Details
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <BookOpen className="w-5 h-5" />
+                <Typography variant="h6" sx={{ fontWeight: '600', fontSize: '1.1rem' }}>
+                  Assignment Details
                 </Typography>
               </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <IconButton
                   onClick={() => openEditAssignment(assignmentDetailModal.assignment!)}
                   sx={{ 
                     color: 'white', 
-                    p: { xs: 0.5, sm: 1 },
+                    p: 1,
                     '&:hover': { 
                       bg: 'rgba(255, 255, 255, 0.1)'
                     }
                   }}
-                  size="small"
-                  title="Edit Assignment"
+                  size="medium"
                 >
-                  <Edit className="w-4 h-4 sm:w-5 sm:h-5" />
-                </IconButton>
-                <IconButton
-                  onClick={() => {
-                    if (window.confirm(`Are you sure you want to delete this assignment for ${assignmentDetailModal.assignment?.teacher_name} - ${assignmentDetailModal.assignment?.subject_code}?`)) {
-                      handleDeleteAssignment(assignmentDetailModal.assignment!);
-                      closeAssignmentDetail();
-                    }
-                  }}
-                  sx={{ 
-                    color: 'white', 
-                    p: { xs: 0.5, sm: 1 },
-                    '&:hover': { 
-                      bg: 'rgba(220, 38, 38, 0.2)'
-                    }
-                  }}
-                  size="small"
-                  title="Delete Assignment"
-                >
-                  <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <Edit className="w-5 h-5" />
                 </IconButton>
                 <IconButton
                   onClick={closeAssignmentDetail}
-                  sx={{ color: 'white', p: { xs: 0.5, sm: 1 } }}
-                  size="small"
-                  title="Close"
+                  sx={{ color: 'white', p: 1 }}
+                  size="medium"
                 >
-                  <X className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <X className="w-5 h-5" />
                 </IconButton>
               </Box>
             </DialogTitle>
             
-            <DialogContent sx={{ p: { xs: 2, sm: 3 }, overflow: 'auto' }}>
-              <Grid container spacing={{ xs: 1.5, sm: 2 }}>
+            <DialogContent sx={{ p: 3 }}>
+              <Grid container spacing={2}>
                 {/* Teacher Information */}
                 <Grid item xs={12}>
-                  <Card sx={{ p: { xs: 1.5, sm: 2 }, bg: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                    <Box sx={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      gap: { xs: 1.5, sm: 2 },
-                      flexDirection: { xs: 'column', sm: 'row' },
-                      textAlign: { xs: 'center', sm: 'left' }
-                    }}>
+                  <Card sx={{ p: 2, bg: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                       <Avatar
                         src={assignmentDetailModal.assignment.teacher_profile_picture || undefined}
                         sx={{ 
-                          width: { xs: 40, sm: 48 }, 
-                          height: { xs: 40, sm: 48 }, 
+                          width: 48, 
+                          height: 48, 
                           bgcolor: '#dbeafe',
                           color: '#2563eb',
-                          fontSize: { xs: '0.875rem', sm: '1rem' },
+                          fontSize: '1rem',
                           fontWeight: 'semibold',
                           border: '2px solid #e5e7eb'
                         }}
                       >
                         {assignmentDetailModal.assignment.teacher_name?.split(' ').map((n: string) => n[0]).join('')}
                       </Avatar>
-                      <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-                        <Typography variant="h6" sx={{ 
-                          fontWeight: '600', 
-                          color: '#111827', 
-                          mb: 0.5,
-                          fontSize: { xs: '1rem', sm: '1.25rem' },
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap'
-                        }}>
+                      <Box sx={{ flexGrow: 1 }}>
+                        <Typography variant="h6" sx={{ fontWeight: '600', color: '#111827', mb: 0.5 }}>
                           {assignmentDetailModal.assignment.teacher_name}
                         </Typography>
                         <Chip 
@@ -2529,13 +1934,10 @@ const InstructorManagement: React.FC = () => {
         onClose={() => setEditDialogOpen(false)}
         maxWidth="md"
         fullWidth
-        fullScreen={window.innerWidth < 600}
         PaperProps={{
           sx: {
-            borderRadius: { xs: 0, sm: 3 },
-            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)',
-            margin: { xs: 0, sm: 2 },
-            maxHeight: { xs: '100vh', sm: '90vh' }
+            borderRadius: 3,
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)'
           }
         }}
       >
@@ -2543,21 +1945,20 @@ const InstructorManagement: React.FC = () => {
           sx={{
             background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
             color: 'white',
-            py: { xs: 2, sm: 3 },
-            px: { xs: 2, sm: 4 },
+            py: 3,
+            px: 4,
             display: 'flex',
             alignItems: 'center',
-            gap: 2,
-            fontSize: { xs: '1.1rem', sm: '1.25rem' }
+            gap: 2
           }}
         >
-          <Edit className="w-5 h-5 sm:w-6 sm:h-6" />
-          <span>Edit Instructor</span>
+          <Edit className="w-6 h-6" />
+          Edit Instructor
         </DialogTitle>
         
         <form onSubmit={handleUpdateInstructor}>
-          <DialogContent sx={{ p: { xs: 2, sm: 4 }, overflow: 'auto' }}>
-            <Grid container spacing={{ xs: 2, sm: 3 }}>
+          <DialogContent sx={{ p: 4 }}>
+            <Grid container spacing={3}>
               <Grid item xs={12} sm={4}>
                 <TextField
                   fullWidth
@@ -2565,7 +1966,6 @@ const InstructorManagement: React.FC = () => {
                   value={editForm.firstName}
                   onChange={(e) => setEditForm(f => ({ ...f, firstName: e.target.value }))}
                   required
-                  size="small"
                 />
               </Grid>
               <Grid item xs={12} sm={4}>
@@ -2574,7 +1974,6 @@ const InstructorManagement: React.FC = () => {
                   label="Middle Name"
                   value={editForm.middleName}
                   onChange={(e) => setEditForm(f => ({ ...f, middleName: e.target.value }))}
-                  size="small"
                 />
               </Grid>
               <Grid item xs={12} sm={4}>
@@ -2584,7 +1983,6 @@ const InstructorManagement: React.FC = () => {
                   value={editForm.lastName}
                   onChange={(e) => setEditForm(f => ({ ...f, lastName: e.target.value }))}
                   required
-                  size="small"
                 />
               </Grid>
               <Grid item xs={12}>
@@ -2593,7 +1991,6 @@ const InstructorManagement: React.FC = () => {
                   label="Email"
                   value={editForm.email}
                   InputProps={{ readOnly: true }}
-                  size="small"
                   sx={{
                     '& .MuiOutlinedInput-root': {
                       backgroundColor: '#f3f4f6'
@@ -2603,45 +2000,34 @@ const InstructorManagement: React.FC = () => {
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Role"
-                  value={editForm.role.charAt(0).toUpperCase() + editForm.role.slice(1)}
-                  InputProps={{ readOnly: true }}
-                  size="small"
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      backgroundColor: '#f3f4f6'
-                    }
-                  }}
-                  helperText="Role cannot be changed"
-                />
+                <FormControl fullWidth>
+                  <InputLabel>Role</InputLabel>
+                  <Select
+                    value={editForm.role}
+                    label="Role"
+                    onChange={(e) => setEditForm(f => ({ ...f, role: e.target.value as 'teacher' | 'instructor' }))}
+                  >
+                    <MenuItem value="teacher">Teacher</MenuItem>
+                    <MenuItem value="instructor">Instructor</MenuItem>
+                  </Select>
+                </FormControl>
               </Grid>
               <Grid item xs={12} sm={6}>
-                <FormControl fullWidth size="small">
+                <FormControl fullWidth>
                   <InputLabel>Department</InputLabel>
                   <Select
                     value={editForm.department}
                     label="Department"
                     onChange={(e) => setEditForm(f => ({ ...f, department: e.target.value }))}
-                    disabled={programsLoading}
                   >
-                    {programsLoading ? (
-                      <MenuItem disabled>Loading departments...</MenuItem>
-                    ) : programs.length === 0 ? (
-                      <MenuItem disabled>No departments available</MenuItem>
-                    ) : (
-                      programs.map((program) => (
-                        <MenuItem key={program.id} value={program.name}>
-                          {program.name}
-                        </MenuItem>
-                      ))
-                    )}
+                    <MenuItem value="BSIT">BSIT</MenuItem>
+                    <MenuItem value="BSBA">BSBA</MenuItem>
+                    <MenuItem value="BSA">BSA</MenuItem>
                   </Select>
                 </FormControl>
               </Grid>
               <Grid item xs={12}>
-                <FormControl fullWidth size="small">
+                <FormControl fullWidth>
                   <InputLabel>Status</InputLabel>
                   <Select
                     value={editForm.is_active ? 'true' : 'false'}
@@ -2656,20 +2042,13 @@ const InstructorManagement: React.FC = () => {
             </Grid>
           </DialogContent>
           
-          <DialogActions sx={{ 
-            p: { xs: 2, sm: 3 }, 
-            background: '#f8fafc',
-            flexDirection: { xs: 'column', sm: 'row' },
-            gap: { xs: 1, sm: 0 }
-          }}>
+          <DialogActions sx={{ p: 3, background: '#f8fafc' }}>
             <Button 
               onClick={() => {
                 setEditDialogOpen(false);
                 resetEditForm();
               }}
               disabled={editing}
-              fullWidth={window.innerWidth < 600}
-              size="small"
             >
               Cancel
             </Button>
@@ -2677,8 +2056,6 @@ const InstructorManagement: React.FC = () => {
               type="submit" 
               variant="contained"
               disabled={editing}
-              fullWidth={window.innerWidth < 600}
-              size="small"
               sx={{
                 background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                 '&:hover': {
@@ -2698,13 +2075,10 @@ const InstructorManagement: React.FC = () => {
         onClose={closeViewDialog}
         maxWidth="md"
         fullWidth
-        fullScreen={window.innerWidth < 600}
         PaperProps={{
           sx: {
-            borderRadius: { xs: 0, sm: 3 },
-            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)',
-            margin: { xs: 0, sm: 2 },
-            maxHeight: { xs: '100vh', sm: '90vh' }
+            borderRadius: 3,
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)'
           }
         }}
       >
@@ -2714,87 +2088,64 @@ const InstructorManagement: React.FC = () => {
               sx={{
                 background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                 color: 'white',
-                py: { xs: 2, sm: 3 },
-                px: { xs: 2, sm: 4 },
+                py: 3,
+                px: 4,
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'space-between',
-                flexWrap: 'wrap',
-                gap: 1
+                justifyContent: 'space-between'
               }}
             >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, minWidth: 0, flex: 1 }}>
-                <Eye className="w-5 h-5 sm:w-6 sm:h-6" />
-                <Typography variant="h6" sx={{ 
-                  fontWeight: '600', 
-                  fontSize: { xs: '1rem', sm: '1.1rem' },
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap'
-                }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Eye className="w-6 h-6" />
+                <Typography variant="h6" sx={{ fontWeight: '600', fontSize: '1.1rem' }}>
                   Instructor Details
                 </Typography>
               </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <IconButton
                   onClick={() => handleEditInstructor(instructorToView)}
                   sx={{ 
                     color: 'white', 
-                    p: { xs: 0.5, sm: 1 },
+                    p: 1,
                     '&:hover': { 
                       bg: 'rgba(255, 255, 255, 0.1)'
                     }
                   }}
-                  size="small"
+                  size="medium"
                 >
-                  <Edit className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <Edit className="w-5 h-5" />
                 </IconButton>
                 <IconButton
                   onClick={closeViewDialog}
-                  sx={{ color: 'white', p: { xs: 0.5, sm: 1 } }}
-                  size="small"
+                  sx={{ color: 'white', p: 1 }}
+                  size="medium"
                 >
-                  <X className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <X className="w-5 h-5" />
                 </IconButton>
               </Box>
             </DialogTitle>
             
-            <DialogContent sx={{ p: { xs: 2, sm: 4 }, overflow: 'auto' }}>
-              <Grid container spacing={{ xs: 2, sm: 3 }}>
+            <DialogContent sx={{ p: 4 }}>
+              <Grid container spacing={3}>
                 {/* Basic Information */}
                 <Grid item xs={12}>
-                  <Card sx={{ p: { xs: 2, sm: 3 }, bg: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                    <Typography variant="h6" sx={{ 
-                      fontWeight: '600', 
-                      color: '#374151', 
-                      mb: 2,
-                      fontSize: { xs: '1rem', sm: '1.25rem' }
-                    }}>
+                  <Card sx={{ p: 3, bg: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                    <Typography variant="h6" sx={{ fontWeight: '600', color: '#374151', mb: 2 }}>
                       Basic Information
                     </Typography>
-                    <Grid container spacing={{ xs: 1.5, sm: 2 }}>
+                    <Grid container spacing={2}>
                       <Grid item xs={12} sm={4}>
                         <Box sx={{ 
                           bg: 'white', 
-                          p: { xs: 1.5, sm: 2 }, 
+                          p: 2, 
                           borderRadius: 1, 
                           border: '1px solid #e5e7eb',
                           textAlign: 'center'
                         }}>
-                          <Typography variant="caption" sx={{ 
-                            color: '#6b7280', 
-                            fontWeight: '600', 
-                            textTransform: 'uppercase',
-                            fontSize: { xs: '0.7rem', sm: '0.75rem' }
-                          }}>
+                          <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: '600', textTransform: 'uppercase' }}>
                             First Name
                           </Typography>
-                          <Typography variant="body1" sx={{ 
-                            fontWeight: '600', 
-                            color: '#111827', 
-                            mt: 0.5,
-                            fontSize: { xs: '0.875rem', sm: '1rem' }
-                          }}>
+                          <Typography variant="body1" sx={{ fontWeight: '600', color: '#111827', mt: 0.5 }}>
                             {instructorToView.first_name}
                           </Typography>
                         </Box>
@@ -2802,25 +2153,15 @@ const InstructorManagement: React.FC = () => {
                       <Grid item xs={12} sm={4}>
                         <Box sx={{ 
                           bg: 'white', 
-                          p: { xs: 1.5, sm: 2 }, 
+                          p: 2, 
                           borderRadius: 1, 
                           border: '1px solid #e5e7eb',
                           textAlign: 'center'
                         }}>
-                          <Typography variant="caption" sx={{ 
-                            color: '#6b7280', 
-                            fontWeight: '600', 
-                            textTransform: 'uppercase',
-                            fontSize: { xs: '0.7rem', sm: '0.75rem' }
-                          }}>
+                          <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: '600', textTransform: 'uppercase' }}>
                             Middle Name
                           </Typography>
-                          <Typography variant="body1" sx={{ 
-                            fontWeight: '600', 
-                            color: '#111827', 
-                            mt: 0.5,
-                            fontSize: { xs: '0.875rem', sm: '1rem' }
-                          }}>
+                          <Typography variant="body1" sx={{ fontWeight: '600', color: '#111827', mt: 0.5 }}>
                             {instructorToView.middle_name || 'N/A'}
                           </Typography>
                         </Box>
@@ -2828,25 +2169,15 @@ const InstructorManagement: React.FC = () => {
                       <Grid item xs={12} sm={4}>
                         <Box sx={{ 
                           bg: 'white', 
-                          p: { xs: 1.5, sm: 2 }, 
+                          p: 2, 
                           borderRadius: 1, 
                           border: '1px solid #e5e7eb',
                           textAlign: 'center'
                         }}>
-                          <Typography variant="caption" sx={{ 
-                            color: '#6b7280', 
-                            fontWeight: '600', 
-                            textTransform: 'uppercase',
-                            fontSize: { xs: '0.7rem', sm: '0.75rem' }
-                          }}>
+                          <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: '600', textTransform: 'uppercase' }}>
                             Last Name
                           </Typography>
-                          <Typography variant="body1" sx={{ 
-                            fontWeight: '600', 
-                            color: '#111827', 
-                            mt: 0.5,
-                            fontSize: { xs: '0.875rem', sm: '1rem' }
-                          }}>
+                          <Typography variant="body1" sx={{ fontWeight: '600', color: '#111827', mt: 0.5 }}>
                             {instructorToView.last_name}
                           </Typography>
                         </Box>
@@ -3030,14 +2361,10 @@ const InstructorManagement: React.FC = () => {
         open={deleteDialogOpen}
         onClose={resetDeleteDialog}
         maxWidth="sm"
-        fullWidth
-        fullScreen={window.innerWidth < 600}
         PaperProps={{
           sx: {
-            borderRadius: { xs: 0, sm: 3 },
-            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)',
-            margin: { xs: 0, sm: 2 },
-            maxHeight: { xs: '100vh', sm: '90vh' }
+            borderRadius: 3,
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)'
           }
         }}
       >
@@ -3045,74 +2372,51 @@ const InstructorManagement: React.FC = () => {
           sx={{
             background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
             color: 'white',
-            py: { xs: 2, sm: 3 },
-            px: { xs: 2, sm: 4 },
+            py: 3,
+            px: 4,
             display: 'flex',
             alignItems: 'center',
-            gap: 2,
-            fontSize: { xs: '1.1rem', sm: '1.25rem' }
+            gap: 2
           }}
         >
-          <Trash2 className="w-5 h-5 sm:w-6 sm:h-6" />
-          <span>Delete Instructor</span>
+          <Trash2 className="w-6 h-6" />
+          Delete Instructor
         </DialogTitle>
         
-        <DialogContent sx={{ p: { xs: 2, sm: 4 }, overflow: 'auto' }}>
-          <Typography variant="body1" sx={{ 
-            mb: 2,
-            fontSize: { xs: '0.875rem', sm: '1rem' }
-          }}>
+        <DialogContent sx={{ p: 4 }}>
+          <Typography variant="body1" sx={{ mb: 2 }}>
             Are you sure you want to delete this instructor?
           </Typography>
           {instructorToDelete && (
             <Box sx={{ 
               bg: '#fef2f2', 
-              p: { xs: 2, sm: 3 }, 
+              p: 3, 
               borderRadius: 2, 
               border: '1px solid #fecaca',
               mb: 2
             }}>
-              <Typography variant="h6" sx={{ 
-                color: '#dc2626', 
-                mb: 1,
-                fontSize: { xs: '1rem', sm: '1.25rem' },
-                wordBreak: 'break-word'
-              }}>
+              <Typography variant="h6" sx={{ color: '#dc2626', mb: 1 }}>
                 {instructorToDelete.first_name} {instructorToDelete.middle_name ? instructorToDelete.middle_name + ' ' : ''}{instructorToDelete.last_name}
               </Typography>
-              <Typography variant="body2" sx={{ 
-                color: '#6b7280',
-                fontSize: { xs: '0.8rem', sm: '0.875rem' },
-                wordBreak: 'break-word'
-              }}>
+              <Typography variant="body2" sx={{ color: '#6b7280' }}>
                 {instructorToDelete.email}
               </Typography>
-              <Typography variant="body2" sx={{ 
-                color: '#6b7280',
-                fontSize: { xs: '0.8rem', sm: '0.875rem' }
-              }}>
+              <Typography variant="body2" sx={{ color: '#6b7280' }}>
                 {instructorToDelete.role.charAt(0).toUpperCase() + instructorToDelete.role.slice(1)} • {instructorToDelete.department}
               </Typography>
             </Box>
           )}
           <Alert severity="warning" sx={{ mb: 2 }}>
-            <Typography variant="body2" sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
+            <Typography variant="body2">
               <strong>Warning:</strong> This action cannot be undone. The instructor will be permanently removed from the system.
             </Typography>
           </Alert>
         </DialogContent>
         
-        <DialogActions sx={{ 
-          p: { xs: 2, sm: 3 }, 
-          background: '#f8fafc',
-          flexDirection: { xs: 'column', sm: 'row' },
-          gap: { xs: 1, sm: 0 }
-        }}>
+        <DialogActions sx={{ p: 3, background: '#f8fafc' }}>
           <Button 
             onClick={resetDeleteDialog}
             disabled={deleting}
-            fullWidth={window.innerWidth < 600}
-            size="small"
           >
             Cancel
           </Button>
@@ -3120,8 +2424,6 @@ const InstructorManagement: React.FC = () => {
             onClick={confirmDeleteInstructor}
             variant="contained"
             disabled={deleting}
-            fullWidth={window.innerWidth < 600}
-            size="small"
             sx={{
               background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
               '&:hover': {
@@ -3157,361 +2459,6 @@ const InstructorManagement: React.FC = () => {
         courses={courses}
         sections={sections} // Sections for filtering by year level
       />
-
-      {/* Subject Trace Modal */}
-      <Dialog
-        open={subjectTraceModal.isOpen}
-        onClose={closeSubjectTraceModal}
-        maxWidth="lg"
-        fullWidth
-        fullScreen={window.innerWidth < 600}
-        PaperProps={{
-          sx: {
-            borderRadius: { xs: 0, sm: 3 },
-            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)',
-            maxHeight: { xs: '100vh', sm: '90vh' },
-            margin: { xs: 0, sm: 2 }
-          }
-        }}
-      >
-        {subjectTraceModal.instructor && (
-          <>
-            <DialogTitle 
-              sx={{
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                color: 'white',
-                py: { xs: 2, sm: 3 },
-                px: { xs: 2, sm: 4 },
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                flexWrap: 'wrap',
-                gap: 1
-              }}
-            >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, minWidth: 0, flex: 1 }}>
-                <FileText className="w-5 h-5 sm:w-6 sm:h-6" />
-                <Typography variant="h6" sx={{ 
-                  fontWeight: '600', 
-                  fontSize: { xs: '0.9rem', sm: '1.1rem' },
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap'
-                }}>
-                  Subject Trace - {subjectTraceModal.instructor.first_name} {subjectTraceModal.instructor.middle_name ? subjectTraceModal.instructor.middle_name + ' ' : ''}{subjectTraceModal.instructor.last_name}
-                </Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
-                <Button
-                  variant="contained"
-                  startIcon={<Download className="w-3 h-3 sm:w-4 sm:h-4" />}
-                  onClick={async () => await generateSubjectTracePDF(subjectTraceModal.instructor!, subjectTraceModal.records)}
-                  size="small"
-                  sx={{
-                    background: 'rgba(255, 255, 255, 0.2)',
-                    color: 'white',
-                    border: '1px solid rgba(255, 255, 255, 0.3)',
-                    fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                    '&:hover': {
-                      background: 'rgba(255, 255, 255, 0.3)',
-                    }
-                  }}
-                >
-                  <span className="hidden sm:inline">Generate PDF</span>
-                  <span className="sm:hidden">PDF</span>
-                </Button>
-                <IconButton
-                  onClick={closeSubjectTraceModal}
-                  sx={{ color: 'white', p: { xs: 0.5, sm: 1 } }}
-                  size="small"
-                >
-                  <X className="w-4 h-4 sm:w-5 sm:h-5" />
-                </IconButton>
-              </Box>
-            </DialogTitle>
-            
-            <DialogContent sx={{ p: { xs: 2, sm: 4 }, overflow: 'auto' }}>
-              <Grid container spacing={{ xs: 2, sm: 3 }}>
-                {/* Instructor Information */}
-                <Grid item xs={12}>
-                  <Card sx={{ p: { xs: 2, sm: 3 }, bg: '#f8fafc', border: '1px solid #e2e8f0', mb: { xs: 2, sm: 3 } }}>
-                    <Typography variant="h6" sx={{ 
-                      fontWeight: '600', 
-                      color: '#374151', 
-                      mb: 2,
-                      fontSize: { xs: '1rem', sm: '1.25rem' }
-                    }}>
-                      Instructor Information
-                    </Typography>
-                    <Grid container spacing={{ xs: 1.5, sm: 2 }}>
-                      <Grid item xs={12} sm={6}>
-                        <Box sx={{ 
-                          bg: 'white', 
-                          p: { xs: 1.5, sm: 2 }, 
-                          borderRadius: 1, 
-                          border: '1px solid #e5e7eb',
-                          textAlign: 'center'
-                        }}>
-                          <Typography variant="caption" sx={{ 
-                            color: '#6b7280', 
-                            fontWeight: '600', 
-                            textTransform: 'uppercase',
-                            fontSize: { xs: '0.7rem', sm: '0.75rem' }
-                          }}>
-                            Full Name
-                          </Typography>
-                          <Typography variant="body1" sx={{ 
-                            fontWeight: '600', 
-                            color: '#111827', 
-                            mt: 0.5,
-                            fontSize: { xs: '0.875rem', sm: '1rem' },
-                            wordBreak: 'break-word'
-                          }}>
-                            {subjectTraceModal.instructor.first_name} {subjectTraceModal.instructor.middle_name ? subjectTraceModal.instructor.middle_name + ' ' : ''}{subjectTraceModal.instructor.last_name}
-                          </Typography>
-                        </Box>
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <Box sx={{ 
-                          bg: 'white', 
-                          p: { xs: 1.5, sm: 2 }, 
-                          borderRadius: 1, 
-                          border: '1px solid #e5e7eb',
-                          textAlign: 'center'
-                        }}>
-                          <Typography variant="caption" sx={{ 
-                            color: '#6b7280', 
-                            fontWeight: '600', 
-                            textTransform: 'uppercase',
-                            fontSize: { xs: '0.7rem', sm: '0.75rem' }
-                          }}>
-                            Email
-                          </Typography>
-                          <Typography variant="body1" sx={{ 
-                            fontWeight: '600', 
-                            color: '#111827', 
-                            mt: 0.5,
-                            fontSize: { xs: '0.875rem', sm: '1rem' },
-                            wordBreak: 'break-word'
-                          }}>
-                            {subjectTraceModal.instructor.email}
-                          </Typography>
-                        </Box>
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <Box sx={{ 
-                          bg: 'white', 
-                          p: { xs: 1.5, sm: 2 }, 
-                          borderRadius: 1, 
-                          border: '1px solid #e5e7eb',
-                          textAlign: 'center'
-                        }}>
-                          <Typography variant="caption" sx={{ 
-                            color: '#6b7280', 
-                            fontWeight: '600', 
-                            textTransform: 'uppercase',
-                            fontSize: { xs: '0.7rem', sm: '0.75rem' }
-                          }}>
-                            Department
-                          </Typography>
-                          <Typography variant="body1" sx={{ 
-                            fontWeight: '600', 
-                            color: '#111827', 
-                            mt: 0.5,
-                            fontSize: { xs: '0.875rem', sm: '1rem' }
-                          }}>
-                            {subjectTraceModal.instructor.department || 'N/A'}
-                          </Typography>
-                        </Box>
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <Box sx={{ 
-                          bg: 'white', 
-                          p: { xs: 1.5, sm: 2 }, 
-                          borderRadius: 1, 
-                          border: '1px solid #e5e7eb',
-                          textAlign: 'center'
-                        }}>
-                          <Typography variant="caption" sx={{ 
-                            color: '#6b7280', 
-                            fontWeight: '600', 
-                            textTransform: 'uppercase',
-                            fontSize: { xs: '0.7rem', sm: '0.75rem' }
-                          }}>
-                            Role
-                          </Typography>
-                          <Chip 
-                            label={subjectTraceModal.instructor.role.charAt(0).toUpperCase() + subjectTraceModal.instructor.role.slice(1)}
-                            size="small"
-                            sx={{ 
-                              bgcolor: subjectTraceModal.instructor.role === 'instructor' ? '#fef3c7' : '#dbeafe',
-                              color: subjectTraceModal.instructor.role === 'instructor' ? '#92400e' : '#1e40af',
-                              fontSize: { xs: '0.7rem', sm: '0.75rem' },
-                              fontWeight: '600',
-                              mt: 0.5
-                            }}
-                          />
-                        </Box>
-                      </Grid>
-                    </Grid>
-                  </Card>
-                </Grid>
-
-                {/* Subject Assignments Table */}
-                <Grid item xs={12}>
-                  <Card sx={{ p: { xs: 2, sm: 3 }, bg: '#f0f9ff', border: '1px solid #bae6fd' }}>
-                    <Typography variant="h6" sx={{ 
-                      fontWeight: '600', 
-                      color: '#0c4a6e', 
-                      mb: 2,
-                      fontSize: { xs: '1rem', sm: '1.25rem' }
-                    }}>
-                      Subject Assignments History ({subjectTraceModal.records.length} records)
-                    </Typography>
-                    
-                    {subjectTraceModal.records.length === 0 ? (
-                      <Box sx={{ textAlign: 'center', py: { xs: 3, sm: 4 } }}>
-                        <FileText className="w-12 h-12 sm:w-16 sm:h-16 text-gray-400 mx-auto mb-4" />
-                        <Typography variant="h6" color="textSecondary" sx={{ 
-                          mb: 2,
-                          fontSize: { xs: '1rem', sm: '1.25rem' }
-                        }}>
-                          No Subject Assignments Found
-                        </Typography>
-                        <Typography variant="body2" color="textSecondary" sx={{
-                          fontSize: { xs: '0.8rem', sm: '0.875rem' }
-                        }}>
-                          This instructor has no subject assignment records yet.
-                        </Typography>
-                      </Box>
-                    ) : (
-                      <TableContainer sx={{ maxHeight: { xs: 300, sm: 400 }, overflow: 'auto' }}>
-                        <Table stickyHeader size="small">
-                          <TableHead>
-                            <TableRow>
-                              <TableCell sx={{ 
-                                fontWeight: 600, 
-                                bgcolor: '#e0f2fe',
-                                fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                                py: { xs: 1, sm: 1.5 }
-                              }}>Semester</TableCell>
-                              <TableCell sx={{ 
-                                fontWeight: 600, 
-                                bgcolor: '#e0f2fe',
-                                fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                                py: { xs: 1, sm: 1.5 }
-                              }}>Subject Code</TableCell>
-                              <TableCell sx={{ 
-                                fontWeight: 600, 
-                                bgcolor: '#e0f2fe',
-                                fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                                py: { xs: 1, sm: 1.5 }
-                              }}>Subject Name</TableCell>
-                              <TableCell sx={{ 
-                                fontWeight: 600, 
-                                bgcolor: '#e0f2fe',
-                                fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                                py: { xs: 1, sm: 1.5 }
-                              }}>Units</TableCell>
-                              <TableCell sx={{ 
-                                fontWeight: 600, 
-                                bgcolor: '#e0f2fe',
-                                fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                                py: { xs: 1, sm: 1.5 }
-                              }}>Section</TableCell>
-                              <TableCell sx={{ 
-                                fontWeight: 600, 
-                                bgcolor: '#e0f2fe',
-                                fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                                py: { xs: 1, sm: 1.5 }
-                              }}>Status</TableCell>
-                              <TableCell sx={{ 
-                                fontWeight: 600, 
-                                bgcolor: '#e0f2fe',
-                                fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                                py: { xs: 1, sm: 1.5 }
-                              }}>Confirmed At</TableCell>
-                            </TableRow>
-                          </TableHead>
-                          <TableBody>
-                            {subjectTraceModal.records.map((record) => (
-                              <TableRow key={record.id} hover>
-                                <TableCell sx={{ py: { xs: 1, sm: 1.5 } }}>
-                                  <Typography variant="body2" sx={{ 
-                                    fontWeight: '500',
-                                    fontSize: { xs: '0.75rem', sm: '0.875rem' }
-                                  }}>
-                                    {record.semester} {record.academic_year}
-                                  </Typography>
-                                </TableCell>
-                                <TableCell sx={{ py: { xs: 1, sm: 1.5 } }}>
-                                  <Typography variant="body2" sx={{ 
-                                    fontWeight: '600', 
-                                    color: '#1e40af',
-                                    fontSize: { xs: '0.75rem', sm: '0.875rem' }
-                                  }}>
-                                    {record.subject_code}
-                                  </Typography>
-                                </TableCell>
-                                <TableCell sx={{ py: { xs: 1, sm: 1.5 } }}>
-                                  <Typography variant="body2" sx={{
-                                    fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                                    wordBreak: 'break-word'
-                                  }}>
-                                    {record.subject_name}
-                                  </Typography>
-                                </TableCell>
-                                <TableCell sx={{ py: { xs: 1, sm: 1.5 } }}>
-                                  <Chip 
-                                    label={`${record.subject_units} ${record.subject_units === 1 ? 'Unit' : 'Units'}`}
-                                    size="small"
-                                    sx={{ 
-                                      bgcolor: '#dbeafe',
-                                      color: '#1e40af',
-                                      fontWeight: '500',
-                                      fontSize: { xs: '0.7rem', sm: '0.75rem' }
-                                    }}
-                                  />
-                                </TableCell>
-                                <TableCell sx={{ py: { xs: 1, sm: 1.5 } }}>
-                                  <Typography variant="body2" sx={{
-                                    fontSize: { xs: '0.75rem', sm: '0.875rem' }
-                                  }}>
-                                    Section {record.section}
-                                  </Typography>
-                                </TableCell>
-                                <TableCell sx={{ py: { xs: 1, sm: 1.5 } }}>
-                                  <Chip 
-                                    label={record.status}
-                                    size="small"
-                                    color={record.status === 'Confirmed by Program Head' ? 'success' : 'default'}
-                                    sx={{ 
-                                      fontWeight: '500',
-                                      fontSize: { xs: '0.7rem', sm: '0.75rem' }
-                                    }}
-                                  />
-                                </TableCell>
-                                <TableCell sx={{ py: { xs: 1, sm: 1.5 } }}>
-                                  <Typography variant="body2" sx={{ 
-                                    color: '#6b7280',
-                                    fontSize: { xs: '0.75rem', sm: '0.875rem' }
-                                  }}>
-                                    {new Date(record.confirmed_at).toLocaleDateString()}
-                                  </Typography>
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </TableContainer>
-                    )}
-                  </Card>
-                </Grid>
-              </Grid>
-            </DialogContent>
-          </>
-        )}
-      </Dialog>
     </Box>
   );
 };
