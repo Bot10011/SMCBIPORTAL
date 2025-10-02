@@ -1287,7 +1287,9 @@ export default function CourseManagement() {
           animate={{ opacity: 1, y: 0 }}
           className="mb-8"
         >
-          <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 rounded-lg">
+          <div className="neumorphic-soft bg-[#00171f] px-6 py-4 rounded-lg" style={{
+            boxShadow: '8px 8px 16px rgba(0,0,0,0.2), -8px -8px 16px rgba(255,255,255,0.1)'
+          }}>
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
@@ -1307,7 +1309,10 @@ export default function CourseManagement() {
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={() => setShowAddModal(true)}
-                  className="coursemanagement-add-button bg-white/20 backdrop-blur-sm text-white px-6 py-2 rounded-lg hover:bg-white/30 transition-all duration-300 font-semibold flex items-center gap-2 border border-white/30"
+                  className="coursemanagement-add-button neumorphic-soft bg-white/10 backdrop-blur-sm text-white px-6 py-2 rounded-lg hover:bg-white/20 transition-all duration-300 font-semibold flex items-center gap-2 border-0"
+                  style={{
+                    boxShadow: '4px 4px 8px rgba(0, 0, 0, 0.3), -4px -4px 8px rgba(255, 255, 255, 0.1), inset 1px 1px 2px rgba(255, 255, 255, 0.1)'
+                  }}
                 >
                   <Plus className="w-4 h-4" />
                   Add New Subject
@@ -1324,36 +1329,63 @@ export default function CourseManagement() {
           transition={{ delay: 0.1 }}
           className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8"
         >
-          <div className="coursemanagement-stats-card bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 text-sm font-medium">Total Courses</p>
-                <p className="text-3xl font-bold text-gray-900">{courseStats.total}</p>
-              </div>
-              <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                <BookOpen className="w-6 h-6 text-blue-600" />
-              </div>
-            </div>
-          </div>
-          <div className="coursemanagement-stats-card bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 text-sm font-medium">Average Units</p>
-                <p className="text-3xl font-bold text-gray-900">{courseStats.averageUnits}</p>
-              </div>
-              <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                <GraduationCap className="w-6 h-6 text-green-600" />
+          <div className="coursemanagement-stats-card bg-[#00A7E1] rounded-2xl p-4 relative" style={{
+            boxShadow: '4px 4px 8px rgba(0, 0, 0, 0.15), -4px -4px 8px rgba(0, 0, 0, 0.05), inset 1px 1px 2px rgba(255, 255, 255, 0.1)'
+          }}>
+            <div className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-white/90">Total Courses</p>
+                  <h3 className="mt-1 text-2xl font-bold text-white">{courseStats.total}</h3>
+                </div>
+                <div 
+                  className="p-3 rounded-xl bg-white/10 backdrop-blur-sm"
+                  style={{
+                    boxShadow: 'inset 2px 2px 4px rgba(0, 0, 0, 0.1), inset -2px -2px 4px rgba(255, 255, 255, 0.1)'
+                  }}
+                >
+                  <BookOpen className="w-6 h-6 text-white" />
+                </div>
               </div>
             </div>
           </div>
-          <div className="coursemanagement-stats-card bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 text-sm font-medium">Active Courses</p>
-                <p className="text-3xl font-bold text-gray-900">{courseStats.active}</p>
+          <div className="coursemanagement-stats-card bg-[#00A7E1] rounded-2xl p-4 relative" style={{
+            boxShadow: '4px 4px 8px rgba(0, 0, 0, 0.15), -4px -4px 8px rgba(0, 0, 0, 0.05), inset 1px 1px 2px rgba(255, 255, 255, 0.1)'
+          }}>
+            <div className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-white/90">Average Units</p>
+                  <h3 className="mt-1 text-2xl font-bold text-white">{courseStats.averageUnits}</h3>
+                </div>
+                <div 
+                  className="p-3 rounded-xl bg-white/10 backdrop-blur-sm"
+                  style={{
+                    boxShadow: 'inset 2px 2px 4px rgba(0, 0, 0, 0.1), inset -2px -2px 4px rgba(255, 255, 255, 0.1)'
+                  }}
+                >
+                  <GraduationCap className="w-6 h-6 text-white" />
+                </div>
               </div>
-              <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-                <Users className="w-6 h-6 text-purple-600" />
+            </div>
+          </div>
+          <div className="coursemanagement-stats-card bg-[#00A7E1] rounded-2xl p-4 relative" style={{
+            boxShadow: '4px 4px 8px rgba(0, 0, 0, 0.15), -4px -4px 8px rgba(0, 0, 0, 0.05), inset 1px 1px 2px rgba(255, 255, 255, 0.1)'
+          }}>
+            <div className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-white/90">Active Courses</p>
+                  <h3 className="mt-1 text-2xl font-bold text-white">{courseStats.active}</h3>
+                </div>
+                <div 
+                  className="p-3 rounded-xl bg-white/10 backdrop-blur-sm"
+                  style={{
+                    boxShadow: 'inset 2px 2px 4px rgba(0, 0, 0, 0.1), inset -2px -2px 4px rgba(255, 255, 255, 0.1)'
+                  }}
+                >
+                  <Users className="w-6 h-6 text-white" />
+                </div>
               </div>
             </div>
           </div>
@@ -1364,28 +1396,34 @@ export default function CourseManagement() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="coursemanagement-controls bg-white rounded-2xl p-6 shadow-lg border border-gray-100 mb-8"
+          className="coursemanagement-controls neumorphic-soft bg-white rounded-2xl p-6 mb-8" style={{
+            boxShadow: '8px 8px 16px rgba(0,0,0,0.1), -8px -8px 16px rgba(255,255,255,0.5), inset 2px 2px 4px rgba(0,0,0,0.05)'
+          }}
         >
           <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
             <div className="flex-1 max-w-md">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 w-5 h-5" />
                 <input
                   type="text"
                   placeholder="Search subject by name, code, or year level..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#00A7E1] focus:border-[#00A7E1] text-gray-800 placeholder-gray-500 transition-all duration-200" style={{
+                    boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)'
+                  }}
                 />
               </div>
             </div>
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
-                <Filter className="w-5 h-5 text-gray-500" />
+                <Filter className="w-5 h-5 text-gray-600" />
                 <select
                   value={filterUnits}
                   onChange={(e) => setFilterUnits(e.target.value)}
-                  className="border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-[#00A7E1] focus:border-[#00A7E1] text-gray-800 transition-all duration-200" style={{
+                    boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)'
+                  }}
                 >
                   <option value="all">All Units</option>
                   <option value="1">1 Unit</option>
@@ -1396,11 +1434,13 @@ export default function CourseManagement() {
                   <option value="6">6 Units</option>
                 </select>
               </div>
-              <div className="flex items-center gap-2 bg-gray-100 rounded-xl p-1">
+              <div className="flex items-center gap-2 bg-gray-100 rounded-xl p-1" style={{
+                boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)'
+              }}>
                 <button
                   onClick={() => setViewMode('grid')}
                   className={`p-2 rounded-lg transition-all duration-200 ${
-                    viewMode === 'grid' ? 'bg-white shadow-sm' : 'text-gray-500'
+                    viewMode === 'grid' ? 'bg-[#00A7E1] text-white shadow-md' : 'text-gray-600 hover:bg-gray-200'
                   }`}
                 >
                   <Grid className="w-5 h-5" />
@@ -1408,16 +1448,18 @@ export default function CourseManagement() {
                 <button
                   onClick={() => setViewMode('list')}
                   className={`p-2 rounded-lg transition-all duration-200 ${
-                    viewMode === 'list' ? 'bg-white shadow-sm' : 'text-gray-500'
+                    viewMode === 'list' ? 'bg-[#00A7E1] text-white shadow-md' : 'text-gray-600 hover:bg-gray-200'
                   }`}
                 >
                   <List className="w-5 h-5" />
                 </button>
               </div>
               <div className="flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-filter w-5 h-5 text-gray-500"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-filter w-5 h-5 text-gray-600"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
                 <select
-                  className="border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-[#00A7E1] focus:border-[#00A7E1] text-gray-800 transition-all duration-200" style={{
+                    boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)'
+                  }}
                   value={filterYearLevel}
                   onChange={e => setFilterYearLevel(e.target.value)}
                 >
