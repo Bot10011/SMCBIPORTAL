@@ -367,7 +367,7 @@ export default function StudentGrades() {
             .header {
               text-align: center;
               margin-bottom: 30px;
-              border-bottom: 2px solid #2563eb;
+              border-bottom: 2px solid #374151;
               padding-bottom: 20px;
             }
             .header-logo {
@@ -379,7 +379,7 @@ export default function StudentGrades() {
               object-fit: contain;
             }
             .header h1 {
-              color: #2563eb;
+              color: #374151;
               margin: 0;
               font-size: 24px;
             }
@@ -442,7 +442,7 @@ export default function StudentGrades() {
             .ga-cell {
               text-align: center;
               font-weight: bold;
-              color: #2563eb;
+              color: #374151;
             }
             .footer {
               margin-top: 30px;
@@ -3966,9 +3966,37 @@ export default function StudentGrades() {
       <div className="max-w-7xl mx-auto px-4">
         {/* Released Grades Modal */}
         {releasedModalOpen && releasedModalGroup && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div className="absolute inset-0 bg-black/40" onClick={() => setReleasedModalOpen(false)}></div>
-            <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-3xl mx-4 overflow-hidden">
+          <div 
+            className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+            style={{ 
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 9999
+            }}
+          >
+            <div 
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm" 
+              style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                backdropFilter: 'blur(4px)'
+              }}
+              onClick={() => setReleasedModalOpen(false)}
+            ></div>
+            <div 
+              className="relative bg-white rounded-2xl shadow-xl w-full max-w-3xl overflow-hidden"
+              style={{
+                maxHeight: '90vh',
+                zIndex: 10000
+              }}
+            >
               <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
                 <div>
                   <div className="text-lg font-semibold text-gray-800">
@@ -4093,10 +4121,24 @@ export default function StudentGrades() {
           </div>
         )}
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 rounded-2xl mb-8">
+        <div 
+          className="px-8 py-6 rounded-3xl mb-8 text-white"
+          style={{
+            background: '#00171f',
+            boxShadow: '20px 20px 40px rgba(0, 23, 31, 0.4), -20px -20px 40px rgba(0, 167, 225, 0.1), inset 1px 1px 2px rgba(255, 255, 255, 0.1)',
+            border: '1px solid rgba(0, 167, 225, 0.2)'
+          }}
+        >
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
+              <div 
+                className="p-3 rounded-xl"
+                style={{
+                  background: 'rgba(0, 167, 225, 0.2)',
+                  boxShadow: 'inset 2px 2px 4px rgba(0, 0, 0, 0.3), inset -2px -2px 4px rgba(0, 167, 225, 0.1)',
+                  border: '1px solid rgba(0, 167, 225, 0.3)'
+                }}
+              >
                 <CheckCircle2 className="w-6 h-6 text-white" />
               </div>
               <div>
@@ -4104,47 +4146,91 @@ export default function StudentGrades() {
                 <p className="text-white/80 text-sm font-medium">Control when student grades become visible. Toggle to release or hide grades for each record.</p>
               </div>
             </div>
-
           </div>
         </div>
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 mt-6">
           {/* Total Grades Card */}
-          <div className="bg-white/90 rounded-2xl p-6 shadow-lg border border-gray-100">
+          <div 
+            className="rounded-3xl p-6 transition-all duration-300 hover:scale-[1.02]"
+            style={{
+              background: 'linear-gradient(145deg, #00a7e1 0%, #0088b8 100%)',
+              boxShadow: '12px 12px 24px rgba(0, 0, 0, 0.4), -12px -12px 24px rgba(255, 255, 255, 0.1), inset 1px 1px 2px rgba(255, 255, 255, 0.2)',
+              border: '1px solid rgba(255, 255, 255, 0.3)'
+            }}
+          >
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 text-sm font-medium">Total Grades</p>
-                <p className="text-3xl font-bold text-gray-900">{totalGrades}</p>
+                <p className="text-sm font-semibold uppercase tracking-wide mb-1 text-white">Total Grades</p>
+                <p className="text-4xl font-bold text-white">{totalGrades}</p>
+                <p className="text-xs mt-1 text-white/80">All grade records</p>
               </div>
-              <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                <BookOpen className="w-6 h-6 text-blue-600" />
+              <div 
+                className="w-16 h-16 rounded-2xl flex items-center justify-center"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.2)',
+                  boxShadow: 'inset 2px 2px 4px rgba(0, 0, 0, 0.3), inset -2px -2px 4px rgba(255, 255, 255, 0.1)',
+                  border: '1px solid rgba(255, 255, 255, 0.3)'
+                }}
+              >
+                <BookOpen className="w-8 h-8 text-white" />
               </div>
             </div>
           </div>
           
           {/* Pending Grades Card */}
-          <div className="bg-white/90 rounded-2xl p-6 shadow-lg border border-gray-100">
+          <div 
+            className="rounded-3xl p-6 transition-all duration-300 hover:scale-[1.02]"
+            style={{
+              background: 'linear-gradient(145deg, #00a7e1 0%, #0088b8 100%)',
+              boxShadow: '12px 12px 24px rgba(0, 0, 0, 0.4), -12px -12px 24px rgba(255, 255, 255, 0.1), inset 1px 1px 2px rgba(255, 255, 255, 0.2)',
+              border: '1px solid rgba(255, 255, 255, 0.3)'
+            }}
+          >
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 text-sm font-medium">Pending</p>
-                <p className="text-3xl font-bold text-gray-900">{pendingGrades}</p>
+                <p className="text-sm font-semibold uppercase tracking-wide mb-1 text-white">Pending</p>
+                <p className="text-4xl font-bold text-white">{pendingGrades}</p>
+                <p className="text-xs mt-1 text-white/80">Awaiting release</p>
               </div>
-              <div className="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
-                <Clock className="w-6 h-6 text-yellow-600" />
+              <div 
+                className="w-16 h-16 rounded-2xl flex items-center justify-center"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.2)',
+                  boxShadow: 'inset 2px 2px 4px rgba(0, 0, 0, 0.3), inset -2px -2px 4px rgba(255, 255, 255, 0.1)',
+                  border: '1px solid rgba(255, 255, 255, 0.3)'
+                }}
+              >
+                <Clock className="w-8 h-8 text-white" />
               </div>
             </div>
           </div>
           
           {/* Released Grades Card */}
-          <div className="bg-white/90 rounded-2xl p-6 shadow-lg border border-gray-100">
+          <div 
+            className="rounded-3xl p-6 transition-all duration-300 hover:scale-[1.02]"
+            style={{
+              background: 'linear-gradient(145deg, #00a7e1 0%, #0088b8 100%)',
+              boxShadow: '12px 12px 24px rgba(0, 0, 0, 0.4), -12px -12px 24px rgba(255, 255, 255, 0.1), inset 1px 1px 2px rgba(255, 255, 255, 0.2)',
+              border: '1px solid rgba(255, 255, 255, 0.3)'
+            }}
+          >
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 text-sm font-medium">Released</p>
-                <p className="text-3xl font-bold text-gray-900">{releasedGrades}</p>
+                <p className="text-sm font-semibold uppercase tracking-wide mb-1 text-white">Released</p>
+                <p className="text-4xl font-bold text-white">{releasedGrades}</p>
+                <p className="text-xs mt-1 text-white/80">Visible to students</p>
               </div>
-              <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                <CheckCircle2 className="w-6 h-6 text-green-600" />
+              <div 
+                className="w-16 h-16 rounded-2xl flex items-center justify-center"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.2)',
+                  boxShadow: 'inset 2px 2px 4px rgba(0, 0, 0, 0.3), inset -2px -2px 4px rgba(255, 255, 255, 0.1)',
+                  border: '1px solid rgba(255, 255, 255, 0.3)'
+                }}
+              >
+                <CheckCircle2 className="w-8 h-8 text-white" />
               </div>
             </div>
           </div>
@@ -4164,7 +4250,14 @@ export default function StudentGrades() {
             {showPrograms ? (
           <>
           {/* Fast Selection Interface */}
-          <div className="bg-white/90 rounded-2xl shadow-lg border border-gray-100 p-8">
+          <div 
+            className="rounded-3xl p-8"
+            style={{
+              background: 'linear-gradient(145deg, #f8fafc 0%, #f1f5f9 100%)',
+              boxShadow: '20px 20px 40px rgba(0, 0, 0, 0.15), -20px -20px 40px rgba(255, 255, 255, 0.9)',
+              border: '1px solid rgba(255, 255, 255, 0.6)'
+            }}
+          >
              <div className="text-center mb-8">
                <div className="flex items-center justify-between mb-4">
                  <div></div> {/* Left spacer */}
