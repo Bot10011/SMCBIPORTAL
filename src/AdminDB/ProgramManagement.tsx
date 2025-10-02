@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
-import { PlusCircle, Edit, Trash2, X, Search, RefreshCw, AlertCircle } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, X, Search, RefreshCw, AlertCircle, ClipboardList, CheckCircle, XCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import './dashboard.css';
 
@@ -477,18 +477,18 @@ const ProgramManagement: React.FC = () => {
           transition={{ duration: 0.3 }}
           className="mb-8"
         >
-        <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 rounded-lg shadow-lg">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div style={{
+          background: '#00171f',
+          padding: '24px',
+          borderRadius: '12px',
+          boxShadow: '8px 8px 16px rgba(0,0,0,0.1), -8px -8px 16px rgba(255,255,255,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px'
+        }}>
+          <ClipboardList className="w-8 h-8 text-white" />
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 flex-1">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-file-text w-6 h-6 text-white">
-                  <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path>
-                  <path d="M14 2v4a2 2 0 0 0 2 2h4"></path>
-                  <path d="M10 9H8"></path>
-                  <path d="M16 13H8"></path>
-                  <path d="M16 17H8"></path>
-                </svg>
-              </div>
               <div>
                 <h1 className="text-2xl font-bold text-white tracking-tight">Program Management</h1>
                 <p className="text-white/80 text-sm font-medium">Create and manage academic programs</p>
@@ -501,42 +501,90 @@ const ProgramManagement: React.FC = () => {
 
       {/* Stats Section */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="programmanagement-stats-card bg-white/90 rounded-xl p-4 shadow-lg border border-gray-200">
+        <div style={{
+          background: '#00A7E1',
+          borderRadius: '12px',
+          padding: '16px',
+          boxShadow: '8px 8px 16px rgba(0,0,0,0.1), -8px -8px 16px rgba(255,255,255,0.5)'
+        }}>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 mb-1">Total Programs</p>
-              <p className="text-2xl font-bold text-gray-800">{programStats.total}</p>
+              <p className="text-sm text-white/80 mb-1">Total Programs</p>
+              <p className="text-2xl font-bold text-white">{programStats.total}</p>
             </div>
-            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center border border-blue-200">
-              <PlusCircle className="w-5 h-5 text-blue-600" />
+            <div style={{
+              width: '40px',
+              height: '40px',
+              background: '#00A7E1',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '4px 4px 8px rgba(0,0,0,0.1), -4px -4px 8px rgba(255,255,255,0.5)'
+            }}>
+              <PlusCircle className="w-5 h-5 text-[#ffffff]" />
             </div>
           </div>
         </div>
-        <div className="programmanagement-stats-card bg-white/90 rounded-xl p-4 shadow-lg border border-gray-200">
+        <div style={{
+          background: '#00A7E1',
+          borderRadius: '12px',
+          padding: '16px',
+          boxShadow: '8px 8px 16px rgba(0,0,0,0.1), -8px -8px 16px rgba(255,255,255,0.5)'
+        }}>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 mb-1">Active</p>
-              <p className="text-2xl font-bold text-green-600">{programStats.active}</p>
+              <p className="text-sm text-white/80 mb-1">Active</p>
+              <p className="text-2xl font-bold text-white">{programStats.active}</p>
             </div>
-            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center border border-green-200">
-              <div className="w-2 h-2 bg-green-600 rounded-full"></div>
+            <div style={{
+              width: '40px',
+              height: '40px',
+              background: '#00A7E1',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '4px 4px 8px rgba(0,0,0,0.1), -4px -4px 8px rgba(255,255,255,0.5)'
+            }}>
+              <CheckCircle className="w-5 h-5 text-white" />
             </div>
           </div>
         </div>
-        <div className="programmanagement-stats-card bg-white/90 rounded-xl p-4 shadow-lg border border-gray-200">
+        <div style={{
+          background: '#00A7E1',
+          borderRadius: '12px',
+          padding: '16px',
+          boxShadow: '8px 8px 16px rgba(0,0,0,0.1), -8px -8px 16px rgba(255,255,255,0.5)'
+        }}>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 mb-1">Inactive</p>
-              <p className="text-2xl font-bold text-gray-600">{programStats.inactive}</p>
+              <p className="text-sm text-white/80 mb-1">Inactive</p>
+              <p className="text-2xl font-bold text-white">{programStats.inactive}</p>
             </div>
-            <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200">
-              <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+            <div style={{
+              width: '40px',
+              height: '40px',
+              background: '#00A7E1',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '4px 4px 8px rgba(0,0,0,0.1), -4px -4px 8px rgba(255,255,255,0.5)'
+            }}>
+              <XCircle className="w-5 h-5 text-white" />
             </div>
           </div>
         </div>
       </div>
 
-      <div className="programmanagement-controls bg-white/90 rounded-xl shadow-lg border border-gray-200 p-6 mb-6">
+      <div style={{
+        background: 'linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%)',
+        borderRadius: '12px',
+        boxShadow: 'inset 4px 4px 8px rgba(0,0,0,0.1), inset -4px -4px 8px rgba(255,255,255,0.8)',
+        padding: '24px',
+        marginBottom: '24px'
+      }}>
         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="relative w-full md:w-1/3">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -544,7 +592,11 @@ const ProgramManagement: React.FC = () => {
             </div>
             <input
               type="text"
-              className="pl-10 pr-4 py-3 w-full bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800 placeholder-gray-500 shadow-sm"
+              className="pl-10 pr-4 py-3 w-full border-0 rounded-lg focus:outline-none text-gray-800 placeholder-gray-500"
+              style={{
+                background: '#ffffff',
+                boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)'
+              }}
               placeholder="Search by name or description..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -556,7 +608,17 @@ const ProgramManagement: React.FC = () => {
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.98 }}
               onClick={handleRefresh}
-              className="programmanagement-refresh-button flex items-center gap-2 bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors shadow-sm"
+              className="flex items-center gap-2 text-gray-700 px-4 py-2 rounded-lg transition-all"
+              style={{
+                background: '#ffffff',
+                boxShadow: '6px 6px 12px rgba(0,0,0,0.1), -6px -6px 12px rgba(255,255,255,0.5)'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.boxShadow = 'inset 4px 4px 8px rgba(0,0,0,0.1), inset -4px -4px 8px rgba(255,255,255,0.5)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.boxShadow = '6px 6px 12px rgba(0,0,0,0.1), -6px -6px 12px rgba(255,255,255,0.5)';
+              }}
             >
               <RefreshCw size={18} className={refreshing ? "animate-spin" : ""} />
               Refresh
@@ -566,7 +628,18 @@ const ProgramManagement: React.FC = () => {
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.98 }}
               onClick={handleAddNew}
-              className="programmanagement-add-button flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-all shadow-[2px_2px_4px_rgba(0,0,0,0.2),-1px_-1px_3px_rgba(255,255,255,0.15)]"
+              className="flex items-center gap-2 text-white px-4 py-2 rounded-lg transition-all"
+              style={{
+                background: '#2563eb',
+
+              
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.boxShadow = 'inset 4px 4px 8px rgba(0,0,0,0.1), inset -4px -4px 8px rgba(255,255,255,0.5)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.boxShadow = '6px 6px 12px rgba(0,0,0,0.1), -6px -6px 12px rgba(255,255,255,0.5)';
+              }}
             >
               <PlusCircle size={18} />
               Add New Program
@@ -845,32 +918,43 @@ const ProgramManagement: React.FC = () => {
       )}
 
       {/* TABLE - COMPACT AND ZOOM-FRIENDLY */}
-      <div className="bg-white/90 rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+      <div style={{
+        background: 'linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%)',
+        borderRadius: '12px',
+        boxShadow: '8px 8px 16px rgba(0,0,0,0.1), -8px -8px 16px rgba(255,255,255,0.5)',
+        overflow: 'hidden'
+      }}>
         <div className="w-full overflow-x-auto">
           <table className="w-full min-w-full divide-y divide-gray-200">
-            <thead className="bg-gradient-to-r from-indigo-600 to-blue-500">
+            <thead style={{
+              background: 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)',
+              boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)'
+            }}>
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: '#374151' }}>
                   Program Name
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: '#374151' }}>
                   Description
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: '#374151' }}>
                   Active
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: '#374151' }}>
                   Created At
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: '#374151' }}>
                   Updated At
                 </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-white uppercase tracking-wider">
+                <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider" style={{ color: '#374151' }}>
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white/90 divide-y divide-gray-200">
+            <tbody style={{
+              background: '#ffffff',
+              boxShadow: 'inset 1px 1px 2px rgba(0,0,0,0.05)'
+            }} className="divide-y divide-gray-200">
               {filteredPrograms.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-6 text-center text-gray-500">
@@ -922,7 +1006,18 @@ const ProgramManagement: React.FC = () => {
                       <div className="flex justify-end gap-2">
                         <button 
                           onClick={() => handleEdit(program)}
-                          className="programmanagement-action-button p-1 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 transition-colors duration-200 border border-blue-200"
+                          className="p-1 rounded-full transition-all duration-200"
+                          style={{
+                            background: '#2563eb',
+                            color: 'white',
+                            boxShadow: '4px 4px 8px rgba(0,0,0,0.1), -4px -4px 8px rgba(255,255,255,0.5)'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.boxShadow = 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.5)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.boxShadow = '4px 4px 8px rgba(0,0,0,0.1), -4px -4px 8px rgba(255,255,255,0.5)';
+                          }}
                           title="Edit Program"
                         >
                           <Edit size={16} />
@@ -930,11 +1025,23 @@ const ProgramManagement: React.FC = () => {
                         <button 
                           onClick={() => handleDeleteClick(program)}
                           disabled={deleteButtonClicked}
-                          className={`programmanagement-action-button p-1 rounded-full transition-colors duration-200 border ${
-                            deleteButtonClicked
-                              ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
-                              : 'bg-red-100 text-red-600 hover:bg-red-200 border-red-200'
-                          }`}
+                          className="p-1 rounded-full transition-all duration-200"
+                          style={{
+                            background: deleteButtonClicked ? '#9ca3af' : '#ef4444',
+                            color: 'white',
+                            boxShadow: deleteButtonClicked ? 'inset 2px 2px 4px rgba(0,0,0,0.1)' : '4px 4px 8px rgba(0,0,0,0.1), -4px -4px 8px rgba(255,255,255,0.5)',
+                            cursor: deleteButtonClicked ? 'not-allowed' : 'pointer'
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!deleteButtonClicked) {
+                              e.currentTarget.style.boxShadow = 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.5)';
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!deleteButtonClicked) {
+                              e.currentTarget.style.boxShadow = '4px 4px 8px rgba(0,0,0,0.1), -4px -4px 8px rgba(255,255,255,0.5)';
+                            }
+                          }}
                           title={deleteButtonClicked ? "Please wait..." : "Delete Program"}
                         >
                           <Trash2 size={16} />
