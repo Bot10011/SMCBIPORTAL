@@ -1378,25 +1378,42 @@ const ClassManagement: React.FC = () => {
 
       // Resolve instructor full name similar to Settings.tsx logic (no email fallback)
       let instructorDisplayName = '';
+      
+      // Enhanced instructor name resolution - try multiple sources
       try {
+        // Primary: Get from user_profiles table
         const { data: instructorProfile } = await supabase
           .from('user_profiles')
           .select('display_name, first_name, middle_name, last_name, username, email')
           .eq('id', user.id)
           .maybeSingle();
-        const dbDisplay = (instructorProfile?.display_name || '').trim();
-        if (dbDisplay) {
-          instructorDisplayName = dbDisplay;
-        } else {
-          const parts = [
-            (instructorProfile?.first_name || '').trim(),
-            (instructorProfile?.middle_name || '').trim(),
-            (instructorProfile?.last_name || '').trim()
-          ].filter(Boolean);
-          const joined = parts.join(' ').trim();
-          instructorDisplayName = joined || (instructorProfile?.username || '');
+        
+        if (instructorProfile) {
+          // Check display_name first
+          const dbDisplay = (instructorProfile.display_name || '').trim();
+          if (dbDisplay) {
+            instructorDisplayName = dbDisplay;
+          } else {
+            // Build name from parts
+            const parts = [
+              (instructorProfile.first_name || '').trim(),
+              (instructorProfile.middle_name || '').trim(),
+              (instructorProfile.last_name || '').trim()
+            ].filter(Boolean);
+            const joined = parts.join(' ').trim();
+            instructorDisplayName = joined || (instructorProfile.username || '');
+          }
+          
+          console.log('👤 Instructor name from user_profiles:', {
+            id: user.id,
+            display_name: instructorProfile.display_name,
+            first_name: instructorProfile.first_name,
+            last_name: instructorProfile.last_name,
+            resolved_name: instructorDisplayName
+          });
         }
-        // Fallback to auth metadata if still empty
+        
+        // Fallback: Try auth metadata if still empty
         if (!instructorDisplayName) {
           const { data: authUserData } = await supabase.auth.getUser();
           const authUser = authUserData?.user as unknown as { user_metadata?: Record<string, unknown>; identities?: Array<{ provider?: string; identity_data?: Record<string, unknown> }>; email?: string } | undefined;
@@ -1407,13 +1424,31 @@ const ClassManagement: React.FC = () => {
           const metaName = (metadata['full_name'] as string | undefined) || (metadata['name'] as string | undefined) || (metadata['given_name'] as string | undefined) || (metadata['preferred_username'] as string | undefined);
           const idName = (identityData['name'] as string | undefined) || (identityData['full_name'] as string | undefined) || (identityData['given_name'] as string | undefined);
           instructorDisplayName = (metaName || idName || '').trim();
-          // Do not fall back to email; leave empty if not found
+          
+          console.log('🔍 Instructor name from auth metadata:', {
+            metaName,
+            idName,
+            resolved_name: instructorDisplayName
+          });
         }
-      } catch {
-        instructorDisplayName = instructorName;
+        
+        // Additional fallback: Use email if available (better than "Unknown Instructor")
+        if (!instructorDisplayName && instructorProfile?.email) {
+          instructorDisplayName = instructorProfile.email.split('@')[0];
+          console.log('📧 Using email username as instructor name:', instructorDisplayName);
+        }
+        
+      } catch (error) {
+        console.error('❌ Failed to resolve instructor name:', error);
+        // Use a generic but informative name instead of "Unknown Instructor"
+        instructorDisplayName = `Teacher (${user.id?.substring(0, 8)})`;
       }
-      // If still empty, last resort to a neutral label (no email)
-      if (!instructorDisplayName) instructorDisplayName = 'Unknown Instructor';
+      
+      // Final safety check - if still empty, use teacher ID instead of "Unknown Instructor"
+      if (!instructorDisplayName) {
+        instructorDisplayName = `Teacher (${user.id?.substring(0, 8)})`;
+        console.warn('⚠️ Could not resolve instructor name, using ID fallback:', instructorDisplayName);
+      }
       const studentDisplayName = student.display_name || `${student.first_name} ${student.last_name}`;
 
       // Update the grade row with request metadata
@@ -1582,69 +1617,76 @@ const ClassManagement: React.FC = () => {
 
   return (
     <div className="min-h-screen from-slate-50 via-blue-50 to-indigo-50">
-      <div className="p-8 max-w-full mx-auto">
+      <div className="p-3 sm:p-4 md:p-6 lg:p-8 max-w-full mx-auto">
         {/* Header Section */}
-        <div className="mb-8">
-          <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 rounded-2xl shadow-lg">
+        <div className="mb-4 sm:mb-6 lg:mb-8">
+          <div 
+            className="px-8 py-6 rounded-3xl text-white"
+            style={{
+              background: '#00171f',
+              boxShadow: '8px 8px 16px rgba(0, 23, 31, 0.2), -4px -4px 12px rgba(0, 167, 225, 0.05), inset 1px 1px 2px rgba(255, 255, 255, 0.1)',
+              border: '1px solid rgba(0, 167, 225, 0.2)'
+            }}
+          >
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
-                  <BookOpen className="w-6 h-6 text-white" />
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="p-1.5 sm:p-2 rounded-lg bg-white/20 backdrop-blur-sm">
+                  <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-bold text-white tracking-tight">Class Management</h1>
-                  <p className="text-white/80 text-sm font-medium">Manage your assigned classes and student grades</p>
+                  <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-white tracking-tight">Class Management</h1>
+                  <p className="text-white/80 text-xs sm:text-sm font-medium break-words">Manage your assigned classes and student grades</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 bg-white/80 px-4 py-2 rounded-lg shadow-sm">
-                <Users className="w-4 h-4 text-blue-500" />
-                <span className="text-gray-700 font-medium">{classes.length} Classes Assigned</span>
+              <div className="flex items-center gap-1 sm:gap-2 bg-white/80 px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 rounded-lg shadow-sm self-start sm:self-auto">
+                <Users className="w-3 h-3 sm:w-4 sm:h-4 text-blue-500 flex-shrink-0" />
+                <span className="text-gray-700 font-medium text-xs sm:text-sm whitespace-nowrap">{classes.length} Classes Assigned</span>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-          {/* Classes Panel - Improved Layout */}
-          <div className="lg:col-span-1">
-            <div className="bg-white/80 rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-              <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-3">
-                <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                  <Users className="w-4 h-4" />
-                  Assigned Classes
+        <div className="grid grid-cols-1 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4 md:gap-6 lg:gap-8">
+          {/* Classes Panel - Responsive Layout */}
+          <div className="lg:col-span-1 w-full">
+            <div 
+              className="rounded-3xl p-3 sm:p-4 md:p-6 w-full"
+              style={{
+                background: 'linear-gradient(145deg, #f8fafc 0%, #f1f5f9 100%)',
+                boxShadow: '8px 8px 16px rgba(0, 0, 0, 0.08), -8px -8px 16px rgba(255, 255, 255, 0.8)',
+                border: '1px solid rgba(255, 255, 255, 0.6)'
+              }}
+            >
+              <div className="bg-[#00a7e1] to-indigo-600 px-2 sm:px-3 md:px-4 py-2 sm:py-3 rounded-t-2xl -mx-3 sm:-mx-4 md:-mx-6 -mt-3 sm:-mt-4 md:-mt-6 mb-3 sm:mb-4">
+                <h2 className="text-sm sm:text-base md:text-lg font-semibold text-white flex items-center gap-1 sm:gap-2">
+                  <Users className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 flex-shrink-0" />
+                  <span className="truncate min-w-0">Assigned Classes</span>
                 </h2>
-                <p className="text-blue-100 text-xs mt-1">Select a class to view students</p>
+                <p className="text-blue-100 text-xs sm:text-sm mt-1 break-words">Select a class to view students</p>
               </div>
               
-              <div className="p-4">
+              <div className="px-1 sm:px-2 md:px-3">
                 {classes.length === 0 ? (
-                  <div className="text-center py-6">
-                    <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                      <BookOpen className="w-6 h-6 text-gray-400" />
+                  <div className="text-center py-4 sm:py-6">
+                    <div className="w-8 h-8 sm:w-12 sm:h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-2 sm:mb-3">
+                      <BookOpen className="w-4 h-4 sm:w-6 sm:h-6 text-gray-400" />
                     </div>
-                    <p className="text-gray-500 font-medium text-sm">No classes assigned</p>
-                    <p className="text-gray-400 text-xs mt-1">Contact your administrator</p>
+                    <p className="text-gray-500 font-medium text-xs sm:text-sm">No classes assigned</p>
+                    <p className="text-gray-400 text-xs mt-1 hidden sm:block">Contact your administrator</p>
                   </div>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="space-y-3 sm:space-y-4">
                     {/* Search and Filter Controls */}
-                    <div className="space-y-3">
+                    <div className="space-y-2 sm:space-y-3">
                       {/* Add Subject Toggle */}
-                      <div className="flex justify-end">
-                        <button
-                          onClick={() => setShowAddSubject(v => !v)}
-                          className="px-3 py-1.5 text-xs  text-white rounded-md hover:bg-indigo-700"
-                        >
-                          {showAddSubject ? 'Close' : ' '}
-                        </button>
-                      </div>
+               
                       {showAddSubject && (
-                        <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-lg space-y-2">
+                        <div className="p-2 sm:p-3 bg-indigo-50 border border-indigo-200 rounded-lg space-y-2">
                           <div className="grid grid-cols-1 gap-2">
                             <select
                               value={newSubjectForm.subject_id}
                               onChange={(e) => setNewSubjectForm(f => ({ ...f, subject_id: e.target.value }))}
-                              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                              className="w-full px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                             >
                               <option value="">Select Subject</option>
                               {availableCourses.map(c => (
@@ -1657,53 +1699,53 @@ const ClassManagement: React.FC = () => {
                               value={newSubjectForm.section}
                               onChange={(e) => setNewSubjectForm(f => ({ ...f, section: e.target.value }))}
                               placeholder="Section"
-                              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                              className="w-full px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                             />
                             <input
                               value={newSubjectForm.academic_year}
                               onChange={(e) => setNewSubjectForm(f => ({ ...f, academic_year: e.target.value }))}
                               placeholder="Academic Year (e.g., 2024-2025)"
-                              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                              className="w-full px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                             />
                             <input
                               value={newSubjectForm.semester}
                               onChange={(e) => setNewSubjectForm(f => ({ ...f, semester: e.target.value }))}
                               placeholder="Semester (e.g., 1st)"
-                              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                              className="w-full px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                             />
                           </div>
                           <div className="flex justify-end">
                             <button
                               onClick={handleAddSubject}
                               disabled={addingSubject}
-                              className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
+                              className="px-2 sm:px-3 py-1 sm:py-1.5 text-xs bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
                             >
                               {addingSubject ? 'Adding…' : 'Save Subject'}
                             </button>
                           </div>
-                          <p className="text-[11px] text-gray-600">You can add subjects anytime. Editing grades stays locked unless Registrar approval is granted.</p>
+                          <p className="text-xs sm:text-sm text-gray-600">You can add subjects anytime. Editing grades stays locked unless Registrar approval is granted.</p>
                         </div>
                       )}
                       {/* Search */}
                       <div className="relative">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Search className="absolute left-2 sm:left-3 top-1/2 transform -translate-y-1/2 w-3 h-3 sm:w-4 sm:h-4 text-gray-400 z-10" />
                         <input
                           type="text"
-                          placeholder="Search classes..."
+                          placeholder="Search..."
                           value={searchTerm}
                           onChange={(e) => setSearchTerm(e.target.value)}
-                          className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                          className="w-full pl-7 sm:pl-10 pr-2 sm:pr-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white"
                         />
                       </div>
                       
                       {/* Filters */}
-                      <div className="space-y-2">
+                      <div className="grid grid-cols-1 gap-2">
                         <select
                           value={filterYearLevel}
                           onChange={(e) => setFilterYearLevel(e.target.value)}
-                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                          className="w-full px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white truncate"
                         >
-                          <option value="all">All Year Levels</option>
+                          <option value="all">All Years</option>
                           {yearLevels.map(level => (
                             <option key={level} value={level}>{level}</option>
                           ))}
@@ -1712,7 +1754,7 @@ const ClassManagement: React.FC = () => {
                         <select
                           value={filterSemester}
                           onChange={(e) => setFilterSemester(e.target.value)}
-                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                          className="w-full px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white truncate"
                         >
                           <option value="all">All Sections</option>
                           {sections.map(section => (
@@ -1722,50 +1764,52 @@ const ClassManagement: React.FC = () => {
                       </div>
                       
                       {/* Expand/Collapse Controls */}
-                      <div className="flex gap-2">
+                      <div className="grid grid-cols-2 gap-1 sm:gap-2">
                         <button
                           onClick={expandAll}
-                          className="flex-1 px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded border border-blue-200 hover:bg-blue-100 transition-colors"
+                          className="px-1.5 sm:px-2 py-1 sm:py-1.5 text-xs bg-blue-50 text-blue-700 rounded border border-blue-200 hover:bg-blue-100 transition-colors truncate"
                         >
-                          Expand All
+                          <span className="hidden xs:inline sm:hidden md:inline">Expand All</span>
+                          <span className="xs:hidden sm:inline md:hidden">Expand</span>
                         </button>
                         <button
                           onClick={collapseAll}
-                          className="flex-1 px-2 py-1 text-xs bg-gray-50 text-gray-700 rounded border border-gray-200 hover:bg-gray-100 transition-colors"
+                          className="px-1.5 sm:px-2 py-1 sm:py-1.5 text-xs bg-gray-50 text-gray-700 rounded border border-gray-200 hover:bg-gray-100 transition-colors truncate"
                         >
-                          Collapse All
+                          <span className="hidden xs:inline sm:hidden md:inline">Collapse All</span>
+                          <span className="xs:hidden sm:inline md:hidden">Collapse</span>
                         </button>
                       </div>
                     </div>
 
                     {/* Class Groups */}
                     {Object.keys(filteredGroupedClasses).length === 0 ? (
-                      <div className="text-center py-4">
-                        <p className="text-gray-500 text-sm">No classes match your filters</p>
+                      <div className="text-center py-3 sm:py-4">
+                        <p className="text-gray-500 text-xs sm:text-sm">No classes match your filters</p>
                       </div>
                     ) : (
-                      <div className="space-y-3">
+                      <div className="space-y-2 sm:space-y-3">
                         {Object.entries(filteredGroupedClasses).map(([key, group]) => (
                           <div key={key} className="border border-gray-200 rounded-lg overflow-hidden">
                             {/* Section Header */}
                             <button
                               onClick={() => toggleSection(key)}
-                              className="w-full px-3 py-2 bg-gray-50 hover:bg-gray-100 transition-colors flex items-center justify-between text-left"
+                              className="w-full px-2 sm:px-3 py-1.5 sm:py-2 bg-gray-50 hover:bg-gray-100 transition-colors flex items-center justify-between text-left min-h-0"
                             >
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-1 sm:gap-2 min-w-0 flex-1">
                                 {expandedSections[key] ? (
-                                  <ChevronDown className="w-4 h-4 text-gray-500" />
+                                  <ChevronDown className="w-3 h-3 sm:w-4 sm:h-4 text-gray-500 flex-shrink-0" />
                                 ) : (
-                                  <ChevronRight className="w-4 h-4 text-gray-500" />
+                                  <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4 text-gray-500 flex-shrink-0" />
                                 )}
-                                <div>
-                                  <div className="font-medium text-sm text-gray-900">{group.yearLevel}</div>
-                                  <div className="text-xs text-gray-500">Section {group.section}</div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="font-medium text-xs sm:text-sm text-gray-900 truncate">{group.yearLevel}</div>
+                                  <div className="text-xs text-gray-500 truncate">Section {group.section}</div>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
-                                  {group.classes.length} class{group.classes.length !== 1 ? 'es' : ''}
+                              <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+                                <span className="text-xs bg-blue-100 text-blue-700 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full whitespace-nowrap">
+                                  {group.classes.length} {group.classes.length === 1 ? 'class' : 'classes'}
                                 </span>
                               </div>
                             </button>
@@ -1776,7 +1820,7 @@ const ClassManagement: React.FC = () => {
                                 {group.classes.map((cls) => (
                                   <button
                                     key={cls.id}
-                                    className={`w-full text-left p-3 rounded-lg border transition-all duration-200 hover:shadow-md overflow-hidden ${
+                                    className={`w-full text-left p-2 sm:p-3 rounded-lg border transition-all duration-200 hover:shadow-md overflow-hidden ${
                                       selectedClass?.id === cls.id 
                                         ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-300 shadow-md' 
                                         : 'bg-gray-50 border-gray-200 hover:border-blue-200 hover:bg-blue-50/50'
@@ -1786,22 +1830,22 @@ const ClassManagement: React.FC = () => {
                                     }}
                                   >
                                     {/* Class Header */}
-                                    <div className="flex items-start justify-between mb-2">
+                                    <div className="flex items-start justify-between mb-2 gap-2">
                                       <div className="flex-1 min-w-0">
-                                        <h3 className="font-semibold text-gray-900 text-sm leading-tight mb-1 line-clamp-2 break-words">
+                                        <h3 className="font-semibold text-gray-900 text-xs sm:text-sm leading-tight mb-1 break-words line-clamp-2">
                                           {cls.course?.name}
                                         </h3>
-                                        <div className="flex items-center gap-2 flex-wrap">
-                                          <span className="inline-block px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full whitespace-nowrap">
+                                        <div className="flex flex-wrap items-center gap-1 text-xs">
+                                          <span className="inline-block px-1.5 py-0.5 bg-blue-100 text-blue-700 font-medium rounded-full whitespace-nowrap">
                                             {cls.course?.code}
                                           </span>
-                                          <span className="text-xs text-gray-500">•</span>
-                                          <span className="text-xs text-gray-600 whitespace-nowrap">{cls.course?.units} units</span>
-                                          <span className="text-xs text-gray-500">•</span>
-                                          <span className="text-xs text-gray-600 whitespace-nowrap">Section {cls.section}</span>
+                                          <span className="text-gray-500 hidden xs:inline">•</span>
+                                          <span className="text-gray-600 whitespace-nowrap hidden xs:inline">{cls.course?.units} units</span>
+                                          <span className="text-gray-500 hidden xs:inline">•</span>
+                                          <span className="text-gray-600 whitespace-nowrap">Sec {cls.section}</span>
                                         </div>
                                       </div>
-                                      <div className={`w-3 h-3 rounded-full ${
+                                      <div className={`w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full flex-shrink-0 ${
                                         selectedClass?.id === cls.id ? 'bg-blue-500' : 'bg-gray-300'
                                       }`} />
                                     </div>
@@ -1828,170 +1872,181 @@ const ClassManagement: React.FC = () => {
               <div className="rounded-2xl shadow-sm border border-gray-100 mb-4">
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
                   {/* Total Students Card */}
-                  <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-2 shadow-sm border border-blue-100 hover:shadow-md transition-all duration-300 group">
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="p-1.5 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-md shadow-sm group-hover:scale-105 transition-transform duration-300">
-                        <Users className="w-3.5 h-3.5 text-white" />
-                      </div>
-                      <div className="text-right">
-                        <div className="text-xs font-medium text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded-full">
-                          Active
-                        </div>
+                  <div 
+                    className="rounded-2xl p-4 transition-all duration-300 hover:scale-[1.02]"
+                    style={{
+                      background: 'linear-gradient(145deg, #00a7e1 0%',
+                      boxShadow: '6px 6px 12px rgba(0, 0, 0, 0.2), -6px -6px 12px rgba(255, 255, 255, 0.05), inset 1px 1px 2px rgba(255, 255, 255, 0.2)',
+                      border: '1px solid rgba(255, 255, 255, 0.3)'
+                    }}
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="p-2 bg-white/20 rounded-lg shadow-lg">
+                        <Users className="w-6 h-6 text-white" />
                       </div>
                     </div>
-                    <div className="space-y-0.5">
-                      <p className="text-sm font-medium text-gray-600">Total Students</p>
-                      <div className="flex items-baseline gap-1">
-                        <p className="text-2xl font-bold text-gray-900">{totalStudents}</p>
-                        <span className="text-xs text-green-600 font-medium">+0%</span>
+                    <div className="space-y-1">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-white">Total Students</p>
+                      <div className="flex items-baseline gap-2">
+                        <p className="text-3xl font-bold text-white">{totalStudents}</p>
+                        <span className="text-xs text-white/80 font-medium">+0%</span>
                       </div>
-                      <p className="text-xs text-gray-500">Enrolled in this class</p>
+                      <p className="text-xs text-white/70">Enrolled in this class</p>
                     </div>
                   </div>
 
                   {/* Completed Grades Card */}
-                  <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-2 shadow-sm border border-green-100 hover:shadow-md transition-all duration-300 group">
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="p-1.5 bg-gradient-to-br from-green-500 to-emerald-600 rounded-md shadow-sm group-hover:scale-105 transition-transform duration-300">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-white" />
-                      </div>
-                      <div className="text-right">
-                        <div className="text-xs font-medium text-green-600 bg-green-100 px-1.5 py-0.5 rounded-full">
-                          Updated
-                        </div>
+                  <div 
+                    className="rounded-2xl p-4 transition-all duration-300 hover:scale-[1.02]"
+                    style={{
+                      background: 'linear-gradient(145deg, #00a7e1 0%',
+                      boxShadow: '8px 0px 12px rgba(0, 0, 0, 0.2), -8px 0px 12px rgba(255, 255, 255, 0.05), inset 1px 1px 2px rgba(255, 255, 255, 0.2)',
+                      border: '1px solid rgba(255, 255, 255, 0.3)'
+                    }}
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="p-2 bg-white/20 rounded-lg shadow-lg">
+                        <CheckCircle2 className="w-6 h-6 text-white" />
                       </div>
                     </div>
-                    <div className="space-y-0.5">
-                      <p className="text-sm font-medium text-gray-600">Completed Grades</p>
-                      <div className="flex items-center gap-1">
-                        <p className="text-2xl font-bold text-gray-900">{completedGrades}</p>
-                        <span className="text-xs text-green-600 font-medium">
+                    <div className="space-y-1">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-white">Completed Grades</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-3xl font-bold text-white">{completedGrades}</p>
+                        <span className="text-xs text-white/80 font-medium">
                           {totalStudents > 0 ? Math.round((completedGrades / totalStudents) * 100) : 0}%
                         </span>
                       </div>
-                      <p className="text-xs text-gray-500">Grades submitted</p>
+                      <p className="text-xs text-white/70">Grades submitted</p>
                     </div>
                   </div>
 
                   {/* Completion Rate Card */}
-                  <div className="bg-gradient-to-br from-purple-50 to-violet-50 rounded-lg p-2 shadow-sm border border-purple-100 hover:shadow-md transition-all duration-300 group">
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="p-1.5 bg-gradient-to-br from-purple-500 to-violet-600 rounded-md shadow-sm group-hover:scale-105 transition-transform duration-300">
-                        <TrendingUp className="w-3.5 h-3.5 text-white" />
-                      </div>
-                      <div className="text-right">
-                        <div className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${
-                          completionRate >= 80 ? 'text-green-600 bg-green-100' : 
-                          completionRate >= 60 ? 'text-yellow-600 bg-yellow-100' : 
-                          'text-red-600 bg-red-100'
-                        }`}>
-                          {completionRate >= 80 ? 'Excellent' : 
-                           completionRate >= 60 ? 'Good' : 'Needs Attention'}
-                        </div>
+                  <div 
+                    className="rounded-2xl p-4 transition-all duration-300 hover:scale-[1.02]"
+                    style={{
+                      background: 'linear-gradient(145deg, #00a7e1 0%',
+                      boxShadow: '0px 8px 12px rgba(0, 0, 0, 0.2), 0px -8px 12px rgba(255, 255, 255, 0.05), inset 1px 1px 2px rgba(255, 255, 255, 0.2)',
+                      border: '1px solid rgba(255, 255, 255, 0.3)'
+                    }}
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="p-2 bg-white/20 rounded-lg shadow-lg">
+                        <TrendingUp className="w-6 h-6 text-white" />
                       </div>
                     </div>
-                    <div className="space-y-0.5">
-                      <p className="text-sm font-medium text-gray-600">Completion Rate</p>
-                      <div className="flex items-center gap-1">
-                        <p className="text-2xl font-bold text-gray-900">{completionRate}%</p>
+                    <div className="space-y-1">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-white">Completion Rate</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-3xl font-bold text-white">{completionRate}%</p>
                         <div className="flex items-center gap-1">
                           {completionRate >= 80 ? (
-                            <span className="text-xs text-green-600">↑</span>
+                            <span className="text-xs text-white/80">↑</span>
                           ) : completionRate >= 60 ? (
-                            <span className="text-xs text-yellow-600">→</span>
+                            <span className="text-xs text-white/80">→</span>
                           ) : (
-                            <span className="text-xs text-red-600">↓</span>
+                            <span className="text-xs text-white/80">↓</span>
                           )}
                         </div>
                       </div>
-                      <div className="w-full bg-gray-200 rounded-full h-0.5">
+                      <div className="w-full bg-white/20 rounded-full h-1">
                         <div 
-                          className={`h-0.5 rounded-full transition-all duration-500 ${
-                            completionRate >= 80 ? 'bg-gradient-to-r from-green-500 to-emerald-500' :
-                            completionRate >= 60 ? 'bg-gradient-to-r from-yellow-500 to-orange-500' :
-                            'bg-gradient-to-r from-red-500 to-pink-500'
+                          className={`h-1 rounded-full transition-all duration-500 ${
+                            completionRate >= 80 ? 'bg-gradient-to-r from-green-400 to-emerald-400' :
+                            completionRate >= 60 ? 'bg-gradient-to-r from-yellow-400 to-orange-400' :
+                            'bg-gradient-to-r from-red-400 to-pink-400'
                           }`}
                           style={{ width: `${completionRate}%` }}
                         ></div>
                       </div>
-                      <p className="text-xs text-gray-500">Progress indicator</p>
+                      <p className="text-xs text-white/70">Progress indicator</p>
                     </div>
                   </div>
                 </div>
               </div>
             )}
 
-            <div className="bg-white/80 rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="bg-white/80 rounded-xl sm:rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
               {selectedClass ? (
                 <>
                   {/* Class Header */}
-                  <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-b border-gray-100 p-6">
-                    <div className="flex items-center justify-between">
+                  <div className="bg-gradient-to-r from-[#ffffffe6] to-[#ffffffe6] border-b border-gray-100 p-3 sm:p-4 md:p-6" style={{
+                    boxShadow: 'inset 8px 8px 16px rgba(0,0,0,0.1), inset -8px -8px 16px rgba(255,255,255,0.9)'
+                  }}>
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
                       <div>
-                        <div className="flex items-center gap-3 mb-2">
-                          <div className="p-2 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg">
-                            <BookOpen className="w-5 h-5 text-white" />
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
+                          <div className="p-1.5 sm:p-2 bg-gradient-to-br from-[#ffffffe6] to-[#ffffffe6] rounded-lg" style={{
+                            boxShadow: '4px 4px 8px rgba(0,0,0,0.1), -4px -4px 8px rgba(255,255,255,0.9)'
+                          }}>
+                            <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 text-gray-800" />
                           </div>
-                          <div>
-                            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-3">
-                              {selectedClass.course?.name}
-                              <span className="bg-gradient-to-r from-emerald-500 to-green-400 text-white px-3 py-1 rounded-xl text-base font-mono tracking-wide shadow-lg border-2 border-emerald-600">
+                          <div className="min-w-0">
+                            <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                              <span className="break-words">{selectedClass.course?.name}</span>
+                              <span className="bg-gradient-to-r from-[#ffffffe6] to-[#ffffffe6] text-gray-800 px-2 sm:px-3 py-1 rounded-lg sm:rounded-xl text-xs sm:text-sm md:text-base font-mono tracking-wide border-2 border-[#dedede] self-start" style={{
+                                boxShadow: '3px 3px 6px rgba(0,0,0,0.1), -3px -3px 6px rgba(255,255,255,0.9)'
+                              }}>
                                 {selectedClass.course?.code}
                               </span>
                             </h2>
-                            <div className="flex items-center gap-2 mt-1">
-  
-                              <span className="text-sm text-gray-500">•</span>
-                              <span className="text-sm text-gray-600">{students.length} students enrolled</span>
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mt-1">
+                              <span className="text-xs sm:text-sm text-gray-700">{students.length} students enrolled</span>
                             </div>
                           </div>
                         </div>  
                         
-                        <div className="flex flex-wrap gap-4 text-sm text-gray-600">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">Year&Section:</span>
-                            <span className="bg-white/80 px-3 py-1 rounded-lg shadow-sm border border-emerald-300">{selectedClass.section}</span>
+                        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:gap-4 text-xs sm:text-sm text-gray-700">
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                            <span className="font-medium text-gray-800">Year&Section:</span>
+                            <span className="bg-white/80 px-2 sm:px-3 py-1 rounded-lg border border-[#dedede] break-words text-black" style={{
+                              boxShadow: '2px 2px 4px rgba(0,0,0,0.1), -2px -2px 4px rgba(255,255,255,0.9)'
+                            }}>{selectedClass.section}</span>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">Academic Year:</span>
-                            <span className="bg-white/80 px-3 py-1 rounded-lg shadow-sm border border-emerald-300">{selectedClass.academic_year}</span>
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                            <span className="font-medium text-gray-800">Academic Year:</span>
+                            <span className="bg-white/80 px-2 sm:px-3 py-1 rounded-lg border border-[#dedede] break-words text-black" style={{
+                              boxShadow: '2px 2px 4px rgba(0,0,0,0.1), -2px -2px 4px rgba(255,255,255,0.9)'
+                            }}>{selectedClass.academic_year}</span>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">Semester:</span>
-                            <span className="bg-white/80 px-3 py-1 rounded-lg shadow-sm border border-emerald-300">{selectedClass.semester}</span>
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                            <span className="font-medium text-gray-800">Semester:</span>
+                            <span className="bg-white/80 px-2 sm:px-3 py-1 rounded-lg border border-[#dedede] break-words text-black" style={{
+                              boxShadow: '2px 2px 4px rgba(0,0,0,0.1), -2px -2px 4px rgba(255,255,255,0.9)'
+                            }}>{selectedClass.semester}</span>
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1 sm:gap-2">
                         <button
                           onClick={() => {
                             if (selectedClass?.subject_id) {
                               console.log('🔄 Manual refresh triggered...');
                               fetchStudents(selectedClass.subject_id, { showEmptyToast: false });
-                              toast.success('Data refreshed');
+                           
                             }
                           }}
-                          className="flex items-center gap-2 px-3 py-2 bg-white/80 text-gray-700 rounded-lg shadow-sm border hover:bg-gray-50"
+                          className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-white/80 text-gray-700 rounded-lg shadow-sm border hover:bg-gray-50 text-xs sm:text-sm"
                           title="Refresh student data"
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
                           </svg>
-                          Refresh
+                          <span className="hidden sm:inline">Refresh</span>
                         </button>
                         <button
                           onClick={handlePrintGrades}
-                          className="flex items-center gap-2 px-3 py-2 bg-white/80 text-gray-700 rounded-lg shadow-sm border hover:bg-gray-50"
+                          className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-white/80 text-gray-700 rounded-lg shadow-sm border hover:bg-gray-50 text-xs sm:text-sm"
                         >
-                          <Printer className="w-4 h-4" />
-                          Print
+                          <Printer className="w-3 h-3 sm:w-4 sm:h-4" />
+                          <span className="hidden sm:inline">Print</span>
                         </button>
                         <button
                           onClick={handleDownloadGrades}
-                          className="flex items-center gap-2 px-3 py-2 bg-white/80 text-gray-700 rounded-lg shadow-sm border hover:bg-gray-50"
+                          className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-white/80 text-gray-700 rounded-lg shadow-sm border hover:bg-gray-50 text-xs sm:text-sm"
                         >
-                          <Download className="w-4 h-4" />
-                          Download
+                          <Download className="w-3 h-3 sm:w-4 sm:h-4" />
+                          <span className="hidden sm:inline">Download</span>
                         </button>
                       </div>
                     </div>
@@ -2020,25 +2075,25 @@ const ClassManagement: React.FC = () => {
                         <table className="min-w-full divide-y divide-gray-200">
                           <thead className="bg-gray-50">
                             <tr>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              <th className="px-2 sm:px-3 md:px-4 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Student
                               </th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">
+                              <th className="px-2 sm:px-3 md:px-4 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">
                                 Email
                               </th>
-                              <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              <th className="px-2 sm:px-3 md:px-4 py-2 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Prelim
                               </th>
-                              <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              <th className="px-2 sm:px-3 md:px-4 py-2 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Midterm
                               </th>
-                              <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              <th className="px-2 sm:px-3 md:px-4 py-2 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Final
                               </th>
-                              <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              <th className="px-2 sm:px-3 md:px-4 py-2 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 GA
                               </th>
-                              <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              <th className="px-2 sm:px-3 md:px-4 py-2 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Actions
                               </th>
                             </tr>
@@ -2052,7 +2107,7 @@ const ClassManagement: React.FC = () => {
                               <tr key={student.id} className={`transition-all duration-200 hover:bg-gray-50 ${
                                 idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'
                               } ${isTargetStudent ? 'ring-2 ring-blue-500 bg-blue-50' : ''}`}>
-                                <td className="px-3 py-4 whitespace-nowrap">
+                                <td className="px-2 sm:px-3 py-3 sm:py-4 whitespace-nowrap">
                                   <div className="flex items-center">
                                     {student.avatar_url ? (
                                       <img 
@@ -2066,7 +2121,7 @@ const ClassManagement: React.FC = () => {
                                       </div>
                                     )}
                                     <div className="min-w-0 flex-1">
-                                      <div className="text-sm font-semibold text-gray-900 truncate flex items-center gap-2">
+                                      <div className="text-xs sm:text-sm font-semibold text-gray-900 truncate flex items-center gap-2">
                                         {student.display_name || `${student.first_name} ${student.last_name}`}
                                         {student.hasPendingRequest && (
                                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-yellow-100 text-yellow-700">
@@ -2102,7 +2157,7 @@ const ClassManagement: React.FC = () => {
                                     {student.student_status || 'Active'}
                                   </div>
                                 </td>
-                                <td className="px-2 py-4 whitespace-nowrap text-center">
+                                <td className="px-1 sm:px-2 py-2 sm:py-4 whitespace-nowrap text-center">
                                   {editingGrades[student.id] ? (
                                     <input
                                       type="number"
@@ -2111,10 +2166,10 @@ const ClassManagement: React.FC = () => {
                                       step="0.01"
                                       value={editingGrades[student.id].prelim || ''}
                                       onChange={(e) => handleGradeChange(student.id, 'prelim', e.target.value)}
-                                      className="w-16 px-2 py-1 border border-gray-300 rounded text-sm"
+                                      className="w-12 sm:w-16 px-1 sm:px-2 py-1 border border-gray-300 rounded text-xs sm:text-sm"
                                     />
                                   ) : (
-                                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                    <span className={`inline-flex px-1.5 sm:px-2 py-1 text-xs font-semibold rounded-full ${
                                       student.prelim_grade !== null ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
                                     }`}>
                                       {student.prelim_grade !== null ? student.prelim_grade : 'N/A'}
@@ -2173,21 +2228,23 @@ const ClassManagement: React.FC = () => {
                                     );
                                   })()}
                                 </td>
-                                <td className="px-2 py-4 whitespace-nowrap text-center">
+                                <td className="px-1 sm:px-2 py-2 sm:py-4 whitespace-nowrap text-center">
                                   {editingGrades[student.id] ? (
-                                    <div className="flex space-x-2">
+                                    <div className="flex space-x-1 sm:space-x-2 justify-center">
                                       <button
                                         onClick={() => saveGrades(student.id)}
                                         disabled={savingGrades[student.id]}
-                                        className="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+                                        className="inline-flex items-center px-2 sm:px-3 py-1 border border-transparent text-xs font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
                                       >
-                                        {savingGrades[student.id] ? 'Saving...' : 'Save'}
+                                        <span className="hidden sm:inline">{savingGrades[student.id] ? 'Saving...' : 'Save'}</span>
+                                        <span className="sm:hidden">💾</span>
                                       </button>
                                       <button
                                         onClick={() => cancelEditing(student.id)}
-                                        className="inline-flex items-center px-3 py-1 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white/80 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                                        className="inline-flex items-center px-2 sm:px-3 py-1 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white/80 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                                       >
-                                        Cancel
+                                        <span className="hidden sm:inline">Cancel</span>
+                                        <span className="sm:hidden">✖</span>
                                       </button>
                                     </div>
                                   ) : (
@@ -2199,33 +2256,33 @@ const ClassManagement: React.FC = () => {
                                       );
                                       const editDisabled = !student.can_edit_grades;
                                       return (
-                                        <div className="flex items-center justify-center space-x-2">
+                                        <div className="flex items-center justify-center space-x-1 sm:space-x-2">
                                           {!allFilled && (
                                             <button
                                               onClick={() => startEditingGrades(student.id, 'add')}
-                                              className="inline-flex items-center p-1.5 border border-indigo-600 rounded-md text-indigo-50 bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-600"
+                                              className="inline-flex items-center p-1 sm:p-1.5 border border-indigo-600 rounded-md text-indigo-50 bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-600"
                                               title="Add Grade"
                                             >
-                                              <Plus className="w-4 h-4" />
+                                              <Plus className="w-3 h-3 sm:w-4 sm:h-4" />
                                             </button>
                                           )}
                                           <button
                                             onClick={() => startEditingGrades(student.id, 'edit')}
-                                            className={`inline-flex items-center p-1.5 border rounded-md text-white focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                                            className={`inline-flex items-center p-1 sm:p-1.5 border rounded-md text-white focus:outline-none focus:ring-2 focus:ring-offset-2 ${
                                               editDisabled ? 'bg-gray-400 border-gray-500 cursor-not-allowed' : 'bg-purple-600 border-purple-700 hover:bg-purple-700 focus:ring-purple-500'
                                             }`}
                                             disabled={editDisabled}
                                             title={editDisabled ? 'Editing locked until Registrar approval' : 'Edit Grades (One-time use after approval)'}
                                           >
-                                            <Pencil className="w-4 h-4" />
+                                            <Pencil className="w-3 h-3 sm:w-4 sm:h-4" />
                                           </button>
                                           {gradeEditStatus !== 'granted' && !student.can_edit_grades && !student.hasPendingRequest && (
                                             <button
                                               onClick={() => requestRegistrarApprovalForStudent(student)}
-                                              className="inline-flex items-center p-1.5 border border-yellow-600 rounded-md text-yellow-50 bg-yellow-500 hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-600"
+                                              className="inline-flex items-center p-1 sm:p-1.5 border border-yellow-600 rounded-md text-yellow-50 bg-yellow-500 hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-600"
                                               title="Request Registrar Approval"
                                             >
-                                              <ShieldAlert className="w-4 h-4" />
+                                              <ShieldAlert className="w-3 h-3 sm:w-4 sm:h-4" />
                                             </button>
                                           )}
                                         </div>
@@ -2243,13 +2300,13 @@ const ClassManagement: React.FC = () => {
                   </div>
                 </>
               ) : (
-                <div className="flex items-center justify-center h-64">
+                <div className="flex items-center justify-center h-48 sm:h-64">
                   <div className="text-center">
-                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <BookOpen className="w-8 h-8 text-gray-400" />
+                    <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
+                      <BookOpen className="w-6 h-6 sm:w-8 sm:h-8 text-gray-400" />
                     </div>
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">Select a Class</h3>
-                    <p className="text-gray-500">Choose a class from the left panel to view enrolled students</p>
+                    <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">Select a Class</h3>
+                    <p className="text-sm text-gray-500 break-words">Choose a class from the left panel to view enrolled students</p>
                   </div>
                 </div>
               )}
