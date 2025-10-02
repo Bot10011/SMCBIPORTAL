@@ -801,75 +801,147 @@ const RegistrarEnrollment: React.FC = () => {
   });
 
   return (
-    <div className="min-h-screen  from-blue-50 via-white to-indigo-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
       <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 rounded-2xl mb-8">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div style={{
+          background: '#00171f',
+          padding: '24px',
+          borderRadius: '12px',
+          boxShadow: '8px 8px 16px rgba(0,0,0,0.1), -8px -8px 16px rgba(255,255,255,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          marginBottom: '32px'
+        }}>
+          <UserCheck className="w-8 h-8 text-white" />
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 flex-1">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
-                <UserCheck className="w-6 h-6 text-white" />
-              </div>
               <div>
                 <h1 className="text-2xl font-bold text-white tracking-tight">Enrollment Approvals</h1>
                 <p className="text-white/80 text-sm font-medium">Approve, enroll, and manage student registrations</p>
                 <div className="flex items-center gap-4 mt-2 text-xs text-white/80"></div>
               </div>
             </div>
-           
           </div>
         </div>
 
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white/90 rounded-2xl p-6 shadow-lg border border-gray-100">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 text-sm font-medium">Total Students</p>
-                <p className="text-3xl font-bold text-gray-900">{totalStudents}</p>
-              </div>
-              <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                <Users className="w-6 h-6 text-blue-600" />
-              </div>
+          <div style={{
+            background: '#00A7E1',
+            borderRadius: '12px',
+            padding: '24px',
+            boxShadow: '8px 8px 16px rgba(0,0,0,0.1), -8px -8px 16px rgba(255,255,255,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '16px'
+          }}>
+            <div style={{
+              width: '48px',
+              height: '48px',
+              background: '#00A7E1',
+              borderRadius: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '4px 4px 8px rgba(0,0,0,0.1), -4px -4px 8px rgba(255,255,255,0.5)'
+            }}>
+              <Users className="w-6 h-6 text-[#ffffff]" />
+            </div>
+            <div>
+              <p className="text-white/80 text-sm font-medium">Total Students</p>
+              <p className="text-3xl font-bold text-white">{totalStudents}</p>
             </div>
           </div>
-          <div className="bg-white/90 rounded-2xl p-6 shadow-lg border border-gray-100">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 text-sm font-medium">Pending Approvals</p>
-                <p className="text-3xl font-bold text-gray-900">{pendingStudents}</p>
-              </div>
-              <div className="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
-                <UserPlus className="w-6 h-6 text-yellow-600" />
-              </div>
+          <div style={{
+            background: '#00A7E1',
+            borderRadius: '12px',
+            padding: '24px',
+            boxShadow: '8px 8px 16px rgba(0,0,0,0.1), -8px -8px 16px rgba(255,255,255,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '16px'
+          }}>
+            <div style={{
+              width: '48px',
+              height: '48px',
+              background: '#00A7E1',
+              borderRadius: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '4px 4px 8px rgba(0,0,0,0.1), -4px -4px 8px rgba(255,255,255,0.5)'
+            }}>
+              <UserPlus className="w-6 h-6 text-[#ffffff]" />
+            </div>
+            <div>
+              <p className="text-white/80 text-sm font-medium">Pending Approvals</p>
+              <p className="text-3xl font-bold text-white">{pendingStudents}</p>
             </div>
           </div>
-          <div className="bg-white/90 rounded-2xl p-6 shadow-lg border border-gray-100">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 text-sm font-medium">Enrolled Students</p>
-                <p className="text-3xl font-bold text-gray-900">{enrolledStudents}</p>
-              </div>
-              <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                <CheckCircle2 className="w-6 h-6 text-green-600" />
-              </div>
+          <div style={{
+            background: '#00A7E1',
+            borderRadius: '12px',
+            padding: '24px',
+            boxShadow: '8px 8px 16px rgba(0,0,0,0.1), -8px -8px 16px rgba(255,255,255,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '16px'
+          }}>
+            <div style={{
+              width: '48px',
+              height: '48px',
+              background: '#00A7E1',
+              borderRadius: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '4px 4px 8px rgba(0,0,0,0.1), -4px -4px 8px rgba(255,255,255,0.5)'
+            }}>
+              <CheckCircle2 className="w-6 h-6 text-[#ffffff]" />
+            </div>
+            <div>
+              <p className="text-white/80 text-sm font-medium">Enrolled Students</p>
+              <p className="text-3xl font-bold text-white">{enrolledStudents}</p>
             </div>
           </div>
-          <div className="bg-white/90 rounded-2xl p-6 shadow-lg border border-gray-100">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 text-sm font-medium">Active Students</p>
-                <p className="text-3xl font-bold text-gray-900">{activeStudents}</p>
-              </div>
-              <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-                <Users className="w-6 h-6 text-purple-600" />
-              </div>
+          <div style={{
+            background: '#00A7E1',
+            borderRadius: '12px',
+            padding: '24px',
+            boxShadow: '8px 8px 16px rgba(0,0,0,0.1), -8px -8px 16px rgba(255,255,255,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '16px'
+          }}>
+            <div style={{
+              width: '48px',
+              height: '48px',
+              background: '#00A7E1',
+              borderRadius: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '4px 4px 8px rgba(0,0,0,0.1), -4px -4px 8px rgba(255,255,255,0.5)'
+            }}>
+              <Users className="w-6 h-6 text-[#ffffff]" />
+            </div>
+            <div>
+              <p className="text-white/80 text-sm font-medium">Active Students</p>
+              <p className="text-3xl font-bold text-white">{activeStudents}</p>
             </div>
           </div>
         </div>
         {/* Search/Filter Bar */}
-        <div className="bg-white/90 rounded-2xl p-6 shadow-lg border border-gray-100 mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4" style={{
+          background: 'linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%)',
+          borderRadius: '12px',
+          boxShadow: 'inset 4px 4px 8px rgba(0,0,0,0.1), inset -4px -4px 8px rgba(255,255,255,0.8)',
+          padding: '24px',
+          marginBottom: '32px'
+        }}>
           <div className="flex-1 max-w-md">
             <div className="relative">
               <input
@@ -877,7 +949,11 @@ const RegistrarEnrollment: React.FC = () => {
                 placeholder="Search students by name or ID..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-4 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                className="w-full pl-4 pr-4 py-3 border-0 rounded-lg focus:outline-none text-gray-800 placeholder-gray-500"
+                style={{
+                  background: '#ffffff',
+                  boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)'
+                }}
               />
             </div>
           </div>
@@ -885,7 +961,11 @@ const RegistrarEnrollment: React.FC = () => {
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              className="border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              className="border-0 rounded-lg px-4 py-3 focus:outline-none text-gray-800"
+              style={{
+                background: '#ffffff',
+                boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)'
+              }}
             >
               <option value="all">All Status</option>
               <option value="enrolled">Enrolled</option>
@@ -912,20 +992,32 @@ const RegistrarEnrollment: React.FC = () => {
             </p>
           </div>
         ) : (
-          <div className={`overflow-x-auto transition-all duration-300 ${showConfirmModal && selectedStudent ? 'filter blur-sm pointer-events-none select-none' : ''}`}>
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50 sticky top-0 z-10">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Picture</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Course&Year</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-52">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white/90 divide-y divide-gray-200">
+          <div className={`transition-all duration-300 ${showConfirmModal && selectedStudent ? 'filter blur-sm pointer-events-none select-none' : ''}`} style={{
+            background: 'linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%)',
+            borderRadius: '12px',
+            boxShadow: '8px 8px 16px rgba(0,0,0,0.1), -8px -8px 16px rgba(255,255,255,0.5)',
+            overflow: 'hidden'
+          }}>
+            <div className="w-full overflow-x-auto">
+              <table className="w-full min-w-full divide-y divide-gray-200">
+                <thead style={{
+                  background: 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)',
+                  boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)'
+                }}>
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: '#374151' }}>Picture</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: '#374151' }}>ID</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: '#374151' }}>Name</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: '#374151' }}>Email</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: '#374151' }}>Course&Year</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: '#374151' }}>Status</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider w-52" style={{ color: '#374151' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody style={{
+                  background: '#ffffff',
+                  boxShadow: 'inset 1px 1px 2px rgba(0,0,0,0.05)'
+                }} className="divide-y divide-gray-200">
                 {filteredStudents.map((student) => (
                   <tr key={student.id} className="hover:bg-blue-50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -970,8 +1062,18 @@ const RegistrarEnrollment: React.FC = () => {
                         {student.enrollment_status === 'pending' ? (
                           <button
                             onClick={() => handleEnrollClick(student)}
-                            className="px-2 py-1 bg-blue-600 text-white rounded-lg shadow-sm hover:bg-blue-700 transition-colors font-semibold flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-blue-400 text-xs"
-                            style={{ width: 80 }}
+                            className="px-2 py-1 text-white rounded-lg font-semibold flex items-center gap-1 focus:outline-none text-xs transition-all"
+                            style={{
+                              width: 80,
+                              background: '#2563eb',
+                              boxShadow: '4px 4px 8px rgba(0,0,0,0.1), -4px -4px 8px rgba(255,255,255,0.5)'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.boxShadow = 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.5)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.boxShadow = '4px 4px 8px rgba(0,0,0,0.1), -4px -4px 8px rgba(255,255,255,0.5)';
+                            }}
                           >
                             <UserCheck className="w-3 h-3" /> Enroll
                           </button>
@@ -979,16 +1081,30 @@ const RegistrarEnrollment: React.FC = () => {
                           // Show View COE button for enrolled and active students
                           <button
                             onClick={() => handleViewCOE(student.id)}
-                            className="px-2 py-1 bg-green-600 text-white rounded-lg shadow-sm hover:bg-green-700 transition-colors font-semibold flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-green-400 text-xs"
+                            className="px-2 py-1 text-white rounded-lg font-semibold flex items-center gap-1 focus:outline-none text-xs transition-all"
                             title="View Certificate of Enrollment"
-                            style={{ width: 80 }}
+                            style={{
+                              width: 80,
+                              background: '#10b981',
+                              boxShadow: '4px 4px 8px rgba(0,0,0,0.1), -4px -4px 8px rgba(255,255,255,0.5)'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.boxShadow = 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.5)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.boxShadow = '4px 4px 8px rgba(0,0,0,0.1), -4px -4px 8px rgba(255,255,255,0.5)';
+                            }}
                           >
                             <Eye className="w-3 h-3" /> View COE
                           </button>
                         ) : (
                           <button
-                            className="px-2 py-1 bg-gray-200 text-gray-400 rounded-lg font-semibold cursor-not-allowed flex items-center gap-1 text-xs"
-                            style={{ width: 80 }}
+                            className="px-2 py-1 text-gray-400 rounded-lg font-semibold cursor-not-allowed flex items-center gap-1 text-xs"
+                            style={{
+                              width: 80,
+                              background: '#e5e7eb',
+                              boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.5)'
+                            }}
                             disabled
                           >
                             <UserCheck className="w-3 h-3" /> Enrolled
@@ -998,8 +1114,9 @@ const RegistrarEnrollment: React.FC = () => {
                     </td>
                   </tr>
                 ))}
-              </tbody>
-            </table>
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
