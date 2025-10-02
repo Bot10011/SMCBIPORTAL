@@ -8,6 +8,102 @@
   perspective: 1000px;
 }
 
+/* Ensure sidebar fills the entire viewport height without gaps */
+html, body {
+  height: 100%;
+  min-height: 100%;
+  overflow-x: hidden; /* Prevent horizontal scrolling */
+}
+
+/* Force sidebar to fill the entire viewport height and remain fixed during scrolling */
+@media screen and (min-width: 0px) {
+  aside {
+    height: 100vh !important; 
+    min-height: 100vh !important;
+    max-height: -webkit-fill-available;
+    display: flex;
+    flex-direction: column;
+    position: fixed !important;
+  }
+  
+  .sidebar-container {
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Hide all scrollbars in the sidebar container */
+  .sidebar-container::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+}
+
+/* Improve main content scrolling experience */
+.main-content-scroll {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-color: transparent transparent;
+}
+
+/* Fix for mobile browsers that change viewport height when the address bar shows/hides */
+@supports (-webkit-touch-callout: none) {
+  aside {
+    height: -webkit-fill-available !important;
+  }
+  
+  .main-content-scroll {
+    height: -webkit-fill-available;
+  }
+}
+
+/* Hide all scrollbars on any custom-scrollbar element */
+.custom-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* Hide scrollbar completely while keeping functionality */
+.main-content-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+/* Hide scrollbar for sidebar nav as well */
+.sidebar-nav-fixed::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+/* Ensure the sidebar nav remains properly fixed and scrollable */
+.sidebar-nav-fixed {
+  position: relative;
+  flex-grow: 1;
+  height: auto;
+  max-height: calc(100vh - 180px); /* Adjust based on header and footer height */
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
 /* Subtle white-to-blue gradient overlay for the sidebar */
 .sidebar-gradient {
   background-image: linear-gradient(
