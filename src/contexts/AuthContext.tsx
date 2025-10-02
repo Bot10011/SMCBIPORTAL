@@ -232,7 +232,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(null);
       localStorage.removeItem('user');
       toast.success('Successfully logged out');
-      window.location.href = '/'; // Force full reload to clear all state
+      // Redirect to login page after logout; full reload to clear app state
+      window.location.href = '/loginpage';
     } catch (error) {
       console.error('Logout error:', error);
       toast.error('Failed to logout. Please try again.');
@@ -267,6 +268,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
