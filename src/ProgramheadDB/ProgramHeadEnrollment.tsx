@@ -30,6 +30,8 @@ import {
   FormControlLabel,
   Switch,
 } from '@mui/material';
+import { School } from '@mui/icons-material';
+import { UserPlus, Users, RefreshCw, AlertTriangle, Download, Search } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import jsPDF from 'jspdf';
@@ -4139,11 +4141,11 @@ const ProgramHeadEnrollment: React.FC = () => {
       {/* Header Section */}
       <Box sx={{ 
         mb: 4, 
-        background: 'linear-gradient(to right, #2563eb, #9333ea)',
+        background: '#00171f',
         px: 3,
         py: 2,
         borderRadius: 4,
-        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+        boxShadow: '8px 8px 16px rgba(0,0,0,0.2), -8px -8px 16px rgba(255,255,255,0.1)',
         display: 'flex',
         flexDirection: { xs: 'column', sm: 'row' },
         alignItems: { xs: 'flex-start', sm: 'center' },
@@ -4151,6 +4153,17 @@ const ProgramHeadEnrollment: React.FC = () => {
         gap: 1.5
       }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Box sx={{ 
+            p: 1, 
+            borderRadius: 2, 
+            bgcolor: 'rgba(255, 255, 255, 0.2)', 
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            <School sx={{ color: 'white', fontSize: 24 }} />
+          </Box>
           <Box>
             <Typography variant="h4" sx={{ 
               fontWeight: 700, 
@@ -4183,28 +4196,19 @@ const ProgramHeadEnrollment: React.FC = () => {
           gap: 1,
           fontSize: '1rem'
         }}>
-          <Box sx={{ 
-            width: 18, 
-            height: 18, 
-            borderRadius: '50%', 
-            background: '#667eea',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '0.7rem',
-            color: 'white'
-          }}>
-            ⚡
-          </Box>
-          Quick Actions
+        
         </Typography>
         <Box sx={{ 
           display: 'grid', 
-          gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(5, 1fr)' },
-          gap: 1,
-          mb: 1,
+          gridTemplateColumns: { 
+            xs: 'repeat(2, 1fr)', 
+            sm: 'repeat(3, 1fr)', 
+            md: 'repeat(5, 1fr)' 
+          },
+          gap: 2,
+          mb: 2,
           width: '100%',
-          maxWidth: 600,
+          maxWidth: '100%',
           mx: 'auto',
         }}>
 
@@ -4212,10 +4216,11 @@ const ProgramHeadEnrollment: React.FC = () => {
           {<Card sx={{ 
             borderRadius: 2,
             boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
-            background: '#fff',
+            background: 'transparent',
             border: '1px solid #e5e7eb',
             transition: 'all 0.2s',
-            minHeight: 60,
+            minHeight: 80,
+            height: 80,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -4231,18 +4236,21 @@ const ProgramHeadEnrollment: React.FC = () => {
                 sx={{
                   borderRadius: 1.5,
                   px: 0.8,
-                  py: 0.4,
+                  py: 0.8,
                   fontWeight: 500,
                   fontSize: '0.8rem',
                   background: '#667eea',
-                  minHeight: 28,
+                  minHeight: 45,
                   width: '100%',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: 0.2
+                  gap: 0.3,
+                  '&:hover': {
+                    background: '#5a67d8'
+                  }
                 }}
               >
-                <Box sx={{ fontSize: '0.9rem', mb: 0.1 }}>➕</Box>
+                <UserPlus size={16} color="white" style={{ marginBottom: '2px' }} />
                 <Typography variant="subtitle2" sx={{ fontWeight: 500, color: 'white', fontSize: '0.8rem' }}>
                   Enroll New
                 </Typography>
@@ -4253,10 +4261,11 @@ const ProgramHeadEnrollment: React.FC = () => {
           <Card sx={{ 
             borderRadius: 2,
             boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
-            background: '#fff',
+            background: 'transparent',
             border: '1px solid #e5e7eb',
             transition: 'all 0.2s',
-            minHeight: 60,
+            minHeight: 80,
+            height: 80,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -4271,18 +4280,21 @@ const ProgramHeadEnrollment: React.FC = () => {
                 sx={{
                   borderRadius: 1.5,
                   px: 0.8,
-                  py: 0.4,
+                  py: 0.8,
                   fontWeight: 500,
                   fontSize: '0.8rem',
                   background: '#10b981',
-                  minHeight: 28,
+                  minHeight: 45,
                   width: '100%',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: 0.2
+                  gap: 0.3,
+                  '&:hover': {
+                    background: '#059669'
+                  }
                 }}
               >
-                <Box sx={{ fontSize: '0.9rem', mb: 0.1 }}>👥</Box>
+                <Users size={16} color="white" style={{ marginBottom: '2px' }} />
                 <Typography variant="subtitle2" sx={{ fontWeight: 500, color: 'white', fontSize: '0.8rem' }}>
                   Enroll Existing
                 </Typography>
@@ -4293,10 +4305,11 @@ const ProgramHeadEnrollment: React.FC = () => {
           <Card sx={{ 
             borderRadius: 2,
             boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
-            background: '#fff',
+            background: 'transparent',
             border: '1px solid #e5e7eb',
             transition: 'all 0.2s',
-            minHeight: 60,
+            minHeight: 80,
+            height: 80,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -4304,27 +4317,29 @@ const ProgramHeadEnrollment: React.FC = () => {
           }}>
             <CardContent sx={{ p: 0.5, textAlign: 'center', width: '100%', pb: '8px!important' }}>
               <Button 
-                variant="outlined" 
-                color="primary" 
+                variant="contained" 
                 size="small"
                 onClick={loadEnrollments}
                 sx={{
                   borderRadius: 1.5,
                   px: 0.8,
-                  py: 0.4,
+                  py: 0.8,
                   fontWeight: 500,
                   fontSize: '0.8rem',
-                  borderColor: '#667eea',
-                  color: '#667eea',
-                  minHeight: 28,
+                  background: '#3b82f6',
+                  color: 'white',
+                  minHeight: 45,
                   width: '100%',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: 0.2
+                  gap: 0.3,
+                  '&:hover': {
+                    background: '#2563eb'
+                  }
                 }}
               >
-                <Box sx={{ fontSize: '0.9rem', mb: 0.1 }}>🔄</Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 500, fontSize: '0.8rem' }}>
+                <RefreshCw size={16} color="white" style={{ marginBottom: '2px' }} />
+                <Typography variant="subtitle2" sx={{ fontWeight: 500, color: 'white', fontSize: '0.8rem' }}>
                   Refresh
                 </Typography>
               </Button>
@@ -4334,10 +4349,11 @@ const ProgramHeadEnrollment: React.FC = () => {
           <Card sx={{ 
             borderRadius: 2,
             boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
-            background: '#fff',
+            background: 'transparent',
             border: '1px solid #e5e7eb',
             transition: 'all 0.2s',
-            minHeight: 60,
+            minHeight: 80,
+            height: 80,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -4345,27 +4361,29 @@ const ProgramHeadEnrollment: React.FC = () => {
           }}>
             <CardContent sx={{ p: 0.5, textAlign: 'center', width: '100%', pb: '8px!important' }}>
               <Button 
-                variant="outlined" 
-                color="error" 
+                variant="contained" 
                 size="small"
                 onClick={handleOpenEndSemesterModal}
                 sx={{
                   borderRadius: 1.5,
                   px: 0.8,
-                  py: 0.4,
+                  py: 0.8,
                   fontWeight: 500,
                   fontSize: '0.8rem',
-                  borderColor: '#ef4444',
-                  color: '#ef4444',
-                  minHeight: 28,
+                  background: '#ef4444',
+                  color: 'white',
+                  minHeight: 45,
                   width: '100%',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: 0.2
+                  gap: 0.3,
+                  '&:hover': {
+                    background: '#dc2626'
+                  }
                 }}
               >
-                <Box sx={{ fontSize: '0.9rem', mb: 0.1 }}>⚠️</Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 500, fontSize: '0.8rem' }}>
+                <AlertTriangle size={16} color="white" style={{ marginBottom: '2px' }} />
+                <Typography variant="subtitle2" sx={{ fontWeight: 500, color: 'white', fontSize: '0.8rem' }}>
                   End Semester
                 </Typography>
               </Button>
@@ -4375,10 +4393,11 @@ const ProgramHeadEnrollment: React.FC = () => {
           <Card sx={{ 
             borderRadius: 2,
             boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
-            background: '#fff',
+            background: 'transparent',
             border: '1px solid #e5e7eb',
             transition: 'all 0.2s',
-            minHeight: 60,
+            minHeight: 80,
+            height: 80,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -4386,27 +4405,29 @@ const ProgramHeadEnrollment: React.FC = () => {
           }}>
             <CardContent sx={{ p: 0.5, textAlign: 'center', width: '100%', pb: '8px!important' }}>
               <Button 
-                variant="outlined" 
-                color="info" 
+                variant="contained" 
                 size="small"
                 onClick={downloadStudentListCSV}
                 sx={{
                   borderRadius: 1.5,
                   px: 0.8,
-                  py: 0.4,
+                  py: 0.8,
                   fontWeight: 500,
                   fontSize: '0.8rem',
-                  borderColor: '#3b82f6',
-                  color: '#3b82f6',
-                  minHeight: 28,
+                  background: '#8b5cf6',
+                  color: 'white',
+                  minHeight: 45,
                   width: '100%',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: 0.2
+                  gap: 0.3,
+                  '&:hover': {
+                    background: '#7c3aed'
+                  }
                 }}
               >
-                <Box sx={{ fontSize: '0.9rem', mb: 0.1 }}>📊</Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 500, fontSize: '0.8rem' }}>
+                <Download size={16} color="white" style={{ marginBottom: '2px' }} />
+                <Typography variant="subtitle2" sx={{ fontWeight: 500, color: 'white', fontSize: '0.8rem' }}>
                   Download CSV
                 </Typography>
               </Button>
@@ -4419,9 +4440,9 @@ const ProgramHeadEnrollment: React.FC = () => {
       <Card sx={{ 
         mb: 4, 
         borderRadius: 3, 
-        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-        background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-        border: '1px solid #e5e7eb'
+        background: '#ffffff',
+        border: '1px solid #e5e7eb',
+        boxShadow: '8px 8px 16px rgba(0,0,0,0.1), -8px -8px 16px rgba(255,255,255,0.5), inset 2px 2px 4px rgba(0,0,0,0.05)'
       }}>
         <CardContent sx={{ p: 3 }}>
           <Typography variant="h6" sx={{ 
@@ -4432,20 +4453,7 @@ const ProgramHeadEnrollment: React.FC = () => {
             alignItems: 'center',
             gap: 1
           }}>
-            <Box sx={{ 
-              width: 24, 
-              height: 24, 
-              borderRadius: '50%', 
-              background: '#10b981',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '0.8rem',
-              color: 'white'
-            }}>
-              🔍
-            </Box>
-            Search & Filter
+          
           </Typography>
           
           <Box sx={{ 
@@ -4454,28 +4462,30 @@ const ProgramHeadEnrollment: React.FC = () => {
             gap: 2
           }}>
             <TextField
-              label="Search by Name or Student ID"
+              placeholder="Search by Name or Student ID"
               value={filterSearch}
               onChange={e => setFilterSearch(e.target.value)}
               size="small"
               sx={{ 
                 '& .MuiOutlinedInput-root': {
                   borderRadius: 2,
+                  backgroundColor: '#f9fafb',
+                  boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)',
                   '& fieldset': {
-                    borderColor: '#d1d5db'
+                    borderColor: 'transparent'
                   },
                   '&:hover fieldset': {
-                    borderColor: '#9ca3af'
+                    borderColor: '#00A7E1'
                   },
                   '&.Mui-focused fieldset': {
-                    borderColor: '#667eea'
+                    borderColor: '#00A7E1'
                   }
                 }
               }}
               InputProps={{ 
                 startAdornment: (
-                  <Box sx={{ mr: 1, color: '#6b7280' }}>
-                    🔍
+                  <Box sx={{ mr: 1, color: '#6b7280', display: 'flex', alignItems: 'center' }}>
+                    <Search size={18} />
                   </Box>
                 )
               }}
@@ -4490,14 +4500,16 @@ const ProgramHeadEnrollment: React.FC = () => {
                 sx={{
                   '& .MuiOutlinedInput-root': {
                     borderRadius: 2,
+                    backgroundColor: '#f9fafb',
+                    boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)',
                     '& fieldset': {
-                      borderColor: '#d1d5db'
+                      borderColor: 'transparent'
                     },
                     '&:hover fieldset': {
-                      borderColor: '#9ca3af'
+                      borderColor: '#00A7E1'
                     },
                     '&.Mui-focused fieldset': {
-                      borderColor: '#667eea'
+                      borderColor: '#00A7E1'
                     }
                   }
                 }}
@@ -4519,14 +4531,16 @@ const ProgramHeadEnrollment: React.FC = () => {
                 sx={{
                   '& .MuiOutlinedInput-root': {
                     borderRadius: 2,
+                    backgroundColor: '#f9fafb',
+                    boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)',
                     '& fieldset': {
-                      borderColor: '#d1d5db'
+                      borderColor: 'transparent'
                     },
                     '&:hover fieldset': {
-                      borderColor: '#9ca3af'
+                      borderColor: '#00A7E1'
                     },
                     '&.Mui-focused fieldset': {
-                      borderColor: '#667eea'
+                      borderColor: '#00A7E1'
                     }
                   }
                 }}
@@ -4548,14 +4562,16 @@ const ProgramHeadEnrollment: React.FC = () => {
                 sx={{
                   '& .MuiOutlinedInput-root': {
                     borderRadius: 2,
+                    backgroundColor: '#f9fafb',
+                    boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)',
                     '& fieldset': {
-                      borderColor: '#d1d5db'
+                      borderColor: 'transparent'
                     },
                     '&:hover fieldset': {
-                      borderColor: '#9ca3af'
+                      borderColor: '#00A7E1'
                     },
                     '&.Mui-focused fieldset': {
-                      borderColor: '#667eea'
+                      borderColor: '#00A7E1'
                     }
                   }
                 }}
@@ -4574,58 +4590,28 @@ const ProgramHeadEnrollment: React.FC = () => {
       </Card>
       {/* Student List Section */}
       <Box sx={{ mb: 4 }}>
-        <Typography variant="h5" sx={{ 
-          fontWeight: 600, 
-          color: '#374151',
-          mb: 3,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 1
-        }}>
-          <Box sx={{ 
-            width: 24, 
-            height: 24, 
-            borderRadius: '50%', 
-            background: '#667eea',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '0.8rem',
-            color: 'white'
-          }}>
-            👥
-          </Box>
-          Student List
-          <Box sx={{ 
-            ml: 2, 
-            px: 2, 
-            py: 0.5, 
-            borderRadius: 2, 
-            background: '#f3f4f6',
-            fontSize: '0.875rem',
-            color: '#6b7280',
-            fontWeight: 500
-          }}>
-            {filteredStudents.length} students
-          </Box>
-        </Typography>
+      
         
         <Card sx={{ 
           borderRadius: 3, 
-          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-          background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+          background: '#ffffff',
           border: '1px solid #e5e7eb',
-          overflow: 'hidden'
+          overflow: 'hidden',
+          boxShadow: '8px 8px 16px rgba(0,0,0,0.1), -8px -8px 16px rgba(255,255,255,0.5), inset 2px 2px 4px rgba(0,0,0,0.05)'
         }}>
           <TableContainer>
             <Table>
               <TableHead>
-                <TableRow sx={{ background: 'linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%)' }}>
+                <TableRow sx={{ 
+                  background: '#f1f5f9',
+                  boxShadow: 'inset 1px 1px 2px rgba(0,0,0,0.1), inset -1px -1px 2px rgba(255,255,255,0.8)'
+                }}>
                   <TableCell sx={{ 
                     fontWeight: 600, 
                     color: '#374151',
                     fontSize: '0.875rem',
-                    borderBottom: '2px solid #e5e7eb'
+                    borderBottom: '1px solid #e2e8f0',
+                    background: 'transparent'
                   }}>
                     Student ID
                   </TableCell>
@@ -4633,7 +4619,8 @@ const ProgramHeadEnrollment: React.FC = () => {
                     fontWeight: 600, 
                     color: '#374151',
                     fontSize: '0.875rem',
-                    borderBottom: '2px solid #e5e7eb'
+                    borderBottom: '1px solid #e2e8f0',
+                    background: 'transparent'
                   }}>
                     Name
                   </TableCell>
@@ -4641,7 +4628,8 @@ const ProgramHeadEnrollment: React.FC = () => {
                     fontWeight: 600, 
                     color: '#374151',
                     fontSize: '0.875rem',
-                    borderBottom: '2px solid #e5e7eb'
+                    borderBottom: '1px solid #e2e8f0',
+                    background: 'transparent'
                   }}>
                     Type
                   </TableCell>
@@ -4649,7 +4637,8 @@ const ProgramHeadEnrollment: React.FC = () => {
                     fontWeight: 600, 
                     color: '#374151',
                     fontSize: '0.875rem',
-                    borderBottom: '2px solid #e5e7eb'
+                    borderBottom: '1px solid #e2e8f0',
+                    background: 'transparent'
                   }}>
                     Year Level
                   </TableCell>
@@ -4657,7 +4646,8 @@ const ProgramHeadEnrollment: React.FC = () => {
                     fontWeight: 600, 
                     color: '#374151',
                     fontSize: '0.875rem',
-                    borderBottom: '2px solid #e5e7eb'
+                    borderBottom: '1px solid #e2e8f0',
+                    background: 'transparent'
                   }}>
                     Department
                   </TableCell>
@@ -4665,7 +4655,8 @@ const ProgramHeadEnrollment: React.FC = () => {
                     fontWeight: 600, 
                     color: '#374151',
                     fontSize: '0.875rem',
-                    borderBottom: '2px solid #e5e7eb'
+                    borderBottom: '1px solid #e2e8f0',
+                    background: 'transparent'
                   }}>
                     Section
                   </TableCell>
@@ -4673,7 +4664,8 @@ const ProgramHeadEnrollment: React.FC = () => {
                     fontWeight: 600, 
                     color: '#374151',
                     fontSize: '0.875rem',
-                    borderBottom: '2px solid #e5e7eb'
+                    borderBottom: '1px solid #e2e8f0',
+                    background: 'transparent'
                   }}>
                     Status
                   </TableCell>
@@ -4685,7 +4677,7 @@ const ProgramHeadEnrollment: React.FC = () => {
                     fontWeight: 600, 
                     color: '#374151',
                     fontSize: '0.875rem',
-                    borderBottom: '2px solid #e5e7eb'
+                    borderBottom: '1px solid #e2e8f0'
                   }}>
                     Action
                   </TableCell>
