@@ -8,7 +8,7 @@ import ClassManagement from './ClassManagement';
 import InstructorManagement from './InstructorManagement';
 import UserManagement from './UserManagement';
 import EmailManagement from './EmailManagement';
-import Settings from './Settings'; 
+import Settings from './Settings';
 
 import { motion } from 'framer-motion';
 import {
@@ -69,7 +69,7 @@ const DashboardOverview: React.FC = () => {
   const [personalNotes, setPersonalNotes] = useState<Array<{ id: string; content: string; created_at: string }>>([]);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingNoteContent, setEditingNoteContent] = useState<string>("");
-  const [programNotifications, setProgramNotifications] = useState<Array<{ id: string; title: string; message: string; severity: 'announcement' | 'reminder' | 'deadline' | 'exam' | 'meeting' | 'advisory' | 'info' | 'success' | 'warning' | 'error'; audience: 'instructor' | 'student' | 'programhead' | 'all'; created_by: string | null; created_at: string; expires_at?: string | null; created_by_name?: string | null }>>([]);
+  const [programNotifications, setProgramNotifications] = useState<Array<{ id: string; title: string; message: string; severity: 'announcement' | 'reminder' | 'deadline' | 'exam' | 'meeting' | 'advisory' | 'info' | 'success' | 'warning' | 'error'; audience: 'instructor' | 'student' | 'programhead' | 'all'; created_by: string | null; created_at: string; expires_at?: string | null; created_by_role?: string | null }>>([]);
   const [editingNotifId, setEditingNotifId] = useState<string | null>(null);
   const [editingNotif, setEditingNotif] = useState<{ title: string; message: string; severity: 'announcement' | 'reminder' | 'deadline' | 'exam' | 'meeting' | 'advisory' | 'info' | 'success' | 'warning' | 'error'; audience: 'instructor' | 'student' | 'programhead' | 'all' }>({ title: '', message: '', severity: 'announcement', audience: 'instructor' });
   const [viewMode, setViewMode] = useState<'capacity' | 'enrollment'>('capacity');
@@ -77,6 +77,13 @@ const DashboardOverview: React.FC = () => {
   const [enrollmentStatusFilter, setEnrollmentStatusFilter] = useState<string>('all');
   const [notifDurationMinutes, setNotifDurationMinutes] = useState<number | null>(60);
   const [showNotificationForm, setShowNotificationForm] = useState(false);
+  const [lastSeenNotificationsAt, setLastSeenNotificationsAt] = useState<string>(() => localStorage.getItem('ph_notifications_last_seen') || '');
+  const unreadCount = React.useMemo(() => {
+    if (!programNotifications || programNotifications.length === 0) return 0;
+    if (!lastSeenNotificationsAt) return programNotifications.length;
+    const since = new Date(lastSeenNotificationsAt).getTime();
+    return programNotifications.filter(n => new Date(n.created_at).getTime() > since).length;
+  }, [programNotifications, lastSeenNotificationsAt]);
   const [creatingNotification, setCreatingNotification] = useState(false);
 
   const handlePreviousMonth = () => {
@@ -307,17 +314,23 @@ const DashboardOverview: React.FC = () => {
         const base = (data || []) as Array<{ id: string; title: string; message: string; severity: 'announcement' | 'reminder' | 'deadline' | 'exam' | 'meeting' | 'advisory' | 'info' | 'success' | 'warning' | 'error'; audience: 'instructor' | 'student' | 'programhead' | 'all'; created_by: string | null; created_at: string; expires_at?: string | null }>;
         const creatorIds = Array.from(new Set(base.map(n => n.created_by).filter(Boolean))) as string[];
         let validIds = new Set<string>();
+        const idToRole = new Map<string, string>();
         if (creatorIds.length > 0) {
           const { data: profiles } = await supabase
             .from('user_profiles')
-            .select('id')
+            .select('id, role')
             .in('id', creatorIds);
           if (profiles) {
-            validIds = new Set((profiles as Array<{ id: string }>).map(p => p.id));
+            validIds = new Set((profiles as Array<{ id: string; role?: string | null }>).
+              map(p => {
+                if (p.role) idToRole.set(p.id, p.role);
+                return p.id;
+              }));
           }
         }
         const filtered = base.filter(n => !n.created_by || validIds.has(n.created_by));
-        setProgramNotifications(filtered);
+        const withRoles = filtered.map(n => ({ ...n, created_by_role: n.created_by ? (idToRole.get(n.created_by) || null) : null }));
+        setProgramNotifications(withRoles);
       } catch (err) {
         console.error('ProgramHead notifications fetch error:', err);
         setProgramNotifications([]);
@@ -481,10 +494,16 @@ const DashboardOverview: React.FC = () => {
         transition={{ duration: 0.5 }}
         className="mb-6"
       >
-        <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 rounded-2xl">
+        <div className="px-8 py-6 rounded-3xl text-white" style={{
+          background: 'rgb(0, 23, 31)',
+          boxShadow: '8px 8px 16px rgba(0, 23, 31, 0.2), -4px -4px 12px rgba(0, 167, 225, 0.05), 1px 1px 2px rgba(255, 255, 255, 0.1) inset',
+          border: '1px solid rgba(0, 167, 225, 0.2)'
+        }}>
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="p-1.5 sm:p-2 rounded-lg bg-white/20 backdrop-blur-sm" style={{
+                boxShadow: '2px 2px 4px rgba(0,0,0,0.08), -2px -2px 4px rgba(255,255,255,0.7)'
+              }}>
                 <svg 
                   xmlns="http://www.w3.org/2000/svg" 
                   width="24" 
@@ -509,6 +528,7 @@ const DashboardOverview: React.FC = () => {
                 </div>
               </div>
             </div>
+          
           </div>
         </div>
       </motion.div>
@@ -559,6 +579,9 @@ const DashboardOverview: React.FC = () => {
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
           className="lg:col-span-2 bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6"
+          style={{
+            boxShadow: '8px 8px 16px rgba(0,0,0,0.08), -8px -8px 16px rgba(255,255,255,0.7), inset 2px 2px 4px rgba(255,255,255,0.2), inset -2px -2px 4px rgba(0,0,0,0.05)'
+          }}
         >
           <div className="flex justify-between items-center mb-6">
             <div className="flex items-center gap-3">
@@ -722,9 +745,7 @@ const DashboardOverview: React.FC = () => {
                             ? 'bg-yellow-100 text-yellow-800'
                             : student.enrollment_status === 'rejected'
                             ? 'bg-red-100 text-red-800'
-                            : student.enrollment_status === 'withdrawn'
-                            ? 'bg-gray-100 text-gray-800'
-                            : 'bg-blue-100 text-blue-800'
+                            : student.enrollment_status === 'withdrawn' ? 'bg-gray-100 text-gray-800' : 'bg-blue-100 text-blue-800'
                         }`}>
                           {student.enrollment_status === 'enrolled' ? '✓ Enrolled' : 
                            student.enrollment_status === 'pending' ? '⏳ Pending' : 
@@ -782,10 +803,15 @@ const DashboardOverview: React.FC = () => {
             <div className="flex items-center justify-center">
               <div className="flex items-center space-x-4">
                 {/* Notifications */}
-                <button onClick={() => setActivePanel('notifications')} className={`relative cursor-pointer group rounded-xl p-3 shadow-lg border transition-all duration-200 ${
+                <button onClick={() => { setActivePanel('notifications'); const nowIso = new Date().toISOString(); setLastSeenNotificationsAt(nowIso); localStorage.setItem('ph_notifications_last_seen', nowIso); }} className={`relative cursor-pointer group rounded-xl p-3 shadow-lg border transition-all duration-200 ${
                   activePanel === 'notifications' ? 'bg-blue-100 border-blue-300' : 'bg-white/80 border-white/80'
                 }`}>
                   <Bell className={`w-6 h-6 ${activePanel === 'notifications' ? 'text-blue-600' : 'text-gray-600'}`} />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] bg-red-600 text-white border border-white">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  )}
                 </button>
                 {/* Notes */}
                 <button onClick={() => setActivePanel('notes')} className={`relative cursor-pointer group rounded-xl p-3 shadow-lg border transition-all duration-200 ${
@@ -957,7 +983,18 @@ const DashboardOverview: React.FC = () => {
                   {programNotifications.length === 0 ? (
                     <div className="text-sm text-gray-500">No notifications</div>
                   ) : (
-                    programNotifications.map((n) => (
+                    (() => {
+                      const now = new Date();
+                      const cutoff = new Date(now);
+                      cutoff.setDate(now.getDate() - 7);
+                      const recent = programNotifications.filter(n => new Date(n.created_at) >= cutoff);
+                      const Section = ({ title, items }: { title: string; items: typeof programNotifications }) => (
+                        <>
+                          <div className="px-1 py-0.5 text-[11px] uppercase tracking-wide text-gray-400">{title}</div>
+                          {items.length === 0 ? (
+                            <div className="px-1 py-1 text-xs text-gray-500">No {title.toLowerCase()}.</div>
+                          ) : null}
+                          {items.map((n) => (
                       <div key={n.id} className={`p-3 rounded-lg border flex items-start justify-between ${
                         n.severity === 'success' ? 'bg-green-50 border-green-200' :
                         n.severity === 'warning' ? 'bg-yellow-50 border-yellow-200' :
@@ -1005,6 +1042,9 @@ const DashboardOverview: React.FC = () => {
                                 <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 border border-gray-200">
                                   {n.audience === 'programhead' ? 'Program Head' : n.audience === 'instructor' ? 'Instructors' : n.audience === 'student' ? 'Students' : 'All'}
                                 </span>
+                                {n.created_by_role && (
+                                  <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 border border-gray-200">{n.created_by_role}</span>
+                                )}
                               </div>
                               {/* Creator hidden by request */}
                             </>
@@ -1089,7 +1129,15 @@ const DashboardOverview: React.FC = () => {
                           </div>
                         </div>
                       </div>
-                    ))
+                          ))}
+                        </>
+                      );
+                      return (
+                        <>
+                          <Section title="Recent" items={recent} />
+                        </>
+                      );
+                    })()
                   )}
                 </div>
                 )}
@@ -1257,30 +1305,33 @@ const DashboardOverview: React.FC = () => {
 
 // Helper Components
 const StatsCard: React.FC<{ title: string; value: number; icon: React.ReactNode; color: string; trend: string }> = ({ 
-  title, value, icon, color, trend 
+  title, value, icon, trend 
 }) => {
-  const colorClasses = {
-    indigo: "bg-indigo-50 border-indigo-100",
-    amber: "bg-amber-50 border-amber-100",
-    emerald: "bg-emerald-50 border-emerald-100",
-    violet: "bg-violet-50 border-violet-100",
-  };
-
   return (
     <motion.div 
       whileHover={{ y: -5, boxShadow: '0 10px 20px rgba(0,0,0,0.1)' }}
-      className={`${colorClasses[color as keyof typeof colorClasses]} border rounded-2xl p-6 transition-all duration-300`}
+      className={`border rounded-2xl p-6 transition-all duration-300`}
+      style={{
+        background: 'linear-gradient(145deg, #00a7e1 0%, #00a7e1 100%)',
+        boxShadow: '8px 8px 16px rgba(0,167,225,0.15), -8px -8px 16px rgba(255,255,255,0.7), inset 2px 2px 4px rgba(255,255,255,0.2), inset -2px -2px 4px rgba(0,0,0,0.08)',
+        border: '1px solid rgba(0,167,225,0.2)'
+      }}
     >
       <div className="flex justify-between items-start">
         <div>
-          <p className="text-gray-600 text-sm font-medium mb-1">{title}</p>
-          <p className="text-3xl font-bold text-gray-800">{value}</p>
+          <p className="text-white text-sm font-medium mb-1">{title}</p>
+          <p className="text-3xl font-bold text-white">{value}</p>
         </div>
-        <div className="bg-white p-2 rounded-xl shadow-sm">
-          {icon}
+        <div 
+          className="bg-[#00a7e1] p-2 rounded-xl shadow-sm flex items-center justify-center"
+          style={{
+            boxShadow: '4px 4px 8px rgba(0,167,225,0.15), -4px -4px 8px rgba(255,255,255,0.7), inset 1px 1px 2px rgba(255,255,255,0.2), inset -1px -1px 2px rgba(0,0,0,0.08)'
+          }}
+        >
+          {React.cloneElement(icon as React.ReactElement, { className: 'w-8 h-8 text-white' })}
         </div>
       </div>
-      <p className="mt-2 text-xs text-gray-500">{trend}</p>
+      <p className="mt-2 text-xs text-white/80">{trend}</p>
     </motion.div>
   );
 };
@@ -1299,7 +1350,7 @@ const ProgramHeadDashboard: React.FC = () => {
           <Route path="/assign-subjects" element={<SubjectAssignment />} />
           <Route path="/academic-history" element={<CoursesOffered />} />
           <Route path="/user-management" element={<UserManagement />} />
-           <Route path="/email-management" element={<EmailManagement />} />
+          <Route path="/email-management" element={<EmailManagement />} />
           <Route path="/instructor-management" element={<InstructorManagement />} />
           <Route path="/class-management" element={<ClassManagement />} /> 
           <Route path="/settings" element={<Settings />} />
@@ -1311,4 +1362,4 @@ const ProgramHeadDashboard: React.FC = () => {
   );
 };
 
-export default ProgramHeadDashboard; 
+export default ProgramHeadDashboard;
