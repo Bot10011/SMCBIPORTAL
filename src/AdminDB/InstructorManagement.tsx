@@ -1226,16 +1226,16 @@ const InstructorManagement: React.FC = () => {
     <Box sx={{ 
       minHeight: '100vh',
       p: { xs: 2, sm: 4 },
-      background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)'
+    
     }}>
       {/* Header */}
       <Box sx={{ 
         mb: 4, 
-        background: 'linear-gradient(to right, #667eea, #764ba2)',
+        background: '#00171f',
         px: 3,
-        py: 2,
-        borderRadius: 4,
-        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+        py: 3,
+        borderRadius: 3,
+        boxShadow: '8px 8px 16px rgba(0,0,0,0.1), -8px -8px 16px rgba(255,255,255,0.5)',
         display: 'flex',
         alignItems: 'center',
         gap: 2
@@ -1259,7 +1259,12 @@ const InstructorManagement: React.FC = () => {
       </Box>
 
       {/* Tabs */}
-      <Card sx={{ mb: 3, borderRadius: 3, boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
+      <Card sx={{ 
+        mb: 3, 
+        borderRadius: 3, 
+        boxShadow: '8px 8px 16px rgba(0,0,0,0.1), -8px -8px 16px rgba(255,255,255,0.5)',
+        background: 'linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%)'
+      }}>
         <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
           <Tabs 
             value={tabValue} 
@@ -1270,12 +1275,13 @@ const InstructorManagement: React.FC = () => {
                 fontSize: '1rem',
                 textTransform: 'none',
                 minHeight: 64,
+                color: '#6b7280'
               },
               '& .Mui-selected': {
-                color: '#667eea',
+                color: '#00A7E1',
               },
               '& .MuiTabs-indicator': {
-                backgroundColor: '#667eea',
+                backgroundColor: '#00A7E1',
                 height: 3,
               }
             }}
@@ -1309,29 +1315,16 @@ const InstructorManagement: React.FC = () => {
 
         {/* Instructors Tab */}
         <TabPanel value={tabValue} index={0}>
-          <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
-            <Typography variant="h6" sx={{ fontWeight: 600, color: '#374151' }}>
-              Manage Instructors ({filteredInstructors.length})
-            </Typography>
-            <Button
-              variant="contained"
-              startIcon={<UserPlus className="w-5 h-5" />}
-              onClick={() => setCreateDialogOpen(true)}
-              sx={{
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                '&:hover': {
-                  background: 'linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%)',
-                }
-              }}
-            >
-              Add Instructor
-            </Button>
-          </Box>
-
           {/* Filters */}
-          <Card sx={{ mb: 3, p: 2, background: 'rgba(255, 255, 255, 0.8)' }}>
+          <Card sx={{ 
+            mb: 3, 
+            p: 3, 
+            background: 'linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%)',
+            boxShadow: 'inset 4px 4px 8px rgba(0,0,0,0.1), inset -4px -4px 8px rgba(255,255,255,0.8)',
+            borderRadius: 3
+          }}>
             <Grid container spacing={2} alignItems="center">
-              <Grid item xs={12} sm={4} md={3}>
+              <Grid item xs={12} sm={8} md={9}>
                 <TextField
                   fullWidth
                   placeholder="Search instructors..."
@@ -1341,23 +1334,68 @@ const InstructorManagement: React.FC = () => {
                     startAdornment: <Search className="w-4 h-4 text-gray-400 mr-2" />
                   }}
                   size="small"
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      background: '#ffffff',
+                      boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)',
+                      borderRadius: 2,
+                      '&:hover': {
+                        boxShadow: 'inset 3px 3px 6px rgba(0,0,0,0.1), inset -3px -3px 6px rgba(255,255,255,0.8)'
+                      },
+                      '&.Mui-focused': {
+                        boxShadow: 'inset 4px 4px 8px rgba(0,0,0,0.1), inset -4px -4px 8px rgba(255,255,255,0.8)'
+                      }
+                    }
+                  }}
                 />
+              </Grid>
+              <Grid item xs={12} sm={4} md={3} sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <Button
+                  variant="contained"
+                  startIcon={<UserPlus className="w-5 h-5" />}
+                  onClick={() => setCreateDialogOpen(true)}
+                  sx={{
+                    background: '#2563eb',
+                    color: 'white',
+                    fontWeight: 600,
+                    borderRadius: 2,
+                    boxShadow: '6px 6px 12px rgba(0,0,0,0.1), -6px -6px 12px rgba(255,255,255,0.5)',
+                    '&:hover': {
+                      background: '#2563eb',
+                      boxShadow: 'inset 4px 4px 8px rgba(0,0,0,0.1), inset -4px -4px 8px rgba(255,255,255,0.5)'
+                    },
+                    textTransform: 'none',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  Add Instructor
+                </Button>
               </Grid>
             </Grid>
           </Card>
 
           {/* Instructors Table */}
-          <Card sx={{ borderRadius: 3, overflow: 'hidden' }}>
-            <TableContainer>
+          <Card sx={{ 
+            borderRadius: 3, 
+            overflow: 'hidden',
+            boxShadow: '8px 8px 16px rgba(0,0,0,0.1), -8px -8px 16px rgba(255,255,255,0.5)'
+          }}>
+            <TableContainer sx={{
+              background: '#f9fafb',
+              boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)'
+            }}>
               <Table>
-                <TableHead sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+                <TableHead sx={{ 
+                  background: 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)',
+                  boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)'
+                }}>
                   <TableRow>
-                    <TableCell sx={{ color: 'white', fontWeight: 600 }}>Name</TableCell>
-                    <TableCell sx={{ color: 'white', fontWeight: 600 }}>Email</TableCell>
-                    <TableCell sx={{ color: 'white', fontWeight: 600 }}>Role</TableCell>
-                    <TableCell sx={{ color: 'white', fontWeight: 600 }}>Department</TableCell>
-                    <TableCell sx={{ color: 'white', fontWeight: 600 }}>Status</TableCell>
-                    <TableCell sx={{ color: 'white', fontWeight: 600 }}>Actions</TableCell>
+                    <TableCell sx={{ color: '#374151', fontWeight: 600, fontSize: '0.875rem', borderBottom: '1px solid #e2e8f0' }}>Name</TableCell>
+                    <TableCell sx={{ color: '#374151', fontWeight: 600, fontSize: '0.875rem', borderBottom: '1px solid #e2e8f0' }}>Email</TableCell>
+                    <TableCell sx={{ color: '#374151', fontWeight: 600, fontSize: '0.875rem', borderBottom: '1px solid #e2e8f0' }}>Role</TableCell>
+                    <TableCell sx={{ color: '#374151', fontWeight: 600, fontSize: '0.875rem', borderBottom: '1px solid #e2e8f0' }}>Department</TableCell>
+                    <TableCell sx={{ color: '#374151', fontWeight: 600, fontSize: '0.875rem', borderBottom: '1px solid #e2e8f0' }}>Status</TableCell>
+                    <TableCell sx={{ color: '#374151', fontWeight: 600, fontSize: '0.875rem', borderBottom: '1px solid #e2e8f0' }}>Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -1444,9 +1482,8 @@ const InstructorManagement: React.FC = () => {
         {/* Year Level Assigned Subjects Tab */}
         <TabPanel value={tabValue} index={1}>
           <Box sx={{ mb: 3 }}>
-            <Typography variant="h6" sx={{ fontWeight: 600, color: '#374151', mb: 2 }}>
-              Year Level Assigned Subjects
-            </Typography>
+         
+       
             
             {/* Year Level Filter and Search */}
             <Card sx={{ mb: 3, p: 2, background: 'rgba(255, 255, 255, 0.8)' }}>
@@ -1992,9 +2029,7 @@ const InstructorManagement: React.FC = () => {
         {/* Subject Trace Tab */}
         <TabPanel value={tabValue} index={2}>
           <Box sx={{ mb: 3 }}>
-            <Typography variant="h6" sx={{ fontWeight: 600, color: '#374151', mb: 2 }}>
-              Subject Trace Records
-            </Typography>
+          
             
             {/* Search Filter */}
             <Card sx={{ mb: 3, p: 2, background: 'rgba(255, 255, 255, 0.8)' }}>
@@ -2015,16 +2050,26 @@ const InstructorManagement: React.FC = () => {
             </Card>
 
             {/* Instructors Table */}
-            <Card sx={{ borderRadius: 3, overflow: 'hidden' }}>
-              <TableContainer>
+            <Card sx={{ 
+              borderRadius: 3, 
+              overflow: 'hidden',
+              boxShadow: '8px 8px 16px rgba(0,0,0,0.1), -8px -8px 16px rgba(255,255,255,0.5)'
+            }}>
+              <TableContainer sx={{
+                background: '#f9fafb',
+                boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)'
+              }}>
                 <Table>
-                  <TableHead sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+                  <TableHead sx={{ 
+                    background: 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)',
+                    boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)'
+                  }}>
                     <TableRow>
-                      <TableCell sx={{ color: 'white', fontWeight: 600 }}>Name</TableCell>
-                      <TableCell sx={{ color: 'white', fontWeight: 600 }}>Email</TableCell>
-                      <TableCell sx={{ color: 'white', fontWeight: 600 }}>Department</TableCell>
-                      <TableCell sx={{ color: 'white', fontWeight: 600 }}>Role</TableCell>
-                      <TableCell sx={{ color: 'white', fontWeight: 600 }}>Actions</TableCell>
+                      <TableCell sx={{ color: '#374151', fontWeight: 600, fontSize: '0.875rem', borderBottom: '1px solid #e2e8f0' }}>Name</TableCell>
+                      <TableCell sx={{ color: '#374151', fontWeight: 600, fontSize: '0.875rem', borderBottom: '1px solid #e2e8f0' }}>Email</TableCell>
+                      <TableCell sx={{ color: '#374151', fontWeight: 600, fontSize: '0.875rem', borderBottom: '1px solid #e2e8f0' }}>Department</TableCell>
+                      <TableCell sx={{ color: '#374151', fontWeight: 600, fontSize: '0.875rem', borderBottom: '1px solid #e2e8f0' }}>Role</TableCell>
+                      <TableCell sx={{ color: '#374151', fontWeight: 600, fontSize: '0.875rem', borderBottom: '1px solid #e2e8f0' }}>Actions</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
