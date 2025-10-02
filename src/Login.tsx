@@ -364,11 +364,14 @@ const Login: React.FC<LoginProps> = ({ onClose }) => {
         {/* X Close Button - only show when login form is visible */}
         {!showInstructionModal && !showForgotModal && !showForcePasswordChange && onClose && (
           <button
-            className="absolute w-6 h-6 flex items-center justify-center text-lg font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-full transition-colors duration-200 focus:outline-none top-3 right-3"
+            className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center bg-white text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-full transition-colors duration-200 focus:outline-none z-[60]"
             aria-label="Close Login"
             onClick={onClose}
           >
-            ×
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
           </button>
         )}
         <div className="w-full bg-white rounded-xl shadow-lg p-6 login-form">
