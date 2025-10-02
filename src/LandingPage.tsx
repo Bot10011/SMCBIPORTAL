@@ -335,20 +335,27 @@ const LandingPage = () => {
   useEffect(() => {
     // Force the developer button to stay visible on scroll
     const handleScroll = () => {
-      // This is a no-op function that ensures the button remains rendered
-      // The actual visibility is controlled by CSS
       const devButton = document.querySelector('.dev-button-fixed') as HTMLElement;
       
       if (devButton) {
         devButton.setAttribute('data-visible', 'true');
         devButton.style.position = 'fixed';
+        devButton.style.bottom = '1.5rem'; // 6 in tailwind units
+        devButton.style.right = '1.5rem';  // 6 in tailwind units
+        devButton.style.zIndex = '9999';
       }
     };
     
     // Call immediately to set initial state
     handleScroll();
     
-    // Add event listener with passive option for better performance
+    // Add event listener for scroll with passive option for better performance
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    
+    // Cleanup event listener on component unmount
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+    };
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => {
       window.removeEventListener('scroll', handleScroll);
@@ -394,12 +401,16 @@ const LandingPage = () => {
 
         {/* Feedback Button - Hide when any modal is open */}
         <button
-          onClick={() => setShowFeedback(true)}
+          onClick={() => {
+            if (showDevModal) setShowDevModal(false); // Ensure dev modal is closed
+            setShowFeedback(true);
+          }}
           disabled={showLogin || showDevModal || showForgotModal}
-          className={`fixed z-[9999] bg-gradient-to-b from-green-400 to-green-500 text-white px-6 py-3 shadow-lg font-semibold text-sm transition-all duration-300 flex items-center gap-3 rounded-full hover:scale-105 ${
-            showLogin ? 'opacity-50 cursor-not-allowed' : ''
-          } ${showDevModal ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+          className={`fixed z-[9999] bg-gradient-to-b from-green-400 to-green-500 text-white px-6 py-3 shadow-lg font-semibold text-sm transition-all duration-300 flex items-center gap-3 rounded-full hover:scale-105 feedback-button ${
+            showDevModal || showForgotModal ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
           style={{
+            visibility: (showLogin || showDevModal || showForgotModal) ? 'hidden' : 'visible',
+            opacity: showLogin || showForgotModal ? 0 : 1,
             right: showFeedback ? (windowWidth <= 640 ? 'calc(100vw - 60px)' : '420px') : '20px',
             top: windowWidth <= 640 ? '20%' : '40%',
             transform: 'translateY(-50%) rotate(-90deg)',
@@ -413,7 +424,6 @@ const LandingPage = () => {
             borderBottomRightRadius: '5px',
             minHeight: '50px',
             transition: 'opacity 0.3s ease, right 0.3s ease, transform 0.3s ease',
-            visibility: showDevModal ? 'hidden' : 'visible'
           }}
           aria-label="Give Feedback"
         >
@@ -445,7 +455,7 @@ const LandingPage = () => {
             maxHeight: windowWidth <= 640 ? '80vh' : '530px',
             top: windowWidth <= 640 ? '40%' : '50%',
             transform: 'translateY(-50%)',
-            right: showFeedback ? '0px' : (windowWidth <= 640 ? '-100vw' : '-400px'),
+            right: showFeedback && !showForgotModal ? '0px' : (windowWidth <= 640 ? '-100vw' : '-400px'),
             borderRadius: '1.5rem 0 1.5rem 1.5rem',
             borderTopLeftRadius: '1.5rem',
             borderBottomLeftRadius: '1.5rem',
@@ -454,7 +464,7 @@ const LandingPage = () => {
             background: 'linear-gradient(135deg, #f8fafc 0%, #e0e7ef 100%)',
             boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.15)',
             border: '1px solid #e5e7eb',
-            pointerEvents: showFeedback ? 'auto' : 'none'
+            pointerEvents: showFeedback && !showForgotModal && !showDevModal ? 'auto' : 'none'
           }}
         >
           <div className="bg-transparent h-full shadow-none flex flex-col relative rounded-l-xl border-l-0">
@@ -668,7 +678,9 @@ const LandingPage = () => {
                 onClick={(e) => {
                   e.preventDefault();
                   if (showFeedback) setShowFeedback(false);
-                  requestAnimationFrame(() => setShowLogin(true));
+                  
+                  // Use state to show login modal (will automatically hide feedback button via CSS)
+                  setShowLogin(true);
                 }}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
@@ -711,7 +723,8 @@ const LandingPage = () => {
                   href="#"
                   onClick={(e) => { 
                     e.preventDefault(); 
-                    if (showFeedback) setShowFeedback(false);
+                    // Always hide feedback when forgot password is clicked
+                    setShowFeedback(false);
                     setShowForgotModal(true); 
                   }}
                   className="hover:text-white hover:underline flex items-center gap-1.5 group"
@@ -748,7 +761,10 @@ const LandingPage = () => {
       {showLogin && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="w-full max-w-md p-6 relative animate-fade-in">
-            <Login onClose={() => setShowLogin(false)} />
+            <Login onClose={() => {
+              // Simply updating state will restore feedback button visibility
+              setShowLogin(false);
+            }} />
           </div>
         </div>
       )}
@@ -1145,17 +1161,18 @@ const LandingPage = () => {
         (
           <button
             onClick={() => {
-              if (showFeedback) setShowFeedback(false);
+              setShowFeedback(false);
               setShowDevModal(true);
             }}
-            disabled={showDevModal}
-            className={`fixed bottom-6 right-6 z-[999] bg-gradient-to-br from-[#2C3E50] to-[#34495E] text-white p-3 sm:p-4 rounded-full transition-all duration-300 flex items-center justify-center group animate-float dev-button-fixed ${showDevModal ? 'opacity-0 pointer-events-none' : 'hover:scale-110 opacity-100'}`}
+            disabled={showDevModal || showFeedback}
+            className={`fixed bottom-6 right-6 z-[999] bg-gradient-to-br from-[#2C3E50] to-[#34495E] text-white p-3 sm:p-4 rounded-full transition-all duration-300 flex items-center justify-center group dev-button-fixed ${(showDevModal || showFeedback) ? 'opacity-0 pointer-events-none' : 'hover:scale-110 opacity-100'}`}
             aria-label="Show Developer Info"
             style={{ 
               boxShadow: '0 10px 25px 0 rgba(44, 62, 80, 0.45)',
               willChange: 'transform, opacity',
               filter: 'drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2))',
-              position: 'fixed'
+              position: 'fixed',
+              visibility: showFeedback ? 'hidden' : 'visible'
             }}
           >
             {/* Code/Developer Icon */}
