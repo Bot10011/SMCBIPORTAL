@@ -331,6 +331,30 @@ const LandingPage = () => {
     };
   }, []);
 
+  // Ensure only the developer button stays visible when scrolling
+  useEffect(() => {
+    // Force the developer button to stay visible on scroll
+    const handleScroll = () => {
+      // This is a no-op function that ensures the button remains rendered
+      // The actual visibility is controlled by CSS
+      const devButton = document.querySelector('.dev-button-fixed') as HTMLElement;
+      
+      if (devButton) {
+        devButton.setAttribute('data-visible', 'true');
+        devButton.style.position = 'fixed';
+      }
+    };
+    
+    // Call immediately to set initial state
+    handleScroll();
+    
+    // Add event listener with passive option for better performance
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+    };
+  }, []);
+
   
 
   // Auto-slide effect for mobile
@@ -355,135 +379,141 @@ const LandingPage = () => {
 
   // Remove touch state and handlers
 
-  // Build Feedback UI once and portal it on desktop so it stays fixed while scrolling
-  const feedbackUI = (
-    <div>
-      {/* Overlay */}
-      {showFeedback && (
-        <div 
-          className="fixed inset-0 bg-black/30 z-30 transition-opacity duration-300"
-          onClick={() => setShowFeedback(false)}
-          aria-hidden="true"
-        />
-      )}
+  // Create FeedbackButton as a separate component for clean implementation
+  const FeedbackButton = () => {
+    return (
+      <>
+        {/* Overlay when feedback is open */}
+        {showFeedback && (
+          <div 
+            className="fixed inset-0 bg-black/30 z-[9998] transition-opacity duration-300"
+            onClick={() => setShowFeedback(false)}
+            aria-hidden="true"
+          />
+        )}
 
-      {/* Feedback Tab */}
-      <button
-        onClick={() => setShowFeedback(true)}
-        disabled={showLogin}
-        className={`fixed z-40 bg-gradient-to-b from-green-400 to-green-500 text-white px-6 py-3 shadow-lg font-semibold text-sm transition-all duration-300 flex items-center gap-3 rounded-full hover:scale-105
-            ${showLogin ? 'opacity-50 cursor-not-allowed' : ''}
-            ${windowWidth <= 640 ? 'top-[20%]' : 'top-[40%]'}
-          `}
-        style={{
-          right: showFeedback ? (windowWidth <= 640 ? 'calc(100vw - 60px)' : '420px') : '20px',
-          transform: 'translateY(-50%) rotate(-90deg)',
-          transformOrigin: 'right center',
-          width: 'fit-content',
-          whiteSpace: 'nowrap',
-          boxShadow: '0 4px 16px 0 rgba(34,197,94,0.25)',
-          borderTopLeftRadius: '20px',
-          borderBottomLeftRadius: '5px',
-          borderTopRightRadius: '20px',
-          borderBottomRightRadius: '5px',
-          minHeight: '50px',
-        }}
-        aria-label="Give Feedback"
-      >
-        <svg 
-          xmlns="http://www.w3.org/2000/svg" 
-          width="20" 
-          height="20" 
-          viewBox="0 0 24 24" 
-          fill="none" 
-          stroke="currentColor" 
-          strokeWidth="2" 
-          strokeLinecap="round" 
-          strokeLinejoin="round"
-          className={`transform rotate-90 transition-transform duration-300 ${showFeedback ? 'rotate-0' : ''}`}
+        {/* Feedback Button - Hide when any modal is open */}
+        <button
+          onClick={() => setShowFeedback(true)}
+          disabled={showLogin || showDevModal || showForgotModal}
+          className={`fixed z-[9999] bg-gradient-to-b from-green-400 to-green-500 text-white px-6 py-3 shadow-lg font-semibold text-sm transition-all duration-300 flex items-center gap-3 rounded-full hover:scale-105 ${
+            showLogin ? 'opacity-50 cursor-not-allowed' : ''
+          } ${showDevModal ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+          style={{
+            right: showFeedback ? (windowWidth <= 640 ? 'calc(100vw - 60px)' : '420px') : '20px',
+            top: windowWidth <= 640 ? '20%' : '40%',
+            transform: 'translateY(-50%) rotate(-90deg)',
+            transformOrigin: 'right center',
+            width: 'fit-content',
+            whiteSpace: 'nowrap',
+            boxShadow: '0 8px 20px 0 rgba(34,197,94,0.35)',
+            borderTopLeftRadius: '20px',
+            borderBottomLeftRadius: '5px',
+            borderTopRightRadius: '20px',
+            borderBottomRightRadius: '5px',
+            minHeight: '50px',
+            transition: 'opacity 0.3s ease, right 0.3s ease, transform 0.3s ease',
+            visibility: showDevModal ? 'hidden' : 'visible'
+          }}
+          aria-label="Give Feedback"
         >
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-        </svg>
-        Give Feedback
-      </button>
+          <svg 
+            xmlns="http://www.w3.org/2000/svg" 
+            width="20" 
+            height="20" 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke="currentColor" 
+            strokeWidth="2" 
+            strokeLinecap="round" 
+            strokeLinejoin="round"
+            className={`transform rotate-90 transition-transform duration-300 ${showFeedback ? 'rotate-0' : ''}`}
+          >
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+          </svg>
+          Give Feedbacks
+        </button>
 
-      {/* Feedback Panel */}
-      <div 
-        className={`fixed z-40 transition-all duration-300 ease-in-out ${
+        {/* Feedback Panel */}
+        <div 
+          className={`fixed z-[9999] transition-all duration-300 ease-in-out ${
             showFeedback ? 'opacity-100' : 'opacity-0'
           }`} 
-        style={{
-          width: windowWidth <= 640 ? 'calc(100vw - 80px)' : '400px',
-          height: windowWidth <= 640 ? 'auto' : '530px',
-          maxHeight: windowWidth <= 640 ? '80vh' : '530px',
-          top: windowWidth <= 640 ? '40%' : '50%',
-          transform: 'translateY(-50%)',
-          right: showFeedback ? '0px' : (windowWidth <= 640 ? '-100vw' : '-400px'),
-          borderRadius: '1.5rem 0 1.5rem 1.5rem',
-          borderTopLeftRadius: '1.5rem',
-          borderBottomLeftRadius: '1.5rem',
-          borderTopRightRadius: '0',
-          borderBottomRightRadius: '0',
-          background: 'linear-gradient(135deg, #f8fafc 0%, #e0e7ef 100%)',
-          boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.15)',
-          border: '1px solid #e5e7eb',
-          pointerEvents: showFeedback ? 'auto' : 'none',
-          position: 'fixed'
-        }}
-      >
-        <div className="bg-transparent h-full shadow-none flex flex-col relative rounded-l-xl border-l-0">
-          {/* Close Button */}
-          <button
-            className="absolute w-6 h-6 flex items-center justify-center text-lg font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-full transition-colors duration-200 top-3 right-3"
-            onClick={() => setShowFeedback(false)}
-            aria-label="Close Feedback"
-          >
-            ×
-          </button>
-          {/* Branding */}
-          <div className="flex flex-col items-center justify-center gap-1 px-8 pt-4 pb-0">
-            <img src="/img/logo1.png" alt="SMCBI Logo" className="w-10 h-10" />
-            <span className="font-medium text-sm text-[#2C3E50]">Feedback Form</span>
-          </div>
-          {/* Horizontal Line Separator */}
-          <div className="px-8 pb-3">
-            <div className="w-full h-1 bg-gray-300 rounded-full"></div>
-          </div>
-          {/* Feedback Content */}
-          <div className="flex-1 overflow-y-auto px-8 py-0">
-            {/* Google Form Button */}
-            <div className="flex flex-col items-center justify-center h-full text-center">
-              <div className="mb-6">
-                <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full flex items-center justify-center">
-                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 002 2z" />
-                  </svg>
+          style={{
+            width: windowWidth <= 640 ? 'calc(100vw - 80px)' : '400px',
+            height: windowWidth <= 640 ? 'auto' : '530px',
+            maxHeight: windowWidth <= 640 ? '80vh' : '530px',
+            top: windowWidth <= 640 ? '40%' : '50%',
+            transform: 'translateY(-50%)',
+            right: showFeedback ? '0px' : (windowWidth <= 640 ? '-100vw' : '-400px'),
+            borderRadius: '1.5rem 0 1.5rem 1.5rem',
+            borderTopLeftRadius: '1.5rem',
+            borderBottomLeftRadius: '1.5rem',
+            borderTopRightRadius: '0',
+            borderBottomRightRadius: '0',
+            background: 'linear-gradient(135deg, #f8fafc 0%, #e0e7ef 100%)',
+            boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.15)',
+            border: '1px solid #e5e7eb',
+            pointerEvents: showFeedback ? 'auto' : 'none'
+          }}
+        >
+          <div className="bg-transparent h-full shadow-none flex flex-col relative rounded-l-xl border-l-0">
+            {/* Close Button */}
+            <button
+              className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center bg-white text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-full transition-colors duration-200 focus:outline-none z-[60]"
+              onClick={() => setShowFeedback(false)}
+              aria-label="Close Feedback"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+            
+            {/* Feedback Form Content */}
+            <div className="flex flex-col items-center justify-center gap-1 px-8 pt-4 pb-0">
+              <img src="/img/logo1.png" alt="SMCBI Logo" className="w-10 h-10" />
+              <span className="font-medium text-sm text-[#2C3E50]">Feedback Form</span>
+            </div>
+            
+            <div className="px-8 pb-3">
+              <div className="w-full h-1 bg-gray-300 rounded-full"></div>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto px-8 py-0">
+              <div className="flex flex-col items-center justify-center h-full text-center">
+                <div className="mb-6">
+                  <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full flex items-center justify-center">
+                    <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-semibold text-[#2C3E50] mb-2">Share Your Feedback</h3>
+                  <p className="text-sm text-gray-600 mb-6">
+                    Help us improve the SMCBI School Portal & Enrollment System by sharing your thoughts and suggestions.
+                  </p>
                 </div>
-                <h3 className="text-lg font-semibold text-[#2C3E50] mb-2">Share Your Feedback</h3>
-                <p className="text-sm text-gray-600 mb-6">
-                  Help us improve the SMCBI School Portal & Enrollment System by sharing your thoughts and suggestions.
+                
+                <button 
+                  onClick={() => window.open('https://docs.google.com/forms/d/e/1FAIpQLSewLjzE-7HgqN71u1_hMl8u0yX5I0cLUzFfJ7CEGf1z0Y4Xvw/viewform?usp=header', '_blank')}
+                  className="w-full py-3 px-6 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-105 flex items-center justify-center gap-3"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                  Open Feedback Form
+                </button>
+                
+                <p className="text-xs text-gray-500 mt-4">
+                  Opens in a new tab • Takes 2-3 minutes to complete
                 </p>
               </div>
-              
-              <button 
-                onClick={() => window.open('https://docs.google.com/forms/d/e/1FAIpQLSewLjzE-7HgqN71u1_hMl8u0yX5I0cLUzFfJ7CEGf1z0Y4Xvw/viewform?usp=header', '_blank')}
-                className="w-full py-3 px-6 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-105 flex items-center justify-center gap-3"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-                Open Feedback Form
-              </button>
-              
-              <p className="text-xs text-gray-500 mt-4">
-                Opens in a new tab • Takes 2-3 minutes to complete
-              </p>
             </div>
           </div>
         </div>
-      </div>
-    </div>
-  );
+      </>
+    );
+  };
 
   return (
     <div className={`min-h-screen flex flex-col font-sans relative ${showDevStatus ? 'pt-12' : ''}`}>
@@ -637,6 +667,7 @@ const LandingPage = () => {
                 className="group relative w-full py-3.5 px-8 rounded-xl bg-gradient-to-r from-[#2C3E50] via-[#34495E] to-[#2C3E50] text-white text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300 mb-8 overflow-hidden"
                 onClick={(e) => {
                   e.preventDefault();
+                  if (showFeedback) setShowFeedback(false);
                   requestAnimationFrame(() => setShowLogin(true));
                 }}
                 whileHover={{ scale: 1.02 }}
@@ -678,7 +709,11 @@ const LandingPage = () => {
                 <a href="#" className="hover:text-white hover:underline transition-colors duration-200"></a>
                 <a
                   href="#"
-                  onClick={(e) => { e.preventDefault(); setShowForgotModal(true); }}
+                  onClick={(e) => { 
+                    e.preventDefault(); 
+                    if (showFeedback) setShowFeedback(false);
+                    setShowForgotModal(true); 
+                  }}
                   className="hover:text-white hover:underline flex items-center gap-1.5 group"
                 >
                   <svg 
@@ -1015,27 +1050,8 @@ const LandingPage = () => {
       )}
 
   
-      {/* Feedback Tab and Panel */}
-      <div>
-        {/* Overlay */}
-        {showFeedback && (
-          <div 
-            className="fixed inset-0 bg-black/30 z-30 transition-opacity duration-300"
-            onClick={() => setShowFeedback(false)}
-            aria-hidden="true"
-          />
-        )}
-
-     
-     
-          </div>
-     
-    
-
-      {/* Feedback Tab and Panel */}
-      {typeof window !== 'undefined' && windowWidth > 640
-        ? createPortal(feedbackUI, document.body)
-        : feedbackUI}
+      {/* Feedback Tab and Panel - Render directly */}
+      <FeedbackButton />
 
       {/* Optimized Animations */}
       <style>{`
@@ -1125,15 +1141,21 @@ const LandingPage = () => {
 
 
       {/* Floating Developer Button via portal - fixed and above overlays */}
-      {!showFeedback && !showDevModal && typeof window !== 'undefined' && createPortal(
+      {typeof window !== 'undefined' && createPortal(
         (
           <button
-            onClick={() => setShowDevModal(true)}
-            className="fixed bottom-6 right-6 z-[60] bg-gradient-to-br from-[#2C3E50] to-[#34495E] text-white p-3 sm:p-4 rounded-full shadow-lg hover:scale-110 transition-all duration-300 flex items-center justify-center group"
+            onClick={() => {
+              if (showFeedback) setShowFeedback(false);
+              setShowDevModal(true);
+            }}
+            disabled={showDevModal}
+            className={`fixed bottom-6 right-6 z-[999] bg-gradient-to-br from-[#2C3E50] to-[#34495E] text-white p-3 sm:p-4 rounded-full transition-all duration-300 flex items-center justify-center group animate-float dev-button-fixed ${showDevModal ? 'opacity-0 pointer-events-none' : 'hover:scale-110 opacity-100'}`}
             aria-label="Show Developer Info"
             style={{ 
-              boxShadow: '0 4px 16px 0 rgba(44, 62, 80, 0.25)',
-              willChange: 'transform'
+              boxShadow: '0 10px 25px 0 rgba(44, 62, 80, 0.45)',
+              willChange: 'transform, opacity',
+              filter: 'drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2))',
+              position: 'fixed'
             }}
           >
             {/* Code/Developer Icon */}
@@ -1467,6 +1489,33 @@ const LandingPage = () => {
                   .dev-modal-scroll {
                     -webkit-transform: translateZ(0);
                     -webkit-backface-visibility: hidden;
+                  }
+                }
+                
+                /* Floating animation for the developer button */
+                @keyframes floating {
+                  0% { transform: translateY(0px); }
+                  50% { transform: translateY(-8px); }
+                  100% { transform: translateY(0px); }
+                }
+                
+                .animate-float {
+                  animation: floating 3s ease-in-out infinite;
+                  will-change: transform;
+                  position: fixed !important;
+                  visibility: visible !important;
+                }
+                
+                /* Ensure developer button is always fixed and visible */
+                button.fixed, .dev-button-fixed {
+                  position: fixed !important;
+                  z-index: 9999 !important;
+                }
+                
+                /* Disable animation if user prefers reduced motion */
+                @media (prefers-reduced-motion: reduce) {
+                  .animate-float {
+                    animation: none;
                   }
                 }
               `}</style>
