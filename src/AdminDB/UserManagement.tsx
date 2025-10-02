@@ -10,6 +10,7 @@ import ConfirmationDialog from '../components/ConfirmationDialog';
 import CreateUserModal from '../components/CreateUserModal';
 
 import { createPortal } from 'react-dom';
+import './dashboard.css';
 
 interface UserProfile {
   id: string;
@@ -440,16 +441,11 @@ export default function UserManagement() {
           animate={{ opacity: 1, y: 0 }}
           className="usermanagement-header mb-8"
         >
-          <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 rounded-lg">
+          <div className="bg-[#00171f] px-6 py-4 rounded-lg neumorphic-soft">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-users w-6 h-6 text-white">
-                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
-                    <circle cx="9" cy="7" r="4"></circle>
-                    <path d="m22 21-2-2"></path>
-                    <path d="M16 16h6"></path>
-                  </svg>
+                  <Users className="w-6 h-6 text-white" />
                 </div>
                 <div>
                   <h1 className="text-2xl font-bold text-white tracking-tight">User Management</h1>
@@ -462,7 +458,10 @@ export default function UserManagement() {
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={() => setShowCreateUserModal(true)}
-                  className="usermanagement-add-button bg-white/20 backdrop-blur-sm text-white px-6 py-2 rounded-lg hover:bg-white/30 transition-all duration-300 font-semibold flex items-center gap-2 border border-white/30"
+                  className="usermanagement-add-button neumorphic-soft bg-white/10 backdrop-blur-sm text-white px-6 py-2 rounded-lg hover:bg-white/20 transition-all duration-300 font-semibold flex items-center gap-2 border-0"
+                  style={{
+                    boxShadow: '4px 4px 8px rgba(0, 0, 0, 0.3), -4px -4px 8px rgba(255, 255, 255, 0.1), inset 1px 1px 2px rgba(255, 255, 255, 0.1)'
+                  }}
                 >
                   <UserPlus className="w-4 h-4" />
                   Add New User
@@ -482,7 +481,9 @@ export default function UserManagement() {
           transition={{ delay: 0.3 }}
           className="usermanagement-tabs mb-6"
         >
-          <div className="bg-white/90 rounded-2xl shadow-lg p-2 border border-gray-700 w-full">
+          <div className="bg-white/90 rounded-2xl neumorphic-soft p-2 border-0 w-full" style={{
+            boxShadow: '8px 8px 16px rgba(0, 0, 0, 0.1), -8px -8px 16px rgba(255, 255, 255, 0.7), inset 2px 2px 4px rgba(0, 0, 0, 0.05)'
+          }}>
             <div className="flex items-center gap-1 sm:gap-2 md:gap-3 flex-wrap lg:flex-nowrap overflow-x-auto whitespace-nowrap min-w-0 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
           <div className="flex items-center gap-1 sm:gap-2 md:gap-3 flex-1 min-w-0 w-full lg:w-auto">
             <motion.div 
@@ -550,7 +551,7 @@ export default function UserManagement() {
             }}
             className={`flex-1 sm:flex-none shrink-0 px-1 sm:px-1.5 md:px-2 lg:px-3 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-medium transition-all duration-200 ${
               activeTab === 'all'
-                ? 'bg-blue-600 text-white shadow-sm'
+                ? 'bg-[#00A7E1] text-white shadow-[4px_4px_8px_rgba(0,0,0,0.1),-4px_-4px_8px_rgba(255,255,255,0.5)]'
                 : 'text-gray-700 hover:bg-gray-100'
             }`}
           >
@@ -569,7 +570,7 @@ export default function UserManagement() {
             }}
             className={`flex-1 sm:flex-none shrink-0 px-1 sm:px-1.5 md:px-2 lg:px-3 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-medium transition-all duration-200 ${
               activeTab === 'students'
-                ? 'bg-green-600 text-white shadow-sm'
+                ? 'bg-[#00A7E1] text-white shadow-[4px_4px_8px_rgba(0,0,0,0.1),-4px_-4px_8px_rgba(255,255,255,0.5)]'
                 : 'text-green-600 hover:bg-green-50'
             }`}
           >
@@ -590,7 +591,7 @@ export default function UserManagement() {
             }}
             className={`flex-1 sm:flex-none shrink-0 px-1 sm:px-1.5 md:px-2 lg:px-3 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-medium transition-all duration-200 ${
               activeTab === 'instructors'
-                ? 'bg-indigo-600 text-white shadow-sm'
+                ? 'bg-[#00A7E1] text-white shadow-[4px_4px_8px_rgba(0,0,0,0.1),-4px_-4px_8px_rgba(255,255,255,0.5)]'
                 : 'text-indigo-600 hover:bg-indigo-50'
             }`}
           >
@@ -611,7 +612,7 @@ export default function UserManagement() {
             }}
             className={`flex-1 sm:flex-none shrink-0 px-1 sm:px-1.5 md:px-2 lg:px-3 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-medium transition-all duration-200 ${
               activeTab === 'registrars'
-                ? 'bg-orange-600 text-white shadow-sm'
+                ? 'bg-[#00A7E1] text-white shadow-[4px_4px_8px_rgba(0,0,0,0.1),-4px_-4px_8px_rgba(255,255,255,0.5)]'
                 : 'text-orange-600 hover:bg-orange-50'
             }`}
           >
@@ -632,7 +633,7 @@ export default function UserManagement() {
             }}
             className={`flex-1 sm:flex-none shrink-0 px-1 sm:px-1.5 md:px-2 lg:px-3 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-medium transition-all duration-200 ${
               activeTab === 'program_heads'
-                ? 'bg-purple-600 text-white shadow-sm'
+                ? 'bg-[#00A7E1] text-white shadow-[4px_4px_8px_rgba(0,0,0,0.1),-4px_-4px_8px_rgba(255,255,255,0.5)]'
                 : 'text-purple-600 hover:bg-purple-50'
             }`}
           >
@@ -658,7 +659,9 @@ export default function UserManagement() {
           transition={{ delay: 0.4 }}
           className="usermanagement-table w-full"
         >
-      <div className="bg-white/90 rounded-2xl shadow-lg overflow-hidden border border-gray-700 w-full">
+      <div className="neumorphic-soft rounded-2xl overflow-hidden border border-gray-200 w-full" style={{
+        boxShadow: '8px 8px 16px rgba(0,0,0,0.1), -8px -8px 16px rgba(255,255,255,0.5), inset 2px 2px 4px rgba(0,0,0,0.05)'
+      }}>
         {loading ? (
           <div className="usermanagement-skeleton">
             {/* Header Skeleton */}
@@ -754,7 +757,9 @@ export default function UserManagement() {
                   exit={{ opacity: 0 }} 
                   className="w-full divide-y divide-gray-200"
                 >
-                  <thead className="bg-gradient-to-r from-blue-100 to-indigo-100">
+                  <thead className="bg-gray-50" style={{
+                    boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.5)'
+                  }}>
                     <tr>
                                         <th className="px-6 py-4 text-left text-xs font-semibold text-black uppercase tracking-wider">User Information</th>
                   {activeTab === 'all' && (
@@ -778,13 +783,15 @@ export default function UserManagement() {
                   <th className="px-6 py-4 text-left text-xs font-semibold text-black uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white/90 divide-y divide-gray-700">
+                  <tbody className="bg-white divide-y divide-gray-200" style={{
+                    boxShadow: 'inset 1px 1px 2px rgba(0,0,0,0.05)'
+                  }}>
                     {filteredUsers.map((user: UserProfile) => (
                       <motion.tr 
                         key={user.id} 
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="hover:bg-gray-100 transition-colors duration-150"
+                        className="hover:bg-gray-50 transition-all duration-200 hover:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.1)]"
                       >
                         <td className="px-6 py-5">
                           <div className="flex items-center gap-4">
