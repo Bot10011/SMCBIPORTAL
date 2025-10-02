@@ -1353,18 +1353,21 @@ const DashboardOverview: React.FC = () => {
         transition={{ duration: 0.5 }}
         className="mb-6"
       >
-        <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 rounded-2xl">
+        <div className="px-8 py-6 rounded-3xl text-white mb-8" style={{
+          background: 'linear-gradient(145deg, #00171f',
+          boxShadow: '8px 8px 16px rgba(0,23,31,0.18), -8px -8px 16px rgba(255,255,255,0.07), inset 2px 2px 4px rgba(255,255,255,0.08), inset -2px -2px 4px rgba(0,0,0,0.18)',
+          border: '1px solid rgba(0,23,31,0.22)'
+        }}>
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
+              <div className="p-2 rounded-lg bg-white/10 backdrop-blur-sm" style={{
+                boxShadow: '2px 2px 4px rgba(0,0,0,0.18), -2px -2px 4px rgba(255,255,255,0.07)'
+              }}>
                 <FileText className="w-6 h-6 text-white" />
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-white tracking-tight">Registrar Dashboard</h1>
-                <p className="text-white/80 text-sm font-medium">Welcome back! Here's what's happening today.</p>
-                <div className="flex items-center gap-4 mt-2 text-xs text-white/80">
-                  <span>Last updated: {new Date().toLocaleTimeString()}</span>
-                </div>
+                <p className="text-white/80 text-sm font-medium">Manage student records and enrollment.</p>
               </div>
             </div>
           </div>
@@ -1376,38 +1379,56 @@ const DashboardOverview: React.FC = () => {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5, delay: 0.1 }}
-        className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 mt-6"
+        className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8"
       >
-        <div className="bg-white/90 rounded-2xl p-6 shadow-lg border border-gray-100">
+        <div className="rounded-2xl p-6 transition-all duration-300" style={{
+          background: 'linear-gradient(145deg, #00a7e1 0%, #00a7e1 100%)',
+          boxShadow: '8px 8px 16px rgba(0,167,225,0.18), -8px -8px 16px rgba(255,255,255,0.7), inset 2px 2px 4px rgba(255,255,255,0.22), inset -2px -2px 4px rgba(0,0,0,0.09)',
+          border: '1px solid rgba(0,167,225,0.22)'
+        }}>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-600 text-sm font-medium">Pending Enrollments</p>
-              <p className="text-3xl font-bold text-gray-900">{stats.pendingEnrollments}</p>
+              <p className="text-white text-sm font-medium mb-1">Pending Enrollments</p>
+              <p className="text-3xl font-bold text-white">{stats.pendingEnrollments}</p>
             </div>
-            <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-              <CheckSquare className="w-6 h-6 text-blue-600" />
+            <div className="w-12 h-12 bg-[#00a7e1] rounded-xl flex items-center justify-center" style={{
+              boxShadow: '4px 4px 8px rgba(0,167,225,0.18), -4px -4px 8px rgba(255,255,255,0.7), inset 1px 1px 2px rgba(255,255,255,0.22), inset -1px -1px 2px rgba(0,0,0,0.09)'
+            }}>
+              <CheckSquare className="w-6 h-6 text-white" />
             </div>
           </div>
         </div>
-        <div className="bg-white/90 rounded-2xl p-6 shadow-lg border border-gray-100">
+        <div className="rounded-2xl p-6 transition-all duration-300" style={{
+          background: 'linear-gradient(145deg, #00a7e1 0%, #00a7e1 100%)',
+          boxShadow: '8px 8px 16px rgba(0,167,225,0.18), -8px -8px 16px rgba(255,255,255,0.7), inset 2px 2px 4px rgba(255,255,255,0.22), inset -2px -2px 4px rgba(0,0,0,0.09)',
+          border: '1px solid rgba(0,167,225,0.22)'
+        }}>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-600 text-sm font-medium">Total Subjects</p>
-              <p className="text-3xl font-bold text-gray-900">{stats.totalCourses}</p>
+              <p className="text-white text-sm font-medium mb-1">Total Subjects</p>
+              <p className="text-3xl font-bold text-white">{stats.totalCourses}</p>
             </div>
-            <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-              <BookOpen className="w-6 h-6 text-green-600" />
+            <div className="w-12 h-12 bg-[#00a7e1] rounded-xl flex items-center justify-center" style={{
+              boxShadow: '4px 4px 8px rgba(0,167,225,0.18), -4px -4px 8px rgba(255,255,255,0.7), inset 1px 1px 2px rgba(255,255,255,0.22), inset -1px -1px 2px rgba(0,0,0,0.09)'
+            }}>
+              <BookOpen className="w-6 h-6 text-white" />
             </div>
           </div>
         </div>
-        <div className="bg-white/90 rounded-2xl p-6 shadow-lg border border-gray-100">
+        <div className="rounded-2xl p-6 transition-all duration-300" style={{
+          background: 'linear-gradient(145deg, #00a7e1 0%, #00a7e1 100%)',
+          boxShadow: '8px 8px 16px rgba(0,167,225,0.18), -8px -8px 16px rgba(255,255,255,0.7), inset 2px 2px 4px rgba(255,255,255,0.22), inset -2px -2px 4px rgba(0,0,0,0.09)',
+          border: '1px solid rgba(0,167,225,0.22)'
+        }}>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-600 text-sm font-medium">Total Students</p>
-              <p className="text-3xl font-bold text-gray-900">{stats.studentRecords}</p>
+              <p className="text-white text-sm font-medium mb-1">Total Students</p>
+              <p className="text-3xl font-bold text-white">{stats.studentRecords}</p>
             </div>
-            <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-              <Users className="w-6 h-6 text-purple-600" />
+            <div className="w-12 h-12 bg-[#00a7e1] rounded-xl flex items-center justify-center" style={{
+              boxShadow: '4px 4px 8px rgba(0,167,225,0.18), -4px -4px 8px rgba(255,255,255,0.7), inset 1px 1px 2px rgba(255,255,255,0.22), inset -1px -1px 2px rgba(0,0,0,0.09)'
+            }}>
+              <Users className="w-6 h-6 text-white" />
             </div>
           </div>
         </div>
@@ -1419,7 +1440,12 @@ const DashboardOverview: React.FC = () => {
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
-          className="lg:col-span-2 bg-white/90 rounded-2xl shadow-lg p-6 hover:shadow-xl transition-shadow duration-300"
+          className="lg:col-span-2 rounded-2xl p-6 transition-all duration-300"
+          style={{
+            background: 'linear-gradient(145deg, #FFFFFFE6 0%, #FFFFFF 100%)',
+            boxShadow: '8px 8px 16px rgba(0,0,0,0.08), -8px -8px 16px rgba(255,255,255,0.7), inset 2px 2px 4px rgba(255,255,255,0.18), inset -2px -2px 4px rgba(0,0,0,0.04)',
+            border: '1px solid rgba(0,0,0,0.04)'
+          }}
         >
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
@@ -1490,7 +1516,12 @@ const DashboardOverview: React.FC = () => {
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.5, delay: 0.3 }}
-          className="bg-white/90 rounded-2xl shadow-lg p-6 hover:shadow-xl transition-shadow duration-300"
+          className="rounded-2xl p-6 transition-all duration-300"
+          style={{
+            background: 'linear-gradient(145deg, #FFFFFFE6 0%, #FFFFFF 100%)',
+            boxShadow: '8px 8px 16px rgba(0,0,0,0.08), -8px -8px 16px rgba(255,255,255,0.7), inset 2px 2px 4px rgba(255,255,255,0.18), inset -2px -2px 4px rgba(0,0,0,0.04)',
+            border: '1px solid rgba(0,0,0,0.04)'
+          }}
         >
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold text-gray-800 flex items-center">
@@ -1546,6 +1577,7 @@ const DashboardOverview: React.FC = () => {
                 <BarChart4 className="w-5 h-5 text-gray-600" />
               </div>
               Enrollment Summary
+
             </h2>
             <button 
               onClick={handleViewEnrollmentDetails}
@@ -1733,4 +1765,4 @@ const RegistrarDashboard: React.FC = () => {
   );
 };
 
-export default RegistrarDashboard; 
+export default RegistrarDashboard;
