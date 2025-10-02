@@ -877,10 +877,24 @@ const SystemSettings = () => {
         animate={{ opacity: 1, y: 0 }}
         className="mb-8"
       >
-         <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 rounded-lg neumorphic-soft">
+         <div 
+          className="px-8 py-6 rounded-3xl text-white"
+          style={{
+            background: '#00171f',
+            boxShadow: '8px 8px 16px rgba(0, 23, 31, 0.2), -4px -4px 12px rgba(0, 167, 225, 0.05), inset 1px 1px 2px rgba(255, 255, 255, 0.1)',
+            border: '1px solid rgba(0, 167, 225, 0.2)'
+          }}
+        >
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
+              <div 
+                className="p-3 rounded-xl"
+                style={{
+                  background: 'rgba(0, 167, 225, 0.2)',
+                  boxShadow: 'inset 2px 2px 4px rgba(0, 0, 0, 0.3), inset -2px -2px 4px rgba(0, 167, 225, 0.1)',
+                  border: '1px solid rgba(0, 167, 225, 0.3)'
+                }}
+              >
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-settings w-6 h-6 text-white">
                   <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
                   <circle cx="12" cy="12" r="3"></circle>
@@ -904,7 +918,12 @@ const SystemSettings = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="p-6 lg:col-span-2 bg-white/90 rounded-xl shadow-lg border border-gray-200"
+          className="p-6 lg:col-span-2 rounded-3xl"
+          style={{
+            background: 'linear-gradient(145deg, #f8fafc 0%, #f1f5f9 100%)',
+            boxShadow: '8px 8px 16px rgba(0, 0, 0, 0.08), -8px -8px 16px rgba(255, 255, 255, 0.8)',
+            border: '1px solid rgba(255, 255, 255, 0.6)'
+          }}
         >
         <div className="flex items-center gap-3 mb-6">
           <Users className="w-6 h-6 text-indigo-600" />
@@ -913,7 +932,14 @@ const SystemSettings = () => {
         
         <div className="space-y-6">
           {/* User Profile Section */}
-          <div className="bg-white/80 rounded-lg p-6 border border-gray-200 shadow-sm">
+          <div 
+            className="rounded-2xl p-6"
+            style={{
+              background: 'linear-gradient(145deg, #ffffff 0%, #f8fafc 100%)',
+              boxShadow: 'inset 4px 4px 8px rgba(0, 0, 0, 0.05), inset -4px -4px 8px rgba(255, 255, 255, 0.9)',
+              border: '1px solid rgba(255, 255, 255, 0.8)'
+            }}
+          >
           
             
             {/* Profile Header */}
@@ -936,7 +962,14 @@ const SystemSettings = () => {
            
 
             {/* Name Edit Section */}
-            <div className="bg-white/60 rounded-lg p-4 border border-gray-200">
+            <div 
+              className="rounded-2xl p-4"
+              style={{
+                background: 'linear-gradient(145deg, #f1f5f9 0%, #e2e8f0 100%)',
+                boxShadow: 'inset 3px 3px 6px rgba(0, 0, 0, 0.08), inset -3px -3px 6px rgba(255, 255, 255, 0.9)',
+                border: '1px solid rgba(255, 255, 255, 0.7)'
+              }}
+            >
               <h5 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                 Profile Name
@@ -1005,7 +1038,14 @@ const SystemSettings = () => {
           </div>
 
           {/* Password Change Section */}
-          <div className="bg-white/80 rounded-lg p-5 border border-gray-200 shadow-sm">
+          <div 
+            className="rounded-2xl p-5"
+            style={{
+              background: 'linear-gradient(145deg, #ffffff 0%, #f8fafc 100%)',
+              boxShadow: 'inset 4px 4px 8px rgba(0, 0, 0, 0.05), inset -4px -4px 8px rgba(255, 255, 255, 0.9)',
+              border: '1px solid rgba(255, 255, 255, 0.8)'
+            }}
+          >
             <h4 className="text-sm font-semibold text-gray-700 mb-5 flex items-center gap-2">
               <div className="w-2 h-2 bg-green-500 rounded-full"></div>
               Change Password
@@ -1033,10 +1073,22 @@ const SystemSettings = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className=" p-6 relative bg-white/90 rounded-xl shadow-lg border border-gray-200"
+          className="p-6 relative rounded-3xl"
+          style={{
+            background: 'linear-gradient(145deg, #f8fafc 0%, #f1f5f9 100%)',
+            boxShadow: '8px 8px 16px rgba(0, 0, 0, 0.08), -8px -8px 16px rgba(255, 255, 255, 0.8)',
+            border: '1px solid rgba(255, 255, 255, 0.6)'
+          }}
         >
           {isBackupLocked && (
-            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm rounded-lg border border-gray-200">
+            <div 
+              className="absolute inset-0 z-10 flex flex-col items-center justify-center backdrop-blur-sm rounded-3xl"
+              style={{
+                background: 'rgba(255, 255, 255, 0.85)',
+                boxShadow: 'inset 2px 2px 4px rgba(0, 0, 0, 0.1), inset -2px -2px 4px rgba(255, 255, 255, 0.9)',
+                border: '1px solid rgba(255, 255, 255, 0.9)'
+              }}
+            >
               <div className="flex items-center gap-2 text-gray-700 mb-3">
                 <Lock className="w-4 h-4" />
                 <span className="text-sm font-medium">Backup & System is locked</span>
@@ -1561,24 +1613,28 @@ const DashboardCard: React.FC<{
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay }}
-      className="bg-[#00A7E1] rounded-2xl p-4 relative"
+      className="rounded-3xl p-6 relative transition-all duration-300 hover:scale-[1.02]"
       style={{
-        boxShadow: '4px 4px 8px rgba(0, 0, 0, 0.15), -4px -4px 8px rgba(0, 0, 0, 0.05), inset 1px 1px 2px rgba(255, 255, 255, 0.1)'
+        background: 'linear-gradient(145deg, #00a7e1 0%, #0088b8 100%)',
+        boxShadow: '12px 12px 24px rgba(0, 0, 0, 0.4), -12px -12px 24px rgba(255, 255, 255, 0.1), inset 1px 1px 2px rgba(255, 255, 255, 0.2)',
+        border: '1px solid rgba(255, 255, 255, 0.3)'
       }}
     >
-      <div className="p-4">
+      <div>
         <div className="flex items-center justify-between">
           <div>
-              <p className="text-sm font-medium text-white/90">{title}</p>
-              <h3 className="mt-1 text-2xl font-bold text-white">
+              <p className="text-sm font-semibold uppercase tracking-wide mb-1 text-white">{title}</p>
+              <p className="text-4xl font-bold text-white">
               {isNaN(numericValue) ? value : count.toLocaleString()}
-            </h3>
-            <p className="mt-1 text-xs text-white/70">{subtitle}</p>
+            </p>
+            <p className="text-xs mt-1 text-white/80">{subtitle}</p>
           </div>
           <div 
-            className="p-3 rounded-xl bg-white/10 backdrop-blur-sm"
+            className="w-16 h-16 rounded-2xl flex items-center justify-center"
             style={{
-              boxShadow: 'inset 2px 2px 4px rgba(0, 0, 0, 0.1), inset -2px -2px 4px rgba(255, 255, 255, 0.1)'
+              background: 'rgba(255, 255, 255, 0.2)',
+              boxShadow: 'inset 2px 2px 4px rgba(0, 0, 0, 0.3), inset -2px -2px 4px rgba(255, 255, 255, 0.1)',
+              border: '1px solid rgba(255, 255, 255, 0.3)'
             }}
           >
             <motion.div 
@@ -3220,7 +3276,7 @@ const DashboardOverview: React.FC = () => {
                     ? 'No comparable data from last month'
                     : `${stats.usersMoMPercent >= 0 ? '↑' : '↓'} ${Math.abs(stats.usersMoMPercent)}% from last month`
                 } 
-                icon={<Users className="w-6 h-6 text-white" />}
+                icon={<Users className="w-8 h-8 text-white" />}
                 delay={0.1}
               />
               <DashboardCard 
@@ -3231,21 +3287,21 @@ const DashboardOverview: React.FC = () => {
                     ? 'No comparable data from last week'
                     : `${stats.coursesWoWPercent >= 0 ? '↑' : '↓'} ${Math.abs(stats.coursesWoWPercent)}% from last week`
                 } 
-                icon={<BookOpen className="w-6 h-6 text-white" />}
+                icon={<BookOpen className="w-8 h-8 text-white" />}
                 delay={0.2}
               />
               <DashboardCard 
                 title={<span className="text-white">Total Programs</span>} 
                 value={stats.totalPrograms} 
                 subtitle="Active programs" 
-                icon={<GraduationCap className="w-6 h-6 text-white" />}
+                icon={<GraduationCap className="w-8 h-8 text-white" />}
                 delay={0.3}
               />
               <DashboardCard 
                 title={<span className="text-white">Active Users</span>} 
                 value={stats.activeUsers} 
                 subtitle="Currently online" 
-                icon={<Activity className="w-6 h-6 text-white" />}
+                icon={<Activity className="w-8 h-8 text-white" />}
                 delay={0.4}
               />
             </div>
