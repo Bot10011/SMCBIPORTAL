@@ -13,6 +13,7 @@ import {
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
 import CreateAnnouncementModal from '../components/CreateAnnouncementModal';
+import { PiMegaphoneBold } from "react-icons/pi";
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -252,14 +253,25 @@ const Announcement: React.FC = () => {
     <div className="p-6 min-h-screen bg-gradient-to-br ">
       {/* Header */}
       <div className="mb-8">
-        <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 rounded-lg shadow-lg">
+        <div 
+          className="px-8 py-6 rounded-3xl text-white"
+          style={{
+            background: '#00171f',
+            boxShadow: '8px 8px 16px rgba(0, 23, 31, 0.2), -4px -4px 12px rgba(0, 167, 225, 0.05), inset 1px 1px 2px rgba(255, 255, 255, 0.1)',
+            border: '1px solid rgba(0, 167, 225, 0.2)'
+          }}
+        >
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-megaphone w-6 h-6 text-white">
-                  <path d="m3 11 19-5-19-5v10Z"></path>
-                  <path d="M21.12 11.22A6 6 0 0 1 22 17v5h-2v-5a4 4 0 0 0-.88-2.78"></path>
-                </svg>
+              <div 
+                className="p-3 rounded-xl"
+                style={{
+                  background: 'rgba(0, 167, 225, 0.2)',
+                  boxShadow: 'inset 2px 2px 4px rgba(0, 0, 0, 0.3), inset -2px -2px 4px rgba(0, 167, 225, 0.1)',
+                  border: '1px solid rgba(0, 167, 225, 0.3)'
+                }}
+              >
+                <PiMegaphoneBold className="w-6 h-6 text-white" />
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-white tracking-tight">Announcement Management</h1>
@@ -273,26 +285,61 @@ const Announcement: React.FC = () => {
 
       {/* Stats Section */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-[#252728] rounded-xl shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300 p-4">
-          <div className="text-sm text-gray-300 mb-1">Total</div>
-          <div className="text-2xl font-bold text-white">{announcementStats.total}</div>
+        <div 
+          className="rounded-3xl p-6 transition-all duration-300 hover:scale-[1.02]"
+          style={{
+            background: 'linear-gradient(145deg, #00a7e1 0%, #0088b8 100%)',
+            boxShadow: '6px 6px 12px rgba(0, 0, 0, 0.2), -6px -6px 12px rgba(255, 255, 255, 0.05), inset 1px 1px 2px rgba(255, 255, 255, 0.2)',
+            border: '1px solid rgba(255, 255, 255, 0.3)'
+          }}
+        >
+          <div className="text-sm font-semibold uppercase tracking-wide mb-1 text-white">Total</div>
+          <div className="text-4xl font-bold text-white">{announcementStats.total}</div>
         </div>
-        <div className="bg-[#252728] rounded-xl shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300 p-4">
-          <div className="text-sm text-gray-300 mb-1">Active</div>
-          <div className="text-2xl font-bold text-green-400">{announcementStats.active}</div>
+        <div 
+          className="rounded-3xl p-6 transition-all duration-300 hover:scale-[1.02]"
+          style={{
+            background: 'linear-gradient(145deg, #00a7e1 0%, #0088b8 100%)',
+            boxShadow: '8px 0px 12px rgba(0, 0, 0, 0.2), -8px 0px 12px rgba(255, 255, 255, 0.05), inset 1px 1px 2px rgba(255, 255, 255, 0.2)',
+            border: '1px solid rgba(255, 255, 255, 0.3)'
+          }}
+        >
+          <div className="text-sm font-semibold uppercase tracking-wide mb-1 text-white">Active</div>
+          <div className="text-4xl font-bold text-white">{announcementStats.active}</div>
         </div>
-        <div className="bg-[#252728] rounded-xl shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300 p-4">
-          <div className="text-sm text-gray-300 mb-1">High Priority</div>
-          <div className="text-2xl font-bold text-red-400">{announcementStats.highPriority}</div>
+        <div 
+          className="rounded-3xl p-6 transition-all duration-300 hover:scale-[1.02]"
+          style={{
+            background: 'linear-gradient(145deg, #00a7e1 0%, #0088b8 100%)',
+            boxShadow: '0px 8px 12px rgba(0, 0, 0, 0.2), 0px -8px 12px rgba(255, 255, 255, 0.05), inset 1px 1px 2px rgba(255, 255, 255, 0.2)',
+            border: '1px solid rgba(255, 255, 255, 0.3)'
+          }}
+        >
+          <div className="text-sm font-semibold uppercase tracking-wide mb-1 text-white">High Priority</div>
+          <div className="text-4xl font-bold text-white">{announcementStats.highPriority}</div>
         </div>
-        <div className="bg-[#252728] rounded-xl shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300 p-4">
-          <div className="text-sm text-gray-300 mb-1">Inactive</div>
-          <div className="text-2xl font-bold text-gray-400">{announcementStats.inactive}</div>
+        <div 
+          className="rounded-3xl p-6 transition-all duration-300 hover:scale-[1.02]"
+          style={{
+            background: 'linear-gradient(145deg, #00a7e1 0%, #0088b8 100%)',
+            boxShadow: '-6px -6px 12px rgba(0, 0, 0, 0.2), 6px 6px 12px rgba(255, 255, 255, 0.05), inset 1px 1px 2px rgba(255, 255, 255, 0.2)',
+            border: '1px solid rgba(255, 255, 255, 0.3)'
+          }}
+        >
+          <div className="text-sm font-semibold uppercase tracking-wide mb-1 text-white">Inactive</div>
+          <div className="text-4xl font-bold text-white">{announcementStats.inactive}</div>
         </div>
       </div>
 
       {/* Controls */}
-      <div className="announcement-controls bg-[#252728] rounded-xl shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300 p-6 mb-6">
+      <div 
+        className="announcement-controls rounded-3xl p-6 mb-6"
+        style={{
+          background: 'linear-gradient(145deg, #f8fafc 0%, #f1f5f9 100%)',
+          boxShadow: '8px 8px 16px rgba(0, 0, 0, 0.08), -8px -8px 16px rgba(255, 255, 255, 0.8)',
+          border: '1px solid rgba(255, 255, 255, 0.6)'
+        }}
+      >
                 <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
           {/* Search */}
           <div className="flex-1 max-w-md">
@@ -303,7 +350,7 @@ const Announcement: React.FC = () => {
                 placeholder="Search announcements..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-gray-800 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-white placeholder-gray-400 shadow-[inset_2px_2px_4px_rgba(0,0,0,0.3),inset_-1px_-1px_2px_rgba(255,255,255,0.05)]"
+                className="w-full pl-10 pr-4 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black placeholder-gray-500 shadow-[inset_2px_2px_4px_rgba(0,0,0,0.03),inset_-1px_-1px_2px_rgba(255,255,255,0.6)]"
               />
             </div>
           </div>
@@ -393,7 +440,7 @@ const Announcement: React.FC = () => {
               key={announcement.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="announcement-card bg-[#252728] rounded-xl shadow-[4px_4px_8px_rgba(0,0,0,0.3),-1px_-1px_4px_rgba(255,255,255,0.2)] border border-gray-300 overflow-hidden transition-all duration-200"
+              className="announcement-card bg-white/90 rounded-xl shadow-[4px_4px_8px_rgba(0,0,0,0.1),-1px_-1px_4px_rgba(255,255,255,0.6)] border border-gray-200 overflow-hidden transition-all duration-200"
             >
               {/* Banner Image */}
               {announcement.image && (
@@ -430,26 +477,26 @@ const Announcement: React.FC = () => {
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getPriorityColor(announcement.priority)}`}>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getPriorityColor(announcement.priority)} bg-white/40 backdrop-blur` }>
                         {announcement.priority.toUpperCase()}
                       </span>
-                      <span className="px-2 py-1 bg-gray-700/50 text-gray-200 rounded-full text-xs font-medium border border-gray-600">
+                      <span className="px-2 py-1 bg-gray-200 text-gray-700 rounded-full text-xs font-medium border border-gray-300">
                         {announcement.category}
                       </span>
                       {!announcement.is_active && (
-                        <span className="px-2 py-1 bg-gray-700/50 text-gray-400 rounded-full text-xs font-medium border border-gray-600">
+                        <span className="px-2 py-1 bg-gray-100 text-gray-500 rounded-full text-xs font-medium border border-gray-300">
                           INACTIVE
                         </span>
                       )}
                     </div>
-                    <h3 className="text-lg font-bold text-white mb-2 line-clamp-2">
+                    <h3 className="text-lg font-bold text-black mb-2 line-clamp-2">
                       {announcement.title}
                     </h3>
                   </div>
                 </div>
 
                 {/* Meta Info */}
-                <div className="flex items-center gap-4 text-sm text-gray-300 mb-4">
+                <div className="flex items-center gap-4 text-sm text-gray-600 mb-4">
                   <div className="flex items-center gap-1">
                     <User className="w-4 h-4" />
                     <span>{announcement.author}</span>
@@ -461,7 +508,7 @@ const Announcement: React.FC = () => {
                 </div>
 
                 {/* Content Preview */}
-                <p className="text-gray-300 text-sm line-clamp-3 mb-4">
+                <p className="text-gray-700 text-sm line-clamp-3 mb-4">
                   {announcement.content}
                 </p>
 
