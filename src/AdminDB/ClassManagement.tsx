@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { Search, RefreshCw, ChevronDown, ChevronRight, Edit, Trash2, Download } from 'lucide-react';
+import { Search, RefreshCw, ChevronDown, ChevronRight, Edit, Trash2, Download, School,BookOpen } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -747,21 +747,40 @@ const ClassManagement: React.FC = () => {
   return (
     <div className="p-4 md:p-6">
       <div 
-        className="mb-6 bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-5 shadow-lg rounded-xl"
-        style={{ marginLeft: '-0.5rem', marginRight: '-0.5rem' }}
+        className="mb-6 px-6 py-5 shadow-lg rounded-xl flex items-center gap-3"
+        style={{ 
+          marginLeft: '-0.5rem', 
+          marginRight: '-0.5rem',
+          background: '#00171f',
+          boxShadow: '8px 8px 16px rgba(0,0,0,0.1), -8px -8px 16px rgba(255,255,255,0.5)'
+        }}
       >
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <BookOpen className="w-8 h-8 text-white" />
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between flex-1">
           <div className="flex items-center gap-4">
             <h2 className="text-xl font-bold text-white tracking-tight">Class Management</h2>
-            <div className="flex items-center rounded-md bg-white/15 p-1 text-white">
+            <div className="flex items-center rounded-md p-1 text-white" style={{
+              background: 'linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%)',
+              boxShadow: 'inset 4px 4px 8px rgba(0,0,0,0.1), inset -4px -4px 8px rgba(255,255,255,0.8)'
+            }}>
               <button
-                className={`px-3 py-1.5 text-sm font-medium rounded ${activeTab === 'unassigned' ? 'bg-white/90 text-blue-700' : 'text-white/90 hover:bg-white/20'}`}
+                className={`px-3 py-1.5 text-sm font-medium rounded transition-all`}
+                style={{
+                  background: activeTab === 'unassigned' ? '#00A7E1' : 'transparent',
+                  color: activeTab === 'unassigned' ? 'white' : '#6b7280',
+                  boxShadow: activeTab === 'unassigned' ? '6px 6px 12px rgba(0,0,0,0.1), -6px -6px 12px rgba(255,255,255,0.5)' : 'none'
+                }}
                 onClick={() => setActiveTab('unassigned')}
               >
                 Student List
               </button>
               <button
-                className={`px-3 py-1.5 text-sm font-medium rounded ${activeTab === 'sections' ? 'bg-white/90 text-blue-700' : 'text-white/90 hover:bg-white/20'}`}
+                className={`px-3 py-1.5 text-sm font-medium rounded transition-all`}
+                style={{
+                  background: activeTab === 'sections' ? '#00A7E1' : 'transparent',
+                  color: activeTab === 'sections' ? 'white' : '#6b7280',
+                  boxShadow: activeTab === 'sections' ? '6px 6px 12px rgba(0,0,0,0.1), -6px -6px 12px rgba(255,255,255,0.5)' : 'none'
+                }}
                 onClick={() => setActiveTab('sections')}
               >
                 Section List
@@ -770,17 +789,31 @@ const ClassManagement: React.FC = () => {
           </div>
           <div className="flex items-center gap-2">
             <div className="relative">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-white/80" />
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
               <input
                 value={query}
                 onChange={e => setQuery(e.target.value)}
                 placeholder="Search ID, name, email"
-                className="w-64 rounded-md border border-white/20 bg-white/10 pl-9 pr-3 py-2 text-sm text-white placeholder-white/80 outline-none focus:ring-2 focus:ring-white/50"
+                className="w-64 rounded-md pl-9 pr-3 py-2 text-sm text-gray-700 placeholder-gray-400 outline-none border-0"
+                style={{
+                  background: '#ffffff',
+                  boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)'
+                }}
               />
             </div>
             <button
               onClick={() => fetchStudents()}
-              className="inline-flex items-center gap-2 rounded-md bg-white/15 px-3 py-2 text-sm font-medium text-white hover:bg-white/25 disabled:opacity-60"
+              className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-white disabled:opacity-60 transition-all"
+              style={{
+                background: '#00A7E1',
+              
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.boxShadow = 'inset 4px 4px 8px rgba(0,0,0,0.1), inset -4px -4px 8px rgba(255,255,255,0.5)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.boxShadow = '6px 6px 12px rgba(0,0,0,0.1), -6px -6px 12px rgba(255,255,255,0.5)';
+              }}
               disabled={loading}
             >
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
@@ -803,29 +836,42 @@ const ClassManagement: React.FC = () => {
       {activeTab === 'unassigned' && !loading && (
         <div className="space-y-8">
           {/* Filters for student list - always visible */}
-          <div className="mb-2 flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-600">Year</span>
-              <select
-                className="rounded-md border border-gray-300 px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                value={studentYearFilter}
-                onChange={e => setStudentYearFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-              >
-                <option value="all">All</option>
-                {[1,2,3,4].map(y => (<option key={y} value={y}>{y}</option>))}
-              </select>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-600">Assignment</span>
-              <select
-                className="rounded-md border border-gray-300 px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                value={assignmentFilter}
-                onChange={e => setAssignmentFilter(e.target.value as any)}
-              >
-                <option value="all">All</option>
-                <option value="assigned">Assigned</option>
-                <option value="unassigned">Unassigned</option>
-              </select>
+          <div className="rounded-xl p-4" style={{
+            background: 'linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%)',
+            boxShadow: 'inset 4px 4px 8px rgba(0,0,0,0.1), inset -4px -4px 8px rgba(255,255,255,0.8)'
+          }}>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-600 font-medium">Year</span>
+                <select
+                  className="rounded-md px-3 py-1.5 text-sm outline-none border-0"
+                  style={{
+                    background: '#ffffff',
+                    boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)'
+                  }}
+                  value={studentYearFilter}
+                  onChange={e => setStudentYearFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                >
+                  <option value="all">All</option>
+                  {[1,2,3,4].map(y => (<option key={y} value={y}>{y}</option>))}
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-600 font-medium">Assignment</span>
+                <select
+                  className="rounded-md px-3 py-1.5 text-sm outline-none border-0"
+                  style={{
+                    background: '#ffffff',
+                    boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)'
+                  }}
+                  value={assignmentFilter}
+                  onChange={e => setAssignmentFilter(e.target.value as 'all' | 'assigned' | 'unassigned')}
+                >
+                  <option value="all">All</option>
+                  <option value="assigned">Assigned</option>
+                  <option value="unassigned">Unassigned</option>
+                </select>
+              </div>
             </div>
           </div>
 
@@ -932,14 +978,27 @@ const ClassManagement: React.FC = () => {
                 setNewSection({ name: '', year_level: 1, academic_year: getDefaultAcademicYear() });
                 setShowCreateModal(true); 
               }}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              className="rounded-md px-4 py-2 text-sm font-medium text-white transition-all"
+              style={{
+                background: '#00A7E1',
+                boxShadow: '6px 6px 12px rgba(0,0,0,0.1), -6px -6px 12px rgba(255,255,255,0.5)'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.boxShadow = 'inset 4px 4px 8px rgba(0,0,0,0.1), inset -4px -4px 8px rgba(255,255,255,0.5)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.boxShadow = '6px 6px 12px rgba(0,0,0,0.1), -6px -6px 12px rgba(255,255,255,0.5)';
+              }}
             >
               + Create Section
             </button>
           </div>
 
           {/* Sections Grid */}
-          <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+          <div className="rounded-xl p-4" style={{
+            background: 'linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%)',
+            boxShadow: '8px 8px 16px rgba(0,0,0,0.1), -8px -8px 16px rgba(255,255,255,0.5)'
+          }}>
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-base font-semibold text-gray-800">Section List</h3>
               <div className="flex items-center gap-2">
@@ -1140,11 +1199,14 @@ const ClassManagement: React.FC = () => {
                         return maleStudents.length > 0 && (
                           <div className="mb-6">
                             <div className="mb-3 flex items-center gap-2">
-                              <h4 className="text-sm font-semibold text-blue-700">Male Students ({maleStudents.length})</h4>
-                              <div className="h-px flex-1 bg-blue-200"></div>
+                              <h4 className="text-sm font-semibold text-gray-700">Male Students ({maleStudents.length})</h4>
+                              <div className="h-px flex-1 bg-gray-200"></div>
                             </div>
-                            <div className="overflow-x-auto rounded-lg border border-blue-200 bg-blue-50/30">
-                              <table className="min-w-full divide-y divide-blue-200">
+                            <div className="overflow-x-auto rounded-lg" style={{
+                              background: '#f9fafb',
+                              boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)'
+                            }}>
+                              <table className="min-w-full divide-y divide-gray-200">
                                 <colgroup>
                                   <col className="w-32 min-w-[120px]" />
                                   <col className="w-48 min-w-[200px]" />
@@ -1152,18 +1214,21 @@ const ClassManagement: React.FC = () => {
                                   <col className="w-20 min-w-[80px]" />
                                   <col className="w-24 min-w-[100px]" />
                                 </colgroup>
-                                <thead className="bg-blue-100">
+                                <thead style={{
+                                  background: 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)',
+                                  boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)'
+                                }}>
                                   <tr>
-                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-blue-800">Student No.</th>
-                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-blue-800">Name</th>
-                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-blue-800">Email</th>
-                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-blue-800">Year</th>
-                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-blue-800">Action</th>
+                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-700">Student No.</th>
+                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-700">Name</th>
+                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-700">Email</th>
+                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-700">Year</th>
+                                    <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-700">Action</th>
                                   </tr>
                                 </thead>
-                                <tbody className="divide-y divide-blue-200 bg-white">
+                                <tbody className="divide-y divide-gray-200 bg-white">
                                   {maleStudents.map((s, idx) => (
-                                    <tr key={s.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-blue-50/50'}>
+                                    <tr key={s.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                                       <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900">{s.student_id || '—'}</td>
                                       <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900 truncate">{s.last_name}, {s.first_name}{s.middle_name ? ` ${s.middle_name}` : ''}</td>
                                       <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700 truncate">{s.email}</td>
@@ -1171,7 +1236,17 @@ const ClassManagement: React.FC = () => {
                                       <td className="px-4 py-2">
                                         <button
                                           onClick={() => openSingleTransferModal(s)}
-                                          className="rounded-md bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700"
+                                          className="rounded-md px-2 py-1 text-xs font-medium text-white transition-all"
+                                          style={{
+                                            background: '#00A7E1',
+                                            boxShadow: '4px 4px 8px rgba(0,0,0,0.1), -4px -4px 8px rgba(255,255,255,0.5)'
+                                          }}
+                                          onMouseEnter={(e) => {
+                                            e.currentTarget.style.boxShadow = 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.5)';
+                                          }}
+                                          onMouseLeave={(e) => {
+                                            e.currentTarget.style.boxShadow = '4px 4px 8px rgba(0,0,0,0.1), -4px -4px 8px rgba(255,255,255,0.5)';
+                                          }}
                                         >
                                           Transfer
                                         </button>
@@ -1222,7 +1297,17 @@ const ClassManagement: React.FC = () => {
                                       <td className="px-4 py-2">
                                         <button
                                           onClick={() => openSingleTransferModal(s)}
-                                          className="rounded-md bg-pink-600 px-2 py-1 text-xs font-medium text-white hover:bg-pink-700"
+                                          className="rounded-md px-2 py-1 text-xs font-medium text-white transition-all"
+                                          style={{
+                                            background: '#ec4899',
+                                            boxShadow: '4px 4px 8px rgba(0,0,0,0.1), -4px -4px 8px rgba(255,255,255,0.5)'
+                                          }}
+                                          onMouseEnter={(e) => {
+                                            e.currentTarget.style.boxShadow = 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.5)';
+                                          }}
+                                          onMouseLeave={(e) => {
+                                            e.currentTarget.style.boxShadow = '4px 4px 8px rgba(0,0,0,0.1), -4px -4px 8px rgba(255,255,255,0.5)';
+                                          }}
                                         >
                                           Transfer
                                         </button>
@@ -1753,5 +1838,4 @@ const ClassManagement: React.FC = () => {
 };
 
 export default ClassManagement;
-
 
