@@ -358,8 +358,12 @@ const ClassList: React.FC = () => {
   return (
     <div className="p-4 md:p-6">
       <div 
-        className="mb-6 bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-5 shadow-lg rounded-xl"
-        style={{ marginLeft: '-0.5rem', marginRight: '-0.5rem' }}
+        className="mb-6 rounded-3xl px-8 py-6 text-white"
+        style={{
+          background: 'linear-gradient(145deg,  #00171f',
+          boxShadow: '8px 8px 16px rgba(0,167,225,0.12), -8px -8px 16px rgba(255,255,255,0.7), inset 2px 2px 4px rgba(255,255,255,0.18), inset -2px -2px 4px rgba(0,0,0,0.08)',
+          border: '1px solid rgba(0,167,225,0.12)'
+        }}
       >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
@@ -371,13 +375,13 @@ const ClassList: React.FC = () => {
               >
                 Section List
               </button>
-        <button
+              <button
                 className={`px-3 py-1.5 text-sm font-medium rounded ${activeTab === 'students' ? 'bg-white/90 text-blue-700' : 'text-white/90 hover:bg-white/20'}`}
                 onClick={() => setActiveTab('students')}
-        >
+              >
                 Student List
-        </button>
-      </div>
+              </button>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <div className="relative">
@@ -388,7 +392,7 @@ const ClassList: React.FC = () => {
                 placeholder="Search ID, name, email"
                 className="w-64 rounded-md border border-white/20 bg-white/10 pl-9 pr-3 py-2 text-sm text-white placeholder-white/80 outline-none focus:ring-2 focus:ring-white/50"
               />
-        </div>
+            </div>
             <button
               onClick={() => fetchAllStudents()}
               className="inline-flex items-center gap-2 rounded-md bg-white/15 px-3 py-2 text-sm font-medium text-white hover:bg-white/25 disabled:opacity-60"
@@ -398,16 +402,24 @@ const ClassList: React.FC = () => {
               {loading ? 'Refreshing' : 'Refresh'}
             </button>
           </div>
-                </div>
-                </div>
+        </div>
+      </div>
       {loading && (
-        <div className="rounded border border-gray-200 bg-white p-6 text-gray-600">Loading…</div>
+        <div className="rounded-2xl p-6 text-gray-600 transition-all duration-300" style={{
+          background: 'linear-gradient(145deg, #FFFFFFE6 0%, #FFFFFF 100%)',
+          boxShadow: '8px 8px 16px rgba(0,0,0,0.08), -8px -8px 16px rgba(255,255,255,0.7), inset 2px 2px 4px rgba(255,255,255,0.18), inset -2px -2px 4px rgba(0,0,0,0.04)',
+          border: '1px solid rgba(0,0,0,0.04)'
+        }}>Loading…</div>
       )}
 
       {activeTab === 'sections' && !loading && (
         <div className="space-y-6">
           {/* Sections grouped by Year Level */}
-          <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+          <div className="rounded-2xl p-4 transition-all duration-300 shadow-sm border mb-6" style={{
+            background: 'linear-gradient(145deg, #FFFFFFE6 0%, #FFFFFF 100%)',
+            boxShadow: '8px 8px 16px rgba(0,0,0,0.08), -8px -8px 16px rgba(255,255,255,0.7), inset 2px 2px 4px rgba(255,255,255,0.18), inset -2px -2px 4px rgba(0,0,0,0.04)',
+            border: '1px solid rgba(0,0,0,0.04)'
+          }}>
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-base font-semibold text-gray-800">Section List by Year Level</h3>
               <div className="flex items-center gap-2">
@@ -429,7 +441,11 @@ const ClassList: React.FC = () => {
 
             <div className="space-y-3">
               {groupedSections.map(([year, list]) => (
-                <div key={year} className="border border-gray-200 rounded-lg overflow-hidden">
+                <div key={year} className="rounded-2xl overflow-hidden border transition-all duration-300" style={{
+                  background: 'linear-gradient(145deg, #FFFFFFE6 0%, #FFFFFF 100%)',
+                  boxShadow: '8px 8px 16px rgba(0,0,0,0.08), -8px -8px 16px rgba(255,255,255,0.7), inset 2px 2px 4px rgba(255,255,255,0.18), inset -2px -2px 4px rgba(0,0,0,0.04)',
+                  border: '1px solid rgba(0,0,0,0.04)'
+                }}>
                   <button
                     onClick={() => setExpandedYears(prev => (prev === year ? null : year))}
                     className="w-full flex items-center justify-between px-4 py-2 bg-gray-50 hover:bg-gray-100"
@@ -510,7 +526,11 @@ const ClassList: React.FC = () => {
           </div>
 
           {/* Student List */}
-          <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
+          <div className="overflow-x-auto rounded-2xl border transition-all duration-300 shadow-sm" style={{
+            background: 'linear-gradient(145deg, #FFFFFFE6 0%, #FFFFFF 100%)',
+            boxShadow: '8px 8px 16px rgba(0,0,0,0.08), -8px -8px 16px rgba(255,255,255,0.7), inset 2px 2px 4px rgba(255,255,255,0.18), inset -2px -2px 4px rgba(0,0,0,0.04)',
+            border: '1px solid rgba(0,0,0,0.04)'
+          }}>
             <table className="min-w-full table-fixed divide-y divide-gray-200">
               <colgroup>
                 <col className="w-40" />
