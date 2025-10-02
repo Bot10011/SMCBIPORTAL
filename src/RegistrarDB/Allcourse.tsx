@@ -303,7 +303,7 @@ export const RegistrarGradeViewer: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96 bg-gradient-to-br via-white to-indigo-50">
+      <div className="flex items-center justify-center h-96 bg-gradient-to-br  via-white to-indigo-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500 mx-auto mb-4"></div>
           <p className="text-gray-600 font-medium">Loading subjects...</p>
@@ -325,10 +325,16 @@ export const RegistrarGradeViewer: React.FC = () => {
     <div className="min-h-screen from-blue-50 via-white to-indigo-50">
       <div className="mx-auto px-6 py-8">
         {/* Header Section */}
-        <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 rounded-2xl mb-6">
+        <div className="px-8 py-6 rounded-3xl text-white mb-6" style={{
+          background: 'linear-gradient(145deg, #00171f',
+          boxShadow: '8px 8px 16px rgba(0,167,225,0.12), -8px -8px 16px rgba(255,255,255,0.7), inset 2px 2px 4px rgba(255,255,255,0.18), inset -2px -2px 4px rgba(0,0,0,0.08)',
+          border: '1px solid rgba(0,167,225,0.12)'
+        }}>
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
+              <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm" style={{
+                boxShadow: '2px 2px 4px rgba(0,0,0,0.08), -2px -2px 4px rgba(255,255,255,0.7)'
+              }}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-file-text w-6 h-6 text-white">
                   <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path>
                   <path d="M14 2v4a2 2 0 0 0 2 2h4"></path>
@@ -348,45 +354,67 @@ export const RegistrarGradeViewer: React.FC = () => {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 mt-6">
-          <div className="bg-white/90 rounded-2xl p-6 shadow-lg border border-gray-100">
+          <div className="rounded-2xl p-6 transition-all duration-300" style={{
+            background: 'linear-gradient(145deg, #00a7e1',
+            boxShadow: '8px 8px 16px rgba(255, 255, 255, 0.08), -8px -8px 16px rgba(255,255,255,0.7), inset 2px 2px 4px rgba(255,255,255,0.18), inset -2px -2px 4px rgba(0,0,0,0.04)',
+            border: '1px solid rgba(0,0,0,0.04)'
+          }}>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 text-sm font-medium">Total Subjects</p>
-                <p className="text-3xl font-bold text-gray-900">{courses.length}</p>
+                <p className="text-white text-sm font-medium">Total Subjects</p>
+                <p className="text-3xl font-bold text-white">{courses.length}</p>
               </div>
-              <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                <BookOpen className="w-6 h-6 text-blue-600" />
+              <div className="w-12 h-12 bg-[#00a7e1] rounded-xl flex items-center justify-center" style={{
+                boxShadow: '4px 4px 8px rgba(0,167,225,0.12), -4px -4px 8px rgba(255,255,255,0.7), inset 1px 1px 2px rgba(255,255,255,0.18), inset -1px -1px 2px rgba(0,0,0,0.04)'
+              }}>
+                <BookOpen className="w-6 h-6 text-white" />
               </div>
             </div>
           </div>
-          <div className="bg-white/90 rounded-2xl p-6 shadow-lg border border-gray-100">
+          <div className="rounded-2xl p-6 transition-all duration-300" style={{
+            background: 'linear-gradient(145deg, #00a7e1',
+            boxShadow: '8px 8px 16px rgba(0,0,0,0.08), -8px -8px 16px rgba(255,255,255,0.7), inset 2px 2px 4px rgba(255,255,255,0.18), inset -2px -2px 4px rgba(0,0,0,0.04)',
+            border: '1px solid rgba(0,0,0,0.04)'
+          }}>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 text-sm font-medium">Average Units</p>
-                <p className="text-3xl font-bold text-gray-900">
+                <p className="text-white text-sm font-medium">Average Units</p>
+                <p className="text-3xl font-bold text-white">
                   {courses.length > 0 ? (courses.reduce((sum, course) => sum + (course.units || 0), 0) / courses.length).toFixed(1) : '0'}
                 </p>
               </div>
-              <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                <GraduationCap className="w-6 h-6 text-green-600" />
+              <div className="w-12 h-12 bg-[#00a7e1] rounded-xl flex items-center justify-center" style={{
+                boxShadow: '4px 4px 8px rgba(0,167,225,0.12), -4px -4px 8px rgba(255,255,255,0.7), inset 1px 1px 2px rgba(255,255,255,0.18), inset -1px -1px 2px rgba(0,0,0,0.04)'
+              }}>
+                <GraduationCap className="w-6 h-6 text-white" />
               </div>
             </div>
           </div>
-          <div className="bg-white/90 rounded-2xl p-6 shadow-lg border border-gray-100">
+          <div className="rounded-2xl p-6 transition-all duration-300" style={{
+            background: 'linear-gradient(145deg, #00a7e1',
+            boxShadow: '8px 8px 16px rgba(0,0,0,0.08), -8px -8px 16px rgba(255,255,255,0.7), inset 2px 2px 4px rgba(255,255,255,0.18), inset -2px -2px 4px rgba(0,0,0,0.04)',
+            border: '1px solid rgba(0,0,0,0.04)'
+          }}>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 text-sm font-medium">Active Subjects</p>
-                <p className="text-3xl font-bold text-gray-900">{filteredCourses.length}</p>
+                <p className="text-white text-sm font-medium">Active Subjects</p>
+                <p className="text-3xl font-bold text-white">{filteredCourses.length}</p>
               </div>
-              <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-                <BookOpen className="w-6 h-6 text-purple-600" />
+              <div className="w-12 h-12 bg-[#00a7e1] rounded-xl flex items-center justify-center" style={{
+                boxShadow: '4px 4px 8px rgba(0,167,225,0.12), -4px -4px 8px rgba(255,255,255,0.7), inset 1px 1px 2px rgba(255,255,255,0.18), inset -1px -1px 2px rgba(0,0,0,0.04)'
+              }}>
+                <BookOpen className="w-6 h-6 text-white" />
               </div>
             </div>
           </div>
         </div>
 
         {/* Search Section */}
-        <div className="bg-white/90 rounded-2xl p-6 shadow-lg border border-gray-100 mb-8">
+        <div className="rounded-2xl p-6 transition-all duration-300 mb-8" style={{
+          background: 'linear-gradient(145deg, #FFFFFFE6 0%, #FFFFFF 100%)',
+          boxShadow: '8px 8px 16px rgba(0,0,0,0.08), -8px -8px 16px rgba(255,255,255,0.7), inset 2px 2px 4px rgba(255,255,255,0.18), inset -2px -2px 4px rgba(0,0,0,0.04)',
+          border: '1px solid rgba(0,0,0,0.04)'
+        }}>
           <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
             <div className="flex-1 max-w-md">
               <div className="relative">
@@ -427,7 +455,11 @@ export const RegistrarGradeViewer: React.FC = () => {
           const programNames = Object.keys(grouped).sort((a,b)=>a.localeCompare(b));
           if (programNames.length === 0) {
             return (
-              <div className="bg-white/90 rounded-2xl p-12 text-center shadow-lg border border-gray-100">
+              <div className="rounded-2xl p-12 text-center transition-all duration-300" style={{
+                background: 'linear-gradient(145deg, #FFFFFFE6 0%, #FFFFFF 100%)',
+                boxShadow: '8px 8px 16px rgba(0,0,0,0.08), -8px -8px 16px rgba(255,255,255,0.7), inset 2px 2px 4px rgba(255,255,255,0.18), inset -2px -2px 4px rgba(0,0,0,0.04)',
+                border: '1px solid rgba(0,0,0,0.04)'
+              }}>
                 <BookOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                 <h3 className="text-xl font-semibold text-gray-600 mb-2">No subjects found</h3>
                 <p className="text-gray-500 mb-6">
@@ -439,7 +471,11 @@ export const RegistrarGradeViewer: React.FC = () => {
           return (
             <div className="space-y-6">
               {programNames.map(program => (
-                <div key={program} className="bg-white/90 rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+                <div key={program} className="rounded-2xl shadow-lg border overflow-hidden transition-all duration-300" style={{
+                  background: 'linear-gradient(145deg, #FFFFFFE6 0%, #FFFFFF 100%)',
+                  boxShadow: '8px 8px 16px rgba(0,0,0,0.08), -8px -8px 16px rgba(255,255,255,0.7), inset 2px 2px 4px rgba(255,255,255,0.18), inset -2px -2px 4px rgba(0,0,0,0.04)',
+                  border: '1px solid rgba(0,0,0,0.04)'
+                }}>
                   <button
                     className="w-full flex items-center justify-between px-5 py-4 bg-gradient-to-r from-blue-50 to-purple-50"
                     onClick={() => setOpenPrograms(prev => ({ ...prev, [program]: !prev[program] }))}
@@ -468,6 +504,11 @@ export const RegistrarGradeViewer: React.FC = () => {
                                   ? 'bg-white border-gray-100' 
                                   : 'bg-red-50 border-red-200'
                               }`}
+                              style={hasInstructor ? {
+                                background: 'linear-gradient(145deg, #FFFFFFE6 0%, #FFFFFF 100%)',
+                                boxShadow: '8px 8px 16px rgba(0,0,0,0.08), -8px -8px 16px rgba(255,255,255,0.7), inset 2px 2px 4px rgba(255,255,255,0.18), inset -2px -2px 4px rgba(0,0,0,0.04)',
+                                border: '1px solid rgba(0,0,0,0.04)'
+                              } : {}}
                             >
                               <div className={`relative h-32 flex items-center justify-center overflow-hidden ${
                                 hasInstructor 
@@ -620,4 +661,4 @@ export const RegistrarGradeViewer: React.FC = () => {
       )}
     </div>
   );
-}; 
+};
