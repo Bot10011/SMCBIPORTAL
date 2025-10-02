@@ -241,10 +241,16 @@ const EmailManagement: React.FC = () => {
         <div className="w-full">
           {/* Header */}
           <div className="mb-8">
-            <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 rounded-lg">
+            <div className="px-8 py-6 rounded-3xl text-white" style={{
+              background: 'linear-gradient(145deg, #00171f 0%',
+              boxShadow: '8px 8px 16px rgba(0,167,225,0.15), -8px -8px 16px rgba(255,255,255,0.7), inset 2px 2px 4px rgba(255,255,255,0.2), inset -2px -2px 4px rgba(0,0,0,0.08)',
+              border: '1px solid rgba(0,167,225,0.2)'
+            }}>
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
+                  <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm" style={{
+                    boxShadow: '2px 2px 4px rgba(0,0,0,0.08), -2px -2px 4px rgba(255,255,255,0.7)'
+                  }}>
                     <Mail className="w-6 h-6 text-white" />
                   </div>
                   <div>
@@ -253,16 +259,22 @@ const EmailManagement: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2 items-center">
-                  <div className="rounded-xl px-4 py-2 flex items-center gap-2 bg-white/15 border border-white/25 text-white shadow-sm">
+                  <div className="rounded-xl px-4 py-2 flex items-center gap-2 bg-white/15 border border-white/25 text-white" style={{
+                    boxShadow: '2px 2px 4px rgba(0,0,0,0.08), -2px -2px 4px rgba(255,255,255,0.7)'
+                  }}>
                     <span className="font-bold text-lg">{users.length}</span>
                     <span className="text-sm">Total Students</span>
                   </div>
-                  <div className="rounded-xl px-4 py-2 flex items-center gap-2 bg-white/15 border border-white/25 text-white shadow-sm">
-                    <CheckCircle className="w-5 h-5 text-emerald-200" />
+                  <div className="rounded-xl px-4 py-2 flex items-center gap-2 bg-white/15 border border-white/25 text-white" style={{
+                    boxShadow: '2px 2px 4px rgba(0,0,0,0.08), -2px -2px 4px rgba(255,255,255,0.7)'
+                  }}>
+                    <CheckCircle className="w-5 h-5 text-white" />
                     <span className="font-semibold text-sm">{users.filter(u => u.is_active).length} Active</span>
                   </div>
-                  <div className="rounded-xl px-4 py-2 flex items-center gap-2 bg-white/15 border border-white/25 text-white shadow-sm">
-                    <AlertCircle className="w-5 h-5 text-amber-200" />
+                  <div className="rounded-xl px-4 py-2 flex items-center gap-2 bg-white/15 border border-white/25 text-white" style={{
+                    boxShadow: '2px 2px 4px rgba(0,0,0,0.08), -2px -2px 4px rgba(255,255,255,0.7)'
+                  }}>
+                    <AlertCircle className="w-5 h-5 text-white" />
                     <span className="font-semibold text-sm">{users.filter(u => !u.is_active).length} Inactive</span>
                   </div>
                 </div>
@@ -291,32 +303,38 @@ const EmailManagement: React.FC = () => {
           )}
 
           {/* Filters */}
-          <div className="bg-white/80 rounded-2xl shadow-lg p-4 mb-6">
+          <div className="bg-white/80 rounded-2xl shadow-lg p-4 mb-6" style={{
+            boxShadow: '8px 8px 16px rgba(0,167,225,0.10), -8px -8px 16px rgba(255,255,255,0.7), inset 2px 2px 4px rgba(255,255,255,0.2), inset -2px -2px 4px rgba(0,0,0,0.05)'
+          }}>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="flex items-center gap-2 bg-gray-100 rounded-lg px-3 py-2 w-full">
-              <Search className="w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search by name or email..."
-                className="bg-transparent outline-none text-gray-700 w-full"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-              />
+              <div className="flex items-center gap-2 bg-gray-100 rounded-lg px-3 py-2 w-full" style={{
+                boxShadow: '2px 2px 4px rgba(0,0,0,0.08), -2px -2px 4px rgba(255,255,255,0.7)'
+              }}>
+                <Search className="w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search by name or email..."
+                  className="bg-transparent outline-none text-gray-700 w-full"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                />
+              </div>
+              {/* Department filter removed: auto-filter by current Program Head department */}
+              <select
+                className="w-full bg-gray-100 rounded-lg px-3 py-2 text-gray-700 outline-none border-none shadow-sm transition-all"
+                style={{
+                  boxShadow: '2px 2px 4px rgba(0,0,0,0.08), -2px -2px 4px rgba(255,255,255,0.7)'
+                }}
+                value={filterYear}
+                onChange={e => setFilterYear(e.target.value)}
+              >
+                <option value="">All Year Levels</option>
+                {yearOptions.map(year => (
+                  <option key={year} value={year as string}>{year}</option>
+                ))}
+              </select>
             </div>
-            {/* Department filter removed: auto-filter by current Program Head department */}
-            <select
-              className="w-full bg-gray-100 rounded-lg px-3 py-2 text-gray-700 outline-none border-none shadow-sm transition-all"
-              value={filterYear}
-              onChange={e => setFilterYear(e.target.value)}
-            >
-              <option value="">All Year Levels</option>
-              {yearOptions.map(year => (
-                <option key={year} value={year as string}>{year}</option>
-              ))}
-            </select>
-        
           </div>
-        </div>
 
         {/* Mobile Card List */}
         <div className="md:hidden space-y-3">
@@ -401,7 +419,9 @@ const EmailManagement: React.FC = () => {
         </div>
 
         {/* Table (Desktop) */}
-        <div className="hidden md:block bg-white/90 rounded-2xl shadow-xl overflow-x-auto">
+        <div className="hidden md:block bg-white/90 rounded-2xl shadow-xl overflow-x-auto" style={{
+          boxShadow: '8px 8px 16px rgba(0,167,225,0.10), -8px -8px 16px rgba(255,255,255,0.7), inset 2px 2px 4px rgba(255,255,255,0.2), inset -2px -2px 4px rgba(0,0,0,0.05)'
+        }}>
           <table className="w-full divide-y divide-gray-200 table-auto">
             <thead className="bg-gradient-to-r from-blue-100 to-indigo-100">
               <tr>
