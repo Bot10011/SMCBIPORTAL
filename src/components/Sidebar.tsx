@@ -417,9 +417,19 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
       }, 100); // Debounce resize events
     };
 
+    // Handle scroll events to ensure sidebar stays fixed
+    const handleScroll = () => {
+      // This function will be called during scroll but won't do anything
+      // It's here to ensure event propagation is properly managed
+      // The fixed positioning handles the sidebar placement
+    };
+
     window.addEventListener('resize', handleResize);
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    
     return () => {
       window.removeEventListener('resize', handleResize);
+      window.removeEventListener('scroll', handleScroll);
       clearTimeout(timeoutId);
     };
   }, []);
@@ -652,17 +662,20 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
     try {
       await logout();
       setShowLogoutConfirm(false);
+      // Redirect to login page after successful logout
+      navigate('/loginpage', { replace: true });
     } catch (error) {
       console.error('Logout failed:', error);
     }
-  }, [logout]);
+  }, [logout, navigate]);
 
   const handleLogoutCancel = useCallback(() => {
     setShowLogoutConfirm(false);
   }, []);
 
   if (!user) {
-    navigate('/');
+    // Ensure unauthenticated users are redirected to the login page
+    navigate('/loginpage');
     return null;
   }
 
@@ -701,7 +714,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           initial={isMobile ? 'hidden' : (isCollapsed ? 'collapsed' : 'expanded')}
           animate={isMobile ? 'visible' : (isCollapsed ? 'collapsed' : 'expanded')}
           exit={isMobile ? 'hidden' : undefined}
-          className={`fixed top-0 left-0 h-screen ${isCollapsed ? 'w-16' : 'w-64'} flex flex-col bg-gray-100 backdrop-blur-xl z-[40] sidebar-blur rounded-tr-3xl rounded-br-3xl overflow-hidden ${isMobile && isCollapsed ? 'hidden' : ''}`}
+          className={`fixed top-0 left-0 h-[100vh] min-h-screen ${isCollapsed ? 'w-16' : 'w-64'} flex flex-col bg-gray-100 backdrop-blur-xl z-[40] sidebar-blur rounded-tr-3xl rounded-br-3xl overflow-hidden ${isMobile && isCollapsed ? 'hidden' : ''} sidebar-container`}
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
           style={{
@@ -736,7 +749,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
               </div>
             </div>
           </div>
-          <nav className="flex-1 py-4 space-y-1 nav-item-spacing custom-scrollbar sidebar-nav overflow-y-auto overflow-x-hidden">
+          <nav className="flex-1 py-4 space-y-1 nav-item-spacing custom-scrollbar sidebar-nav overflow-y-auto overflow-x-hidden flex-grow sidebar-nav-fixed">
             {filteredSidebarItems.map((item) => (
               <div
                 key={item.path}
@@ -758,8 +771,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                   }}
                   onMouseEnter={(e) => {
                     if (!isExactPathActive(item.path)) {
-                      e.currentTarget.style.backgroundColor = '#f3f4f6';
-                      e.currentTarget.style.boxShadow = '4px 4px 8px rgba(0, 0, 0, 0.08), -4px -4px 8px rgba(255, 255, 255, 0.5)';
+                      e.currentTarget.style.backgroundColor = '#b9dbeb';
+                
                     }
                   }}
                   onMouseLeave={(e) => {
@@ -795,7 +808,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
             ))}
           </nav>
           <div 
-            className="sticky bottom-0 bg-gray-100 backdrop-blur-sm border-t border-gray-200/30 p-4"
+            className="sticky bottom-0 bg-gray-100 backdrop-blur-sm border-t border-gray-200/30 p-4 mt-auto"
             style={{
               boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 -2px 4px rgba(0, 0, 0, 0.05)'
             }}
@@ -1008,10 +1021,14 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           width: 'auto',
           minWidth: 'none',
           maxWidth: 'none',
-          backgroundColor: ' bg-[#FFFFFF] '
+          backgroundColor: ' bg-[#FFFFFF] ',
+          position: 'relative',
+          height: '100vh',
+          overflowY: 'auto',
+          overflowX: 'hidden'
         }}
         data-modal="true"
-        className={`min-h-screen ${shouldBlur() ? 'pointer-events-none [&:not(.course-modal):not(.subject-modal)]' : ''} z-[30] ${mainContentScrollLock}`}
+        className={`min-h-screen main-content-scroll ${shouldBlur() ? 'pointer-events-none [&:not(.course-modal):not(.subject-modal)]' : ''} z-[30] ${mainContentScrollLock}`}
       >
         <div className="h-full lg:pt-0" style={{ width: 'auto', minWidth: 'none', maxWidth: 'none', backgroundColor: ' bg-[#FFFFFF] ' }}>
           <div className={`rounded-l-lg p-3 sm:p-4 md:p-6 h-full relative ${shouldBlur() ? 'opacity-80' : ''}`}
