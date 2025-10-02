@@ -31,7 +31,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = (props) => {
           .from('user_profiles')
           .select('is_active')
           .eq('id', user.id)
-          .single();
+          .maybeSingle();
         
         if (error) {
           console.warn('Error fetching user profile:', error);
@@ -87,7 +87,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = (props) => {
       sessionStorage.setItem('deactivated_toast_shown', '1');
     }
     supabase.auth.signOut();
-    return <Navigate to="/" replace />;
+    return <Navigate to="/loginpage" replace />;
   }
 
   // Handle role-based access
