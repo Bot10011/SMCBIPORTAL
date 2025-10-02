@@ -259,6 +259,9 @@ const TeacherSettings: React.FC = () => {
         animate={{ opacity: 1, scale: 1 }} 
         transition={{ duration: 0.5 }}
         className="w-full max-w-2xl mx-auto bg-white/80 rounded-3xl shadow-2xl p-8 border border-gray-100 relative"
+        style={{
+          boxShadow: '8px 8px 16px rgba(0,167,225,0.10), -8px -8px 16px rgba(255,255,255,0.7), inset 2px 2px 4px rgba(255,255,255,0.2), inset -2px -2px 4px rgba(0,0,0,0.05)'
+        }}
       >
        
         {/* Edit Profile Modal removed */}
@@ -274,6 +277,9 @@ const TeacherSettings: React.FC = () => {
             <div className="relative group inline-block mb-3">
               <div 
                 className="w-32 h-32 rounded-full bg-gradient-to-br from-blue-50 to-indigo-50 shadow-lg flex items-center justify-center overflow-hidden border-4 border-white transition-all duration-300 hover:scale-105 hover:shadow-xl"
+                style={{
+                  boxShadow: '4px 4px 8px rgba(0,167,225,0.10), -4px -4px 8px rgba(255,255,255,0.7), inset 1px 1px 2px rgba(255,255,255,0.2), inset -1px -1px 2px rgba(0,0,0,0.05)'
+                }}
               >
                 {profilePictureUrl ? (
                   <img 
@@ -287,12 +293,15 @@ const TeacherSettings: React.FC = () => {
                 )}
               </div>
             </div>
-            
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-700 rounded-full text-xs font-semibold mb-1">
-              <Briefcase className="w-3.5 h-3.5" />
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-700 rounded-full text-xs font-semibold mb-1" style={{
+              boxShadow: '2px 2px 4px rgba(0,167,225,0.10), -2px -2px 4px rgba(255,255,255,0.7)'
+            }}>
+              <Briefcase className="w-3.5 h-3.5 text-blue-700" />
               {profile.role}
             </div>
-            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium ${profile.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium ${profile.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`} style={{
+              boxShadow: '2px 2px 4px rgba(0,167,225,0.10), -2px -2px 4px rgba(255,255,255,0.7)'
+            }}>
               <div className={`w-2 h-2 rounded-full ${profile.is_active ? 'bg-green-500' : 'bg-gray-400'}`}></div>
               {profile.is_active ? 'Active' : 'Inactive'}
             </div>
@@ -302,7 +311,9 @@ const TeacherSettings: React.FC = () => {
           <div className="flex-1 space-y-3">
             {/* Display Name */}
             {displayName && (
-              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-2xl">
+              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-2xl" style={{
+                boxShadow: '2px 2px 4px rgba(0,167,225,0.10), -2px -2px 4px rgba(255,255,255,0.7)'
+              }}>
                 <div className="w-8 h-8 bg-indigo-100 rounded-xl flex items-center justify-center flex-shrink-0">
                   <UserCircle className="w-4 h-4 text-indigo-600" />
                 </div>
@@ -313,7 +324,9 @@ const TeacherSettings: React.FC = () => {
               </div>
             )}
             {/* Email */}
-            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-2xl">
+            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-2xl" style={{
+              boxShadow: '2px 2px 4px rgba(0,167,225,0.10), -2px -2px 4px rgba(255,255,255,0.7)'
+            }}>
               <div className="w-8 h-8 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
                 <Mail className="w-4 h-4 text-blue-600" />
               </div>
@@ -324,7 +337,9 @@ const TeacherSettings: React.FC = () => {
             </div>
             {/* Department */}
             {profile.department && (
-              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-2xl">
+              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-2xl" style={{
+                boxShadow: '2px 2px 4px rgba(0,167,225,0.10), -2px -2px 4px rgba(255,255,255,0.7)'
+              }}>
                 <div className="w-8 h-8 bg-indigo-100 rounded-xl flex items-center justify-center flex-shrink-0">
                   <Briefcase className="w-4 h-4 text-indigo-600" />
                 </div>
@@ -467,4 +482,4 @@ const TeacherSettings: React.FC = () => {
   );
 };
 
-export default TeacherSettings; 
+export default TeacherSettings;
