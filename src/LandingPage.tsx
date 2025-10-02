@@ -53,7 +53,7 @@ const LandingPage = () => {
     {
       img: '/img/2.jpg',
       name: 'Jesson Mondejar',
-      role: 'Lead Full-Stack Developer & UX/UI Designer',
+      role: 'Lead Programmer, Developer & UX/UI Designer',
       fb: 'https://www.facebook.com/code.write.debug.learn.build.repeat.improve.grow',
       gh: 'https://github.com/Bot10011',
       
@@ -61,7 +61,7 @@ const LandingPage = () => {
     {
       img: '/img/3.jpg',
       name: 'Larecion Rams',
-      role: 'Co Full-Stack Developer & UX Designer',
+      role: 'Co Programmer, Developer & UX Designer',
       fb: 'https://www.facebook.com/larecion.rams.2024',
       gh: 'https://github.com/midastouch79',
     },
