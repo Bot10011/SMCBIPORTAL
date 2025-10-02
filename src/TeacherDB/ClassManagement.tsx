@@ -1638,7 +1638,9 @@ const ClassManagement: React.FC = () => {
                   <p className="text-white/80 text-xs sm:text-sm font-medium break-words">Manage your assigned classes and student grades</p>
                 </div>
               </div>
-              <div className="flex items-center gap-1 sm:gap-2 bg-white/80 px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 rounded-lg shadow-sm self-start sm:self-auto">
+               <div className="flex items-center gap-1 sm:gap-2 bg-white/80 px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 rounded-lg self-start sm:self-auto" style={{
+                boxShadow: '4px 4px 8px rgba(0,0,0,0.15), -4px -4px 8px rgba(0,0,0,0.15), inset 1px 1px 2px rgba(255,255,255,0.8), inset -1px -1px 2px rgba(0,0,0,0.1)'
+              }}>
                 <Users className="w-3 h-3 sm:w-4 sm:h-4 text-blue-500 flex-shrink-0" />
                 <span className="text-gray-700 font-medium text-xs sm:text-sm whitespace-nowrap">{classes.length} Classes Assigned</span>
               </div>
@@ -1653,11 +1655,13 @@ const ClassManagement: React.FC = () => {
               className="rounded-3xl p-3 sm:p-4 md:p-6 w-full"
               style={{
                 background: 'linear-gradient(145deg, #f8fafc 0%, #f1f5f9 100%)',
-                boxShadow: '8px 8px 16px rgba(0, 0, 0, 0.08), -8px -8px 16px rgba(255, 255, 255, 0.8)',
+                boxShadow: '12px 12px 24px rgba(0, 0, 0, 0.1), -12px -12px 24px rgba(255, 255, 255, 0.9), inset 2px 2px 4px rgba(255, 255, 255, 0.8)',
                 border: '1px solid rgba(255, 255, 255, 0.6)'
               }}
             >
-              <div className="bg-[#00a7e1] to-indigo-600 px-2 sm:px-3 md:px-4 py-2 sm:py-3 rounded-t-2xl -mx-3 sm:-mx-4 md:-mx-6 -mt-3 sm:-mt-4 md:-mt-6 mb-3 sm:mb-4">
+              <div className="bg-[#00a7e1] to-indigo-600 px-2 sm:px-3 md:px-4 py-2 sm:py-3 rounded-t-2xl -mx-3 sm:-mx-4 md:-mx-6 -mt-3 sm:-mt-4 md:-mt-6 mb-3 sm:mb-4" style={{
+                boxShadow: 'inset 4px 4px 8px rgba(0,0,0,0.1), inset -4px -4px 8px rgba(255,255,255,0.1)'
+              }}>
                 <h2 className="text-sm sm:text-base md:text-lg font-semibold text-white flex items-center gap-1 sm:gap-2">
                   <Users className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 flex-shrink-0" />
                   <span className="truncate min-w-0">Assigned Classes</span>
@@ -1735,6 +1739,9 @@ const ClassManagement: React.FC = () => {
                           value={searchTerm}
                           onChange={(e) => setSearchTerm(e.target.value)}
                           className="w-full pl-7 sm:pl-10 pr-2 sm:pr-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white"
+                          style={{
+                            boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.9)'
+                          }}
                         />
                       </div>
                       
@@ -1744,6 +1751,9 @@ const ClassManagement: React.FC = () => {
                           value={filterYearLevel}
                           onChange={(e) => setFilterYearLevel(e.target.value)}
                           className="w-full px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white truncate"
+                          style={{
+                            boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.9)'
+                          }}
                         >
                           <option value="all">All Years</option>
                           {yearLevels.map(level => (
@@ -1755,6 +1765,9 @@ const ClassManagement: React.FC = () => {
                           value={filterSemester}
                           onChange={(e) => setFilterSemester(e.target.value)}
                           className="w-full px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white truncate"
+                          style={{
+                            boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.9)'
+                          }}
                         >
                           <option value="all">All Sections</option>
                           {sections.map(section => (
@@ -1768,6 +1781,9 @@ const ClassManagement: React.FC = () => {
                         <button
                           onClick={expandAll}
                           className="px-1.5 sm:px-2 py-1 sm:py-1.5 text-xs bg-blue-50 text-blue-700 rounded border border-blue-200 hover:bg-blue-100 transition-colors truncate"
+                          style={{
+                            boxShadow: '3px 3px 6px rgba(0,0,0,0.1), -3px -3px 6px rgba(255,255,255,0.9)'
+                          }}
                         >
                           <span className="hidden xs:inline sm:hidden md:inline">Expand All</span>
                           <span className="xs:hidden sm:inline md:hidden">Expand</span>
@@ -1775,6 +1791,9 @@ const ClassManagement: React.FC = () => {
                         <button
                           onClick={collapseAll}
                           className="px-1.5 sm:px-2 py-1 sm:py-1.5 text-xs bg-gray-50 text-gray-700 rounded border border-gray-200 hover:bg-gray-100 transition-colors truncate"
+                          style={{
+                            boxShadow: '3px 3px 6px rgba(0,0,0,0.1), -3px -3px 6px rgba(255,255,255,0.9)'
+                          }}
                         >
                           <span className="hidden xs:inline sm:hidden md:inline">Collapse All</span>
                           <span className="xs:hidden sm:inline md:hidden">Collapse</span>
@@ -1790,11 +1809,16 @@ const ClassManagement: React.FC = () => {
                     ) : (
                       <div className="space-y-2 sm:space-y-3">
                         {Object.entries(filteredGroupedClasses).map(([key, group]) => (
-                          <div key={key} className="border border-gray-200 rounded-lg overflow-hidden">
+                          <div key={key} className="border border-gray-200 rounded-lg overflow-hidden" style={{
+                            boxShadow: '4px 4px 8px rgba(0,0,0,0.1), -4px -4px 8px rgba(255,255,255,0.9)'
+                          }}>
                             {/* Section Header */}
                             <button
                               onClick={() => toggleSection(key)}
                               className="w-full px-2 sm:px-3 py-1.5 sm:py-2 bg-gray-50 hover:bg-gray-100 transition-colors flex items-center justify-between text-left min-h-0"
+                              style={{
+                                boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.05), inset -2px -2px 4px rgba(255,255,255,0.9)'
+                              }}
                             >
                               <div className="flex items-center gap-1 sm:gap-2 min-w-0 flex-1">
                                 {expandedSections[key] ? (
@@ -1808,7 +1832,9 @@ const ClassManagement: React.FC = () => {
                                 </div>
                               </div>
                               <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
-                                <span className="text-xs bg-blue-100 text-blue-700 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full whitespace-nowrap">
+                                <span className="text-xs bg-blue-100 text-blue-700 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full whitespace-nowrap" style={{
+                                  boxShadow: '2px 2px 4px rgba(0,0,0,0.1), -2px -2px 4px rgba(255,255,255,0.9)'
+                                }}>
                                   {group.classes.length} {group.classes.length === 1 ? 'class' : 'classes'}
                                 </span>
                               </div>
@@ -1816,7 +1842,9 @@ const ClassManagement: React.FC = () => {
                             
                             {/* Section Content */}
                             {expandedSections[key] && (
-                              <div className="p-3 space-y-2 bg-white/80">
+                              <div className="p-3 space-y-2 bg-white/80" style={{
+                                boxShadow: 'inset 3px 3px 6px rgba(0,0,0,0.05), inset -3px -3px 6px rgba(255,255,255,0.9)'
+                              }}>
                                 {group.classes.map((cls) => (
                                   <button
                                     key={cls.id}
@@ -1825,6 +1853,11 @@ const ClassManagement: React.FC = () => {
                                         ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-300 shadow-md' 
                                         : 'bg-gray-50 border-gray-200 hover:border-blue-200 hover:bg-blue-50/50'
                                     }`}
+                                    style={selectedClass?.id === cls.id ? {
+                                      boxShadow: 'inset 3px 3px 6px rgba(0,0,0,0.1), inset -3px -3px 6px rgba(255,255,255,0.9), 2px 2px 4px rgba(0,0,0,0.05)'
+                                    } : {
+                                      boxShadow: '3px 3px 6px rgba(0,0,0,0.1), -3px -3px 6px rgba(255,255,255,0.9)'
+                                    }}
                                     onClick={() => {
                                       setSelectedClass(cls);
                                     }}
@@ -1836,7 +1869,9 @@ const ClassManagement: React.FC = () => {
                                           {cls.course?.name}
                                         </h3>
                                         <div className="flex flex-wrap items-center gap-1 text-xs">
-                                          <span className="inline-block px-1.5 py-0.5 bg-blue-100 text-blue-700 font-medium rounded-full whitespace-nowrap">
+                                          <span className="inline-block px-1.5 py-0.5 bg-blue-100 text-blue-700 font-medium rounded-full whitespace-nowrap" style={{
+                                            boxShadow: '1px 1px 2px rgba(0,0,0,0.1), -1px -1px 2px rgba(255,255,255,0.9)'
+                                          }}>
                                             {cls.course?.code}
                                           </span>
                                           <span className="text-gray-500 hidden xs:inline">•</span>
