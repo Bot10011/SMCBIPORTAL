@@ -10,7 +10,6 @@ import {
   Award,
   ChevronDown,
   ChevronUp,
-  CheckCircle2,
   Clock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -238,136 +237,131 @@ export const StudentGradeViewer: React.FC = () => {
     setOpenSections(prev => ({ ...prev, [year]: !prev[year] }));
   }, []);
 
-  // Calculate GPA for the selected year using PH weighted method (1.0–5.0 scale)
-  const calculateGPA = (grades: GradeSummary[]) => {
-    const valid = grades.filter(g => g.is_released && (g.prelim_grade !== null || g.midterm_grade !== null || g.final_grade !== null));
-    if (valid.length === 0) return null;
-
-    const toPhGpa = (raw: number): number => {
-      if (!Number.isFinite(raw)) return NaN;
-      if (raw <= 5) return raw; // already on 1.0–5.0 scale
-      const pct = Math.max(0, Math.min(100, raw));
-      if (pct >= 99) return 1.0;
-      if (pct >= 96) return 1.25;
-      if (pct >= 93) return 1.5;
-      if (pct >= 90) return 1.75;
-      if (pct >= 87) return 2.0;
-      if (pct >= 84) return 2.25;
-      if (pct >= 81) return 2.5;
-      if (pct >= 78) return 2.75;
-      if (pct >= 75) return 3.0;
-      return 5.0;
-    };
-
-    let totalWeighted = 0;
-    let totalUnits = 0;
-    for (const g of valid) {
-      const units = typeof (g as unknown as { units?: number }).units === 'number'
-        ? (g as unknown as { units?: number }).units as number
-        : 0;
-      if (units <= 0) continue;
-      const parts = [g.prelim_grade, g.midterm_grade, g.final_grade]
-        .filter(v => typeof v === 'number')
-        .map(v => toPhGpa(v as number))
-        .filter(v => Number.isFinite(v)) as number[];
-      if (parts.length === 0) continue;
-      const subjectGrade = (typeof g.final_grade === 'number' && Number.isFinite(g.final_grade))
-        ? toPhGpa(g.final_grade as number)
-        : (parts.reduce((a, b) => a + b, 0) / parts.length);
-      totalWeighted += subjectGrade * units;
-      totalUnits += units;
-    }
-
-    if (totalUnits === 0) return null;
-    const gpa = totalWeighted / totalUnits; // 1.0–5.0 (lower is better)
-
-    // Status mapping for PH scale (1.0 best, 5.0 fail)
-    const status = gpa <= 1.75 ? 'excellent'
-      : gpa <= 2.25 ? 'very-good'
-      : gpa <= 2.75 ? 'good'
-      : gpa <= 3.0 ? 'passing'
-      : 'needs-improvement';
-
-    return {
-      value: gpa.toFixed(2),
-      numeric: gpa,
-      status
-    };
-  };
-
-  // Calculate GPA for the selected year only
-  const selectedYearGrades = gradesByYear[selectedYear] || [];
-  const overallGPA = calculateGPA(selectedYearGrades);
-
   if (loading) {
     return (
-      <div className="w-full h-screen flex items-center justify-center p-4 sm:p-6 sm:h-auto sm:block">
-        {/* Mobile: Simple centered skeleton */}
+      <div className="w-full h-screen flex items-center justify-center p-3 sm:p-4 md:p-6 sm:h-auto sm:block">
+        {/* Mobile: Dark neumorphic skeleton */}
         <div className="w-full sm:hidden">
-          <div className="bg-white rounded-2xl shadow-inner shadow-inner-strong border border-blue-100 p-6">
-            <div className="flex flex-col items-center text-center">
-              <div className="p-3 rounded-full bg-blue-50 mb-4 w-fit">
-                <div className="w-7 h-7 bg-blue-200 rounded animate-pulse"></div>
+          <div 
+            className="rounded-3xl p-6 mb-4"
+            style={{
+              backgroundColor: '#00171f',
+              boxShadow: '8px 8px 16px rgba(0, 0, 0, 0.4), -8px -8px 16px rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.1)'
+            }}
+          >
+            <div className="flex items-center gap-4">
+              <div 
+                className="p-3 rounded-2xl"
+                style={{
+                  backgroundColor: '#00171f',
+                  boxShadow: '4px 4px 8px rgba(0, 0, 0, 0.3), -4px -4px 8px rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)'
+                }}
+              >
+                <div className="w-6 h-6 bg-white/20 rounded animate-pulse"></div>
               </div>
-              <div className="h-6 w-48 bg-gray-200 rounded animate-pulse mb-2"></div>
-              <div className="h-4 w-64 bg-gray-200 rounded animate-pulse mb-4"></div>
-              <div className="w-32 h-10 bg-gray-200 rounded-xl animate-pulse"></div>
+              <div>
+                <div className="h-6 w-40 bg-white/20 rounded animate-pulse mb-2"></div>
+                <div className="h-4 w-56 bg-white/10 rounded animate-pulse"></div>
+              </div>
+            </div>
+          </div>
+          <div 
+            className="rounded-2xl p-4"
+            style={{
+              background: 'rgba(255, 255, 255, 0.9)',
+              boxShadow: '8px 8px 16px rgba(0,0,0,0.15), -8px -8px 16px rgba(255,255,255,0.7), inset 2px 2px 4px rgba(255,255,255,0.9), inset -2px -2px 4px rgba(0,0,0,0.1)'
+            }}
+          >
+            <div className="flex flex-col items-center text-center">
+              <div className="p-2 sm:p-3 rounded-full bg-blue-50 mb-3 sm:mb-4 w-fit">
+                <div className="w-6 h-6 sm:w-7 sm:h-7 bg-blue-200 rounded animate-pulse"></div>
+              </div>
+              <div className="h-5 sm:h-6 w-40 sm:w-48 bg-gray-200 rounded animate-pulse mb-2"></div>
+              <div className="h-3 sm:h-4 w-56 sm:w-64 bg-gray-200 rounded animate-pulse mb-3 sm:mb-4"></div>
+              <div className="w-28 sm:w-32 h-8 sm:h-10 bg-gray-200 rounded-xl animate-pulse"></div>
             </div>
           </div>
         </div>
         
         {/* Desktop: Full skeleton layout */}
-        <div className="hidden sm:block w-full space-y-8">
+        <div className="hidden sm:block w-full space-y-6 sm:space-y-8">
           {/* Header Skeleton */}
-          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 via-white to-purple-50 shadow-inner shadow-inner-strong border border-blue-100">
-            <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4">
+          <div 
+            className="relative overflow-hidden rounded-3xl"
+            style={{
+              backgroundColor: '#00171f',
+              boxShadow: '8px 8px 16px rgba(0, 0, 0, 0.4), -8px -8px 16px rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.1)'
+            }}
+          >
+            <div className="px-4 sm:px-6 py-3 sm:py-4">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
-                    <div className="w-6 h-6 bg-white/30 rounded animate-pulse"></div>
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <div 
+                    className="p-1.5 sm:p-2 rounded-lg"
+                    style={{
+                      backgroundColor: '#00171f',
+                      boxShadow: '4px 4px 8px rgba(0, 0, 0, 0.3), -4px -4px 8px rgba(255, 255, 255, 0.08)',
+                      border: '1px solid rgba(255, 255, 255, 0.08)'
+                    }}
+                  >
+                    <div className="w-5 h-5 sm:w-6 sm:h-6 bg-white/30 rounded animate-pulse"></div>
                   </div>
                   <div>
-                    <div className="h-8 w-48 bg-white/20 rounded animate-pulse mb-2"></div>
-                    <div className="h-4 w-32 bg-white/20 rounded animate-pulse"></div>
+                    <div className="h-6 sm:h-8 w-40 sm:w-48 bg-white/20 rounded animate-pulse mb-2"></div>
+                    <div className="h-3 sm:h-4 w-28 sm:w-32 bg-white/10 rounded animate-pulse"></div>
                   </div>
-                </div>
-                <div className="mt-4 flex justify-center sm:justify-start w-full sm:w-auto">
-                  <div className="w-44 h-10 bg-white/20 rounded-xl animate-pulse"></div>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Search and Stats Skeleton */}
-          <div className="bg-white rounded-2xl shadow-inner shadow-inner-strong border border-blue-100 p-6">
+          <div 
+            className="rounded-2xl p-4 sm:p-6"
+            style={{
+              background: 'rgba(255, 255, 255, 0.9)',
+              boxShadow: '8px 8px 16px rgba(0,0,0,0.15), -8px -8px 16px rgba(255,255,255,0.7), inset 2px 2px 4px rgba(255,255,255,0.9), inset -2px -2px 4px rgba(0,0,0,0.1)',
+              border: '1px solid rgba(255,255,255,0.3)'
+            }}
+          >
             <div className="flex flex-col gap-3 w-full sm:flex-row sm:items-center sm:justify-between">
               <div className="relative flex-1 max-w-md flex-shrink-0 mb-2 sm:mb-0">
-                <div className="w-full h-12 bg-gray-200 rounded-xl animate-pulse"></div>
+                <div className="w-full h-10 sm:h-12 bg-gray-200 rounded-xl animate-pulse"></div>
               </div>
-              <div className="flex flex-col sm:flex-row gap-4 items-center justify-end">
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-center justify-end">
                 <div className="flex flex-row gap-2 w-auto sm:gap-4">
-                  <div className="w-24 h-10 bg-gray-200 rounded-xl animate-pulse"></div>
-                  <div className="w-24 h-10 bg-gray-200 rounded-xl animate-pulse"></div>
+                  <div className="w-20 sm:w-24 h-8 sm:h-10 bg-gray-200 rounded-xl animate-pulse"></div>
+                  <div className="w-20 sm:w-24 h-8 sm:h-10 bg-gray-200 rounded-xl animate-pulse"></div>
                 </div>
-                <div className="w-full sm:w-44 h-10 bg-gray-200 rounded-xl animate-pulse"></div>
+                <div className="w-full sm:w-36 md:w-44 h-8 sm:h-10 bg-gray-200 rounded-xl animate-pulse"></div>
               </div>
             </div>
           </div>
 
           {/* Year Sections Skeleton */}
           {[1, 2, 3, 4].map((index) => (
-            <div key={index} className="bg-white rounded-2xl shadow-inner shadow-inner-strong border border-blue-100 overflow-hidden">
+            <div 
+              key={index} 
+              className="rounded-2xl overflow-hidden"
+              style={{
+                background: 'rgba(255, 255, 255, 0.9)',
+                boxShadow: '8px 8px 16px rgba(0,0,0,0.15), -8px -8px 16px rgba(255,255,255,0.7), inset 2px 2px 4px rgba(255,255,255,0.8), inset -2px -2px 4px rgba(0,0,0,0.1)'
+              }}
+            >
               <div className="w-full flex items-center justify-between p-3 sm:p-4">
                 <div className="flex items-center min-w-0 flex-1">
-                  <div className="w-1.5 sm:w-2 h-6 sm:h-8 rounded-full bg-gray-200 mr-2 sm:mr-4 flex-shrink-0 animate-pulse"></div>
+                  <div className="w-1.5 sm:w-2 h-5 sm:h-6 md:h-8 rounded-full bg-gray-200 mr-2 sm:mr-4 flex-shrink-0 animate-pulse"></div>
                   <div className="flex items-center min-w-0 flex-1">
                     <div className="p-1.5 sm:p-2 rounded-full bg-gray-200 mr-2 sm:mr-3 flex-shrink-0 animate-pulse"></div>
                     <div className="min-w-0 flex-1">
-                      <div className="h-6 w-32 bg-gray-200 rounded animate-pulse"></div>
+                      <div className="h-5 sm:h-6 w-28 sm:w-32 bg-gray-200 rounded animate-pulse"></div>
                     </div>
                   </div>
                 </div>
-                <div className="w-5 h-5 bg-gray-200 rounded animate-pulse"></div>
+                <div className="w-4 h-4 sm:w-5 sm:h-5 bg-gray-200 rounded animate-pulse"></div>
               </div>
             </div>
           ))}
@@ -380,23 +374,37 @@ export const StudentGradeViewer: React.FC = () => {
     // Friendlier, responsive empty-state for no grades found
     if (errorMsg.toLowerCase().includes('no grades found')) {
       return (
-        <div className="w-full min-h-screen p-4 sm:p-6 flex flex-col gap-4 sm:gap-6">
+        <div className="w-full min-h-screen p-3 sm:p-4 md:p-6 flex flex-col gap-4 sm:gap-6">
           {/* Mobile Premium Header Section */}
           <motion.div 
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="sm:hidden relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 via-white to-purple-50 shadow-inner shadow-inner-strong border border-blue-100 w-full mb-4"
+            className="sm:hidden relative overflow-hidden rounded-3xl w-full mb-4"
+            style={{
+              backgroundColor: '#00171f',
+              boxShadow: '8px 8px 16px rgba(0, 0, 0, 0.4), -8px -8px 16px rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              transition: 'all 0.3s ease'
+            }}
           >
-            <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-4 py-4">
+            <div className="px-3 sm:px-4 py-3 sm:py-4">
               <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
-                    <Award className="w-6 h-6 text-white" />
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <div 
+                    className="p-1.5 sm:p-2 rounded-lg"
+                    style={{
+                      backgroundColor: '#00171f',
+                      boxShadow: '4px 4px 8px rgba(0, 0, 0, 0.3), -4px -4px 8px rgba(255, 255, 255, 0.08)',
+                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                      transition: 'all 0.3s ease'
+                    }}
+                  >
+                    <Award className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                   </div>
                   <div>
-                    <h1 className="text-xl font-bold text-white tracking-tight">Academic Grades</h1>
-                    <p className="text-white/80 text-sm font-medium">Track your academic performance</p>
+                    <h1 className="text-lg sm:text-xl font-bold text-white tracking-tight">Academic Grades</h1>
+                    <p className="text-gray-300 text-xs sm:text-sm font-medium">Track your academic performance</p>
                   </div>
                 </div>
               </div>
@@ -407,17 +415,31 @@ export const StudentGradeViewer: React.FC = () => {
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="hidden sm:block relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 via-white to-purple-50 shadow-inner shadow-inner-strong border border-blue-100 w-full"
+            className="hidden sm:block relative overflow-hidden rounded-3xl w-full"
+            style={{
+              backgroundColor: '#00171f',
+              boxShadow: '8px 8px 16px rgba(0, 0, 0, 0.4), -8px -8px 16px rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              transition: 'all 0.3s ease'
+            }}
           >
-            <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4">
+            <div className="px-4 sm:px-6 py-3 sm:py-4">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
-                    <Award className="w-6 h-6 text-white" />
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <div 
+                    className="p-1.5 sm:p-2 rounded-lg"
+                    style={{
+                      backgroundColor: '#00171f',
+                      boxShadow: '4px 4px 8px rgba(0, 0, 0, 0.3), -4px -4px 8px rgba(255, 255, 255, 0.08)',
+                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                      transition: 'all 0.3s ease'
+                    }}
+                  >
+                    <Award className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                   </div>
                   <div>
-                    <h1 className="text-2xl font-bold text-white tracking-tight">Academic Grades</h1>
-                    <p className="text-white/80 text-sm font-medium">Track your academic performance</p>
+                    <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">Academic Grades</h1>
+                    <p className="text-gray-300 text-xs sm:text-sm font-medium">Track your academic performance</p>
                   </div>
                 </div>
               </div>
@@ -428,20 +450,20 @@ export const StudentGradeViewer: React.FC = () => {
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="bg-white rounded-2xl shadow-inner shadow-inner-strong border border-blue-100 p-5 sm:p-6 max-w-md w-full mx-auto"
+            className="bg-white rounded-2xl shadow-inner shadow-inner-strong border border-blue-100 p-4 sm:p-5 md:p-6 max-w-md w-full mx-auto"
           >
             <div className="flex flex-col items-center text-center">
-              <div className="p-3 rounded-full bg-blue-50 mb-4 w-fit">
-                <BookOpen className="w-7 h-7 sm:w-8 sm:h-8 text-blue-600" />
+              <div className="p-2 sm:p-3 rounded-full bg-blue-50 mb-3 sm:mb-4 w-fit">
+                <BookOpen className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-blue-600" />
               </div>
-              <h3 className="text-base sm:text-lg font-semibold text-blue-800 mb-2">No grades available yet</h3>
+              <h3 className="text-sm sm:text-base md:text-lg font-semibold text-blue-800 mb-2">No grades available yet</h3>
               <p className="text-xs sm:text-sm text-blue-700 max-w-md">
               Your grades haven't been posted or released. They will appear here once the registrar publishes them.
               </p>
-              <div className="mt-5 flex justify-center">
+              <div className="mt-4 sm:mt-5 flex justify-center">
                 <button
                   onClick={() => window.location.reload()}
-                  className="px-6 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 active:scale-[0.99] transition"
+                  className="px-4 sm:px-6 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 active:scale-[0.99] transition"
                 >
                   Refresh
                 </button>
@@ -453,19 +475,19 @@ export const StudentGradeViewer: React.FC = () => {
     }
     // Default error state (other errors)
     return (
-      <div className="w-full space-y-8 p-4 sm:p-6">
+      <div className="w-full space-y-6 sm:space-y-8 p-3 sm:p-4 md:p-6">
         <motion.div 
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="bg-white rounded-2xl shadow-inner shadow-inner-strong border border-red-100 p-6"
+          className="bg-white rounded-2xl shadow-inner shadow-inner-strong border border-red-100 p-4 sm:p-6"
         >
           <div className="text-center">
-            <div className="p-3 rounded-full bg-red-50 mb-4 mx-auto w-fit">
-              <Award className="w-8 h-8 text-red-600" />
+            <div className="p-2 sm:p-3 rounded-full bg-red-50 mb-3 sm:mb-4 mx-auto w-fit">
+              <Award className="w-6 h-6 sm:w-8 sm:h-8 text-red-600" />
             </div>
-            <h3 className="text-lg font-semibold text-red-700 mb-2">Error Loading Grades</h3>
-            <p className="text-sm text-red-600">{errorMsg}</p>
+            <h3 className="text-base sm:text-lg font-semibold text-red-700 mb-2">Error Loading Grades</h3>
+            <p className="text-xs sm:text-sm text-red-600">{errorMsg}</p>
           </div>
         </motion.div>
       </div>
@@ -474,19 +496,19 @@ export const StudentGradeViewer: React.FC = () => {
 
   if (currentYearLevel === null) {
     return (
-      <div className="w-full space-y-8 p-4 sm:p-6">
+      <div className="w-full space-y-6 sm:space-y-8 p-3 sm:p-4 md:p-6">
         <motion.div 
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="bg-white/90 rounded-2xl shadow-inner shadow-inner-strong border border-red-100 p-6"
+          className="bg-white/90 rounded-2xl shadow-inner shadow-inner-strong border border-red-100 p-4 sm:p-6"
         >
           <div className="text-center">
-            <div className="p-3 rounded-full bg-red-50 mb-4 mx-auto w-fit">
-              <Clock className="w-8 h-8 text-red-600" />
+            <div className="p-2 sm:p-3 rounded-full bg-red-50 mb-3 sm:mb-4 mx-auto w-fit">
+              <Clock className="w-6 h-6 sm:w-8 sm:h-8 text-red-600" />
             </div>
-            <h3 className="text-lg font-semibold text-red-700 mb-2">Year Level Not Found</h3>
-            <p className="text-sm text-red-600">Your year level could not be determined. Please contact support or check your profile information.</p>
+            <h3 className="text-base sm:text-lg font-semibold text-red-700 mb-2">Year Level Not Found</h3>
+            <p className="text-xs sm:text-sm text-red-600">Your year level could not be determined. Please contact support or check your profile information.</p>
           </div>
         </motion.div>
       </div>
@@ -494,23 +516,37 @@ export const StudentGradeViewer: React.FC = () => {
   }
 
   return (
-    <div className="w-full space-y-8 p-4 sm:p-6">
+    <div className="w-full space-y-6 sm:space-y-8 p-3 sm:p-4 md:p-6">
     {/* Mobile Premium Header Section */}
     <motion.div 
       initial={{ opacity: 0, y: 24 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      className="sm:hidden relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 via-white to-purple-50 shadow-inner shadow-inner-strong border border-blue-100"
+      className="sm:hidden relative overflow-hidden rounded-3xl mb-4"
+      style={{
+        backgroundColor: '#00171f',
+        boxShadow: '8px 8px 16px rgba(0, 0, 0, 0.4), -8px -8px 16px rgba(255, 255, 255, 0.05)',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+        transition: 'all 0.3s ease'
+      }}
     >
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-4 py-4">
+      <div className="px-3 sm:px-4 py-3 sm:py-4">
         <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
-              <Award className="w-6 h-6 text-white" />
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div 
+              className="p-1.5 sm:p-2 rounded-lg"
+              style={{
+                backgroundColor: '#00171f',
+                boxShadow: '4px 4px 8px rgba(0, 0, 0, 0.3), -4px -4px 8px rgba(255, 255, 255, 0.08)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                transition: 'all 0.3s ease'
+              }}
+            >
+              <Award className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-white tracking-tight">Academic Grades</h1>
-              <p className="text-white/80 text-sm font-medium">Track your academic performance</p>
+              <h1 className="text-lg sm:text-xl font-bold text-white tracking-tight">Academic Grades</h1>
+              <p className="text-gray-300 text-xs sm:text-sm font-medium">Track your academic performance</p>
             </div>
           </div>
         </div>
@@ -521,73 +557,33 @@ export const StudentGradeViewer: React.FC = () => {
       initial={{ opacity: 0, y: 24 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      className="hidden sm:block relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 via-white to-purple-50 shadow-inner shadow-inner-strong border border-blue-100"
+      className="hidden sm:block relative overflow-hidden rounded-3xl"
+      style={{
+        backgroundColor: '#00171f',
+        boxShadow: '8px 8px 16px rgba(0, 0, 0, 0.4), -8px -8px 16px rgba(255, 255, 255, 0.05)',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+        transition: 'all 0.3s ease'
+      }}
     >
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4">
+      <div className="px-4 sm:px-6 py-3 sm:py-4">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
-              <Award className="w-6 h-6 text-white" />
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div 
+              className="p-1.5 sm:p-2 rounded-lg"
+              style={{
+                backgroundColor: '#00171f',
+                boxShadow: '4px 4px 8px rgba(0, 0, 0, 0.3), -4px -4px 8px rgba(255, 255, 255, 0.08)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                transition: 'all 0.3s ease'
+              }}
+            >
+              <Award className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-white tracking-tight">Academic Grades</h1>
-              <p className="text-white/80 text-sm font-medium">Track your academic performance</p>
+              <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">Academic Grades</h1>
+              <p className="text-gray-300 text-xs sm:text-sm font-medium">Track your academic performance</p>
             </div>
           </div>
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="mt-4 flex justify-center sm:justify-start w-full sm:w-auto"
-          >
-            {overallGPA ? (
-              <div className={`w-auto px-4 h-10 rounded-xl shadow-[inset_0_2px_4px_0_rgba(0,0,0,0.1),inset_0_1px_2px_0_rgba(0,0,0,0.06)] backdrop-blur-sm flex items-center justify-center gap-2 border transition-all duration-300 ${
-                overallGPA.status === 'excellent' 
-                  ? 'bg-gradient-to-r from-emerald-50 to-green-50 border-emerald-200 shadow-emerald-100' 
-                  : overallGPA.status === 'very-good'
-                  ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 shadow-blue-100'
-                  : overallGPA.status === 'good'
-                  ? 'bg-gradient-to-r from-purple-50 to-violet-50 border-purple-200 shadow-purple-100'
-                  : overallGPA.status === 'passing'
-                  ? 'bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-200 shadow-yellow-100'
-                  : 'bg-gradient-to-r from-red-50 to-pink-50 border-red-200 shadow-red-100'
-              }`}>
-                <div className={`p-1 rounded-full ${
-                  overallGPA.status === 'excellent' ? 'bg-emerald-100' 
-                  : overallGPA.status === 'very-good' ? 'bg-blue-100'
-                  : overallGPA.status === 'good' ? 'bg-purple-100'
-                  : overallGPA.status === 'passing' ? 'bg-yellow-100'
-                  : 'bg-red-100'
-                }`}>
-                  <CheckCircle2 className={`w-4 h-4 ${
-                    overallGPA.status === 'excellent' ? 'text-emerald-600' 
-                    : overallGPA.status === 'very-good' ? 'text-blue-600'
-                    : overallGPA.status === 'good' ? 'text-purple-600'
-                    : overallGPA.status === 'passing' ? 'text-yellow-600'
-                    : 'text-red-600'
-                  }`} />
-                </div>
-                <span className={`text-base font-bold tracking-wide ${
-                  overallGPA.status === 'excellent' ? 'text-emerald-800' 
-                  : overallGPA.status === 'very-good' ? 'text-blue-800'
-                  : overallGPA.status === 'good' ? 'text-purple-800'
-                  : overallGPA.status === 'passing' ? 'text-yellow-800'
-                  : 'text-red-800'
-                }`}>
-                  GPA: {overallGPA.value}
-                </span>
-              </div>
-            ) : (
-              <div className="w-auto px-4 h-10 rounded-xl shadow-[inset_0_2px_4px_0_rgba(0,0,0,0.1),inset_0_1px_2px_0_rgba(0,0,0,0.06)] backdrop-blur-sm flex items-center justify-center gap-2 border border-gray-200 bg-gray-50 transition-all duration-300">
-                <div className="p-1 rounded-full bg-gray-100">
-                  <Clock className="w-4 h-4 text-gray-600" />
-                </div>
-                <span className="text-base font-semibold text-gray-700 tracking-wide">
-                  No grades available
-                </span>
-              </div>
-            )}
-          </motion.div>
         </div>
       </div>
     </motion.div>
@@ -597,54 +593,79 @@ export const StudentGradeViewer: React.FC = () => {
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
-        className="bg-[#252728] rounded-2xl shadow-inner shadow-inner-strong border border-gray-700 p-6"
+        className="rounded-2xl p-4 sm:p-6"
+        style={{
+          backgroundColor: '##00a7e1',
+          boxShadow: '8px 8px 16px rgba(0,0,0,0.25), -8px -8px 16px rgba(255,255,255,0.10), inset 2px 2px 4px rgba(255,255,255,0.18), inset -2px -2px 4px rgba(0,0,0,0.10)',
+          border: '1px solid rgba(255,255,255,0.2)',
+          transition: 'all 0.3s ease'
+        }}
       >
         <div className="flex flex-col gap-3 w-full sm:flex-row sm:items-center sm:justify-between">
           {/* Search Bar */}
           <div className="relative flex-1 max-w-md flex-shrink-0 mb-2 sm:mb-0">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-300 w-4 h-4" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-black w-3 h-3 sm:w-4 sm:h-4" />
             <input
               type="text"
               placeholder="Search subjects..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-3 border border-[#444] rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-[#333334] text-sm font-medium text-white placeholder-gray-300 transition-all duration-200"
+              className="w-full pl-8 sm:pl-9 pr-3 sm:pr-4 py-2.5 sm:py-3 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm font-medium text-black placeholder-gray-500 transition-all duration-200"
+              style={{ backgroundColor: '#FFFFFFE6' }}
             />
           </div>
           {/* Stats and Year Level Dropdown in one line on mobile/tablet */}
-          <div className="flex flex-col sm:flex-row gap-4 items-center justify-end">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-center justify-end">
             <div className="flex flex-row gap-2 w-auto sm:gap-4">
-              <div className="w-auto min-w-0 flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-xl border border-blue-200 shadow-sm justify-center hover:bg-blue-100 transition-colors duration-200">
-                <div className="p-1 rounded-full bg-blue-100">
-                  <BookOpen className="w-4 h-4 text-blue-600" />
+              <div 
+                className="w-auto min-w-0 flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded-xl justify-center transition-all duration-200"
+                style={{
+                  backgroundColor: '#FFFFFFE6',
+                  boxShadow: 'inset 4px 4px 8px rgba(0, 0, 0, 0.1), inset -4px -4px 8px rgba(255, 255, 255, 0.8)'
+                }}
+              >
+                <div className="p-0.5 sm:p-1 rounded-full bg-blue-100">
+                  <BookOpen className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
                 </div>
                 <span className="text-xs sm:text-sm font-semibold text-blue-700 truncate whitespace-nowrap">{subjectsCount} Subjects</span>
               </div>
-              <div className="w-auto min-w-0 flex items-center gap-2 px-3 py-2 bg-green-50 rounded-xl border border-green-200 shadow-sm justify-center hover:bg-green-100 transition-colors duration-200">
-                <div className="p-1 rounded-full bg-green-100">
-                  <TrendingUp className="w-4 h-4 text-green-600" />
+              <div 
+                className="w-auto min-w-0 flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded-xl justify-center transition-all duration-200"
+                style={{
+                  backgroundColor: '#FFFFFFE6',
+                  boxShadow: 'inset 4px 4px 8px rgba(0, 0, 0, 0.1), inset -4px -4px 8px rgba(255, 255, 255, 0.8)'
+                }}
+              >
+                <div className="p-0.5 sm:p-1 rounded-full bg-green-100">
+                  <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4 text-green-600" />
                 </div>
                 <span className="text-xs sm:text-sm font-semibold text-green-700 truncate whitespace-nowrap">
                   {gradedCount} Graded
                 </span>
               </div>
             </div>
-            <div className="relative flex items-center justify-center px-3 py-2 bg-[#333334] rounded-xl border border-[#444] w-full sm:w-44 h-10 mt-2 sm:mt-0 shadow-sm">
+            <div 
+              className="relative flex items-center justify-center px-2 sm:px-3 py-1.5 sm:py-2 rounded-xl w-full sm:w-36 md:w-44 h-8 sm:h-10 mt-2 sm:mt-0 transition-all duration-200"
+              style={{
+                backgroundColor: '#FFFFFFE6',
+                boxShadow: 'inset 4px 4px 8px rgba(0, 0, 0, 0.1), inset -4px -4px 8px rgba(255, 255, 255, 0.8)'
+              }}
+            >
               <select
                 id="year-level-select"
                 value={selectedYear || ''}
                 onChange={e => setSelectedYearLevel(e.target.value)}
                 onFocus={() => setIsDropdownOpen(true)}
                 onBlur={() => setIsDropdownOpen(false)}
-                style={{ textAlign: 'center', textAlignLast: 'center' }}
-                className="w-full appearance-none pl-4 pr-6 py-2 bg-[#333334] text-white rounded-lg border-0 focus:ring-2 focus:ring-blue-500 focus:outline-none transition font-semibold text-xs sm:text-sm cursor-pointer whitespace-nowrap"
+                style={{ textAlign: 'center', textAlignLast: 'center', backgroundColor: 'transparent' }}
+                className="w-full appearance-none pl-3 sm:pl-4 pr-5 sm:pr-6 py-1.5 sm:py-2 text-gray-700 rounded-lg border-0 focus:ring-2 focus:ring-blue-500 focus:outline-none transition font-semibold text-xs sm:text-sm cursor-pointer whitespace-nowrap"
               >
                 {yearOptions.map(year => (
                   <option key={year} value={year}>{year}</option>
                 ))}
               </select>
-              <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-gray-200">
-                <ChevronDown className={`w-5 h-5 transition-transform duration-200 ease-in-out transform ${isDropdownOpen ? 'rotate-180' : 'rotate-0'}`} />
+              <span className="pointer-events-none absolute inset-y-0 right-2 sm:right-3 flex items-center text-gray-600">
+                <ChevronDown className={`w-4 h-4 sm:w-5 sm:h-5 transition-transform duration-200 ease-in-out transform ${isDropdownOpen ? 'rotate-180' : 'rotate-0'}`} />
               </span>
             </div>
           </div>
@@ -659,22 +680,30 @@ export const StudentGradeViewer: React.FC = () => {
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.3 + index * 0.1 }}
-            className={`bg-[#252728] shadow-inner shadow-inner-strong border border-gray-700 overflow-hidden ${
+            className={`shadow-inner shadow-inner-strong overflow-hidden ${
               openSections[year] ? 'rounded-t-2xl' : 'rounded-2xl'
             }`}
+            style={{
+              backgroundColor: '#FFFFFFE6',
+              boxShadow: '8px 8px 16px rgba(0,0,0,0.15), -8px -8px 16px rgba(255,255,255,0.7), inset 2px 2px 4px rgba(255,255,255,0.8), inset -2px -2px 4px rgba(0,0,0,0.1)'
+            }}
           >
             <button
-              className="w-full flex items-center justify-between p-3 sm:p-4 bg-[#252728] focus:outline-none"
+              className="w-full flex items-center justify-between p-3 sm:p-4 focus:outline-none active:transform-none hover:transform-none"
+              style={{ 
+                backgroundColor: '#FFFFFFE6',
+                transition: 'none'
+              }}
               onClick={() => toggleSection(year)}
             >
               <div className="flex items-center min-w-0 flex-1">
-                <div className={`w-1.5 sm:w-2 h-6 sm:h-8 rounded-full bg-gradient-to-b ${YEAR_COLORS[year]} mr-2 sm:mr-4 flex-shrink-0`} />
+                <div className={`w-1.5 sm:w-2 h-5 sm:h-6 md:h-8 rounded-full bg-gradient-to-b ${YEAR_COLORS[year]} mr-2 sm:mr-4 flex-shrink-0`} />
                 <div className="flex items-center min-w-0 flex-1">
                   <div className="p-1.5 sm:p-2 rounded-full bg-blue-50 mr-2 sm:mr-3 flex-shrink-0">
                     {YEAR_ICONS[year]}
                   </div>
                   <div className="min-w-0 flex-1">
-                      <h2 className="text-base sm:text-lg lg:text-xl font-bold text-white tracking-tight truncate">{year} Grades</h2>
+                      <h2 className="text-sm sm:text-base md:text-lg lg:text-xl font-bold text-gray-800 tracking-tight truncate">{year} Grades</h2>
                   </div>
                 </div>
               </div>
@@ -695,15 +724,21 @@ export const StudentGradeViewer: React.FC = () => {
                   transition={{ duration: 0.3, ease: "easeInOut" }}
                   className="overflow-hidden"
                 >
-                  <div className="border-t border-[#444]">
+                  <div 
+                    className=""
+                    style={{
+                      borderTop: '1px solid rgba(255,255,255,0.3)',
+                      boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.1)'
+                    }}
+                  >
                     {gradesByYear[year].length === 0 ? (
-                      <div className="px-6 py-12 text-center">
-                        <div className="flex flex-col items-center gap-3">
-                          <div className="p-3 rounded-full bg-gray-100">
-                            <BookOpen className="w-6 h-6 text-gray-400" />
+                      <div className="px-4 sm:px-6 py-8 sm:py-12 text-center">
+                        <div className="flex flex-col items-center gap-2 sm:gap-3">
+                          <div className="p-2 sm:p-3 rounded-full bg-gray-100">
+                            <BookOpen className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400" />
                           </div>
-                          <p className="text-gray-500 text-base font-medium">No grades available</p>
-                          <p className="text-sm text-gray-400">
+                          <p className="text-gray-500 text-sm sm:text-base font-medium">No grades available</p>
+                          <p className="text-xs sm:text-sm text-gray-400">
                             {releasedGrades.length === 0 && grades.length > 0 
                               ? "Grades are not yet released by your teachers" 
                               : "Grades will appear here once posted and released"
@@ -714,7 +749,7 @@ export const StudentGradeViewer: React.FC = () => {
                     ) : (
                       <>
                         {/* Mobile Card View */}
-                        <div className="block sm:hidden p-4 space-y-4">
+                        <div className="block sm:hidden p-3 sm:p-4 space-y-3 sm:space-y-4">
                           {gradesByYear[year].map((grade) => {
                             const ga = grade.prelim_grade !== undefined && grade.prelim_grade !== null &&
                                       grade.midterm_grade !== undefined && grade.midterm_grade !== null &&
@@ -730,45 +765,75 @@ export const StudentGradeViewer: React.FC = () => {
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.3 }}
-                                className="p-6 rounded-xl border border-[#444] bg-[#252728] shadow-lg transition-all duration-300"
+                                className="p-4 sm:p-6 rounded-xl shadow-lg transition-all duration-300"
+                                style={{
+                                  backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                                  boxShadow: '8px 8px 16px rgba(0,0,0,0.1), -8px -8px 16px rgba(255,255,255,0.7), inset 2px 2px 4px rgba(255,255,255,0.8), inset -2px -2px 4px rgba(0,0,0,0.1)'
+                                }}
                               >
-                                <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center justify-between mb-3 sm:mb-4">
                                   <div>
-                                    <div className="font-bold text-white text-lg mb-1">{grade.subject_code}</div>
-                                    <div className="text-sm text-gray-300">{grade.subject_name}</div>
+                                    <div className="font-bold text-gray-800 text-base sm:text-lg mb-1">{grade.subject_code}</div>
+                                    <div className="text-xs sm:text-sm text-gray-600 line-clamp-2">{grade.subject_name}</div>
                                   </div>
-                                  <div className="flex items-center">
+                                  <div className="flex items-center flex-shrink-0 ml-2">
                                     {grade.teacher_avatar_url ? (
                                       <img
                                         src={grade.teacher_avatar_url}
                                         alt={grade.teacher_name || 'Instructor'}
-                                        className="w-8 h-8 rounded-full mr-2 object-cover"
+                                        className="w-6 h-6 sm:w-8 sm:h-8 rounded-full mr-1 sm:mr-2 object-cover"
                                       />
                                     ) : (
-                                      <div className="p-2 rounded-full bg-[#2b2d2f] mr-2">
-                                        <Users className="w-4 h-4 text-blue-600" />
+                                      <div className="p-1.5 sm:p-2 rounded-full bg-[#2b2d2f] mr-1 sm:mr-2">
+                                        <Users className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
                                       </div>
                                     )}
-                                    <span className="text-sm text-gray-200 font-medium">{grade.teacher_name || 'TBA'}</span>
+                                    <span className="text-xs sm:text-sm text-gray-600 font-medium truncate max-w-[100px]">{grade.teacher_name || 'TBA'}</span>
                                   </div>
                                 </div>
-                                <div className="grid grid-cols-3 gap-3 text-sm">
-                                  <div className="text-center p-3 rounded-lg bg-[#333334] border border-[#444]">
-                                    <div className="text-xs text-gray-300 uppercase tracking-wider mb-1">Prelim</div>
-                                    <div className="font-bold text-white text-lg">{grade.prelim_grade ?? 'N/A'}</div>
+                                <div className="grid grid-cols-3 gap-2 sm:gap-3 text-sm">
+                                  <div 
+                                    className="text-center p-2 sm:p-3 rounded-lg"
+                                    style={{
+                                      backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                                      boxShadow: 'inset 3px 3px 6px rgba(0,0,0,0.1), inset -3px -3px 6px rgba(255,255,255,0.8)'
+                                    }}
+                                  >
+                                    <div className="text-xs text-gray-600 uppercase tracking-wider mb-1">Prelim</div>
+                                    <div className="font-bold text-gray-800 text-base sm:text-lg">{grade.prelim_grade ?? 'N/A'}</div>
                                   </div>
-                                  <div className="text-center p-3 rounded-lg bg-[#333334] border border-[#444]">
-                                    <div className="text-xs text-gray-300 uppercase tracking-wider mb-1">Midterm</div>
-                                    <div className="font-bold text-white text-lg">{grade.midterm_grade ?? 'N/A'}</div>
+                                  <div 
+                                    className="text-center p-2 sm:p-3 rounded-lg"
+                                    style={{
+                                      backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                                      boxShadow: 'inset 3px 3px 6px rgba(0,0,0,0.1), inset -3px -3px 6px rgba(255,255,255,0.8)'
+                                    }}
+                                  >
+                                    <div className="text-xs text-gray-600 uppercase tracking-wider mb-1">Midterm</div>
+                                    <div className="font-bold text-gray-800 text-base sm:text-lg">{grade.midterm_grade ?? 'N/A'}</div>
                                   </div>
-                                  <div className="text-center p-3 rounded-lg bg-[#333334] border border-[#444]">
-                                    <div className="text-xs text-gray-300 uppercase tracking-wider mb-1">Final</div>
-                                    <div className="font-bold text-white text-lg">{grade.final_grade ?? 'N/A'}</div>
+                                  <div 
+                                    className="text-center p-2 sm:p-3 rounded-lg"
+                                    style={{
+                                      backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                                      boxShadow: 'inset 3px 3px 6px rgba(0,0,0,0.1), inset -3px -3px 6px rgba(255,255,255,0.8)'
+                                    }}
+                                  >
+                                    <div className="text-xs text-gray-600 uppercase tracking-wider mb-1">Final</div>
+                                    <div className="font-bold text-gray-800 text-base sm:text-lg">{grade.final_grade ?? 'N/A'}</div>
                                   </div>
                                 </div>
-                                <div className={`mt-4 p-4 rounded-lg text-center bg-[#333334] border ${isPassed ? 'border-emerald-600' : 'border-red-600'}`}>
-                                  <div className="text-xs text-gray-300 uppercase tracking-wider mb-1">Grade Average</div>
-                                  <div className={`font-bold text-2xl ${isPassed ? 'text-emerald-400' : 'text-red-400'}`}>
+                                <div 
+                                  className={`mt-3 sm:mt-4 p-3 sm:p-4 rounded-lg text-center`}
+                                  style={{
+                                    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                                    boxShadow: isPassed 
+                                      ? 'inset 3px 3px 6px rgba(0,0,0,0.1), inset -3px -3px 6px rgba(16, 185, 129, 0.2), 0 0 0 1px rgba(16, 185, 129, 0.3)'
+                                      : 'inset 3px 3px 6px rgba(0,0,0,0.1), inset -3px -3px 6px rgba(239, 68, 68, 0.2), 0 0 0 1px rgba(239, 68, 68, 0.3)'
+                                  }}
+                                >
+                                  <div className="text-xs text-gray-600 uppercase tracking-wider mb-1">Grade Average</div>
+                                  <div className={`font-bold text-xl sm:text-2xl ${isPassed ? 'text-emerald-400' : 'text-red-400'}`}>
                                     {ga !== null ? ga.toFixed(2) : 'N/A'}
                                   </div>
                                 </div>
@@ -777,19 +842,22 @@ export const StudentGradeViewer: React.FC = () => {
                           })}
                         </div>
                         {/* Desktop/Tablet Table View */}
-                        <div className="hidden sm:block overflow-x-auto rounded-none bg-[#252728] dark-table">
-                          <table className="grades-table min-w-full bg-[#252728] text-white" style={{ borderCollapse: 'collapse' }}>
-                            <thead className="bg-[#252728]">
+                        <div className="hidden sm:block overflow-x-auto rounded-none" style={{
+                          backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                          boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)'
+                        }}>
+                          <table className="grades-table min-w-full text-gray-800" style={{ borderCollapse: 'collapse', backgroundColor: 'transparent' }}>
+                            <thead style={{ backgroundColor: 'transparent' }}>
                               <tr>
-                                <th className="px-6 py-4 text-left text-xs font-semibold tracking-wider text-gray-200">SUBJECT</th>
-                                <th className="px-6 py-4 text-left text-xs font-semibold tracking-wider text-gray-200">INSTRUCTOR</th>
-                                <th className="px-6 py-4 text-center text-xs font-semibold tracking-wider text-gray-200">PRELIM</th>
-                                <th className="px-6 py-4 text-center text-xs font-semibold tracking-wider text-gray-200">MIDTERM</th>
-                                <th className="px-6 py-4 text-center text-xs font-semibold tracking-wider text-gray-200">FINAL</th>
-                                <th className="px-6 py-4 text-center text-xs font-semibold tracking-wider text-gray-200">GA</th>
+                                <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs font-semibold tracking-wider text-gray-700">SUBJECT</th>
+                                <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs font-semibold tracking-wider text-gray-700">INSTRUCTOR</th>
+                                <th className="px-4 sm:px-6 py-3 sm:py-4 text-center text-xs font-semibold tracking-wider text-gray-700">PRELIM</th>
+                                <th className="px-4 sm:px-6 py-3 sm:py-4 text-center text-xs font-semibold tracking-wider text-gray-700">MIDTERM</th>
+                                <th className="px-4 sm:px-6 py-3 sm:py-4 text-center text-xs font-semibold tracking-wider text-gray-700">FINAL</th>
+                                <th className="px-4 sm:px-6 py-3 sm:py-4 text-center text-xs font-semibold tracking-wider text-gray-700">GA</th>
                               </tr>
                             </thead>
-                            <tbody className="bg-[#252728]">
+                            <tbody style={{ backgroundColor: 'transparent' }}>
                               {gradesByYear[year].map((grades, gradesIndex) => {
                                 const ga = grades.prelim_grade !== undefined && grades.prelim_grade !== null &&
                                           grades.midterm_grade !== undefined && grades.midterm_grade !== null &&
@@ -805,44 +873,74 @@ export const StudentGradeViewer: React.FC = () => {
                                     initial={{ opacity: 0, y: 10 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ duration: 0.3, delay: gradesIndex * 0.05 }}
-                                className="group bg-[#252728]"
+                                className="group" style={{ backgroundColor: 'transparent' }}
                                   >
-                                    <td className="px-6 py-4">
-                                      <span className="text-sm font-semibold text-white">{grades.subject_code}</span>
+                                    <td className="px-4 sm:px-6 py-3 sm:py-4">
+                                      <span className="text-xs sm:text-sm font-semibold text-gray-800">{grades.subject_code}</span>
                                     </td>
-                                    <td className="px-6 py-4">
+                                    <td className="px-4 sm:px-6 py-3 sm:py-4">
                                       <div className="flex items-center">
                                         {grades.teacher_avatar_url ? (
                                           <img
                                             src={grades.teacher_avatar_url}
                                             alt={grades.teacher_name || 'Instructor'}
-                                            className="w-7 h-7 rounded-full mr-3 object-cover"
+                                            className="w-6 h-6 sm:w-7 sm:h-7 rounded-full mr-2 sm:mr-3 object-cover"
                                           />
                                         ) : (
-                                          <div className="p-1.5 rounded-full bg-[#2b2d2f] mr-3">
-                                            <Users className="w-3.5 h-3.5 text-blue-600" />
+                                          <div className="p-1 sm:p-1.5 rounded-full mr-2 sm:mr-3" style={{
+                                            backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                                            boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)'
+                                          }}>
+                                            <Users className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-blue-600" />
                                           </div>
                                         )}
-                                        <span className="text-sm text-gray-200">{grades.teacher_name || 'TBA'}</span>
+                                        <span className="text-xs sm:text-sm text-gray-700">{grades.teacher_name || 'TBA'}</span>
                                       </div>
                                     </td>
-                                    <td className="px-6 py-4 text-center">
-                                      <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-semibold bg-[#333334] text-white border border-[#444]">
+                                    <td className="px-4 sm:px-6 py-3 sm:py-4 text-center">
+                                      <span 
+                                        className="inline-flex items-center px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-xs sm:text-sm font-semibold text-gray-800"
+                                        style={{
+                                          backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                                          boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)'
+                                        }}
+                                      >
                                         {grades.prelim_grade ?? 'N/A'}
                                       </span>
                                     </td>
-                                    <td className="px-6 py-4 text-center">
-                                      <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-semibold bg-[#333334] text-white border border-[#444]">
+                                    <td className="px-4 sm:px-6 py-3 sm:py-4 text-center">
+                                      <span 
+                                        className="inline-flex items-center px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-xs sm:text-sm font-semibold text-gray-800"
+                                        style={{
+                                          backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                                          boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)'
+                                        }}
+                                      >
                                         {grades.midterm_grade ?? 'N/A'}
                                       </span>
                                     </td>
-                                    <td className="px-6 py-4 text-center">
-                                      <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-semibold bg-[#333334] text-white border border-[#444]">
+                                    <td className="px-4 sm:px-6 py-3 sm:py-4 text-center">
+                                      <span 
+                                        className="inline-flex items-center px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-xs sm:text-sm font-semibold text-gray-800"
+                                        style={{
+                                          backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                                          boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)'
+                                        }}
+                                      >
                                         {grades.final_grade ?? 'N/A'}
                                       </span>
                                     </td>
-                                    <td className="px-6 py-4 text-center">
-                                      <span className={`inline-flex items-center px-4 py-2 rounded-lg text-sm font-bold shadow-sm border ${isPassed ? 'border-emerald-600 text-emerald-400 bg-[#333334]' : 'border-red-600 text-red-400 bg-[#333334]' }`}>
+                                    <td className="px-4 sm:px-6 py-3 sm:py-4 text-center">
+                                      <span 
+                                        className={`inline-flex items-center px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-bold shadow-sm`}
+                                        style={{
+                                          backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                                          color: isPassed ? '#10b981' : '#ef4444',
+                                          boxShadow: isPassed 
+                                            ? 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(16, 185, 129, 0.2), 0 0 0 1px rgba(16, 185, 129, 0.3)'
+                                            : 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(239, 68, 68, 0.2), 0 0 0 1px rgba(239, 68, 68, 0.3)'
+                                        }}
+                                      >
                                         {ga !== null ? ga.toFixed(2) : 'N/A'}
                                       </span>
                                     </td>
