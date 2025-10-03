@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -3965,87 +3966,98 @@ export default function StudentGrades() {
     <div className="min-h-screen from-blue-50 via-white to-indigo-50 py-8">
       <div className="max-w-7xl mx-auto px-4">
         {/* Released Grades Modal */}
-        {releasedModalOpen && releasedModalGroup && (
-          <div 
-            className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
-            style={{ 
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              zIndex: 9999
-            }}
-          >
+        {releasedModalOpen && releasedModalGroup && createPortal(
+          <>
+            {/* Full screen overlay with click handler */}
             <div 
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm" 
-              style={{
-                position: 'fixed',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: 'rgba(0, 0, 0, 0.6)',
-                backdropFilter: 'blur(4px)'
+              className="fixed inset-0 z-[99999] bg-black bg-opacity-60 backdrop-blur-sm"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) {
+                  setReleasedModalOpen(false);
+                }
               }}
-              onClick={() => setReleasedModalOpen(false)}
-            ></div>
-            <div 
-              className="relative bg-white rounded-2xl shadow-xl w-full max-w-3xl overflow-hidden"
-              style={{
-                maxHeight: '90vh',
-                zIndex: 10000
+              style={{ 
+                pointerEvents: 'auto',
+                userSelect: 'none',
+                touchAction: 'none'
+              }}
+            />
+            
+            {/* Modal container */}
+            <div
+              className="fixed inset-0 z-[100000] flex items-center justify-center p-2 sm:p-4"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) {
+                  setReleasedModalOpen(false);
+                }
+              }}
+              style={{ 
+                minHeight: '100vh',
+                pointerEvents: 'auto'
               }}
             >
-              <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-                <div>
-                  <div className="text-lg font-semibold text-gray-800">
-                    Released • {getYearLevelDisplayName(releasedModalGroup.year)} • Sec {getSectionDisplayName(releasedModalGroup.section, sectionMap)}
-                  </div>
-                  <div className="text-xs text-gray-500">{releasedModalGroup.items.length} records</div>
-                </div>
-                <button
-                  onClick={() => setReleasedModalOpen(false)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  ✕
-                </button>
-              </div>
-              <div className="px-6 py-3 border-b border-gray-200">
-                <div className="flex items-center gap-3 justify-between">
-                  <div className="relative max-w-md flex-1">
-                    <input
-                      type="text"
-                      value={releasedModalSearch}
-                      onChange={(e) => setReleasedModalSearch(e.target.value)}
-                      placeholder="Search student by name..."
-                      className="w-full h-10 px-4 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
+              <div 
+                className="bg-white/90 rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-3xl lg:max-w-4xl relative mx-2 sm:mx-4 flex flex-col"
+                style={{ 
+                  maxHeight: '90vh', 
+                  boxSizing: 'border-box',
+                  pointerEvents: 'auto'
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Sticky Header with Action Buttons */}
+                <div className="sticky top-0 bg-white/90 backdrop-blur-sm border-b border-gray-200 p-3 sm:p-4 rounded-t-2xl sm:rounded-t-3xl z-10">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-lg font-semibold text-gray-800">
+                        Released • {getYearLevelDisplayName(releasedModalGroup.year)} • Sec {getSectionDisplayName(releasedModalGroup.section, sectionMap)}
+                      </div>
+                      <div className="text-xs text-gray-500">{releasedModalGroup.items.length} records</div>
+                    </div>
                     <button
-                      onClick={() => printReleasedGrades()}
-                      className="px-4 py-2 rounded-lg text-sm font-semibold transition bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-md"
+                      onClick={() => setReleasedModalOpen(false)}
+                      className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center text-lg sm:text-xl font-bold text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-full transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-400"
+                      aria-label="Close"
                     >
-                      Print
+                      ×
                     </button>
-                    <button
-                      onClick={() => downloadReleasedGrades()}
-                      className="px-4 py-2 rounded-lg text-sm font-semibold transition bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:shadow-md"
-                    >
-                      Download CSV
-                    </button>
-                  <button
-                    onClick={handleHideReleasedGroup}
-                    disabled={releasedModalUpdating}
-                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${releasedModalUpdating ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : 'bg-gradient-to-r from-red-600 to-pink-600 text-white hover:shadow-md'}`}
-                  >
-                    {releasedModalUpdating ? 'Hiding…' : 'Hide All (Move back to Pending)'}
-                  </button>
+                  </div>
+                  <div className="flex items-center gap-3 justify-between mt-3">
+                    <div className="relative max-w-md flex-1">
+                      <input
+                        type="text"
+                        value={releasedModalSearch}
+                        onChange={(e) => setReleasedModalSearch(e.target.value)}
+                        placeholder="Search student by name..."
+                        className="w-full h-10 px-4 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => printReleasedGrades()}
+                        className="px-4 py-2 rounded-lg text-sm font-semibold transition bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-md"
+                      >
+                        Print
+                      </button>
+                      <button
+                        onClick={() => downloadReleasedGrades()}
+                        className="px-4 py-2 rounded-lg text-sm font-semibold transition bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:shadow-md"
+                      >
+                        Download CSV
+                      </button>
+                      <button
+                        onClick={handleHideReleasedGroup}
+                        disabled={releasedModalUpdating}
+                        className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${releasedModalUpdating ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : 'bg-gradient-to-r from-red-600 to-pink-600 text-white hover:shadow-md'}`}
+                      >
+                        {releasedModalUpdating ? 'Hiding…' : 'Hide All (Move back to Pending)'}
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div className="max-h-[60vh] overflow-y-auto">
+
+                {/* Scrollable Content */}
+                <div className="flex-1 overflow-y-auto p-3 sm:p-4">
                 <table className="w-full">
                   <thead className="bg-gray-50 text-xs uppercase text-gray-500">
                     <tr>
@@ -4111,21 +4123,22 @@ export default function StudentGrades() {
                       ))}
                   </tbody>
                 </table>
-              </div>
-              <div className="px-6 py-3 border-t border-gray-200 flex items-center justify-between">
-                <div className="text-xs text-gray-500">
-                  {releasedModalGroup.items.length} released • {getYearLevelDisplayName(releasedModalGroup.year)} • Sec {getSectionDisplayName(releasedModalGroup.section, sectionMap)}
+                </div>
+                <div className="px-6 py-3 border-t border-gray-200 flex items-center justify-between">
+                  <div className="text-xs text-gray-500">
+                    {releasedModalGroup.items.length} released • {getYearLevelDisplayName(releasedModalGroup.year)} • Sec {getSectionDisplayName(releasedModalGroup.section, sectionMap)}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          </>, document.body
         )}
         {/* Header */}
         <div 
           className="px-8 py-6 rounded-3xl mb-8 text-white"
           style={{
             background: '#00171f',
-            boxShadow: '20px 20px 40px rgba(0, 23, 31, 0.4), -20px -20px 40px rgba(0, 167, 225, 0.1), inset 1px 1px 2px rgba(255, 255, 255, 0.1)',
+            boxShadow: '4px 4px 8px rgba(164, 158, 158, 0.1), -4px -4px 8px rgba(255, 255, 255, 0.03), inset 1px 1px 2px rgba(255, 255, 255, 0.05)',
             border: '1px solid rgba(0, 167, 225, 0.2)'
           }}
         >
@@ -4156,7 +4169,7 @@ export default function StudentGrades() {
             className="rounded-3xl p-6 transition-all duration-300 hover:scale-[1.02]"
             style={{
               background: 'linear-gradient(145deg, #00a7e1 0%, #0088b8 100%)',
-              boxShadow: '12px 12px 24px rgba(0, 0, 0, 0.4), -12px -12px 24px rgba(255, 255, 255, 0.1), inset 1px 1px 2px rgba(255, 255, 255, 0.2)',
+              boxShadow: '3px 3px 6px rgba(0, 0, 0, 0.1), -3px -3px 6px rgba(255, 255, 255, 0.03), inset 1px 1px 2px rgba(255, 255, 255, 0.1)',
               border: '1px solid rgba(255, 255, 255, 0.3)'
             }}
           >
@@ -4184,7 +4197,7 @@ export default function StudentGrades() {
             className="rounded-3xl p-6 transition-all duration-300 hover:scale-[1.02]"
             style={{
               background: 'linear-gradient(145deg, #00a7e1 0%, #0088b8 100%)',
-              boxShadow: '12px 12px 24px rgba(0, 0, 0, 0.4), -12px -12px 24px rgba(255, 255, 255, 0.1), inset 1px 1px 2px rgba(255, 255, 255, 0.2)',
+              boxShadow: '3px 3px 6px rgba(0, 0, 0, 0.1), -3px -3px 6px rgba(255, 255, 255, 0.03), inset 1px 1px 2px rgba(255, 255, 255, 0.1)',
               border: '1px solid rgba(255, 255, 255, 0.3)'
             }}
           >
@@ -4212,7 +4225,7 @@ export default function StudentGrades() {
             className="rounded-3xl p-6 transition-all duration-300 hover:scale-[1.02]"
             style={{
               background: 'linear-gradient(145deg, #00a7e1 0%, #0088b8 100%)',
-              boxShadow: '12px 12px 24px rgba(0, 0, 0, 0.4), -12px -12px 24px rgba(255, 255, 255, 0.1), inset 1px 1px 2px rgba(255, 255, 255, 0.2)',
+              boxShadow: '3px 3px 6px rgba(0, 0, 0, 0.1), -3px -3px 6px rgba(255, 255, 255, 0.03), inset 1px 1px 2px rgba(255, 255, 255, 0.1)',
               border: '1px solid rgba(255, 255, 255, 0.3)'
             }}
           >
