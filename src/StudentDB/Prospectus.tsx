@@ -19,7 +19,7 @@ import {
 } from '@mui/material';
 import jsPDF from 'jspdf';
 import { motion } from 'framer-motion';
-import { FileText } from 'lucide-react';
+import { FileText, BookOpen, Smartphone } from 'lucide-react';
 
 interface EnrollmentSubject {
       id: string;
@@ -624,28 +624,49 @@ const Prospectus: React.FC = () => {
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 via-white to-purple-50 shadow-inner border border-blue-100"
+          className="relative overflow-hidden rounded-3xl mb-12"
+          style={{
+            backgroundColor: '#00171f',
+            boxShadow: '8px 8px 16px rgba(0, 0, 0, 0.4), -8px -8px 16px rgba(255, 255, 255, 0.05)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            transition: 'all 0.3s ease'
+          }}
         >
-          <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-4 py-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
-                  <FileText className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-xl font-bold text-white tracking-tight">Student Prospectus</h1>
-                  <p className="text-white/80 text-sm font-medium">View, download, and print your official Prospectus</p>
-                </div>
+          <div className="px-6 py-8">
+            <div className="flex items-center gap-4">
+              <div 
+                className="p-3 rounded-2xl"
+                style={{
+                  backgroundColor: '#00171f',
+                  boxShadow: '4px 4px 8px rgba(0, 0, 0, 0.3), -4px -4px 8px rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  transition: 'all 0.3s ease'
+                }}
+              >
+                <BookOpen className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-white tracking-tight">Student Prospectus</h2>
+                <p className="text-gray-300 text-sm font-medium mt-1">View, download, and print your official Prospectus</p>
               </div>
             </div>
           </div>
         </motion.div>
 
         {/* Section container with CTA button (matches screenshot) */}
-        <Card sx={{ mt: 2, borderRadius: 2 }}>
+        <Card 
+          sx={{ 
+            mt: 2, 
+            borderRadius: 3,
+            background: 'rgba(255, 255, 255, 0.9)',
+            boxShadow: '8px 8px 16px rgba(0,0,0,0.15), -8px -8px 16px rgba(255,255,255,0.7), inset 2px 2px 4px rgba(255,255,255,0.9), inset -2px -2px 4px rgba(0,0,0,0.1)',
+            border: '1px solid rgba(255,255,255,0.3)',
+            backdropFilter: 'blur(10px)'
+          }}
+        >
           <CardContent>
-            <Typography variant="h6" sx={{ fontWeight: 700, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Box sx={{ fontSize: '1.1rem' }}>📱</Box>
+            <Typography variant="h6" sx={{ fontWeight: 700, mb: 1, display: 'flex', alignItems: 'center', gap: 1, color: '#374151' }}>
+              <Smartphone size={18} />
               Mobile View
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
@@ -662,10 +683,15 @@ const Prospectus: React.FC = () => {
                 letterSpacing: 0.3,
                 textTransform: 'uppercase',
                 fontSize: '0.8rem',
-                background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                background: 'linear-gradient(135deg, #00A7E1',
                 color: 'white',
-                boxShadow: 'inset 0 -2px 0 rgba(255,255,255,0.25), 0 8px 20px rgba(79,70,229,0.35)',
-                '&:hover': { background: 'linear-gradient(135deg, #585cf0 0%, #7c3aed 100%)' }
+                boxShadow: 'inset 0 -2px 0 rgba(255,255,255,0.25), 0 8px 20px rgba(0,167,225,0.35)',
+                transition: 'all 0.3s ease',
+                '&:hover': { 
+                  background: 'linear-gradient(135deg, #0088b8 0%, #006a92 100%)',
+                  transform: 'translateY(-2px)',
+                  boxShadow: 'inset 0 -2px 0 rgba(255,255,255,0.25), 0 12px 25px rgba(0,167,225,0.4)'
+                }
               }}
             >
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
