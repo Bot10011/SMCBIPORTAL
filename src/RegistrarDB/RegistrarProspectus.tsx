@@ -333,12 +333,18 @@ const RegistrarProspectus: React.FC = () => {
   }
 
   return (
-    <Box sx={{ p: 3 }}>
+  <Box sx={{ p: 3 }}>
       {/* Header Section - consistent with Subjects Overview */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 rounded-2xl mb-6">
+      <div className="px-8 py-6 rounded-3xl text-white mb-6" style={{
+        background: 'linear-gradient(145deg, #00171f',
+        boxShadow: '8px 8px 16px rgba(255, 255, 255, 0.12), -8px -8px 16px rgba(255,255,255,0.7), inset 2px 2px 4px rgba(255,255,255,0.18), inset -2px -2px 4px rgba(0,0,0,0.08)',
+        border: '1px solid rgba(0,167,225,0.12)'
+      }}>
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
+            <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm" style={{
+              boxShadow: '2px 2px 4px rgba(0,0,0,0.08), -2px -2px 4px rgba(255,255,255,0.7)'
+            }}>
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-file-text w-6 h-6 text-white">
                 <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path>
                 <path d="M14 2v4a2 2 0 0 0 2 2h4"></path>
@@ -356,23 +362,30 @@ const RegistrarProspectus: React.FC = () => {
       </div>
 
       {/* Filters */}
-      <Card sx={{ mb: 3, borderRadius: 2 }}>
+      <Card sx={{ mb: 3, borderRadius: 2, boxShadow: '8px 8px 16px #e5e7eb, -8px -8px 16px #fff, inset 2px 2px 4px #fff, inset -2px -2px 4px #e5e7eb' }}>
         <CardContent sx={{ p: 3 }}>
           <Grid container spacing={3} alignItems="center">
             <Grid item xs={12} md={4}>
-              <TextField
-                fullWidth
-                placeholder="Search students..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <Search />
-                    </InputAdornment>
-                  ),
-                }}
-              />
+              <Box sx={{
+                borderRadius: 2,
+                boxShadow: '8px 8px 16px #e5e7eb, -8px -8px 16px #fff, inset 2px 2px 4px #fff, inset -2px -2px 4px #e5e7eb',
+                background: 'inherit',
+                p: 0.5
+              }}>
+                <TextField
+                  fullWidth
+                  placeholder="Search students..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Search />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Box>
             </Grid>
             <Grid item xs={12} md={2}>
               <TextField
@@ -434,9 +447,13 @@ const RegistrarProspectus: React.FC = () => {
       </Card>
 
       {/* Students Table */}
-      <Card sx={{ borderRadius: 2 }}>
+      <Card sx={{ borderRadius: 2, boxShadow: '8px 8px 16px #e5e7eb, -8px -8px 16px #fff, inset 2px 2px 4px #fff, inset -2px -2px 4px #e5e7eb' }}>
         <CardContent sx={{ p: 0 }}>
-          <TableContainer>
+          <TableContainer sx={{
+            borderRadius: 2,
+            boxShadow: '8px 8px 16px #e5e7eb, -8px -8px 16px #fff, inset 2px 2px 4px #fff, inset -2px -2px 4px #e5e7eb',
+            background: 'inherit'
+          }}>
             <Table>
               <TableHead>
                 <TableRow sx={{ background: '#f9fafb' }}>
@@ -455,12 +472,15 @@ const RegistrarProspectus: React.FC = () => {
                     key={student.id}
                     sx={{ 
                       '&:hover': { background: '#f0f9ff' },
-                      transition: 'background-color 0.2s ease'
+                      transition: 'background-color 0.2s ease',
+                      boxShadow: '4px 4px 8px #e5e7eb, -4px -4px 8px #fff, inset 1px 1px 2px #fff, inset -1px -1px 2px #e5e7eb',
+                      borderRadius: 2,
+                      background: 'inherit'
                     }}
                   >
                     <TableCell>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                        <Avatar sx={{ bgcolor: '#3b82f6', width: 40, height: 40 }}>
+                        <Avatar sx={{ bgcolor: '#3b82f6', width: 40, height: 40, boxShadow: '2px 2px 6px #e5e7eb, -2px -2px 6px #fff, inset 1px 1px 2px #fff, inset -1px -1px 2px #e5e7eb' }}>
                           {student.first_name?.[0]}{student.last_name?.[0]}
                         </Avatar>
                         <Box>
@@ -483,6 +503,7 @@ const RegistrarProspectus: React.FC = () => {
                         label={`${student.year_level}${student.year_level === 1 ? 'st' : student.year_level === 2 ? 'nd' : student.year_level === 3 ? 'rd' : 'th'} Year`}
                         color="primary"
                         size="small"
+                        sx={{ boxShadow: '2px 2px 6px #e5e7eb, -2px -2px 6px #fff, inset 1px 1px 2px #fff, inset -1px -1px 2px #e5e7eb' }}
                       />
                     </TableCell>
                     <TableCell>
@@ -490,6 +511,7 @@ const RegistrarProspectus: React.FC = () => {
                         label={student.student_type}
                         color={getStudentTypeColor(student.student_type) as any}
                         size="small"
+                        sx={{ boxShadow: '2px 2px 6px #e5e7eb, -2px -2px 6px #fff, inset 1px 1px 2px #fff, inset -1px -1px 2px #e5e7eb' }}
                       />
                     </TableCell>
                     <TableCell>
@@ -502,22 +524,24 @@ const RegistrarProspectus: React.FC = () => {
                         label={student.enrollment_status || 'Not Enrolled'}
                         color={getEnrollmentStatusColor(student.enrollment_status || 'not enrolled') as any}
                         size="small"
+                        sx={{ boxShadow: '2px 2px 6px #e5e7eb, -2px -2px 6px #fff, inset 1px 1px 2px #fff, inset -1px -1px 2px #e5e7eb' }}
                       />
                     </TableCell>
                     <TableCell>
-                                             <Button
-                         variant="outlined"
-                         size="small"
-                         startIcon={<MenuBook />}
-                         onClick={() => handleOpenProspectusModal(student)}
-                         sx={{ 
-                           borderRadius: 2,
-                           textTransform: 'none',
-                           fontWeight: 600
-                         }}
-                       >
-                         View Prospectus
-                       </Button>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<MenuBook />}
+                        onClick={() => handleOpenProspectusModal(student)}
+                        sx={{ 
+                          borderRadius: 2,
+                          textTransform: 'none',
+                          fontWeight: 600,
+                          boxShadow: '2px 2px 6px #e5e7eb, -2px -2px 6px #fff, inset 1px 1px 2px #fff, inset -1px -1px 2px #e5e7eb'
+                        }}
+                      >
+                        View Prospectus
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -1075,11 +1099,22 @@ const RegistrarProspectus: React.FC = () => {
                                     const hasGrades = subjectGrades.prelim_grade !== null || subjectGrades.midterm_grade !== null || subjectGrades.final_grade !== null;
                                     if (hasGrades) {
                                       const averageGrade = calculateAverageGrade(subjectGrades.prelim_grade || null, subjectGrades.midterm_grade || null, subjectGrades.final_grade || null);
-                                      return (<Box sx={{ fontSize: '0.875rem', fontWeight: 700, color: '#b45309', background: '#fffbeb', px: 1.5, py: 0.5, borderRadius: 1, border: '1px solid #f59e0b' }}>{averageGrade}</Box>);
+                                      return (<Box sx={{ fontSize: '0.875rem', fontWeight: 700, color: '#92400e', background: '#fffbeb', px: 1.5, py: 0.5, borderRadius: 1, border: '1px solid #f59e0b' }}>{averageGrade}</Box>);
                                     }
                                   }
                                   return (<Box sx={{ fontSize: '0.75rem', color: '#6b7280', fontStyle: 'italic' }}>No grades</Box>);
                                 })()}
+                              </TableCell>
+                              <TableCell sx={{ textAlign: 'center' }}>
+                                {subject.prerequisites && subject.prerequisites.length > 0 ? (
+                                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, justifyContent: 'center' }}>
+                                    {subject.prerequisites.map((prereq: string, idx: number) => (
+                                      <Chip key={idx} label={prereq} size="small" sx={{ fontSize: '0.7rem', height: '20px', background: '#fef3c7', color: '#92400e', border: '1px solid #f59e0b' }} />
+                                    ))}
+                                  </Box>
+                                ) : (
+                                  <Box sx={{ fontSize: '0.75rem', color: '#9ca3af', fontStyle: 'italic' }}>None</Box>
+                                )}
                               </TableCell>
                             </TableRow>
                           ))}
