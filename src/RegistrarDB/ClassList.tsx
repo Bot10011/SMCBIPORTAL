@@ -1,5 +1,6 @@
 // src/RegistrarDB/ClassList.tsx
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
 import { Search, RefreshCw, Download, ChevronDown, ChevronUp } from 'lucide-react';
 import jsPDF from 'jspdf';
@@ -581,172 +582,214 @@ const ClassList: React.FC = () => {
             </div>
         </div>
       )}
+      
       {/* View Section Modal */}
-      {showViewModal && viewingSection && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setShowViewModal(false)} />
-          <div className="relative z-10 w-[95vw] max-w-4xl rounded-xl bg-white p-5 shadow-2xl max-h-[85vh] overflow-y-auto">
-            <div className="mb-3 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <h3 className="text-base font-semibold text-gray-800">Section: {viewingSection.name}</h3>
-                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">Year {viewingSection.year_level ?? '—'}</span>
-                {viewingSection.academic_year && (
-                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">AY {viewingSection.academic_year}</span>
-                )}
+      {showViewModal && viewingSection && createPortal(
+        <>
+          {/* Full screen overlay with click handler */}
+          <div 
+            className="fixed inset-0 z-[99999] bg-black bg-opacity-60 backdrop-blur-sm"
+            onClick={() => setShowViewModal(false)}
+            style={{ 
+              pointerEvents: 'auto',
+              userSelect: 'none',
+              touchAction: 'none'
+            }}
+          />
+          
+          {/* Modal container */}
+          <div
+            className="fixed inset-0 z-[100000] flex items-center justify-center p-2 sm:p-4"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setShowViewModal(false);
+              }
+            }}
+            style={{ 
+              minHeight: '100vh',
+              pointerEvents: 'auto'
+            }}
+          >
+            <div 
+              className="bg-white/90 rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-4xl lg:max-w-5xl relative mx-2 sm:mx-4 flex flex-col"
+              style={{ 
+                maxHeight: '90vh', 
+                boxSizing: 'border-box',
+                pointerEvents: 'auto'
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="bg-white/90 backdrop-blur-sm border-b border-gray-200 p-4 rounded-t-2xl sm:rounded-t-3xl">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-semibold text-gray-800">Section: {viewingSection.name}</h3>
+                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">Year {viewingSection.year_level ?? '—'}</span>
+                    {viewingSection.academic_year && (
+                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">AY {viewingSection.academic_year}</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={generateClassListPDF}
+                      className="inline-flex items-center gap-2 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
+                    >
+                      <Download className="h-4 w-4" />
+                      Download PDF
+                    </button>
+                    <button
+                      onClick={() => setShowViewModal(false)}
+                      className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center text-lg sm:text-xl font-bold text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-full transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-400"
+                      aria-label="Close"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={generateClassListPDF}
-                  className="inline-flex items-center gap-2 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
-                >
-                  <Download className="h-4 w-4" />
-                  Download PDF
-                </button>
-                <button
-                  onClick={() => setShowViewModal(false)}
-                  className="rounded-md bg-gray-100 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-200"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-            {sectionStudentsLoading ? (
-              <div className="rounded border border-gray-200 bg-white p-6 text-gray-600">Loading…</div>
-            ) : (
-              <div className="space-y-6">
-                {/* Male Students Table */}
-                {(() => {
-                  const maleStudents = sectionStudents.filter(s => s.gender === 'Male');
-                  return maleStudents.length > 0 && (
-                    <div className="mb-6">
-                      <div className="mb-3 flex items-center gap-2">
-                        <h4 className="text-sm font-semibold text-blue-700">Male Students ({maleStudents.length})</h4>
-                        <div className="h-px flex-1 bg-blue-200"></div>
-                      </div>
-                      <div className="overflow-x-auto rounded-lg border border-blue-200 bg-blue-50/30">
-                        <table className="min-w-full table-fixed divide-y divide-blue-200">
-                          <colgroup>
-                            <col className="w-40" />
-                            <col className="w-[22rem]" />
-                            <col className="w-[26rem]" />
-                            <col className="w-24" />
-                          </colgroup>
-                          <thead className="bg-blue-100">
-                            <tr>
-                              <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-blue-800">Student No.</th>
-                              <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-blue-800">Name</th>
-                              <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-blue-800">Email</th>
-                              <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-blue-800">Year</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-blue-200 bg-white">
-                            {maleStudents.map((s, idx) => (
-                              <tr key={s.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-blue-50/50'}>
-                                <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900">{s.student_id || '—'}</td>
-                                <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900 truncate">{s.last_name}, {s.first_name}{s.middle_name ? ` ${s.middle_name}` : ''}</td>
-                                <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700 truncate">{s.email}</td>
-                                <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700">{s.year_level ?? '—'}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  );
-                })()}
+              
+              {/* Scrollable Content */}
+              <div className="flex-1 overflow-y-auto p-4">
+                {sectionStudentsLoading ? (
+                  <div className="rounded border border-gray-200 bg-white p-6 text-gray-600">Loading…</div>
+                ) : (
+                  <div className="space-y-6">
+                    {/* Male Students Table */}
+                    {(() => {
+                      const maleStudents = sectionStudents.filter(s => s.gender === 'Male');
+                      return maleStudents.length > 0 && (
+                        <div className="mb-6">
+                          <div className="mb-3 flex items-center gap-2">
+                            <h4 className="text-sm font-semibold text-blue-700">Male Students ({maleStudents.length})</h4>
+                            <div className="h-px flex-1 bg-blue-200"></div>
+                          </div>
+                          <div className="overflow-x-auto rounded-lg border border-blue-200 bg-blue-50/30">
+                            <table className="min-w-full table-fixed divide-y divide-blue-200">
+                              <colgroup>
+                                <col className="w-40" />
+                                <col className="w-[22rem]" />
+                                <col className="w-[26rem]" />
+                                <col className="w-24" />
+                              </colgroup>
+                              <thead className="bg-blue-100">
+                                <tr>
+                                  <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-blue-800">Student No.</th>
+                                  <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-blue-800">Name</th>
+                                  <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-blue-800">Email</th>
+                                  <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-blue-800">Year</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-blue-200 bg-white">
+                                {maleStudents.map((s, idx) => (
+                                  <tr key={s.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-blue-50/50'}>
+                                    <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900">{s.student_id || '—'}</td>
+                                    <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900 truncate">{s.last_name}, {s.first_name}{s.middle_name ? ` ${s.middle_name}` : ''}</td>
+                                    <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700 truncate">{s.email}</td>
+                                    <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700">{s.year_level ?? '—'}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      );
+                    })()}
 
-                {/* Female Students Table */}
-                {(() => {
-                  const femaleStudents = sectionStudents.filter(s => s.gender === 'Female');
-                  return femaleStudents.length > 0 && (
-                    <div className="mb-6">
-                      <div className="mb-3 flex items-center gap-2">
-                        <h4 className="text-sm font-semibold text-pink-700">Female Students ({femaleStudents.length})</h4>
-                        <div className="h-px flex-1 bg-pink-200"></div>
-                      </div>
-                      <div className="overflow-x-auto rounded-lg border border-pink-200 bg-pink-50/30">
-                        <table className="min-w-full table-fixed divide-y divide-pink-200">
-                          <colgroup>
-                            <col className="w-40" />
-                            <col className="w-[22rem]" />
-                            <col className="w-[26rem]" />
-                            <col className="w-24" />
-                          </colgroup>
-                          <thead className="bg-pink-100">
-                            <tr>
-                              <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-pink-800">Student No.</th>
-                              <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-pink-800">Name</th>
-                              <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-pink-800">Email</th>
-                              <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-pink-800">Year</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-pink-200 bg-white">
-                            {femaleStudents.map((s, idx) => (
-                              <tr key={s.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-pink-50/50'}>
-                                <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900">{s.student_id || '—'}</td>
-                                <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900 truncate">{s.last_name}, {s.first_name}{s.middle_name ? ` ${s.middle_name}` : ''}</td>
-                                <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700 truncate">{s.email}</td>
-                                <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700">{s.year_level ?? '—'}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  );
-                })()}
+                    {/* Female Students Table */}
+                    {(() => {
+                      const femaleStudents = sectionStudents.filter(s => s.gender === 'Female');
+                      return femaleStudents.length > 0 && (
+                        <div className="mb-6">
+                          <div className="mb-3 flex items-center gap-2">
+                            <h4 className="text-sm font-semibold text-pink-700">Female Students ({femaleStudents.length})</h4>
+                            <div className="h-px flex-1 bg-pink-200"></div>
+                          </div>
+                          <div className="overflow-x-auto rounded-lg border border-pink-200 bg-pink-50/30">
+                            <table className="min-w-full table-fixed divide-y divide-pink-200">
+                              <colgroup>
+                                <col className="w-40" />
+                                <col className="w-[22rem]" />
+                                <col className="w-[26rem]" />
+                                <col className="w-24" />
+                              </colgroup>
+                              <thead className="bg-pink-100">
+                                <tr>
+                                  <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-pink-800">Student No.</th>
+                                  <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-pink-800">Name</th>
+                                  <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-pink-800">Email</th>
+                                  <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-pink-800">Year</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-pink-200 bg-white">
+                                {femaleStudents.map((s, idx) => (
+                                  <tr key={s.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-pink-50/50'}>
+                                    <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900">{s.student_id || '—'}</td>
+                                    <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900 truncate">{s.last_name}, {s.first_name}{s.middle_name ? ` ${s.middle_name}` : ''}</td>
+                                    <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700 truncate">{s.email}</td>
+                                    <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700">{s.year_level ?? '—'}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      );
+                    })()}
 
-                {/* Other/Unknown Gender Students Table */}
-                {(() => {
-                  const otherStudents = sectionStudents.filter(s => s.gender && s.gender !== 'Male' && s.gender !== 'Female');
-                  return otherStudents.length > 0 && (
-                    <div className="mb-6">
-                      <div className="mb-3 flex items-center gap-2">
-                        <h4 className="text-sm font-semibold text-gray-700">Other ({otherStudents.length})</h4>
-                        <div className="h-px flex-1 bg-gray-200"></div>
-                      </div>
-                      <div className="overflow-x-auto rounded-lg border border-gray-200 bg-gray-50/30">
-                        <table className="min-w-full table-fixed divide-y divide-gray-200">
-                          <colgroup>
-                            <col className="w-40" />
-                            <col className="w-[22rem]" />
-                            <col className="w-[26rem]" />
-                            <col className="w-24" />
-                          </colgroup>
-                          <thead className="bg-gray-100">
-                            <tr>
-                              <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-800">Student No.</th>
-                              <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-800">Name</th>
-                              <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-800">Email</th>
-                              <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-800">Year</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-200 bg-white">
-                            {otherStudents.map((s, idx) => (
-                              <tr key={s.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
-                                <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900">{s.student_id || '—'}</td>
-                                <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900 truncate">{s.last_name}, {s.first_name}{s.middle_name ? ` ${s.middle_name}` : ''}</td>
-                                <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700 truncate">{s.email}</td>
-                                <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700">{s.year_level ?? '—'}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  );
-                })()}
+                    {/* Other/Unknown Gender Students Table */}
+                    {(() => {
+                      const otherStudents = sectionStudents.filter(s => s.gender && s.gender !== 'Male' && s.gender !== 'Female');
+                      return otherStudents.length > 0 && (
+                        <div className="mb-6">
+                          <div className="mb-3 flex items-center gap-2">
+                            <h4 className="text-sm font-semibold text-gray-700">Other ({otherStudents.length})</h4>
+                            <div className="h-px flex-1 bg-gray-200"></div>
+                          </div>
+                          <div className="overflow-x-auto rounded-lg border border-gray-200 bg-gray-50/30">
+                            <table className="min-w-full table-fixed divide-y divide-gray-200">
+                              <colgroup>
+                                <col className="w-40" />
+                                <col className="w-[22rem]" />
+                                <col className="w-[26rem]" />
+                                <col className="w-24" />
+                              </colgroup>
+                              <thead className="bg-gray-100">
+                                <tr>
+                                  <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-800">Student No.</th>
+                                  <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-800">Name</th>
+                                  <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-800">Email</th>
+                                  <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-800">Year</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-200 bg-white">
+                                {otherStudents.map((s, idx) => (
+                                  <tr key={s.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
+                                    <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900">{s.student_id || '—'}</td>
+                                    <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-900 truncate">{s.last_name}, {s.first_name}{s.middle_name ? ` ${s.middle_name}` : ''}</td>
+                                    <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700 truncate">{s.email}</td>
+                                    <td className="whitespace-nowrap px-4 py-2 text-[13px] text-gray-700">{s.year_level ?? '—'}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      );
+                    })()}
 
-                {/* No Students Message */}
-                {sectionStudents.length === 0 && (
-                  <div className="rounded border border-gray-200 bg-white p-6 text-center text-gray-600">
-                    No students assigned yet.
+                    {/* No Students Message */}
+                    {sectionStudents.length === 0 && (
+                      <div className="rounded border border-gray-200 bg-white p-6 text-center text-gray-600">
+                        No students assigned yet.
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
-            )}
+            </div>
           </div>
-        </div>
+        </>, 
+        document.body
       )}
     </div>
   );
