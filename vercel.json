@@ -39,7 +39,8 @@
           "value": "nosniff"
         },
         {
-          "key": "X-Frame-Options"
+          "key": "X-Frame-Options",
+          "value": "DENY"
         },
         {
           "key": "X-XSS-Protection",
@@ -55,15 +56,19 @@
         },
         {
           "key": "Cross-Origin-Embedder-Policy",
-          "value": "unsafe-none"
+          "value": "require-corp"
         },
         {
           "key": "Cross-Origin-Opener-Policy",
-          "value": "same-origin-allow-popups"
+          "value": "same-origin"
         },
         {
           "key": "Cross-Origin-Resource-Policy",
-          "value": "cross-origin"
+          "value": "same-origin"
+        },
+        {
+          "key": "Clear-Site-Data",
+          "value": "\"cache\", \"cookies\", \"storage\""
         },
         {
           "key": "X-Permitted-Cross-Domain-Policies",
