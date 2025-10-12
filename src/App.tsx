@@ -17,7 +17,7 @@ import SupabaseAuthCallback from './components/SupabaseAuthCallback';
 // Import public components (not lazy loaded for immediate access)
 // Main landing page now sourced from nested Next.js-style directory
 import LandingPage from './LandingMain/src/app/page';
-
+import LegacyLanding from './MainLandingpage';
 import ClassicLanding from './LandingPage';
 // import Login from './Login';
 
@@ -220,7 +220,7 @@ const App: React.FC = () => {
             <Routes>
               {/* Public routes - no lazy loading for immediate access */}
               <Route path="/" element={<LandingPage />} />
-           
+              <Route path="/legacy" element={<LegacyLanding />} />
               {/* Make /login redirect to landing to prevent direct access */}
               <Route path="/login" element={<Navigate to="/" replace />} />
               {/* Classic landing page opened in new tab from CTAs */}
