@@ -95,7 +95,7 @@ const DashboardLoading: React.FC = () => (
         content: '';
         position: absolute;
         inset: 0;
-        width: 40%; 
+        width: 40%;
         left: -40%;
         background: linear-gradient(90deg, transparent, rgba(255,255,255,0.7), transparent);
         animation: shimmer 1.2s ease-in-out infinite;
