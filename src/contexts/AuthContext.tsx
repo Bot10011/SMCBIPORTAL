@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { User, UserRole, ROLE_PERMISSIONS } from '../types/auth';
 import { supabase, getGoogleAvatarUrl } from '../lib/supabase';
-import toast from 'react-hot-toast';
+import toast from 'react-hot-toast'; 
 import { clearGoogleClassroomConnection } from '../lib/services/googleClassroomService';
 
 type PermissionKey = Exclude<keyof typeof ROLE_PERMISSIONS[UserRole], 'canCreateUsers'>;
