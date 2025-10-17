@@ -16,7 +16,7 @@ import SupabaseAuthCallback from './components/SupabaseAuthCallback';
 
 // Import public components (not lazy loaded for immediate access)
 // Main landing page now sourced from nested Next.js-style directory
-import LandingPage from './LandingMain/src/app/page';
+
 import LegacyLanding from './MainLandingpage';
 import ClassicLanding from './LandingPage';
 // import Login from './Login';
